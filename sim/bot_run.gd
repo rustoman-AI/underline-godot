@@ -110,6 +110,12 @@ func _careful_ok(rows: Array) -> bool:
 		var peak := int(row.get("dis_max", 0))
 		if peak < 35 or peak > 55:
 			return false
+		var pop := int(row.get("pop40", 0))
+		if pop < 45 or pop > 70:
+			return false
+		var med := float(row.get("food_med", 0))
+		if med < 2.0 or med > 4.0:
+			return false
 	return weeks.size() >= 3
 
 

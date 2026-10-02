@@ -3,8 +3,8 @@
     {"id": "fix", "label": "Strip the workshop for a new belt", "cost": {"materials": 8}, "hope": 0},
     {"id": "lose", "label": "Let this crop die", "food": -18, "hope": -2}
   ]},
-  {"id": "refugees", "title": "People at the gate", "major": true, "min_week": 4, "weight": 2, "cooldown": 12, "text": "Four people are at the yard gate with a story about a collapse north of Atlantic Av.", "choices": [
-    {"id": "take", "label": "Take them in", "people": 4, "hope": 0, "discontent": 2},
+  {"id": "refugees", "title": "People at the gate", "major": true, "min_week": 6, "weight": 3, "cooldown": 10, "text": "A crowd is at the yard gate with a story about a collapse north of Atlantic Av.", "choices": [
+    {"id": "take", "label": "Take them in", "people": 5, "hope": 0, "discontent": 2},
     {"id": "turn", "label": "Turn them away", "hope": -4, "discontent": 1}
   ]},
   {"id": "clog", "title": "Charcoal beds clog", "major": false, "weight": 2, "cooldown": 8, "text": "The air filters are pulling dust. Someone has to open the stacks.", "choices": [

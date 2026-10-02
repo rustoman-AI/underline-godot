@@ -75,6 +75,9 @@ func _project(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "hydroponics"}
 	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
 		return {"kind": "build", "type": "air_filter"}
+	var spare := game.housing() - game.residents.size()
+	if game.build_possible("quarters") and (spare < 0 or (spare < 8 and game.food_buffer_weeks() > float(game.bal.growth_buffer))):
+		return {"kind": "build", "type": "quarters"}
 	if _sick(game) >= 1 and game.room_count("infirmary") == 0 and game.build_possible("infirmary"):
 		return {"kind": "build", "type": "infirmary"}
 	if game.week >= 16 and game.room_count("radio") == 0 and game.build_possible("radio"):
@@ -240,8 +243,9 @@ func _score_choice(game: Game, choice: Dictionary) -> int:
 			score += 8
 		else:
 			var spare := game.housing() - game.residents.size()
-			var surplus := game.output_of("food") - game.food_need()
-			if spare >= people + 4 and surplus >= 3 and int(game.stock.food) > game.food_need() * 3:
+			var new_need := Formulas.people_for(game.residents.size() + people, int(game.bal.food_per))
+			var weeks := float(game.stock.food) / float(maxi(1, new_need))
+			if spare >= people and weeks > float(game.bal.growth_buffer):
 				score += 6
 			else:
 				score -= 16

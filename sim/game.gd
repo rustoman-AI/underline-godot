@@ -258,6 +258,10 @@ func owned_count() -> int:
 	return _owned_by(player).size()
 
 
+func food_buffer_weeks() -> float:
+	return float(stock.food) / float(maxi(1, food_need()))
+
+
 func food_need() -> int:
 	var n := Formulas.people_for(residents.size(), int(bal.food_per))
 	if _law_on("rationing"):
@@ -2078,17 +2082,29 @@ func _spread_cough() -> void:
 				people[id].sick = 2
 
 
+func _growth_scale() -> float:
+	if hope < int(bal.growth_hope_low):
+		return float(bal.growth_scale_low)
+	if hope <= int(bal.growth_hope_high):
+		return float(bal.growth_scale_mid)
+	return float(bal.growth_scale_high)
+
+
 func _grow() -> void:
-	if hope <= int(bal.growth_hope):
-		return
 	if residents.size() >= housing():
 		return
-	growth_bank += float(residents.size()) * float(bal.growth_rate)
+	if food_buffer_weeks() <= float(bal.growth_buffer):
+		return
+	growth_bank += float(residents.size()) * float(bal.growth_rate) * _growth_scale()
+	var born := 0
 	var guard := 0
-	while growth_bank >= 1.0 and residents.size() < housing() and guard < 8:
+	while growth_bank >= 1.0 and residents.size() < housing() and food_buffer_weeks() > float(bal.growth_buffer) and guard < 6:
 		guard += 1
 		growth_bank -= 1.0
 		_hire(1)
+		born += 1
+	if born > 0:
+		_log("BORN %d" % born, true)
 
 
 func _is_council(id: String) -> bool:
@@ -2139,8 +2155,7 @@ func _roll_events() -> void:
 			if not _has_event(picked, str(ev2.id)):
 				picked.append(ev2)
 	for ev in picked:
-		pending.append(_copy(ev))
-		event_last[str(ev.id)] = week
+		_present_event(ev)
 	if picked.size() < 2:
 		var relax: Array = []
 		for ev in catalog.events:
@@ -2159,8 +2174,20 @@ func _roll_events() -> void:
 			var extra: Dictionary = _weighted(relax)
 			relax = _drop_id(relax, str(extra.id))
 			picked.append(extra)
-			pending.append(_copy(extra))
-			event_last[str(extra.id)] = week
+			_present_event(extra)
+
+
+func _present_event(ev: Dictionary) -> void:
+	var copy: Dictionary = _copy(ev)
+	if str(copy.id) == "refugees":
+		var n := rng.randi_range(int(bal.refugee_min), int(bal.refugee_max))
+		copy.text = "%d people are at the yard gate with a story about a collapse north of Atlantic Av." % n
+		for choice in copy.choices:
+			if str(choice.id) == "take":
+				choice.people = n
+				choice.label = "Take in %d" % n
+	pending.append(copy)
+	event_last[str(copy.id)] = week
 
 
 func _event_pool(major_only: bool) -> Array:
