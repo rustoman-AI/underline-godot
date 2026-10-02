@@ -57,6 +57,9 @@ var hope_totals := {}
 var dis_totals := {}
 var hope_samples: Array = []
 var last_net := {}
+var last_hope_delta := 0
+var last_dis_delta := 0
+var dis_week := {}
 var audit := false
 var rot_week := 0
 var event_last := {}
@@ -108,8 +111,11 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	hope_history = []
 	hope_totals = {}
 	dis_totals = {}
+	dis_week = {}
 	hope_samples = []
 	last_net = {}
+	last_hope_delta = 0
+	last_dis_delta = 0
 	_init_people()
 	_init_grid()
 	_init_map()
@@ -675,12 +681,22 @@ func _add_discontent(delta: int, source: String) -> void:
 	if applied == 0:
 		return
 	dis_totals[source] = int(dis_totals.get(source, 0)) + applied
+	dis_week[source] = int(dis_week.get(source, 0)) + applied
 
 
 func _flush_hope_week() -> void:
+	var hope_sum := 0
+	for key in hope_week:
+		hope_sum += int(hope_week[key])
+	var dis_sum := 0
+	for key in dis_week:
+		dis_sum += int(dis_week[key])
+	last_hope_delta = hope_sum
+	last_dis_delta = dis_sum
 	var row := {"week": week, "hope": hope, "deltas": hope_week.duplicate()}
 	hope_history.append(row)
 	hope_week = {}
+	dis_week = {}
 
 
 func _hope_avg() -> float:
@@ -1098,7 +1114,8 @@ func room_detail(uid: String) -> Dictionary:
 		"outputs": outputs,
 		"upgrade": int(room.upgrade),
 		"offline": bool(room.offline),
-		"formula": "base × min(%.1f, 1 + %.2f × %.0f skill above 1)" % [float(bal.output_cap), float(bal.skill_coef), extra],
+		"skill_extra": extra,
+		"multiplier": minf(float(bal.output_cap), 1.0 + float(bal.skill_coef) * extra),
 	}
 
 
