@@ -14,6 +14,7 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictio
 		return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
 	var game := Game.new()
 	game.setup(catalog, run_seed, weeks)
+	game.audit = true
 	var guard := 0
 	while game.over == "" and guard < weeks + 2:
 		guard += 1

@@ -57,6 +57,7 @@ var hope_totals := {}
 var dis_totals := {}
 var hope_samples: Array = []
 var last_net := {}
+var audit := false
 var rot_week := 0
 var event_last := {}
 
@@ -139,7 +140,7 @@ func end_week() -> void:
 	_night()
 	_finish_checks()
 	stats.min_decisions = mini(int(stats.min_decisions), decisions)
-	if decisions < 2 and over == "":
+	if audit and decisions < 2 and over == "":
 		errors.append("W%d decisions %d" % [week, decisions])
 	_invariants()
 	if over != "":
@@ -161,9 +162,17 @@ func apply(action: Dictionary) -> bool:
 		"event":
 			ok = _apply_event(action)
 		"build":
-			ok = _apply_build(str(action.get("type", "")))
+			ok = _apply_build(str(action.get("type", "")), int(action.get("level", -1)), int(action.get("cell", -1)))
 		"dig":
-			ok = _apply_dig(bool(action.get("space", false)))
+			ok = _apply_dig_action(action)
+		"upgrade":
+			ok = _apply_upgrade(str(action.get("room", "")))
+		"demolish":
+			ok = _apply_demolish(str(action.get("room", "")))
+		"assign":
+			ok = _apply_assign(str(action.get("person", "")), str(action.get("room", "")))
+		"unassign":
+			ok = _apply_unassign(str(action.get("person", "")))
 		"staff":
 			_auto_staff()
 			decisions += 1
@@ -809,21 +818,328 @@ func _room_ready(type: String) -> bool:
 
 # --- station actions ---
 
-func _apply_build(type: String) -> bool:
+func _apply_build(type: String, level: int = -1, cell: int = -1) -> bool:
 	if not build_possible(type):
 		return false
 	var defin: Dictionary = catalog.rooms[type]
-	var cell := _first_build_cell()
-	if cell.is_empty():
+	var spot: Dictionary = {}
+	if level >= 0:
+		var key := _ck(level, cell)
+		if not cells.has(key) or not _cell_buildable(cells[key]):
+			return false
+		spot = cells[key]
+	else:
+		spot = _first_build_cell()
+	if spot.is_empty():
 		return false
 	var workers := _pull_workers(int(bal.build_workers), "labor")
 	if workers.size() < int(bal.build_workers):
 		return false
 	stock.materials = int(stock.materials) - int(defin.materials)
-	build = {"type": type, "level": int(cell.level), "cell": int(cell.cell), "left": int(defin.build_turns), "workers": workers}
+	build = {"type": type, "level": int(spot.level), "cell": int(spot.cell), "left": int(defin.build_turns), "workers": workers}
 	decisions += 1
 	_log("BUILD %s" % defin.name)
 	return true
+
+
+func _apply_dig_action(action: Dictionary) -> bool:
+	if action.has("level"):
+		return _dig_at(int(action.level), int(action.cell))
+	return _apply_dig(bool(action.get("space", false)))
+
+
+func _dig_at(level: int, cell: int) -> bool:
+	var info := dig_preview(level, cell)
+	if not bool(info.ok):
+		return false
+	var key := _ck(level, cell)
+	var spot: Dictionary = cells[key]
+	var cost: Dictionary = _dig_cost(int(spot.level))
+	var workers := _pull_workers(int(cost.workers), "labor")
+	if workers.size() < int(cost.workers):
+		return false
+	stock.materials = int(stock.materials) - int(bal.dig_materials)
+	dig = {"level": level, "cell": cell, "left": int(cost.turns), "workers": workers}
+	decisions += 1
+	_log("DIG L%d C%d (%d turns)" % [level, cell, int(cost.turns)])
+	return true
+
+
+func dig_preview(level: int, cell: int) -> Dictionary:
+	var key := _ck(level, cell)
+	if not cells.has(key):
+		return {"ok": false, "reason": "No such cell.", "turns": 0, "workers": 0, "materials": int(bal.dig_materials)}
+	var spot: Dictionary = cells[key]
+	var cost := _dig_cost(level)
+	var info := {
+		"ok": false,
+		"reason": "",
+		"turns": int(cost.turns),
+		"workers": int(cost.workers),
+		"materials": int(bal.dig_materials),
+	}
+	if bool(spot.dug):
+		info.reason = "Already open."
+		return info
+	if not _beside_dug(spot):
+		info.reason = "Solid rock. Dig from a cell that touches an open one."
+		return info
+	if not dig.is_empty():
+		info.reason = "A crew is already digging."
+		return info
+	var reasons: PackedStringArray = []
+	if int(stock.materials) < int(bal.dig_materials):
+		reasons.append("Needs %d materials, the yard has %d." % [int(bal.dig_materials), int(stock.materials)])
+	if _free_count() < int(cost.workers):
+		reasons.append("Needs %d free people, %d are free." % [int(cost.workers), _free_count()])
+	info.reason = " ".join(reasons)
+	info.ok = reasons.is_empty()
+	return info
+
+
+func build_preview(type: String, level: int, cell: int) -> Dictionary:
+	var defin: Dictionary = catalog.rooms.get(type, {})
+	var info := {"ok": false, "reason": "", "materials": 0, "turns": 0, "workers": int(bal.build_workers), "power": 0, "name": type}
+	if defin.is_empty() or not bool(defin.get("buildable", false)):
+		info.reason = "That cannot be built."
+		return info
+	info.materials = int(defin.materials)
+	info.turns = int(defin.build_turns)
+	info.power = int(defin.get("power", 0))
+	info.name = str(defin.name)
+	var key := _ck(level, cell)
+	if not cells.has(key) or not _cell_buildable(cells[key]):
+		info.reason = "That cell is not an open, empty floor."
+		return info
+	var reasons: PackedStringArray = []
+	if not build.is_empty():
+		reasons.append("A room is already going up.")
+	if int(stock.materials) < int(defin.materials):
+		reasons.append("Needs %d materials, the yard has %d." % [int(defin.materials), int(stock.materials)])
+	if _free_count() < int(bal.build_workers):
+		reasons.append("Needs %d free people, %d are free." % [int(bal.build_workers), _free_count()])
+	info.reason = " ".join(reasons)
+	info.ok = reasons.is_empty()
+	return info
+
+
+func upgrade_preview(uid: String) -> Dictionary:
+	var room = _room(uid)
+	var info := {"ok": false, "reason": "", "materials": 0, "name": ""}
+	if room == null:
+		info.reason = "No such room."
+		return info
+	var defin: Dictionary = catalog.rooms[room.type]
+	var steps: Array = defin.get("upgrades", [])
+	info.materials = int(defin.get("upgrade_materials", 0))
+	if int(room.upgrade) >= steps.size():
+		info.reason = "Nothing left to upgrade."
+		return info
+	info.name = str(steps[int(room.upgrade)])
+	if bool(room.offline):
+		info.reason = "The room is offline."
+		return info
+	if int(stock.materials) < info.materials:
+		info.reason = "Needs %d materials, the yard has %d." % [info.materials, int(stock.materials)]
+		return info
+	info.ok = true
+	return info
+
+
+func demolish_preview(uid: String) -> Dictionary:
+	var room = _room(uid)
+	var info := {"ok": false, "reason": "", "refund": 0, "name": ""}
+	if room == null:
+		info.reason = "No such room."
+		return info
+	var defin: Dictionary = catalog.rooms[room.type]
+	info.name = str(defin.name)
+	if not bool(defin.get("buildable", false)):
+		info.reason = "The platform stays."
+		return info
+	if not build.is_empty() and int(build.level) == int(room.level) and int(build.cell) == int(room.cell):
+		info.reason = "A crew is still on this cell."
+		return info
+	info.refund = int(defin.materials) / 2
+	info.ok = true
+	return info
+
+
+func _apply_upgrade(uid: String) -> bool:
+	var info := upgrade_preview(uid)
+	if not bool(info.ok):
+		return false
+	var room = _room(uid)
+	stock.materials = int(stock.materials) - int(info.materials)
+	room.upgrade = int(room.upgrade) + 1
+	decisions += 1
+	_log("UPGRADE %s to %s" % [catalog.rooms[room.type].name, str(info.name)])
+	return true
+
+
+func _apply_demolish(uid: String) -> bool:
+	var info := demolish_preview(uid)
+	if not bool(info.ok):
+		return false
+	var room = _room(uid)
+	for id in room.staff.duplicate():
+		_unassign(str(id))
+	stock.materials = int(stock.materials) + int(info.refund)
+	cells[_ck(int(room.level), int(room.cell))].room = ""
+	var keep: Array = []
+	for other in rooms:
+		if str(other.uid) != uid:
+			keep.append(other)
+	rooms = keep
+	decisions += 1
+	_log("DEMOLISH %s, %d materials back" % [str(info.name), int(info.refund)])
+	return true
+
+
+func _apply_assign(person_id: String, uid: String) -> bool:
+	var info := assign_preview(person_id, uid)
+	if not bool(info.ok):
+		return false
+	_unassign(person_id)
+	var room = _room(uid)
+	room.staff.append(person_id)
+	decisions += 1
+	_log("ASSIGN %s to %s" % [people[person_id].name, catalog.rooms[room.type].name])
+	return true
+
+
+func _apply_unassign(person_id: String) -> bool:
+	if not people.has(person_id):
+		return false
+	_unassign(person_id)
+	decisions += 1
+	_log("UNASSIGN %s" % people[person_id].name)
+	return true
+
+
+func assign_preview(person_id: String, uid: String) -> Dictionary:
+	var info := {"ok": false, "reason": ""}
+	if not people.has(person_id):
+		info.reason = "No such resident."
+		return info
+	var room = _room(uid)
+	if room == null:
+		info.reason = "No such room."
+		return info
+	var person: Dictionary = people[person_id]
+	var defin: Dictionary = catalog.rooms[room.type]
+	if int(defin.staff_max) <= 0:
+		info.reason = "No one works this room."
+		return info
+	if bool(room.offline):
+		info.reason = "The room is offline."
+		return info
+	if int(person.sick) > 0 or int(person.absent) > 0:
+		info.reason = "%s cannot work right now." % person.name
+		return info
+	if _locked_ids().has(person_id):
+		info.reason = "%s is on a crew." % person.name
+		return info
+	var already := false
+	for id in room.staff:
+		if str(id) == person_id:
+			already = true
+	if not already and room.staff.size() >= int(defin.staff_max):
+		info.reason = "The room is fully staffed."
+		return info
+	info.ok = true
+	return info
+
+
+func room_detail(uid: String) -> Dictionary:
+	var room = _room(uid)
+	if room == null:
+		return {}
+	var defin: Dictionary = catalog.rooms[room.type]
+	var skill := str(defin.get("skill", ""))
+	var skills: Array = []
+	var staff: Array = []
+	for id in room.staff:
+		var person: Dictionary = people[str(id)]
+		var value := 0 if skill == "" else int(person.skills.get(skill, 1))
+		if int(person.sick) > 0 or int(person.absent) > 0:
+			value = 0
+		skills.append(value)
+		staff.append({
+			"id": str(id),
+			"name": str(person.name),
+			"skill": value,
+			"traits": ", ".join(person.traits),
+		})
+	var outputs: Array = []
+	var base: Dictionary = defin.base
+	for key in base:
+		var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+		var n := Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
+		if int(defin.staff_min) > 0 and room.staff.size() < int(defin.staff_min):
+			n = int(n / 2.0)
+		if bool(defin.get("decays", false)):
+			n = int(round(float(n) * float(room.efficiency)))
+		outputs.append({"key": str(key), "amount": n, "base": amount})
+	var extra := 0.0
+	for value in skills:
+		if float(value) > 1.0:
+			extra += float(value) - 1.0
+	return {
+		"uid": uid,
+		"type": str(room.type),
+		"name": str(defin.name),
+		"level": int(room.level),
+		"cell": int(room.cell),
+		"skill": skill,
+		"staff": staff,
+		"staff_max": int(defin.staff_max),
+		"power": int(defin.get("power", 0)),
+		"outputs": outputs,
+		"upgrade": int(room.upgrade),
+		"offline": bool(room.offline),
+		"formula": "base × min(%.1f, 1 + %.2f × %.0f skill above 1)" % [float(bal.output_cap), float(bal.skill_coef), extra],
+	}
+
+
+func candidates_for(uid: String) -> Array:
+	var room = _room(uid)
+	if room == null:
+		return []
+	var skill := str(catalog.rooms[room.type].get("skill", ""))
+	var rows: Array = []
+	for person in residents:
+		var id := str(person.id)
+		if _locked_ids().has(id) or int(person.sick) > 0 or int(person.absent) > 0:
+			continue
+		var value := 0 if skill == "" else int(person.skills.get(skill, 0))
+		var here := false
+		for sid in room.staff:
+			if str(sid) == id:
+				here = true
+		rows.append({"id": id, "name": str(person.name), "skill": value, "here": here, "traits": ", ".join(person.traits)})
+	rows.sort_custom(func(a, b): return int(a.skill) > int(b.skill))
+	return rows
+
+
+func buildable_types() -> Array:
+	var rows: Array = []
+	for type in catalog.rooms.keys():
+		var defin: Dictionary = catalog.rooms[type]
+		if bool(defin.get("buildable", false)):
+			rows.append(type)
+	return rows
+
+
+func week_notes() -> PackedStringArray:
+	var lines: PackedStringArray = []
+	for entry in log:
+		if int(entry.week) != week:
+			continue
+		var text := str(entry.text)
+		if text.begins_with("DAWN") or text.begins_with("INTENT") or text.begins_with("ULTIMATUM") or text.begins_with("SEASON") or text.begins_with("AGENT") or text.begins_with("SHORT") or text.begins_with("ROT") or text.begins_with("No warning"):
+			lines.append(text)
+	return lines
 
 
 func _apply_dig(for_space: bool) -> bool:
