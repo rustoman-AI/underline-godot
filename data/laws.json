@@ -1,0 +1,11 @@
+[
+  {"id": "engineers_charter", "name": "Engineers' Charter", "ideology": "depot", "repealable": false, "power": 2, "dig_faster": 1},
+  {"id": "rationing", "name": "Rationing", "repealable": true, "food_mult": 0.75, "hope_week": -1},
+  {"id": "double_shifts", "name": "Double shifts", "repealable": true, "prod_mult": 1.4, "sick_chance": 0.15},
+  {"id": "curfew", "name": "Curfew", "repealable": true, "discontent_week": -2, "hope_week": -1, "influence_mult": 0.9},
+  {"id": "sermons", "name": "Sermons", "repealable": true, "hope_week": 2, "synod": 4, "devout_hope": 1},
+  {"id": "open_market", "name": "Open market", "repealable": true, "tokens_week": 8, "discontent_week": 1},
+  {"id": "conscription", "name": "Conscription", "repealable": true, "squad_bonus": 4, "discontent_week": 1},
+  {"id": "tunnel_tax", "name": "Tunnel tax", "repealable": true, "tokens_week": 6, "opinion_on_enact": -5},
+  {"id": "ledger", "name": "The Ledger of the Dead", "repealable": false, "hope_on_enact": -5, "materials_on_enact": 12}
+]

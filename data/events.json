@@ -1,0 +1,50 @@
+[
+  {"id": "lamps", "title": "The grow lamps snap", "major": true, "min_week": 5, "max_week": 12, "weight": 4, "cooldown": 99, "text": "A belt on the hydroponic lamps snaps. The beds will fail if nobody climbs in.", "choices": [
+    {"id": "fix", "label": "Strip the workshop for a new belt", "cost": {"materials": 8}, "hope": 1},
+    {"id": "lose", "label": "Let this crop die", "food": -18, "hope": -2}
+  ]},
+  {"id": "refugees", "title": "People at the gate", "major": true, "min_week": 4, "weight": 2, "cooldown": 12, "text": "Four people are at the yard gate with a story about a collapse north of Atlantic Av.", "choices": [
+    {"id": "take", "label": "Take them in", "people": 4, "hope": 3, "discontent": 2},
+    {"id": "turn", "label": "Turn them away", "hope": -4, "discontent": 1}
+  ]},
+  {"id": "clog", "title": "Charcoal beds clog", "major": false, "weight": 2, "cooldown": 8, "text": "The air filters are pulling dust. Someone has to open the stacks.", "choices": [
+    {"id": "clean", "label": "Shut a filter and clean it", "cost": {"power": 4}, "air": -4, "hope": 1},
+    {"id": "run", "label": "Run it dirty", "discontent": 3, "efficiency": -0.08}
+  ]},
+  {"id": "quarrel", "title": "A quarrel on the platform", "major": false, "weight": 2, "cooldown": 6, "text": "Two crews are shouting about who ate the extra rations.", "choices": [
+    {"id": "hear", "label": "Hear both sides", "influence": -2, "discontent": -3},
+    {"id": "shut", "label": "Send them back to work", "discontent": 4, "hope": -1}
+  ]},
+  {"id": "preacher", "title": "A sermon in the passage", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "text": "Someone is preaching the Synod's line by the filter room. A few of yours are listening.", "choices": [
+    {"id": "allow", "label": "Let them speak", "hope": 2, "synod": 6, "trait_hope": {"Devout": 2}},
+    {"id": "stop", "label": "Break it up", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "smuggler", "title": "A crate with no stamp", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "text": "Benny's friends can move a crate through Bowling Green. No receipt.", "choices": [
+    {"id": "take", "label": "Take the crate", "tokens": 10, "discontent": 3, "trait_hope": {"Black marketeer": 1}},
+    {"id": "refuse", "label": "Send it back", "hope": 1, "opinion_exchange": -4}
+  ]},
+  {"id": "rumble", "title": "A rumble under the platform", "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "requires": "digging", "text": "The dig crew hits a hollow. Dust pours into the lower level.", "choices": [
+    {"id": "shore", "label": "Shore it up", "cost": {"materials": 4}, "hope": 1},
+    {"id": "push", "label": "Keep digging", "hope": -2, "sick": 1, "trait_absent": {"Claustrophobic": 2}}
+  ]},
+  {"id": "static", "title": "A voice in the static", "major": false, "min_week": 8, "weight": 1, "cooldown": 14, "text": "The radio, or a pipe that sounds like one, says a word twice: Floor.", "choices": [
+    {"id": "log", "label": "Write down every word", "papers": 1, "hope": 1},
+    {"id": "ignore", "label": "Ignore it", "hope": -1}
+  ]},
+  {"id": "market_food", "title": "Traders with sacks", "major": false, "min_week": 2, "weight": 3, "cooldown": 7, "text": "A handcar from the Exchange side is selling food. The price is posted, and it is not kind.", "choices": [
+    {"id": "buy", "label": "Buy the sacks", "cost": {"tokens": 12}, "food": 16},
+    {"id": "pass", "label": "Let them pass", "opinion_exchange": 2}
+  ]},
+  {"id": "desertion", "title": "Two bunks are empty", "major": false, "min_discontent": 40, "weight": 2, "cooldown": 10, "text": "Two residents walked into the tunnel toward the river. They left their tags.", "choices": [
+    {"id": "search", "label": "Send a crew after them", "cost": {"food": 4}, "hope": 1},
+    {"id": "let", "label": "Let them go", "people": -2, "discontent": -2, "hope": -3}
+  ]},
+  {"id": "wire", "title": "Spare cable in the yard", "major": false, "weight": 2, "cooldown": 8, "text": "Mara's crew pulls a spool of cable out of a sealed locker. It is Depot stock, forgotten.", "choices": [
+    {"id": "reel", "label": "Reel it into the workshop", "materials": 8},
+    {"id": "trade", "label": "Trade it down the line", "tokens": 8, "materials": 2}
+  ]},
+  {"id": "cough", "title": "A wet cough", "major": false, "min_week": 8, "weight": 2, "cooldown": 9, "text": "Three people on the platform are coughing into their sleeves.", "choices": [
+    {"id": "beds", "label": "Clear beds and lose a shift", "sick": 1, "hope": 1, "food": -4},
+    {"id": "work", "label": "Tell them to work through it", "sick": 3, "discontent": 2}
+  ]}
+]

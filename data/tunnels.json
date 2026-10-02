@@ -1,0 +1,18 @@
+[
+  {"a": "coney", "b": "botanic"},
+  {"a": "botanic", "b": "greenpoint"},
+  {"a": "botanic", "b": "atlantic"},
+  {"a": "atlantic", "b": "jay"},
+  {"a": "jay", "b": "high"},
+  {"a": "high", "b": "fulton", "flooded": true},
+  {"a": "fulton", "b": "chambers"},
+  {"a": "chambers", "b": "canal"},
+  {"a": "canal", "b": "spring"},
+  {"a": "spring", "b": "grand"},
+  {"a": "high", "b": "bowling"},
+  {"a": "bowling", "b": "wall"},
+  {"a": "wall", "b": "chambers"},
+  {"a": "fulton", "b": "bowling"},
+  {"id": "to_floor", "a": "jay", "b": "cityhall", "sealed": true},
+  {"id": "to_ferry", "a": "coney", "b": "southferry", "sealed": true}
+]

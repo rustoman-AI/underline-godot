@@ -1,0 +1,43 @@
+{
+  "depot": {
+    "name": "The Depot",
+    "short": "Depot",
+    "color": "#ff7a2f",
+    "capital": "coney",
+    "leader": "The Senior Driver",
+    "lean": "craft",
+    "law": "engineers_charter",
+    "agenda": "Restore power and tunnels; reach the surface by engineering."
+  },
+  "exchange": {
+    "name": "Free Exchange",
+    "short": "Exchange",
+    "color": "#ffd23f",
+    "capital": "wall",
+    "second": "bowling",
+    "leader": "Elder Soren",
+    "leader_title": "Voice of the Rate Council",
+    "lieutenant": "Broker Lin",
+    "traits": ["Greedy", "Honorable"],
+    "lean": "trade",
+    "opinion": 10,
+    "ambition": 8,
+    "squad": {"size": 8, "gear": 1.0, "fight": 2, "name": "Broker Lin"}
+  },
+  "directorate": {
+    "name": "Iron Directorate",
+    "short": "Directorate",
+    "color": "#ff4d5e",
+    "capital": "grand",
+    "second": "spring",
+    "leader": "Halden Voss",
+    "leader_title": "The Traffic Chief",
+    "lieutenant": "Captain Rhee",
+    "traits": ["Paranoid", "Vengeful"],
+    "lean": "order",
+    "opinion": -10,
+    "ambition": 12,
+    "squad": {"size": 14, "gear": 1.2, "fight": 4, "name": "Captain Rhee"},
+    "opinion_drift": -1
+  }
+}
