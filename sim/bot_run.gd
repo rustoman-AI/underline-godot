@@ -24,12 +24,21 @@ func _init() -> void:
 	print("")
 	_print_table("Expander", expander)
 	print("")
+	_print_hope(expander[0])
+	print("")
+	_print_dis(careful)
+	print("")
 	if not _careful_ok(careful):
 		failed = true
 		print("CAREFUL TARGET FAIL")
 		_print_failures(careful)
 	else:
 		print("Careful target: ok")
+	if not _hope_ok(careful, expander):
+		failed = true
+		print("HOPE TARGET FAIL")
+	else:
+		print("Hope target: ok")
 	if not _expander_ok(careful, expander):
 		failed = true
 		print("EXPANDER TARGET FAIL")
@@ -88,18 +97,28 @@ func _pop(row: Dictionary, key: String) -> String:
 
 
 func _careful_ok(rows: Array) -> bool:
-	var early := 0
+	var weeks := {}
 	for row in rows:
 		if not row.get("errors", []).is_empty():
 			return false
 		if str(row.get("over", "")) != "time":
 			return false
-		var med := float(row.get("food_med", 0))
-		if med < 2.0 or med > 4.0:
+		var first := int(row.get("first_shortage", 0))
+		if first < 5 or first > 10:
 			return false
-		if int(row.get("first_shortage", 0)) > 0 and int(row.first_shortage) <= 8:
-			early += 1
-	return early >= 3
+		weeks[first] = true
+		var peak := int(row.get("dis_max", 0))
+		if peak < 35 or peak > 55:
+			return false
+	return weeks.size() >= 3
+
+
+func _hope_ok(careful: Array, expander: Array) -> bool:
+	var lower := 0
+	for i in careful.size():
+		if float(expander[i].get("hope_avg", 99)) < float(careful[i].get("hope_avg", 0)):
+			lower += 1
+	return lower >= 4
 
 
 func _expander_ok(careful: Array, rows: Array) -> bool:
@@ -125,6 +144,36 @@ func _expander_ok(careful: Array, rows: Array) -> bool:
 	var more_unrest: bool = expander_unrest > careful_unrest * 1.25
 	var more_discontent: bool = expander_dis > careful_dis + 5.0 * float(rows.size())
 	return more_unrest or more_discontent
+
+
+func _print_hope(row: Dictionary) -> void:
+	print("Hope sources, expander seed %d (applied deltas)" % int(row.get("seed", 1)))
+	var totals: Dictionary = row.get("hope_sources", {})
+	var ranked: Array = []
+	for source in totals.keys():
+		ranked.append({"source": str(source), "total": int(totals[source])})
+	ranked.sort_custom(func(a, b): return absi(int(a.total)) > absi(int(b.total)))
+	for item in ranked:
+		print("  %-12s %+d" % [str(item.source), int(item.total)])
+	print("Per week:")
+	for entry in row.get("hope_history", []):
+		var bits: PackedStringArray = []
+		var deltas: Dictionary = entry.get("deltas", {})
+		for source in deltas.keys():
+			bits.append("%s %+d" % [str(source), int(deltas[source])])
+		if bits.is_empty():
+			bits.append("flat")
+		print("  W%02d hope %d  %s" % [int(entry.week), int(entry.hope), ", ".join(bits)])
+
+
+func _print_dis(rows: Array) -> void:
+	print("Discontent sources, careful")
+	for row in rows:
+		var totals: Dictionary = row.get("dis_sources", {})
+		var bits: PackedStringArray = []
+		for source in totals.keys():
+			bits.append("%s %+d" % [str(source), int(totals[source])])
+		print("  seed %d peak %d  %s" % [int(row.seed), int(row.dis_max), ", ".join(bits)])
 
 
 func _print_failures(rows: Array) -> void:

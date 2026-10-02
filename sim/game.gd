@@ -51,6 +51,13 @@ var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
 var growth_bank := 0.0
+var hope_week := {}
+var hope_history: Array = []
+var hope_totals := {}
+var dis_totals := {}
+var hope_samples: Array = []
+var last_net := {}
+var rot_week := 0
 var event_last := {}
 
 var catalog: Catalog
@@ -96,6 +103,12 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	}
 	food_buffers = []
 	growth_bank = 0.0
+	hope_week = {}
+	hope_history = []
+	hope_totals = {}
+	dis_totals = {}
+	hope_samples = []
+	last_net = {}
 	_init_people()
 	_init_grid()
 	_init_map()
@@ -108,6 +121,9 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		errors.append("stations %d" % stations.size())
 	if council.size() != 3:
 		errors.append("council %d" % council.size())
+	if errors.is_empty():
+		_check_opening_stores()
+		rot_week = rng.randi_range(int(bal.rot_min_week), int(bal.rot_max_week))
 	if errors.is_empty():
 		telegraphed = _plan_intents()
 		_dawn()
@@ -215,6 +231,11 @@ func report() -> Dictionary:
 		"pop40": int(stats.pop40),
 		"unrest_weeks": int(stats.unrest_weeks),
 		"stations": owned_count(),
+		"hope_end": hope,
+		"hope_avg": _hope_avg(),
+		"hope_sources": hope_totals.duplicate(),
+		"dis_sources": dis_totals.duplicate(),
+		"hope_history": hope_history.duplicate(),
 	}
 
 
@@ -393,6 +414,13 @@ func _night() -> void:
 		_cough_pull_workers()
 		_pull_sick_from_rooms()
 	var produced := _tally()
+	var swing := int(bal.get("harvest_swing", 0))
+	var bias := int(bal.get("harvest_bias", 0))
+	if swing > 0 or bias != 0:
+		produced.food = maxi(0, int(produced.food) + bias + (rng.randi_range(-swing, swing) if swing > 0 else 0))
+	var before := {}
+	for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+		before[key] = int(stock.get(key, 0))
 	for key in produced:
 		stock[key] = int(stock.get(key, 0)) + int(produced[key])
 	if _law_on("engineers_charter"):
@@ -404,18 +432,19 @@ func _night() -> void:
 	_spoil_flood_stores()
 	_clamp_storage()
 	_spoil_food()
+	_rot_stores()
 	var need_power := _power_need()
 	if _season_is("cold"):
 		need_power *= 2
 	if quarantine:
-		hope = maxi(0, hope - 1)
+		_add_hope(-1, "quarantine")
 	var week_short := false
 	var food_short := maxi(0, food_need() - int(stock.food))
 	var air_short := maxi(0, air_need() - int(stock.air))
 	stock.food = maxi(0, int(stock.food) - food_need())
 	stock.air = maxi(0, int(stock.air) - air_need())
 	if food_short > 0 or air_short > 0:
-		hope = maxi(0, hope - 5)
+		_add_hope(int(bal.shortage_hope), "shortage")
 		var people_short := food_short * int(bal.food_per) + air_short * int(bal.air_per)
 		var deaths := int(people_short / 10)
 		week_short = true
@@ -425,8 +454,8 @@ func _night() -> void:
 	var power_short := maxi(0, need_power - int(stock.power))
 	stock.power = maxi(0, int(stock.power) - need_power)
 	if power_short > 0:
-		hope = maxi(0, hope - 2)
-		discontent = mini(100, discontent + 3)
+		_add_hope(int(bal.power_shortage_hope), "power")
+		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
 		_log("SHORT power %d" % power_short, true)
 	if week_short:
@@ -442,9 +471,13 @@ func _night() -> void:
 	if _law_on("double_shifts"):
 		_double_shift_sickness()
 	_apply_flood_if_needed()
+	_season_mood()
+	_rival_agents()
 	if residents.size() > housing():
-		discontent = mini(100, discontent + int(bal.overcrowd_discontent))
-	hope = clampi(hope + int(bal.hope_drift), 0, 100)
+		_add_discontent(int(bal.overcrowd_discontent), "overcrowd")
+	_add_hope(int(bal.hope_drift), "drift")
+	for key in before:
+		last_net[key] = int(stock.get(key, 0)) - int(before[key])
 	_tick_holdings()
 	_drift_opinion()
 	for fid in ambition:
@@ -482,6 +515,7 @@ func _finish_checks() -> void:
 		over = "revolt"
 		_log("REVOLT the platform turns on you", true)
 	_sample_meters()
+	_flush_hope_week()
 
 
 # --- production ---
@@ -608,6 +642,97 @@ func _sample_meters() -> void:
 	stats.hope_max = maxi(int(stats.hope_max), hope)
 	stats.dis_min = mini(int(stats.dis_min), discontent)
 	stats.dis_max = maxi(int(stats.dis_max), discontent)
+	hope_samples.append(hope)
+
+
+func _add_hope(delta: int, source: String) -> void:
+	if delta == 0:
+		return
+	var before := hope
+	hope = clampi(hope + delta, 0, 100)
+	var applied := hope - before
+	if applied == 0:
+		return
+	hope_totals[source] = int(hope_totals.get(source, 0)) + applied
+	hope_week[source] = int(hope_week.get(source, 0)) + applied
+
+
+func _add_discontent(delta: int, source: String) -> void:
+	if delta == 0:
+		return
+	var before := discontent
+	discontent = clampi(discontent + delta, 0, 100)
+	var applied := discontent - before
+	if applied == 0:
+		return
+	dis_totals[source] = int(dis_totals.get(source, 0)) + applied
+
+
+func _flush_hope_week() -> void:
+	var row := {"week": week, "hope": hope, "deltas": hope_week.duplicate()}
+	hope_history.append(row)
+	hope_week = {}
+
+
+func _hope_avg() -> float:
+	if hope_samples.is_empty():
+		return float(hope)
+	var sum := 0
+	for value in hope_samples:
+		sum += int(value)
+	return float(sum) / float(hope_samples.size())
+
+
+func _check_opening_stores() -> void:
+	for key in ["food", "air", "materials"]:
+		var cap := storage_cap(key)
+		var have := int(stock.get(key, 0))
+		if have > cap:
+			errors.append("start %s %d over cap %d" % [key, have, cap])
+			continue
+		if cap <= 0:
+			errors.append("no %s cap" % key)
+			continue
+		var share := float(have) / float(cap)
+		if share < 0.55 or share > 0.75:
+			errors.append("start %s is %d%% of cap %d" % [key, int(round(share * 100.0)), cap])
+
+
+func _season_mood() -> void:
+	if active_season.is_empty():
+		return
+	var id := str(active_season.id)
+	var dis_table = bal.get("season_discontent", {})
+	if dis_table is Dictionary and dis_table.has(id):
+		_add_discontent(int(dis_table[id]), "season")
+	var hope_table = bal.get("season_hope", {})
+	if hope_table is Dictionary and hope_table.has(id):
+		_add_hope(int(hope_table[id]), "season")
+
+
+func _rot_stores() -> void:
+	if week != rot_week:
+		return
+	var target := maxi(0, food_need() - int(bal.rot_gap))
+	if int(stock.food) <= target:
+		return
+	var loss := int(stock.food) - target
+	stock.food = target
+	_log("ROT %d food turns in the stores" % loss, true)
+
+
+func _rival_agents() -> void:
+	var every := int(bal.get("agent_every", 0))
+	if every <= 0 or week % every != 0:
+		return
+	var hostile := false
+	for fid in opinions.keys():
+		if int(opinions[fid]) < 0:
+			hostile = true
+	if not hostile:
+		return
+	_add_discontent(int(bal.agent_discontent), "agent")
+	_log("AGENT a rival rumor moves through the yard", true)
 
 
 func _buffer_span() -> Dictionary:
@@ -651,13 +776,13 @@ func _apply_weekly_laws() -> void:
 	for law_id in laws_on:
 		var defin: Dictionary = catalog.laws[law_id]
 		if defin.has("hope_week"):
-			hope = clampi(hope + int(defin.hope_week), 0, 100)
+			_add_hope(int(defin.hope_week), "law")
 		if defin.has("discontent_week"):
-			discontent = clampi(discontent + int(defin.discontent_week), 0, 100)
+			_add_discontent(int(defin.discontent_week), "law")
 		if defin.has("tokens_week"):
 			stock.tokens = int(stock.tokens) + int(defin.tokens_week)
 		if law_id == "sermons" and _any_trait("Devout"):
-			hope = mini(100, hope + int(defin.get("devout_hope", 0)))
+			_add_hope(int(defin.get("devout_hope", 0)), "law")
 			synod += int(defin.get("synod", 0))
 	if law_lock > 0:
 		law_lock -= 1
@@ -750,7 +875,9 @@ func _apply_law(law_id: String) -> bool:
 	laws_on[law_id] = true
 	law_lock = int(bal.law_cooldown)
 	if defin.has("hope_on_enact"):
-		hope = clampi(hope + int(defin.hope_on_enact), 0, 100)
+		_add_hope(int(defin.hope_on_enact), "law")
+	if defin.has("discontent_on_enact"):
+		_add_discontent(int(defin.discontent_on_enact), "law")
 	if defin.has("materials_on_enact"):
 		stock.materials = int(stock.materials) + int(defin.materials_on_enact)
 	if defin.has("opinion_on_enact"):
@@ -802,7 +929,7 @@ func _finish_dig() -> void:
 			_log("A dig accident. %s is hurt." % people[hit].name)
 			if _has_trait(people[hit], "Claustrophobic"):
 				people[hit].absent = 2
-				hope = maxi(0, hope - 3)
+				_add_hope(-3, "trait")
 	dig = {}
 
 
@@ -890,10 +1017,8 @@ func _apply_flood_if_needed() -> void:
 			if room != null:
 				room.offline = true
 				names.append(str(catalog.rooms[room.type].name))
-	hope = maxi(0, hope - 3)
-	discontent = mini(100, discontent + 4)
 	if _any_trait("Claustrophobic"):
-		hope = maxi(0, hope - 2)
+		_add_hope(-2, "trait")
 	_log("SEASON flood on level %d (%s)" % [lowest, ", ".join(names)], true)
 
 
@@ -1052,14 +1177,13 @@ func _order_approach() -> bool:
 	if not can_approach():
 		return false
 	floor_met = true
-	hope = mini(100, hope + 2)
+	_add_hope(2, "victory")
 	_log("The Floor is still holding a meeting. They ask who speaks for Coney Island.", true)
 	return true
 
 
 func _order_address() -> bool:
-	hope = mini(100, hope + 1)
-	discontent = maxi(0, discontent - 1)
+	_add_hope(1, "address")
 	_log("ORDER address the platform")
 	return true
 
@@ -1254,6 +1378,7 @@ func _capture(sid: String, fid: String, force: bool) -> void:
 		ambition[prev] = int(ambition.get(prev, 0)) + int(bal.ambition_taken)
 		_log("%s will remember %s." % [_fname(prev), st.name])
 	if fid == player:
+		_add_hope(int(bal.join_hope), "victory")
 		_log("JOIN %s (%s)" % [st.name, "force" if force else "peace"], true)
 	else:
 		_log("%s takes %s" % [_fname(fid), st.name], true)
@@ -1777,9 +1902,9 @@ func _apply_deltas(choice: Dictionary) -> void:
 		if choice.has(key):
 			stock[key] = maxi(0, int(stock[key]) + int(choice[key]))
 	if choice.has("hope"):
-		hope = clampi(hope + int(choice.hope), 0, 100)
+		_add_hope(int(choice.hope), "event")
 	if choice.has("discontent"):
-		discontent = clampi(discontent + int(choice.discontent), 0, 100)
+		_add_discontent(int(choice.discontent), "event")
 	if choice.has("people"):
 		var n := int(choice.people)
 		if n > 0:
@@ -1805,13 +1930,13 @@ func _apply_deltas(choice: Dictionary) -> void:
 	if choice.has("trait_hope"):
 		for trait_name in choice.trait_hope:
 			if _any_trait(str(trait_name)):
-				hope = clampi(hope + int(choice.trait_hope[trait_name]), 0, 100)
+				_add_hope(int(choice.trait_hope[trait_name]), "trait")
 	if choice.has("trait_absent"):
 		for trait_name in choice.trait_absent:
 			for person in residents:
 				if _has_trait(person, str(trait_name)):
 					person.absent = maxi(int(person.absent), int(choice.trait_absent[trait_name]))
-					hope = maxi(0, hope - 2)
+					_add_hope(-2, "trait")
 
 
 # --- map ---
