@@ -62,6 +62,13 @@ var last_dis_delta := 0
 var dis_week := {}
 var audit := false
 var rot_week := 0
+var crunch_week := 0
+var crunch_kind := 0
+var crunch_rng := RandomNumberGenerator.new()
+var crunch_power := false
+var belt_down := false
+var workshop_down := false
+var gen_down := false
 var event_last := {}
 
 var catalog: Catalog
@@ -131,6 +138,13 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	if errors.is_empty():
 		_check_opening_stores()
 		rot_week = rng.randi_range(int(bal.rot_min_week), int(bal.rot_max_week))
+		crunch_rng.seed = seed * 1000 + 13
+		crunch_week = crunch_rng.randi_range(int(bal.crunch_min_week), int(bal.crunch_max_week))
+		crunch_kind = crunch_rng.randi_range(0, 2)
+		crunch_power = false
+		belt_down = false
+		workshop_down = false
+		gen_down = false
 	if errors.is_empty():
 		telegraphed = _plan_intents()
 		_dawn()
@@ -251,6 +265,9 @@ func report() -> Dictionary:
 		"hope_sources": hope_totals.duplicate(),
 		"dis_sources": dis_totals.duplicate(),
 		"hope_history": hope_history.duplicate(),
+		"crunch_drops": stats.get("crunch_drops", []),
+		"crunch_week": crunch_week,
+		"crunch_kind": crunch_kind,
 	}
 
 
@@ -326,15 +343,77 @@ func afford_choice(choice: Dictionary) -> bool:
 
 
 func can_enact(law_id: String) -> bool:
-	if law_lock > 0 or _law_on(law_id) or not catalog.laws.has(law_id):
-		return false
-	return _room_ready("meeting_hall")
+	return enact_reason(law_id) == ""
 
 
 func can_pump() -> bool:
+	return pump_reason() == ""
+
+
+func pump_reason() -> String:
 	if not _needs_pump():
-		return false
-	return int(stock.materials) >= int(bal.pump_materials) and int(stock.power) >= int(bal.pump_power)
+		return "There is no flood to pump."
+	return shortage_text({"materials": int(bal.pump_materials), "power": int(bal.pump_power)})
+
+
+func enact_reason(law_id: String) -> String:
+	if _law_on(law_id):
+		return "Already in force."
+	if not catalog.laws.has(law_id):
+		return "No such law."
+	if not _room_ready("meeting_hall"):
+		return "Needs a staffed meeting hall. The hall has no one in it."
+	if law_lock > 0:
+		return "The hall is waiting. Next law in %d weeks." % law_lock
+	return ""
+
+
+func shortage_text(need: Dictionary) -> String:
+	var order := ["power", "air", "food", "materials", "tokens", "influence"]
+	var needs: PackedStringArray = []
+	var short: PackedStringArray = []
+	for key in order:
+		if not need.has(key):
+			continue
+		var want := int(need[key])
+		if want <= 0:
+			continue
+		var have := int(stock.get(key, 0))
+		if have >= want:
+			continue
+		needs.append("%d %s" % [want, key])
+		short.append("%d %s" % [have, key])
+	if needs.is_empty():
+		return ""
+	return "Needs %s. You have %s." % [", ".join(needs), ", ".join(short)]
+
+
+func resource_outlook(key: String) -> Dictionary:
+	var have := int(stock.get(key, 0))
+	var made := output_of(key)
+	if key == "power" and _law_on("engineers_charter"):
+		made += int(catalog.laws.engineers_charter.get("power", 0))
+	var use := _weekly_draw(key)
+	var nxt := have + made - use
+	var hit: bool = have <= 0 or nxt <= 0
+	var dawn := maxi(0, nxt)
+	var text := "%s %d on hand. The yard makes %d and uses %d. By dawn: %d." % [key.capitalize(), have, made, use, dawn]
+	if nxt < 0:
+		text += " Short %d." % -nxt
+	var who := _consumer_line(key)
+	if who != "":
+		text += " " + who
+	if key == "power" and nxt < 0:
+		var names := _uncovered_power_names()
+		if not names.is_empty():
+			text += " These rooms will not be covered: %s." % ", ".join(names)
+	return {"text": text, "hit": hit, "next": nxt}
+
+
+func rooms_losing_power() -> Array:
+	if int(resource_outlook("power").next) >= 0:
+		return []
+	return _uncovered_power_ids()
 
 
 func can_quarantine() -> bool:
@@ -393,6 +472,7 @@ func _dawn() -> void:
 	pumped = false
 	quarantine = false
 	_season_clock()
+	_queue_crunch()
 	_roll_events()
 	_log("DAWN food %d air %d power %d mat %d tok %d inf %d hope %d dis %d pop %d" % [
 		int(stock.food), int(stock.air), int(stock.power), int(stock.materials), int(stock.tokens), int(stock.influence), hope, discontent, residents.size()])
@@ -432,7 +512,7 @@ func _night() -> void:
 		_spread_cough()
 		_cough_pull_workers()
 		_pull_sick_from_rooms()
-	var produced := _tally()
+	var produced := _tally(belt_down, workshop_down, gen_down)
 	var swing := int(bal.get("harvest_swing", 0))
 	var bias := int(bal.get("harvest_bias", 0))
 	if swing > 0 or bias != 0:
@@ -453,7 +533,7 @@ func _night() -> void:
 	_spoil_food()
 	_rot_stores()
 	var need_power := _power_need()
-	if _season_is("cold"):
+	if _season_is("cold") or crunch_power:
 		need_power *= 2
 	if quarantine:
 		_add_hope(-1, "quarantine")
@@ -505,6 +585,10 @@ func _night() -> void:
 	_advance_jobs()
 	_tick_expedition()
 	_heal_squads()
+	crunch_power = false
+	belt_down = false
+	workshop_down = false
+	gen_down = false
 	if over == "":
 		telegraphed = _plan_intents()
 
@@ -539,7 +623,7 @@ func _finish_checks() -> void:
 
 # --- production ---
 
-func _tally() -> Dictionary:
+func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false) -> Dictionary:
 	var out := {"food": 0, "air": 0, "power": 0, "materials": 0, "tokens": 0, "influence": 0}
 	var mult := 1.0
 	if _law_on("double_shifts"):
@@ -556,18 +640,25 @@ func _tally() -> Dictionary:
 				skills.append(0)
 			else:
 				skills.append(int(person.skills.get(skill, 1)))
-		var half: bool = int(defin.staff_min) > 0 and room.staff.size() < int(defin.staff_min)
+		var factor := _output_factor(room, defin)
 		var base: Dictionary = defin.base
 		for key in base:
 			if not out.has(key):
 				continue
 			var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
-			var n := Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
-			if half:
-				n = int(n / 2.0)
+			var n := 0
+			if factor > 0.0:
+				n = Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
+				n = int(round(float(n) * factor))
 			if bool(defin.get("decays", false)):
 				n = int(round(float(n) * float(room.efficiency)))
 			n = int(round(float(n) * mult))
+			if drop_hydro_food and str(room.type) == "hydroponics" and str(key) == "food":
+				n = int(n / 2.0)
+			if drop_shop and str(room.type) == "workshop" and str(key) == "materials":
+				n = 0
+			if drop_gen and str(room.type) == "generator" and str(key) == "power":
+				n = int(n / 2.0)
 			out[key] = int(out[key]) + n
 	if quarantine:
 		for key in ["food", "air", "power", "materials", "influence"]:
@@ -577,6 +668,20 @@ func _tally() -> Dictionary:
 	return out
 
 
+func _output_factor(room: Dictionary, defin: Dictionary) -> float:
+	var have := int(room.staff.size())
+	var need := int(defin.get("staff_min", 0))
+	if str(room.type) == "generator":
+		if have <= 0:
+			return 0.0
+		if have < need:
+			return 0.5
+		return 1.0
+	if need > 0 and have < need:
+		return 0.5
+	return 1.0
+
+
 func _power_need() -> int:
 	var n := 0
 	for room in rooms:
@@ -584,6 +689,107 @@ func _power_need() -> int:
 			continue
 		n += int(catalog.rooms[room.type].get("power", 0))
 	return n
+
+
+func _weekly_draw(key: String) -> int:
+	if key == "food":
+		return food_need()
+	if key == "air":
+		return air_need()
+	if key == "power":
+		var need := _power_need()
+		if _season_is("cold") or crunch_power:
+			need *= 2
+		return need
+	return 0
+
+
+func _consumer_line(key: String) -> String:
+	if key == "food":
+		return "Meals for %d people take %d food." % [residents.size(), food_need()]
+	if key == "air":
+		return "Breathing takes %d air." % air_need()
+	if key == "power":
+		var draws: Array = []
+		for room in rooms:
+			if room.offline:
+				continue
+			var draw := int(catalog.rooms[room.type].get("power", 0))
+			if draw <= 0:
+				continue
+			draws.append({"name": str(catalog.rooms[room.type].name), "draw": draw})
+		draws.sort_custom(func(a, b): return int(a.draw) > int(b.draw))
+		var bits: PackedStringArray = []
+		for i in mini(3, draws.size()):
+			bits.append("%s %d" % [str(draws[i].name), int(draws[i].draw)])
+		if bits.is_empty():
+			return ""
+		return "Biggest draws: %s." % ", ".join(bits)
+	return ""
+
+
+func _power_budget() -> int:
+	var made := output_of("power")
+	if _law_on("engineers_charter"):
+		made += int(catalog.laws.engineers_charter.get("power", 0))
+	return maxi(0, int(stock.power) + made)
+
+
+func _uncovered_power_ids() -> Array:
+	var rows: Array = []
+	for room in rooms:
+		if room.offline:
+			continue
+		var draw := int(catalog.rooms[room.type].get("power", 0))
+		if draw <= 0:
+			continue
+		rows.append(room)
+	rows.sort_custom(func(a, b):
+		var da := int(catalog.rooms[a.type].get("power", 0))
+		var db := int(catalog.rooms[b.type].get("power", 0))
+		if da == db:
+			return str(a.uid) < str(b.uid)
+		return da < db
+	)
+	var left := _power_budget()
+	if _season_is("cold") or crunch_power:
+		left = int(left / 2.0)
+	var lost: Array = []
+	for room in rows:
+		var draw := int(catalog.rooms[room.type].get("power", 0))
+		if left >= draw:
+			left -= draw
+		else:
+			lost.append(str(room.uid))
+	return lost
+
+
+func _uncovered_power_names() -> PackedStringArray:
+	var names: PackedStringArray = []
+	for uid in _uncovered_power_ids():
+		var room = _room(str(uid))
+		if room == null:
+			continue
+		names.append(str(catalog.rooms[room.type].name))
+	return names
+
+
+func _stock_thin(key: String) -> bool:
+	var have := int(stock.get(key, 0))
+	if have <= 0:
+		return true
+	var need := _weekly_draw(key)
+	return need > 0 and have <= need
+
+
+func _demolish_loss(defin: Dictionary) -> String:
+	var base: Dictionary = defin.get("base", {})
+	var bits: PackedStringArray = []
+	for key in base:
+		if not _stock_thin(str(key)):
+			continue
+		bits.append("%s is at %d, and this room is part of what makes it." % [str(key).capitalize(), int(stock.get(key, 0))])
+	return " ".join(bits)
 
 
 func _room_store(room: Dictionary, key: String) -> int:
@@ -982,6 +1188,10 @@ func demolish_preview(uid: String) -> Dictionary:
 		return info
 	info.refund = int(defin.materials) / 2
 	info.ok = true
+	var loss := _demolish_loss(defin)
+	if loss != "":
+		info.loss = loss
+		info.reason = loss
 	return info
 
 
@@ -1095,11 +1305,19 @@ func room_detail(uid: String) -> Dictionary:
 	var base: Dictionary = defin.base
 	for key in base:
 		var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
-		var n := Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
-		if int(defin.staff_min) > 0 and room.staff.size() < int(defin.staff_min):
-			n = int(n / 2.0)
+		var factor := _output_factor(room, defin)
+		var n := 0
+		if factor > 0.0:
+			n = Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
+			n = int(round(float(n) * factor))
 		if bool(defin.get("decays", false)):
 			n = int(round(float(n) * float(room.efficiency)))
+		if belt_down and str(room.type) == "hydroponics" and str(key) == "food":
+			n = int(n / 2.0)
+		if workshop_down and str(room.type) == "workshop" and str(key) == "materials":
+			n = 0
+		if gen_down and str(room.type) == "generator" and str(key) == "power":
+			n = int(n / 2.0)
 		outputs.append({"key": str(key), "amount": n, "base": amount})
 	var extra := 0.0
 	for value in skills:
@@ -2134,6 +2352,120 @@ func _skill_total(person: Dictionary) -> int:
 
 # --- events ---
 
+func _queue_crunch() -> void:
+	if crunch_week <= 0 or week != crunch_week:
+		return
+	var legs := _crunch_legs()
+	var costs := _bill_three(int(stock.materials))
+	for i in legs.size():
+		legs[i]["cost"] = int(costs[i])
+	legs.sort_custom(func(a, b): return int(a.pain) > int(b.pain))
+	var names: PackedStringArray = []
+	for leg in legs:
+		names.append(str(leg.short))
+	_log("PRESSURE %s" % ", ".join(names), true)
+	for leg in legs:
+		_present_event(_crunch_event(leg))
+
+
+func _crunch_legs() -> Array:
+	var food_gap := _cover_gap("food")
+	var air_gap := _cover_gap("air")
+	var power_pain := 14 if int(stock.power) < _power_need() * 2 else 5
+	var belt_pain := food_need() if food_buffer_weeks() < 3.0 else 3
+	var shop_pain := 8 if int(stock.materials) < 12 else 3
+	var gen_pain := 12 if int(stock.power) < _power_need() else 4
+	var pantry := {
+		"id": "pantry", "short": "the pantry", "title": "The pantry comes up short",
+		"text": "This week's meals outrun the stores. Materials can close it. Leaving it spends what you saved.",
+		"pay": "Spend %d materials to close the gap", "suffer": "Let the stores run down",
+		"pain": food_gap, "hit": {"food": -food_gap},
+	}
+	var ducts := {
+		"id": "ducts", "short": "the ducts", "title": "Ice in the ducts",
+		"text": "Meltwater has frozen in the vent runs. Clear it, or the yard draws twice the power tonight.",
+		"pay": "Spend %d materials to clear the ducts", "suffer": "Leave the ice",
+		"pain": power_pain, "hit": {"discontent": 4, "power_double": true},
+	}
+	var belt := {
+		"id": "lamps", "short": "the belt", "title": "The grow lamps snap",
+		"text": "A belt on the hydroponic lamps snaps. Replace it, or the beds give half a crop this week.",
+		"pay": "Spend %d materials on a new belt", "suffer": "Let the beds run at half",
+		"pain": belt_pain, "hit": {"hope": -2, "discontent": 2, "hydro_down": true},
+	}
+	var stacks := {
+		"id": "stacks", "short": "the stacks", "title": "The charcoal beds pack solid",
+		"text": "The air filters are caked. Materials can clear them. Leaving them spends the air you saved.",
+		"pay": "Spend %d materials to clear the stacks", "suffer": "Let the air run down",
+		"pain": air_gap, "hit": {"air": -air_gap},
+	}
+	var shop := {
+		"id": "shopbelt", "short": "the workshop", "title": "A belt in the workshop slips",
+		"text": "The workshop belt is off its wheel. Fix it, or the shop makes nothing this week.",
+		"pay": "Spend %d materials to seat the belt", "suffer": "Let the shop sit idle",
+		"pain": shop_pain, "hit": {"shop_down": true, "discontent": 2},
+	}
+	var dynamo := {
+		"id": "dynamo", "short": "the dynamo", "title": "The dynamo runs hot",
+		"text": "The generator bearing is dry. Grease it, or the dynamo makes half power tonight.",
+		"pay": "Spend %d materials to grease the bearing", "suffer": "Let the dynamo limp",
+		"pain": gen_pain, "hit": {"gen_down": true, "hope": -1},
+	}
+	if crunch_kind == 1:
+		return [stacks, ducts, shop]
+	if crunch_kind == 2:
+		return [pantry, dynamo, belt]
+	return [pantry, ducts, belt]
+
+
+func _crunch_event(leg: Dictionary) -> Dictionary:
+	var cost := int(leg.cost)
+	var suffer: Dictionary = {"id": "leave", "label": str(leg.suffer), "crunch_suffer": true}
+	var hit: Dictionary = leg.hit
+	for key in hit:
+		suffer[key] = hit[key]
+	return {
+		"id": str(leg.id),
+		"title": str(leg.title),
+		"major": true,
+		"crunch": true,
+		"text": str(leg.text),
+		"choices": [
+			{"id": "pay", "label": str(leg.pay) % cost, "cost": {"materials": cost}},
+			suffer,
+		],
+	}
+
+
+func _bill_three(pool: int) -> Array:
+	if pool < 2:
+		return [1, 1, 1]
+	var a := maxi(1, int(pool / 3) + crunch_rng.randi_range(-1, 1))
+	var b := maxi(1, int(pool / 3) + crunch_rng.randi_range(-1, 1))
+	while a + b > pool and (a > 1 or b > 1):
+		if a >= b and a > 1:
+			a -= 1
+		elif b > 1:
+			b -= 1
+		else:
+			break
+	var c := pool + 1 - a - b
+	var costs := [a, b, maxi(1, c)]
+	for i in range(costs.size() - 1, 0, -1):
+		var j := crunch_rng.randi_range(0, i)
+		var swap = costs[i]
+		costs[i] = costs[j]
+		costs[j] = swap
+	return costs
+
+
+func _cover_gap(key: String) -> int:
+	var have := int(stock.get(key, 0))
+	var need := food_need() if key == "food" else air_need()
+	var net := output_of(key) - need
+	return maxi(need, have - maxi(0, net))
+
+
 func _roll_events() -> void:
 	var picked: Array = []
 	var guard := 0
@@ -2209,6 +2541,8 @@ func _event_pool(major_only: bool) -> Array:
 
 func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
+	if id == "lamps" and week == crunch_week:
+		return false
 	var cool := int(ev.get("cooldown", 6))
 	if event_last.has(id) and week - int(event_last[id]) < cool:
 		return false
@@ -2251,6 +2585,10 @@ func _apply_event(action: Dictionary) -> bool:
 		return false
 	_pay(choice.get("cost", {}))
 	_apply_deltas(choice)
+	if bool(choice.get("crunch_suffer", false)):
+		var drops: Array = stats.get("crunch_drops", [])
+		drops.append(str(ev.title))
+		stats["crunch_drops"] = drops
 	pending.pop_front()
 	decisions += 1
 	_log("EVENT %s: %s" % [ev.title, choice.label], bool(ev.get("major", false)))
@@ -2297,6 +2635,14 @@ func _apply_deltas(choice: Dictionary) -> void:
 				if _has_trait(person, str(trait_name)):
 					person.absent = maxi(int(person.absent), int(choice.trait_absent[trait_name]))
 					_add_hope(-2, "trait")
+	if bool(choice.get("power_double", false)):
+		crunch_power = true
+	if bool(choice.get("hydro_down", false)):
+		belt_down = true
+	if bool(choice.get("shop_down", false)):
+		workshop_down = true
+	if bool(choice.get("gen_down", false)):
+		gen_down = true
 
 
 # --- map ---

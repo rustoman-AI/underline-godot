@@ -22,6 +22,8 @@
   "harvest_bias": -1,
   "rot_min_week": 5,
   "rot_max_week": 10,
+  "crunch_min_week": 11,
+  "crunch_max_week": 16,
   "rot_gap": 4,
   "filter_decay": 0.02,
   "filter_restore": 0.04,

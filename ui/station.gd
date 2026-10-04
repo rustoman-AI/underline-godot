@@ -43,6 +43,8 @@ var dim: ColorRect
 var card: PanelContainer
 var card_body: VBoxContainer
 var portrait := false
+var power_loss := {}
+var notice := ""
 
 
 func _ready() -> void:
@@ -170,17 +172,22 @@ func _top_bar() -> PanelContainer:
 	for key in STOCK_KEYS:
 		var chip := VBoxContainer.new()
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.mouse_filter = Control.MOUSE_FILTER_STOP
 		var name := _label(key.capitalize(), 14)
 		name.add_theme_color_override("font_color", MUTED)
 		name.autowrap_mode = TextServer.AUTOWRAP_OFF
 		name.custom_minimum_size = Vector2(0, 18)
+		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var value := _label("0", 20)
+		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var delta := _label("—", 13)
+		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		chip.add_child(name)
 		chip.add_child(value)
 		chip.add_child(delta)
+		chip.gui_input.connect(_chip_input.bind(str(key)))
 		res_grid.add_child(chip)
-		chips[key] = {"value": value, "delta": delta}
+		chips[key] = {"box": chip, "name": name, "value": value, "delta": delta}
 
 	var meters := HBoxContainer.new()
 	meters.add_theme_constant_override("separation", 12)
@@ -365,6 +372,15 @@ func _refresh() -> void:
 				color = Color("e07a6a")
 		chips[key].delta.text = delta_text
 		chips[key].delta.add_theme_color_override("font_color", color)
+		var outlook: Dictionary = game.resource_outlook(str(key))
+		chips[key].box.tooltip_text = str(outlook.text)
+		var name_color := MUTED
+		if bool(outlook.hit):
+			name_color = Color("e0a15a")
+		chips[key].name.add_theme_color_override("font_color", name_color)
+	power_loss = {}
+	for uid in game.rooms_losing_power():
+		power_loss[str(uid)] = true
 	hope_label.text = "Hope %d  %s" % [game.hope, _mood_delta(game.last_hope_delta)]
 	dis_label.text = "Discontent %d  %s" % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
@@ -444,13 +460,22 @@ func _auto_staff() -> void:
 	_refresh()
 
 
+func _chip_input(event: InputEvent, key: String) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var info: Dictionary = game.resource_outlook(key)
+		_open_card(key.capitalize())
+		_body(str(info.text))
+		card_body.add_child(_button("Close", _close_card))
+
+
 func _ask_pump() -> void:
 	var lines: PackedStringArray = [
 		"%d materials and %d power." % [int(game.bal.pump_materials), int(game.bal.pump_power)],
 	]
-	if not game.can_pump():
-		lines.append("No flood to pump, or the stores cannot pay.")
-	_confirm("Pump the lower level?", lines, game.can_pump(), {"kind": "pump"})
+	var why := game.pump_reason()
+	if why != "":
+		lines.append(why)
+	_confirm("Pump the lower level?", lines, why == "", {"kind": "pump"})
 
 
 func _ask_quarantine() -> void:
@@ -494,7 +519,9 @@ func _tap_cell(level: int, cell: int) -> void:
 func _drop_person(person_id: String, uid: String) -> void:
 	var info := game.assign_preview(person_id, uid)
 	if not bool(info.ok):
-		footer.text = str(info.reason)
+		_open_card(str(game.people[person_id].name))
+		_body(str(info.reason))
+		card_body.add_child(_button("Close", _close_card))
 		return
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
@@ -507,7 +534,12 @@ func _show_build(level: int, cell: int) -> void:
 		var info := game.build_preview(str(type), level, cell)
 		var text := "%s — %d materials, %d turns, %d workers, power %d" % [
 			str(info.name), int(info.materials), int(info.turns), int(info.workers), int(info.power)]
-		card_body.add_child(_button(text, _confirm_build.bind(str(type), level, cell)))
+		if not bool(info.ok) and str(info.reason) != "":
+			text += " — " + str(info.reason)
+		var build_button := _button(text, _confirm_build.bind(str(type), level, cell))
+		if not bool(info.ok):
+			build_button.custom_minimum_size.y = 72
+		card_body.add_child(build_button)
 	card_body.add_child(_button("Back", _close_card))
 
 
@@ -529,6 +561,9 @@ func _show_room(uid: String) -> void:
 	if detail.is_empty():
 		return
 	_open_card(str(detail.name))
+	if notice != "":
+		_body(notice)
+		notice = ""
 	var level_names := ["Street", "Platform", "Deep"]
 	_body("%s, cell %d." % [level_names[int(detail.level)], int(detail.cell) + 1])
 	if bool(detail.offline):
@@ -571,24 +606,46 @@ func _show_room(uid: String) -> void:
 func _show_assign(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
 	_open_card("Assign to %s" % str(detail.name))
-	_body("Best %s first." % str(detail.skill))
-	var rows: Array = game.candidates_for(uid)
-	if rows.is_empty():
-		_body("No one is free.")
-	for row in rows:
-		var text := "%s · %s %d" % [str(row.name), str(detail.skill), int(row.skill)]
+	var skill_name := str(detail.skill)
+	_body("Best %s first. The number is that skill." % skill_name)
+	var filter := LineEdit.new()
+	filter.placeholder_text = "Filter names"
+	filter.custom_minimum_size = Vector2(0, 44)
+	filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	filter.text_changed.connect(_fill_assign.bind(uid, skill_name, list))
+	card_body.add_child(filter)
+	card_body.add_child(list)
+	_fill_assign(uid, skill_name, list, "")
+	card_body.add_child(_button("Back", _show_room.bind(uid)))
+
+
+func _fill_assign(uid: String, skill_name: String, list: VBoxContainer, query: String) -> void:
+	_wipe(list)
+	var needle := query.strip_edges().to_lower()
+	var shown := 0
+	for row in game.candidates_for(uid):
+		var person_name := str(row.name)
+		if needle != "" and not person_name.to_lower().contains(needle):
+			continue
+		shown += 1
+		var text := "%s · %s %d" % [person_name, skill_name, int(row.skill)]
 		if str(row.traits) != "":
 			text += " · " + str(row.traits)
 		if bool(row.here):
 			text += " · here"
-		card_body.add_child(_button(text, _assign_person.bind(str(row.id), uid)))
-	card_body.add_child(_button("Back", _show_room.bind(uid)))
+		list.add_child(_button(text, _assign_person.bind(str(row.id), uid)))
+	if shown == 0:
+		var empty := _label("No one matches.", 15)
+		list.add_child(empty)
 
 
 func _assign_person(person_id: String, uid: String) -> void:
 	var info := game.assign_preview(person_id, uid)
 	if not bool(info.ok):
-		footer.text = str(info.reason)
+		notice = str(info.reason)
 		_show_room(uid)
 		return
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
@@ -637,8 +694,14 @@ func _show_laws() -> void:
 		if game.laws_on.has(id):
 			_body("In force.")
 		else:
-			var enact := _button("Enact %s" % str(defin.name), _enact.bind(str(id)))
-			enact.disabled = not game.can_enact(str(id))
+			var why := game.enact_reason(str(id))
+			var label := "Enact %s" % str(defin.name)
+			if why != "":
+				label = "%s — %s" % [str(defin.name), why]
+			var enact := _button(label, _enact.bind(str(id)))
+			enact.disabled = why != ""
+			if why != "":
+				enact.custom_minimum_size.y = 72
 			card_body.add_child(enact)
 	card_body.add_child(_button("Close", _close_card))
 
@@ -716,8 +779,12 @@ func _show_dawn() -> void:
 				label += "  (" + extra + ")"
 			var pick := _button(label, _pick_event.bind(str(ev.id), str(choice.id)))
 			if not game.afford_choice(choice):
+				var why := game.shortage_text(choice.get("cost", {}))
+				if why == "":
+					why = "That cost cannot be paid."
 				pick.disabled = true
-				pick.text += "  — can't pay"
+				pick.text = "%s — %s" % [label, why]
+				pick.custom_minimum_size.y = 72
 			card_body.add_child(pick)
 
 
@@ -726,7 +793,7 @@ func _morning_lines() -> PackedStringArray:
 	for entry in game.log:
 		var w := int(entry.week)
 		var text := str(entry.text)
-		if w == game.week and _starts(text, ["INTENT", "SEASON", "ULTIMATUM", "No warning"]):
+		if w == game.week and _starts(text, ["INTENT", "SEASON", "ULTIMATUM", "PRESSURE", "No warning"]):
 			lines.append(text)
 		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND"]):
 			lines.append(text)
@@ -793,6 +860,9 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 		_body(line)
 	var go := _button("Confirm", _do_confirm.bind(action))
 	go.disabled = not ok or action.is_empty()
+	if not ok and not lines.is_empty():
+		go.text = lines[lines.size() - 1]
+		go.custom_minimum_size.y = 72
 	card_body.add_child(go)
 	card_body.add_child(_button("Back", _close_card))
 
@@ -849,6 +919,7 @@ func _button(text: String, cb: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(0, 48)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	button.add_theme_font_size_override("font_size", 15)
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.pressed.connect(cb)
@@ -1066,7 +1137,10 @@ class Yard extends Control:
 			var room = station.game._room(str(spot.room))
 			fill = ROOM_COLOR.get(str(room.type), Color("888888"))
 		draw_rect(rect, fill)
-		draw_rect(rect, Color(0, 0, 0, 0.35), false, 1.0)
+		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
+		draw_rect(rect, Color("e07a6a") if losing else Color(0, 0, 0, 0.35), false, 3.0 if losing else 1.0)
+		if losing:
+			draw_string(ThemeDB.fallback_font, rect.position + Vector2(rect.size.x - 16, 16), "!", HORIZONTAL_ALIGNMENT_LEFT, 14, 16, Color("e07a6a"))
 		if bool(spot.flooded):
 			draw_rect(rect, Color(0.2, 0.35, 0.55, 0.45))
 		var font := ThemeDB.fallback_font
