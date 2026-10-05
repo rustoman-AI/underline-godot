@@ -7,13 +7,18 @@
     {"level": 1, "cell": 0, "room": "platform"},
     {"level": 1, "cell": 1, "room": "hydroponics"},
     {"level": 1, "cell": 2, "room": "air_filter"},
-    {"level": 1, "cell": 3, "room": ""},
+    {"level": 1, "cell": 3, "room": "generator"},
     {"level": 2, "cell": 0, "room": ""},
     {"level": 2, "cell": 1, "room": ""}
   ],
   "finds": [
+    {"level": 0, "cell": 2, "find": "cable"},
+    {"level": 0, "cell": 4, "find": "salvage"},
+    {"level": 1, "cell": 4, "find": "cable"},
+    {"level": 1, "cell": 5, "find": "salvage"},
     {"level": 2, "cell": 2, "find": "flooded"},
     {"level": 2, "cell": 3, "find": "maintenance"},
-    {"level": 2, "cell": 4, "find": "sealed_door"}
+    {"level": 2, "cell": 4, "find": "sealed_door"},
+    {"level": 2, "cell": 5, "find": "salvage"}
   ]
 }

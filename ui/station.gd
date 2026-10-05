@@ -34,6 +34,9 @@ var hint: Label
 var end_button: Button
 var pump_button: Button
 var quarantine_button: Button
+var burn_button: Button
+var power_button: Button
+var forecast_button: Button
 var chips := {}
 var hope_label: Label
 var dis_label: Label
@@ -155,6 +158,18 @@ func _top_bar() -> PanelContainer:
 	end_button = _button("End turn", _end_turn)
 	end_button.custom_minimum_size = Vector2(140, 48)
 	title_row.add_child(end_button)
+	burn_button = _button("Burn salvage", _ask_burn)
+	burn_button.custom_minimum_size = Vector2(150, 48)
+	title_row.add_child(burn_button)
+	power_button = _button("Power", _show_power)
+	power_button.custom_minimum_size = Vector2(96, 48)
+	title_row.add_child(power_button)
+
+	forecast_button = _button("", _open_forecast)
+	forecast_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	forecast_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	forecast_button.visible = false
+	box.add_child(forecast_button)
 
 	action_row = VBoxContainer.new()
 	action_row.visible = false
@@ -387,6 +402,13 @@ func _refresh() -> void:
 	dis_fill.anchor_right = clampf(float(game.discontent) / 100.0, 0.0, 1.0)
 	end_button.disabled = game.over != ""
 	end_button.text = "End turn" if game.over == "" else _ending()
+	var burn: Dictionary = game.burn_preview()
+	burn_button.disabled = not bool(burn.ok) or game.over != ""
+	burn_button.text = "Burn salvage" if bool(burn.ok) else "Burn salvage — %s" % str(burn.reason)
+	var outlook_rows: Array = game.forecasts()
+	forecast_button.visible = not outlook_rows.is_empty()
+	if not outlook_rows.is_empty():
+		forecast_button.text = str(outlook_rows[0].text)
 	_fill_people()
 	yard.queue_redraw()
 	if game.log.size() > 0:
@@ -483,6 +505,62 @@ func _ask_quarantine() -> void:
 	if not game.can_quarantine():
 		lines.append("Quarantine is only there while the cough season is on, and only once.")
 	_confirm("Quarantine?", lines, game.can_quarantine(), {"kind": "quarantine"})
+
+
+func _ask_burn() -> void:
+	var info := game.burn_preview()
+	var lines: PackedStringArray = [
+		"%d materials become %d power this week. Hope %+d." % [int(info.materials), int(info.power), int(info.hope)],
+	]
+	if str(info.reason) != "":
+		lines.append(str(info.reason))
+	_confirm("Burn salvage?", lines, bool(info.ok), {"kind": "burn"})
+
+
+func _open_forecast() -> void:
+	var rows: Array = game.forecasts()
+	if rows.is_empty():
+		return
+	var row: Dictionary = rows[0]
+	_open_forecast_at(str(row.hint), int(row.level), int(row.cell))
+
+
+func _open_forecast_at(hint: String, level: int, cell: int) -> void:
+	if hint.begins_with("staff:"):
+		var type := hint.trim_prefix("staff:")
+		for room in game.rooms:
+			if str(room.type) == type:
+				_show_room(str(room.uid))
+				return
+	if level >= 0 and cell >= 0:
+		_tap_cell(level, cell)
+		return
+	_close_card()
+
+
+func _show_power() -> void:
+	_open_card("Power order")
+	_body("Higher rooms keep their power when it runs short. The rest go dark.")
+	var index := 0
+	for uid in game.power_order:
+		var room = game._room(str(uid))
+		if room == null:
+			continue
+		index += 1
+		var name := str(game.catalog.rooms[room.type].name)
+		_body("%d. %s" % [index, name])
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.add_child(_button("Up", _nudge_power.bind(str(uid), true)))
+		row.add_child(_button("Down", _nudge_power.bind(str(uid), false)))
+		card_body.add_child(row)
+	card_body.add_child(_button("Close", _close_card))
+
+
+func _nudge_power(uid: String, up: bool) -> void:
+	game.apply({"kind": "power", "room": uid, "up": up})
+	_show_power()
+	_refresh()
 
 
 func _tap_cell(level: int, cell: int) -> void:
@@ -765,6 +843,11 @@ func _show_dawn() -> void:
 		_body("No season warning, and no word from the tunnels.")
 	for line in lines:
 		_body(line)
+	for row in game.forecasts():
+		var forecast := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
+		forecast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		forecast.custom_minimum_size.y = 72
+		card_body.add_child(forecast)
 	if game.pending.is_empty():
 		_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))

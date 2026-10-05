@@ -71,6 +71,7 @@ var workshop_down := false
 var gen_down := false
 var event_last := {}
 var week_event_ids := {}
+var power_order: Array = []
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -205,6 +206,10 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_pump()
 		"quarantine":
 			ok = _apply_quarantine()
+		"burn":
+			ok = _apply_burn()
+		"power":
+			ok = _move_power(str(action.get("room", "")), bool(action.get("up", false)))
 		"order":
 			ok = _apply_order(action)
 		_:
@@ -412,9 +417,7 @@ func resource_outlook(key: String) -> Dictionary:
 
 
 func rooms_losing_power() -> Array:
-	if int(resource_outlook("power").next) >= 0:
-		return []
-	return _uncovered_power_ids()
+	return _brownout_ids()
 
 
 func can_quarantine() -> bool:
@@ -514,6 +517,7 @@ func _night() -> void:
 		_spread_cough()
 		_cough_pull_workers()
 		_pull_sick_from_rooms()
+	_mark_brownout()
 	var produced := _tally(belt_down, workshop_down, gen_down)
 	var swing := int(bal.get("harvest_swing", 0))
 	var bias := int(bal.get("harvest_bias", 0))
@@ -559,6 +563,8 @@ func _night() -> void:
 		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
 		_log("SHORT power %d" % power_short, true)
+	for room in rooms:
+		room.browned = false
 	if week_short:
 		stats.shortage_weeks = int(stats.shortage_weeks) + 1
 		stats.shortages = int(stats.shortage_weeks)
@@ -633,6 +639,8 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false) -> 
 	for room in rooms:
 		if room.offline or _flood_silences(room):
 			continue
+		if bool(room.get("browned", false)) and str(room.type) != "generator":
+			continue
 		var defin: Dictionary = catalog.rooms[room.type]
 		var skill := str(defin.get("skill", ""))
 		var skills: Array = []
@@ -684,10 +692,230 @@ func _output_factor(room: Dictionary, defin: Dictionary) -> float:
 	return 1.0
 
 
-func _power_need() -> int:
+func _mark_brownout() -> void:
+	var dark := _brownout_ids()
+	var dark_set := {}
+	for uid in dark:
+		dark_set[str(uid)] = true
+	for room in rooms:
+		var uid := str(room.uid)
+		room.browned = dark_set.has(uid)
+		if room.browned:
+			_log("BROWN %s is dark" % str(catalog.rooms[room.type].name), true)
+
+
+func _brownout_ids() -> Array:
+	var dark: Array = []
+	var pool := int(stock.power) + _generator_yield()
+	var mult := 2 if (_season_is("cold") or crunch_power) else 1
+	for room in rooms:
+		if str(room.type) != "generator" or bool(room.offline):
+			continue
+		pool -= int(catalog.rooms.generator.get("power", 0)) * mult
+	if pool < 0:
+		pool = 0
+	for uid in power_order:
+		var room = _room(str(uid))
+		if room == null:
+			continue
+		if str(room.type) == "generator" or bool(room.offline) or _flood_silences(room):
+			continue
+		var draw := int(catalog.rooms[str(room.type)].get("power", 0)) * mult
+		if draw <= 0:
+			continue
+		if pool >= draw:
+			pool -= draw
+		else:
+			dark.append(str(room.uid))
+	return dark
+
+
+func _generator_yield() -> int:
+	var saved: Array = []
+	for room in rooms:
+		saved.append(bool(room.get("browned", false)))
+		if str(room.type) != "generator":
+			room.browned = true
+	var n := int(_tally(belt_down, workshop_down, gen_down).get("power", 0))
+	for i in rooms.size():
+		rooms[i].browned = saved[i]
+	var extra := 0
+	if _law_on("engineers_charter"):
+		extra = int(catalog.laws.engineers_charter.get("power", 0))
+	return n + extra
+
+
+func forecasts() -> Array:
+	var rows: Array = []
+	var horizon := int(bal.get("forecast_weeks", 2))
+	for key in ["power", "food", "air", "materials"]:
+		var left := _weeks_until_empty(key)
+		if left > horizon:
+			continue
+		var hint := _supply_hint(_supply_type(key))
+		var name := str(key.capitalize())
+		var when := "is gone" if left <= 0 else "runs out in %d weeks" % left
+		rows.append({
+			"key": key,
+			"weeks": left,
+			"text": "%s %s. %s" % [name, when, str(hint.text)],
+			"hint": str(hint.hint),
+			"level": int(hint.get("level", -1)),
+			"cell": int(hint.get("cell", -1)),
+		})
+	rows.sort_custom(func(a, b): return int(a.weeks) < int(b.weeks))
+	return rows
+
+
+func _weeks_until_empty(key: String) -> int:
+	var have := int(stock.get(key, 0))
+	if have <= 0:
+		return 0
+	var make := 0
+	var use := 0
+	if key == "power":
+		make = _generator_yield()
+		use = _full_power_draw()
+	elif key == "food":
+		make = output_of("food")
+		use = food_need()
+	elif key == "air":
+		make = output_of("air")
+		use = air_need()
+	else:
+		make = output_of("materials")
+		use = 0
+	var net := make - use
+	if net >= 0:
+		return 99
+	return int(ceil(float(have) / float(-net)))
+
+
+func _full_power_draw() -> int:
 	var n := 0
 	for room in rooms:
 		if room.offline:
+			continue
+		n += int(catalog.rooms[room.type].get("power", 0))
+	if _season_is("cold") or crunch_power:
+		n *= 2
+	return n
+
+
+func _supply_type(key: String) -> String:
+	match key:
+		"power":
+			return "generator"
+		"food":
+			return "hydroponics"
+		"air":
+			return "air_filter"
+		_:
+			return "workshop"
+
+
+func _supply_hint(type: String) -> Dictionary:
+	var defin: Dictionary = catalog.rooms[type]
+	var cost := int(defin.materials)
+	var turns := maxi(1, int(defin.build_turns))
+	if _type_understaffed(type):
+		return {"hint": "staff:%s" % type, "text": "Staff the %s." % str(defin.name).to_lower(), "level": -1, "cell": -1}
+	var spot := _first_build_cell()
+	if spot.is_empty():
+		var dig: Dictionary = _pick_dig_cell(true)
+		var dig_line := "Dig a cell, then build a %s (%d materials, %d weeks)." % [str(defin.name).to_lower(), cost, turns]
+		if type != "generator":
+			dig_line = "Dig a cell, then build %s (%d materials, %d weeks)." % [str(defin.name), cost, turns]
+		return {"hint": "dig", "text": dig_line, "level": int(dig.get("level", -1)), "cell": int(dig.get("cell", -1))}
+	var line := "Build a %s on a dug cell (%d materials, %d weeks)." % [str(defin.name).to_lower(), cost, turns]
+	if type != "generator":
+		line = "Build %s on a dug cell (%d materials, %d weeks)." % [str(defin.name), cost, turns]
+	return {"hint": "build:%s" % type, "text": line, "level": int(spot.level), "cell": int(spot.cell)}
+
+
+func _type_understaffed(type: String) -> bool:
+	var need := int(catalog.rooms[type].get("staff_min", 0))
+	if need <= 0:
+		return false
+	for room in rooms:
+		if str(room.type) != type or bool(room.offline):
+			continue
+		if int(room.staff.size()) < need:
+			return true
+	return false
+
+
+func burn_preview() -> Dictionary:
+	var cost := int(bal.burn_materials)
+	var info := {
+		"ok": int(stock.materials) >= cost,
+		"materials": cost,
+		"power": int(bal.burn_power),
+		"hope": int(bal.burn_hope),
+		"reason": "",
+	}
+	if not bool(info.ok):
+		info.reason = shortage_text({"materials": cost})
+	return info
+
+
+func _apply_burn() -> bool:
+	var info := burn_preview()
+	if not bool(info.ok):
+		return false
+	stock.materials = int(stock.materials) - int(info.materials)
+	stock.power = int(stock.power) + int(info.power)
+	_add_hope(int(info.hope), "burn")
+	decisions += 1
+	_log("BURN %d materials into %d power" % [int(info.materials), int(info.power)])
+	return true
+
+
+func _move_power(uid: String, up: bool) -> bool:
+	var i := power_order.find(uid)
+	if i < 0:
+		return false
+	var j := i - 1 if up else i + 1
+	if j < 0 or j >= power_order.size():
+		return false
+	var swap = power_order[i]
+	power_order[i] = power_order[j]
+	power_order[j] = swap
+	decisions += 1
+	return true
+
+
+func _insert_power(uid: String, type: String) -> void:
+	var rank := _power_rank(type)
+	var at := power_order.size()
+	for i in power_order.size():
+		var other = _room(str(power_order[i]))
+		if other == null:
+			continue
+		if _power_rank(str(other.type)) > rank:
+			at = i
+			break
+	power_order.insert(at, uid)
+
+
+func _power_rank(type: String) -> int:
+	match type:
+		"air_filter":
+			return 0
+		"hydroponics":
+			return 1
+		"quarters":
+			return 2
+		"workshop":
+			return 3
+		_:
+			return 9
+
+
+func _power_need() -> int:
+	var n := 0
+	for room in rooms:
+		if room.offline or bool(room.get("browned", false)):
 			continue
 		n += int(catalog.rooms[room.type].get("power", 0))
 	return n
@@ -1223,6 +1451,11 @@ func _apply_demolish(uid: String) -> bool:
 		if str(other.uid) != uid:
 			keep.append(other)
 	rooms = keep
+	var order: Array = []
+	for id in power_order:
+		if str(id) != uid:
+			order.append(id)
+	power_order = order
 	decisions += 1
 	_log("DEMOLISH %s, %d materials back" % [str(info.name), int(info.refund)])
 	return true
@@ -1479,6 +1712,12 @@ func _finish_dig() -> void:
 		if not tunnel.is_empty():
 			tunnel.dug = true
 		_log("FIND a sealed door. The stencil says FLOOR.", true)
+	elif find == "cable":
+		stock.power = int(stock.power) + int(bal.find_cable_power)
+		_log("FIND old cable, +%d power" % int(bal.find_cable_power), true)
+	elif find == "salvage":
+		stock.materials = int(stock.materials) + int(bal.find_salvage_materials)
+		_log("FIND salvage, +%d materials" % int(bal.find_salvage_materials), true)
 	if rng.randf() < 0.12 and dig.workers.size() > 0:
 		var hit := str(dig.workers[0])
 		if people.has(hit):
@@ -2907,10 +3146,11 @@ func _place_room(type: String, level: int, cell: int) -> void:
 	var uid := "room_%d_%d_%s" % [level, cell, type]
 	var room := {
 		"uid": uid, "type": type, "level": level, "cell": cell,
-		"upgrade": 0, "efficiency": 1.0, "staff": [], "offline": false,
+		"upgrade": 0, "efficiency": 1.0, "staff": [], "offline": false, "browned": false,
 	}
 	rooms.append(room)
 	cells[_ck(level, cell)].room = uid
+	_insert_power(uid, type)
 
 
 func _room(uid: String):
