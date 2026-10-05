@@ -17,6 +17,8 @@ func _init() -> void:
 		failed = true
 	if not _check_events(catalog):
 		failed = true
+	if not _check_crisis(catalog):
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
@@ -301,4 +303,48 @@ func _check_events(catalog: Catalog) -> bool:
 		print("Events: FAIL follow-up forgot the choice: ", front)
 		return false
 	print("Events: ok (%d in the pool)" % catalog.events.size())
+	return true
+
+
+func _check_crisis(catalog: Catalog) -> bool:
+	for run_seed in [1, 2, 3, 4, 5]:
+		var game := Game.new()
+		game.setup(catalog, run_seed, 40)
+		if str(game.pressure.get(game.crunch_week, "")) != "crunch":
+			print("Crisis: FAIL seed %d crunch week %d is %s" % [run_seed, game.crunch_week, str(game.pressure.get(game.crunch_week, ""))])
+			return false
+		if not game.crisis_faults.is_empty():
+			print("Crisis: FAIL ", game.crisis_faults)
+			return false
+		game.trade_on = true
+		var posted := false
+		for at in [8, 16, 24, 32]:
+			if game._pressure_taken(at + 1) or game._pressure_taken(at + 2) or game.warning_weeks.has(at + 2):
+				continue
+			game.week = at
+			var row: Dictionary = game._post_ultimatum("exchange")
+			if row.is_empty() or game.demand_log.is_empty():
+				continue
+			var last: Dictionary = game.demand_log[game.demand_log.size() - 1]
+			var span := int(last.span)
+			if span < 2 or span > 3 or int(last.amount) != int(last.income) * span:
+				print("Crisis: FAIL demand %s" % str(last))
+				return false
+			if game.warning_weeks.has(int(last.deadline_week)):
+				print("Crisis: FAIL warning shares week %d with a deadline" % int(last.deadline_week))
+				return false
+			posted = true
+			break
+		if not posted:
+			print("Crisis: FAIL seed %d had no quiet week for an ultimatum" % run_seed)
+			return false
+		var guard := 0
+		game.week = 1
+		while game.over == "" and guard < 42:
+			guard += 1
+			game.end_week()
+		if not game.crisis_faults.is_empty():
+			print("Crisis: FAIL ", game.crisis_faults)
+			return false
+	print("Crisis: ok")
 	return true

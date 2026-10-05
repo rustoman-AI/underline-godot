@@ -76,6 +76,11 @@ var event_times := {}
 var events_seen := {}
 var event_history: Array = []
 var follows: Array = []
+var pressure := {}
+var warning_weeks := {}
+var crisis_faults: Array = []
+var demand_log: Array = []
+var power_zero_streak := 0
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -147,6 +152,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		crunch_rng.seed = seed * 1000 + 13
 		crunch_week = crunch_rng.randi_range(int(bal.crunch_min_week), int(bal.crunch_max_week))
 		crunch_kind = crunch_rng.randi_range(0, 2)
+		_book_calendar()
 		crunch_power = false
 		belt_down = false
 		workshop_down = false
@@ -278,7 +284,18 @@ func report() -> Dictionary:
 		"crunch_drops": stats.get("crunch_drops", []),
 		"crunch_week": crunch_week,
 		"crunch_kind": crunch_kind,
+		"power_zero_max": int(stats.get("power_zero_max", 0)),
+		"unaffordable_dawn": int(stats.get("unaffordable_dawn", 0)),
+		"events_by_15": _events_by(15),
 	}
+
+
+func _events_by(limit: int) -> int:
+	var n := 0
+	for id in events_seen:
+		if int(events_seen[id]) <= limit:
+			n += 1
+	return n
 
 
 func owned_count() -> int:
@@ -570,6 +587,11 @@ func _night() -> void:
 		_log("SHORT power %d" % power_short, true)
 	for room in rooms:
 		room.browned = false
+	if int(stock.power) <= 0:
+		power_zero_streak += 1
+	else:
+		power_zero_streak = 0
+	stats["power_zero_max"] = maxi(int(stats.get("power_zero_max", 0)), power_zero_streak)
 	if week_short:
 		stats.shortage_weeks = int(stats.shortage_weeks) + 1
 		stats.shortages = int(stats.shortage_weeks)
@@ -2026,18 +2048,97 @@ func _plan_intents() -> Array:
 	return out
 
 
+func token_income() -> int:
+	var n := 0
+	if trade_on:
+		n += int(bal.trade_tokens_week)
+	for law_id in laws_on:
+		var defin: Dictionary = catalog.laws[law_id]
+		if defin.has("tokens_week"):
+			n += int(defin.tokens_week)
+	return n
+
+
+func _book_calendar() -> void:
+	pressure = {}
+	warning_weeks = {}
+	crisis_faults = []
+	for season in bal.seasons:
+		var at := int(season.week)
+		var warn := at - int(bal.season_warning)
+		if warn > 0:
+			warning_weeks[warn] = true
+			_book_pressure(warn, "warning")
+		for i in int(season.weeks):
+			_book_pressure(at + i, "season")
+	var start := crunch_week
+	var guard := 0
+	while _pressure_taken(crunch_week) and guard < 12:
+		guard += 1
+		crunch_week += 1
+		if crunch_week > int(bal.crunch_max_week):
+			crunch_week = int(bal.crunch_min_week)
+		if crunch_week == start:
+			break
+	if _pressure_taken(crunch_week):
+		crisis_faults.append("crunch had no quiet week")
+	else:
+		_book_pressure(crunch_week, "crunch")
+
+
+func _pressure_taken(at: int) -> bool:
+	return pressure.has(at)
+
+
+func _book_pressure(at: int, kind: String) -> bool:
+	if at <= 0:
+		return false
+	if pressure.has(at) and str(pressure[at]) != kind:
+		crisis_faults.append("%s overlapped %s on week %d" % [kind, str(pressure[at]), at])
+		return false
+	pressure[at] = kind
+	return true
+
+
+func _post_ultimatum(fid: String) -> Dictionary:
+	var first := week + 1
+	var last := week + 2
+	if _pressure_taken(first) or _pressure_taken(last) or warning_weeks.has(last):
+		return {}
+	var income := token_income()
+	if income <= 0:
+		return {}
+	var span := 2 + int((week / int(bal.demand_every)) % 2)
+	if not _book_pressure(first, "ultimatum") or not _book_pressure(last, "ultimatum"):
+		return {}
+	var amount := income * span
+	demands.append({
+		"id": "d%d" % demand_seq,
+		"faction": fid,
+		"amount": amount,
+		"deadline": 2,
+		"paid": false,
+		"income": income,
+		"span": span,
+		"deadline_week": last,
+	})
+	demand_log.append({
+		"week": week,
+		"amount": amount,
+		"income": income,
+		"span": span,
+		"deadline_week": last,
+	})
+	demand_seq += 1
+	stats.ultimatums = int(stats.ultimatums) + 1
+	return {"faction": fid, "kind": "demand_posted"}
+
+
 func _plan_one(fid: String) -> Dictionary:
 	if fid == "exchange" and week > 0 and week % int(bal.demand_every) == 0 and not _demand_open(fid):
-		demands.append({
-			"id": "d%d" % demand_seq,
-			"faction": fid,
-			"amount": int(bal.demand_tokens),
-			"deadline": 2,
-			"paid": false,
-		})
-		demand_seq += 1
-		stats.ultimatums = int(stats.ultimatums) + 1
-		return {"faction": fid, "kind": "demand_posted"}
+		var posted := _post_ultimatum(fid)
+		if not posted.is_empty():
+			return posted
 	var sq: Dictionary = squads[fid]
 	if int(sq.secure) > 0:
 		return {"faction": fid, "kind": "secure", "station": str(sq.station)}
@@ -2775,7 +2876,16 @@ func _schedule_follow(ev: Dictionary, choice: Dictionary) -> void:
 	if follow == "":
 		return
 	var gap := rng.randi_range(2, 6)
-	follows.append({"id": follow, "due": week + gap, "memory": str(choice.id)})
+	var due := week + gap
+	var earliest := 0
+	if event_last.has(follow):
+		earliest = int(event_last[follow]) + int(bal.get("event_cooldown", 8))
+	for item in follows:
+		if str(item.id) == follow:
+			earliest = maxi(earliest, int(item.due) + int(bal.get("event_cooldown", 8)))
+	if earliest > due:
+		return
+	follows.append({"id": follow, "due": due, "memory": str(choice.id)})
 
 
 func front_event() -> Dictionary:
