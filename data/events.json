@@ -20,7 +20,7 @@
     {"id": "stop", "label": "Break it up", "discontent": 2, "hope": -1}
   ]},
   {"id": "smuggler", "title": "A crate with no stamp", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "follow": "smuggler_next", "who": "Fran", "text": "Fran can move a crate through Bowling Green. No receipt.", "choices": [
-    {"id": "take", "label": "Take the crate", "tokens": 10, "discontent": 3},
+    {"id": "take", "label": "Take the crate", "tokens": 10, "discontent": 1},
     {"id": "refuse", "label": "Send it back", "hope": -1, "opinion_exchange": -4}
   ]},
   {"id": "rumble", "title": "A rumble under the platform", "sasha": true, "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "requires": "digging", "follow": "rumble_next", "who": "Lila", "text": "Lila's dig crew hits a hollow. Dust pours into the lower level.", "choices": [

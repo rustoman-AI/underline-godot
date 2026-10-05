@@ -14,7 +14,7 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictio
 		return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
 	var game := Game.new()
 	game.setup(catalog, run_seed, weeks)
-	game.audit = true
+	game.audit = profile_name != "follower"
 	var guard := 0
 	while game.over == "" and guard < weeks + 2:
 		guard += 1
@@ -26,6 +26,9 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictio
 
 
 func _act(game: Game) -> void:
+	if profile == "follower":
+		_follow(game)
+		return
 	_did_aid = false
 	var guard := 0
 	while not game.pending.is_empty() and guard < 6:
@@ -58,6 +61,64 @@ func _act(game: Game) -> void:
 		spent += 1
 
 
+func _follow(game: Game) -> void:
+	var forecasts: Array = game.forecasts()
+	var guard := 0
+	while not game.pending.is_empty() and guard < 6:
+		guard += 1
+		var ev: Dictionary = game.pending[0]
+		var choice := _visible_choice(game, ev, forecasts)
+		if choice.is_empty():
+			break
+		if not game.apply({"kind": "event", "event_id": ev.id, "choice_id": choice.id}):
+			break
+		forecasts = game.forecasts()
+	if forecasts.is_empty():
+		return
+	var row: Dictionary = forecasts[0]
+	var hint := str(row.hint)
+	if hint.begins_with("build:"):
+		var type := hint.trim_prefix("build:")
+		var info: Dictionary = game.build_preview(type, int(row.level), int(row.cell))
+		if bool(info.ok):
+			game.apply({"kind": "build", "type": type, "level": int(row.level), "cell": int(row.cell)})
+	elif hint == "dig":
+		var dig: Dictionary = game.dig_preview(int(row.level), int(row.cell))
+		if bool(dig.ok):
+			game.apply({"kind": "dig", "level": int(row.level), "cell": int(row.cell)})
+	elif hint.begins_with("staff:"):
+		game.apply({"kind": "staff"})
+	elif hint == "burn":
+		if bool(game.burn_preview().ok):
+			game.apply({"kind": "burn"})
+
+
+func _visible_choice(game: Game, ev: Dictionary, forecasts: Array) -> Dictionary:
+	var fallback := {}
+	for choice in ev.choices:
+		if not game.afford_choice(choice):
+			continue
+		if fallback.is_empty():
+			fallback = choice
+		if _spends_forecast(choice, forecasts):
+			continue
+		return choice
+	return fallback
+
+
+func _spends_forecast(choice: Dictionary, forecasts: Array) -> bool:
+	var cost = choice.get("cost", {})
+	if typeof(cost) != TYPE_DICTIONARY:
+		return false
+	for key in cost:
+		if int(cost[key]) <= 0:
+			continue
+		for row in forecasts:
+			if str(row.key) == str(key):
+				return true
+	return false
+
+
 func _project(game: Game) -> Dictionary:
 	if game.can_pump():
 		return {"kind": "pump"}
@@ -69,6 +130,8 @@ func _project(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "generator"}
 	if game.housing() < game.residents.size() and game.build_possible("quarters"):
 		return {"kind": "build", "type": "quarters"}
+	if game.room_count("hydroponics") < 2 and game.food_buffer_weeks() < 2.0 and game.build_possible("hydroponics"):
+		return {"kind": "build", "type": "hydroponics"}
 	if game.room_count("meeting_hall") == 0 and game.build_possible("meeting_hall"):
 		return {"kind": "build", "type": "meeting_hall"}
 	if game.output_of("food") < game.food_need() and game.build_possible("hydroponics"):

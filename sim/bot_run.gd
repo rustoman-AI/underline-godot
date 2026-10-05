@@ -16,13 +16,19 @@ func _init() -> void:
 			print("  ", err)
 	var careful: Array = []
 	var expander: Array = []
+	var follower: Array = []
 	for run_seed in [1, 2, 3, 4, 5]:
 		careful.append(Bot.new().play(40, run_seed, "careful"))
 		expander.append(Bot.new().play(40, run_seed, "expander"))
+		follower.append(Bot.new().play(40, run_seed, "follower"))
 	print("")
 	_print_table("Careful", careful)
 	print("")
 	_print_table("Expander", expander)
+	print("")
+	_print_table("Follower", follower)
+	print("")
+	_print_follower(follower)
 	print("")
 	_print_hope(expander[0])
 	print("")
@@ -45,6 +51,11 @@ func _init() -> void:
 		_print_failures(expander)
 	else:
 		print("Expander target: ok")
+	if not _follower_ok(follower):
+		failed = true
+		print("FOLLOWER TARGET FAIL")
+	else:
+		print("Follower target: ok")
 	print("")
 	if failed:
 		print("BOT RUN FAILED")
@@ -52,6 +63,41 @@ func _init() -> void:
 	else:
 		print("BOT RUN OK")
 		quit(0)
+
+
+func _print_follower(rows: Array) -> void:
+	print("Follower gates")
+	print("seed  over      wk  power0  unafford  events15")
+	for row in rows:
+		print("%-4d  %-8s  %2d  %6d  %8d  %8d" % [
+			int(row.get("seed", 0)),
+			str(row.get("over", "?")),
+			int(row.get("week", 0)),
+			int(row.get("power_zero_max", 0)),
+			int(row.get("unaffordable_dawn", 0)),
+			int(row.get("events_by_15", 0)),
+		])
+
+
+func _follower_ok(rows: Array) -> bool:
+	var lived := 0
+	var ok := true
+	for row in rows:
+		if int(row.get("power_zero_max", 0)) > 2:
+			ok = false
+			print("  power at 0 for %d weeks, seed %d" % [int(row.power_zero_max), int(row.seed)])
+		if int(row.get("unaffordable_dawn", 0)) > 0:
+			ok = false
+			print("  unaffordable dawn %d, seed %d" % [int(row.unaffordable_dawn), int(row.seed)])
+		if int(row.get("events_by_15", 0)) < 12:
+			ok = false
+			print("  events by week 15 = %d, seed %d" % [int(row.events_by_15), int(row.seed)])
+		if int(row.get("week", 0)) >= 25:
+			lived += 1
+	if lived < 4:
+		ok = false
+		print("  survived to week 25 on %d of 5 seeds" % lived)
+	return ok
 
 
 func _print_table(title: String, rows: Array) -> void:
