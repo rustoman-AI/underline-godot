@@ -43,6 +43,8 @@
   "find_cable_power": 8,
   "find_salvage_materials": 8,
   "forecast_weeks": 2,
+  "event_cooldown": 8,
+  "event_minor_cap": 2,
   "law_cooldown": 3,
   "ambition_week": 2,
   "ambition_taken": 5,

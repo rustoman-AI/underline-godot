@@ -15,6 +15,8 @@ func _init() -> void:
 		failed = true
 	if not _check_power(catalog):
 		failed = true
+	if not _check_events(catalog):
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
@@ -196,4 +198,107 @@ func _check_power(catalog: Catalog) -> bool:
 		print("Power: FAIL cable find")
 		return false
 	print("Power: ok")
+	return true
+
+
+func _check_events(catalog: Catalog) -> bool:
+	if catalog.events.size() < 30:
+		print("Events: FAIL pool %d" % catalog.events.size())
+		return false
+	var sasha := 0
+	var chains := 0
+	var names: Array = []
+	for person in catalog.residents:
+		names.append(str(person.name).split(" ")[0])
+	var named := 0
+	for ev in catalog.events:
+		if bool(ev.get("sasha", false)):
+			sasha += 1
+		if str(ev.get("follow", "")) != "":
+			chains += 1
+		var free := false
+		for choice in ev.choices:
+			var cost = choice.get("cost", {})
+			var empty := true
+			if cost is Dictionary:
+				for key in cost:
+					if int(cost[key]) > 0:
+						empty = false
+			if empty:
+				free = true
+		if not free:
+			print("Events: FAIL %s has no always-affordable choice" % str(ev.id))
+			return false
+		var blob := str(ev.text)
+		var by = ev.get("by", {})
+		if by is Dictionary:
+			for key in by:
+				blob += " " + str(by[key])
+		for person_name in names:
+			if blob.contains(str(person_name)):
+				named += 1
+				break
+	if sasha < 9:
+		print("Events: FAIL sasha %d" % sasha)
+		return false
+	if float(chains) < float(catalog.events.size()) / 3.0:
+		print("Events: FAIL chains %d of %d" % [chains, catalog.events.size()])
+		return false
+	if named < 9:
+		print("Events: FAIL named residents %d" % named)
+		return false
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	var guard := 0
+	while game.over == "" and guard < 42:
+		guard += 1
+		game.end_week()
+	if int(game.stats.get("unaffordable_dawn", 0)) > 0:
+		print("Events: FAIL a dawn had no affordable option")
+		return false
+	var seen := {}
+	for row in game.event_history:
+		var id := str(row.id)
+		var at := int(row.week)
+		if not seen.has(id):
+			seen[id] = []
+		for prior in seen[id]:
+			if at == int(prior) or abs(at - int(prior)) < 8:
+				print("Events: FAIL %s repeated at weeks %s and %d" % [id, str(prior), at])
+				return false
+		seen[id].append(at)
+	for ev in catalog.events:
+		if bool(ev.get("major", false)) or bool(ev.get("chain_only", false)):
+			continue
+		if int(game.event_times.get(str(ev.id), 0)) > 2:
+			print("Events: FAIL %s appeared %d times" % [str(ev.id), int(game.event_times[str(ev.id)])])
+			return false
+	var chain := Game.new()
+	chain.setup(catalog, 2, 40)
+	var clog: Dictionary = chain._event_by_id("clog")
+	chain.pending.clear()
+	chain.week_event_ids = {}
+	if not chain._present_event(clog):
+		print("Events: FAIL could not present clog")
+		return false
+	if not chain.apply({"kind": "event", "event_id": "clog", "choice_id": "run"}):
+		print("Events: FAIL clog choice")
+		return false
+	if chain.follows.is_empty():
+		print("Events: FAIL clog did not schedule a follow-up")
+		return false
+	var due := int(chain.follows[0].due)
+	var gap := due - chain.week
+	if gap < 2 or gap > 6 or str(chain.follows[0].memory) != "run":
+		print("Events: FAIL follow gap %d memory %s" % [gap, str(chain.follows[0].memory)])
+		return false
+	chain.week = due
+	chain.pending.clear()
+	chain.week_event_ids = {}
+	chain._present_due_follows()
+	var front: Dictionary = chain.front_event()
+	if str(front.id) != "clog_next" or not str(front.text).contains("left the filter running"):
+		print("Events: FAIL follow-up forgot the choice: ", front)
+		return false
+	print("Events: ok (%d in the pool)" % catalog.events.size())
 	return true

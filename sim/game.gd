@@ -72,6 +72,10 @@ var gen_down := false
 var event_last := {}
 var week_event_ids := {}
 var power_order: Array = []
+var event_times := {}
+var events_seen := {}
+var event_history: Array = []
+var follows: Array = []
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -479,6 +483,7 @@ func _dawn() -> void:
 	_season_clock()
 	_queue_crunch()
 	_roll_events()
+	_note_dawn_afford()
 	_log("DAWN food %d air %d power %d mat %d tok %d inf %d hope %d dis %d pop %d" % [
 		int(stock.food), int(stock.air), int(stock.power), int(stock.materials), int(stock.tokens), int(stock.influence), hope, discontent, residents.size()])
 	for intent in telegraphed:
@@ -2629,7 +2634,7 @@ func _crunch_legs() -> Array:
 		"pain": power_pain, "hit": {"discontent": 4, "power_double": true},
 	}
 	var belt := {
-		"id": "lamps", "short": "the belt", "title": "The grow lamps snap",
+		"id": "belt", "short": "the belt", "title": "The grow lamps snap",
 		"text": "A belt on the hydroponic lamps snaps. Replace it, or the beds give half a crop this week.",
 		"pay": "Spend %d materials on a new belt", "suffer": "Let the beds run at half",
 		"pain": belt_pain, "hit": {"hope": -2, "discontent": 2, "hydro_down": true},
@@ -2708,12 +2713,69 @@ func _cover_gap(key: String) -> int:
 
 
 func _roll_events() -> void:
+	if week == crunch_week:
+		for item in follows:
+			if int(item.due) <= week:
+				item.due = week + 1
+		return
+	_present_due_follows()
 	var pool := _event_pool(rng.randf() < 0.4)
 	if pool.is_empty():
 		pool = _event_pool(false)
 	if pool.is_empty():
 		return
 	_present_event(_weighted(pool))
+
+
+func _present_due_follows() -> void:
+	var keep: Array = []
+	var presented := 0
+	for item in follows:
+		if int(item.due) > week:
+			keep.append(item)
+			continue
+		if presented >= 1:
+			item.due = week + 1
+			keep.append(item)
+			continue
+		var ev := _event_by_id(str(item.id))
+		if ev.is_empty():
+			continue
+		var copy: Dictionary = _copy(ev)
+		var memory := str(item.get("memory", ""))
+		var by = ev.get("by", {})
+		if by is Dictionary and by.has(memory):
+			copy.text = str(by[memory])
+		if _present_event(copy):
+			presented += 1
+	follows = keep
+
+
+func _event_by_id(id: String) -> Dictionary:
+	for ev in catalog.events:
+		if str(ev.id) == id:
+			return ev
+	return {}
+
+
+func _note_dawn_afford() -> void:
+	if pending.is_empty():
+		return
+	var any := false
+	for ev in pending:
+		for choice in ev.choices:
+			if _afford(choice.get("cost", {})):
+				any = true
+	if not any:
+		stats["unaffordable_dawn"] = int(stats.get("unaffordable_dawn", 0)) + 1
+
+
+func _schedule_follow(ev: Dictionary, choice: Dictionary) -> void:
+	var follow := str(ev.get("follow", ""))
+	if follow == "":
+		return
+	var gap := rng.randi_range(2, 6)
+	follows.append({"id": follow, "due": week + gap, "memory": str(choice.id)})
 
 
 func front_event() -> Dictionary:
@@ -2763,10 +2825,10 @@ func _cost_empty(cost) -> bool:
 	return true
 
 
-func _present_event(ev: Dictionary) -> void:
+func _present_event(ev: Dictionary) -> bool:
 	var id := str(ev.id)
 	if _has_event(pending, id) or week_event_ids.has(id):
-		return
+		return false
 	var copy: Dictionary = _copy(ev)
 	if id == "refugees":
 		var n := rng.randi_range(int(bal.refugee_min), int(bal.refugee_max))
@@ -2778,6 +2840,11 @@ func _present_event(ev: Dictionary) -> void:
 	week_event_ids[id] = true
 	pending.append(copy)
 	event_last[id] = week
+	event_times[id] = int(event_times.get(id, 0)) + 1
+	if not events_seen.has(id):
+		events_seen[id] = week
+	event_history.append({"id": id, "week": week})
+	return true
 
 
 func _event_pool(major_only: bool) -> Array:
@@ -2799,10 +2866,14 @@ func _event_pool(major_only: bool) -> Array:
 
 func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
+	if bool(ev.get("chain_only", false)):
+		return false
 	if id == "lamps" and week == crunch_week:
 		return false
-	var cool := int(ev.get("cooldown", 6))
+	var cool := maxi(int(bal.get("event_cooldown", 8)), int(ev.get("cooldown", 8)))
 	if event_last.has(id) and week - int(event_last[id]) < cool:
+		return false
+	if not bool(ev.get("major", false)) and int(event_times.get(id, 0)) >= int(bal.get("event_minor_cap", 2)):
 		return false
 	if week < int(ev.get("min_week", 1)):
 		return false
@@ -2849,6 +2920,7 @@ func _apply_event(action: Dictionary) -> bool:
 		stats["crunch_drops"] = drops
 	pending.pop_front()
 	decisions += 1
+	_schedule_follow(ev, choice)
 	_log("EVENT %s: %s" % [ev.title, choice.label], bool(ev.get("major", false)))
 	return true
 

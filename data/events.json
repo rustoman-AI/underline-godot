@@ -1,50 +1,138 @@
 [
-  {"id": "lamps", "title": "The grow lamps snap", "major": true, "min_week": 5, "max_week": 12, "weight": 4, "cooldown": 99, "text": "A belt on the hydroponic lamps snaps. The beds will fail if nobody climbs in.", "choices": [
+  {"id": "lamps", "title": "The grow lamps snap", "major": true, "min_week": 5, "max_week": 12, "weight": 4, "cooldown": 99, "follow": "lamps_next", "text": "A belt on the hydroponic lamps snaps. The beds will fail if nobody climbs in.", "choices": [
     {"id": "fix", "label": "Strip the workshop for a new belt", "cost": {"materials": 8}, "hope": 0},
     {"id": "lose", "label": "Let this crop die", "food": -18, "hope": -2}
   ]},
-  {"id": "refugees", "title": "People at the gate", "major": true, "min_week": 6, "weight": 3, "cooldown": 10, "text": "A crowd is at the yard gate with a story about a collapse north of Atlantic Av.", "choices": [
+  {"id": "refugees", "title": "People at the gate", "major": true, "min_week": 6, "weight": 3, "cooldown": 10, "follow": "refugees_next", "text": "A crowd is at the yard gate with a story about a collapse north of Atlantic Av.", "choices": [
     {"id": "take", "label": "Take them in", "people": 5, "hope": 0, "discontent": 2},
     {"id": "turn", "label": "Turn them away", "hope": -4, "discontent": 1}
   ]},
-  {"id": "clog", "title": "Charcoal beds clog", "major": false, "weight": 2, "cooldown": 8, "text": "The air filters are pulling dust. Someone has to open the stacks.", "choices": [
+  {"id": "clog", "title": "Charcoal beds clog", "sasha": true, "major": false, "weight": 2, "cooldown": 8, "follow": "clog_next", "who": "Mara", "text": "Mara says the air filters are pulling dust. Someone has to open the stacks.", "choices": [
     {"id": "clean", "label": "Shut a filter and clean it", "cost": {"power": 4}, "air": -4, "hope": 0},
     {"id": "run", "label": "Run it dirty", "discontent": 3, "efficiency": -0.08}
   ]},
-  {"id": "quarrel", "title": "A quarrel on the platform", "major": false, "weight": 2, "cooldown": 6, "text": "Two crews are shouting about who ate the extra rations.", "choices": [
+  {"id": "quarrel", "title": "A quarrel on the platform", "sasha": true, "major": false, "weight": 2, "cooldown": 8, "follow": "quarrel_next", "who": "Jonah", "text": "Jonah and Owen are shouting about who ate the extra rations.", "choices": [
     {"id": "hear", "label": "Hear both sides", "influence": -2, "discontent": -1},
     {"id": "shut", "label": "Send them back to work", "discontent": 4, "hope": -1}
   ]},
-  {"id": "preacher", "title": "A sermon in the passage", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "text": "Someone is preaching the Synod's line by the filter room. A few of yours are listening.", "choices": [
-    {"id": "allow", "label": "Let them speak", "hope": 0, "synod": 6, "trait_hope": {"Devout": 0}},
+  {"id": "preacher", "title": "A sermon in the passage", "sasha": true, "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "follow": "preacher_next", "who": "Ellis", "text": "Ellis is preaching the Synod's line by the filter room. A few of yours are listening.", "choices": [
+    {"id": "allow", "label": "Let Ellis speak", "hope": 1, "synod": 6},
     {"id": "stop", "label": "Break it up", "discontent": 2, "hope": -1}
   ]},
-  {"id": "smuggler", "title": "A crate with no stamp", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "text": "Benny's friends can move a crate through Bowling Green. No receipt.", "choices": [
-    {"id": "take", "label": "Take the crate", "tokens": 10, "discontent": 3, "trait_hope": {"Black marketeer": 0}},
-    {"id": "refuse", "label": "Send it back", "hope": 0, "opinion_exchange": -4}
+  {"id": "smuggler", "title": "A crate with no stamp", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "follow": "smuggler_next", "who": "Fran", "text": "Fran can move a crate through Bowling Green. No receipt.", "choices": [
+    {"id": "take", "label": "Take the crate", "tokens": 10, "discontent": 3},
+    {"id": "refuse", "label": "Send it back", "hope": -1, "opinion_exchange": -4}
   ]},
-  {"id": "rumble", "title": "A rumble under the platform", "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "requires": "digging", "text": "The dig crew hits a hollow. Dust pours into the lower level.", "choices": [
+  {"id": "rumble", "title": "A rumble under the platform", "sasha": true, "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "requires": "digging", "follow": "rumble_next", "who": "Lila", "text": "Lila's dig crew hits a hollow. Dust pours into the lower level.", "choices": [
     {"id": "shore", "label": "Shore it up", "cost": {"materials": 4}, "hope": 0},
     {"id": "push", "label": "Keep digging", "hope": -2, "sick": 1, "trait_absent": {"Claustrophobic": 2}}
   ]},
-  {"id": "static", "title": "A voice in the static", "major": false, "min_week": 8, "weight": 1, "cooldown": 14, "text": "The radio, or a pipe that sounds like one, says a word twice: Floor.", "choices": [
+  {"id": "static", "title": "A voice in the static", "sasha": true, "major": false, "min_week": 8, "weight": 1, "cooldown": 14, "follow": "static_next", "who": "June", "text": "June's radio, or a pipe that sounds like one, says a word twice: Floor.", "choices": [
     {"id": "log", "label": "Write down every word", "papers": 1, "hope": 0},
     {"id": "ignore", "label": "Ignore it", "hope": -1}
   ]},
-  {"id": "market_food", "title": "Traders with sacks", "major": false, "min_week": 2, "weight": 3, "cooldown": 7, "text": "A handcar from the Exchange side is selling food. The price is posted, and it is not kind.", "choices": [
+  {"id": "market_food", "title": "Traders with sacks", "sasha": true, "major": false, "min_week": 2, "weight": 3, "cooldown": 8, "follow": "market_next", "who": "Benny", "text": "Benny waves in a handcar from the Exchange side. The sacks of food are real. The price is not kind.", "choices": [
     {"id": "buy", "label": "Buy the sacks", "cost": {"tokens": 12}, "food": 16},
-    {"id": "pass", "label": "Let them pass", "opinion_exchange": 2}
+    {"id": "pass", "label": "Let them pass", "discontent": 1, "opinion_exchange": 2}
   ]},
-  {"id": "desertion", "title": "Two bunks are empty", "major": false, "min_discontent": 40, "weight": 2, "cooldown": 10, "text": "Two residents walked into the tunnel toward the river. They left their tags.", "choices": [
+  {"id": "desertion", "title": "Two bunks are empty", "major": false, "min_discontent": 40, "weight": 2, "cooldown": 10, "follow": "desertion_next", "text": "Two residents walked into the tunnel toward the river. They left their tags.", "choices": [
     {"id": "search", "label": "Send a crew after them", "cost": {"food": 4}, "hope": 0},
     {"id": "let", "label": "Let them go", "people": -2, "discontent": -1, "hope": -3}
   ]},
-  {"id": "wire", "title": "Spare cable in the yard", "major": false, "weight": 2, "cooldown": 8, "text": "Mara's crew pulls a spool of cable out of a sealed locker. It is Depot stock, forgotten.", "choices": [
+  {"id": "wire", "title": "Spare cable in the yard", "sasha": true, "major": false, "weight": 2, "cooldown": 8, "who": "Mara", "text": "Mara's crew pulls a spool of cable out of a sealed locker. It is Depot stock, forgotten.", "choices": [
     {"id": "reel", "label": "Reel it into the workshop", "materials": 8},
-    {"id": "trade", "label": "Trade it down the line", "tokens": 8, "materials": 2}
+    {"id": "trade", "label": "Trade it down the line", "hope": -1, "tokens": 8, "materials": 2}
   ]},
-  {"id": "cough", "title": "A wet cough", "major": false, "min_week": 8, "weight": 2, "cooldown": 9, "text": "Three people on the platform are coughing into their sleeves.", "choices": [
-    {"id": "beds", "label": "Clear beds and lose a shift", "sick": 1, "hope": 0, "food": -4},
+  {"id": "cough", "title": "A wet cough", "sasha": true, "major": false, "min_week": 8, "weight": 2, "cooldown": 9, "follow": "cough_next", "who": "Ruth", "text": "Ruth and two others on the platform are coughing into their sleeves.", "choices": [
+    {"id": "beds", "label": "Clear beds and lose a shift", "cost": {"food": 4}, "sick": 1, "hope": 0},
     {"id": "work", "label": "Tell them to work through it", "sick": 3, "discontent": 2}
+  ]},
+  {"id": "leak", "title": "A drip over the bunks", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "follow": "leak_next", "who": "Pete", "text": "Pete finds a drip over the bunks. It will be a stream if nobody patches it.", "choices": [
+    {"id": "patch", "label": "Patch it with workshop cloth", "cost": {"materials": 3}, "hope": 0},
+    {"id": "buckets", "label": "Set buckets and move on", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "nightshift", "title": "Hal will not sleep", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Hal", "text": "Hal is walking the platform again. The night shift wants him off the tools.", "choices": [
+    {"id": "bench", "label": "Give him a bench and a watch", "hope": 1, "discontent": -1},
+    {"id": "order", "label": "Order him to his bunk", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "ration", "title": "Owen counts the bowls", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Owen", "text": "Owen counts the bowls twice and says the kitchen is short a meal.", "choices": [
+    {"id": "share", "label": "Split the short meal across the room", "food": -2, "discontent": 1},
+    {"id": "hold", "label": "Hold the line and promise tomorrow", "hope": -1, "discontent": 2}
+  ]},
+  {"id": "tools", "title": "Samira's drill walks off", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Samira", "text": "Samira's drill is gone from the workshop peg. Someone borrowed it and did not bring it back.", "choices": [
+    {"id": "ask", "label": "Ask room to room", "influence": -1, "hope": 0},
+    {"id": "drop", "label": "Let it go", "discontent": 1, "hope": -1}
+  ]},
+  {"id": "bunks", "title": "Ada wants a curtain", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Ada", "text": "Ada asks for a curtain between the bunks. It is a small thing, and the room is listening.", "choices": [
+    {"id": "hang", "label": "Hang a curtain", "cost": {"materials": 2}, "hope": 1},
+    {"id": "no", "label": "Tell her the cloth is for filters", "discontent": 2}
+  ]},
+  {"id": "salt", "title": "Nora tastes salt in the air", "major": false, "min_week": 5, "weight": 2, "cooldown": 8, "who": "Nora", "text": "Nora tastes salt in the air by the east wall. The river is closer than the map says.", "choices": [
+    {"id": "seal", "label": "Seal the crack", "cost": {"materials": 3}, "hope": 0},
+    {"id": "note", "label": "Note it and keep working", "hope": -1, "discontent": 1}
+  ]},
+  {"id": "scrap", "title": "Vic's scrap pile", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Vic", "text": "Vic has a pile of scrap that could be parts or could be a fight about who owns it.", "choices": [
+    {"id": "shop", "label": "Take it to the workshop", "materials": 4, "discontent": 1},
+    {"id": "leave", "label": "Leave it in his name", "hope": -1}
+  ]},
+  {"id": "overtime", "title": "Rob stays on the belt", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Rob", "text": "Rob will not leave the belt. The next shift is standing there with their hands empty.", "choices": [
+    {"id": "relief", "label": "Send him to eat", "food": -1, "hope": 1},
+    {"id": "keep", "label": "Let him finish the run", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "hymn", "title": "Tess starts a hymn", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Tess", "text": "Tess starts a hymn in the passage. It is not the Synod's hymn. People join anyway.", "choices": [
+    {"id": "join", "label": "Let it finish", "hope": 2, "discontent": -1},
+    {"id": "quiet", "label": "Ask for quiet on the platform", "discontent": 1, "hope": -1}
+  ]},
+  {"id": "drill", "title": "Paul's old route", "major": false, "min_week": 5, "weight": 2, "cooldown": 8, "who": "Paul", "text": "Paul swears he can drive a handcar to the ferry the way he used to. The tunnel is not on your map.", "choices": [
+    {"id": "map", "label": "Send him with a lamp and a partner", "hope": 0, "influence": 2},
+    {"id": "stay", "label": "Keep him on the yard", "discontent": 1, "hope": -1}
+  ]},
+  {"id": "lamps_next", "title": "The beds remember the belt", "chain_only": true, "weight": 1, "text": "The hydroponic beds are still off their rhythm.", "by": {"fix": "The new belt holds. The beds are back, and the crew knows who climbed in for it.", "lose": "The lost crop is still the story at meals. The next belt looks thin."}, "choices": [
+    {"id": "thank", "label": "Thank the crew in front of the room", "hope": 1},
+    {"id": "move", "label": "Move on", "discontent": 1}
+  ]},
+  {"id": "refugees_next", "title": "The gate, again", "chain_only": true, "weight": 1, "text": "Someone from that crowd is back at the gate.", "by": {"take": "One of the people you took in has family still outside. They ask if the yard can stand one more.", "turn": "The people you turned away left a mark on the gate. A child is asking for them by name."}, "choices": [
+    {"id": "open", "label": "Open the gate a little wider", "hope": -1, "discontent": 1},
+    {"id": "names", "label": "Take the names and nothing else", "hope": -2}
+  ]},
+  {"id": "clog_next", "title": "Mara opens the stacks again", "chain_only": true, "weight": 1, "who": "Mara", "text": "Mara is back at the charcoal.", "by": {"clean": "Mara's crew still talks about the shift they shut the filter to clean it. The dust is back.", "run": "Mara still tastes the dust from the week she left the filter running."}, "choices": [
+    {"id": "clean", "label": "Clean it properly this time", "cost": {"power": 2}, "hope": 0},
+    {"id": "live", "label": "Live with the dust", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "quarrel_next", "title": "Jonah and Owen again", "chain_only": true, "weight": 1, "who": "Jonah", "text": "Jonah and Owen are not finished.", "by": {"hear": "Jonah and Owen kept the peace you made, until the bowls came up short again.", "shut": "Jonah and Owen are louder than last time. Sending them back to work did not end it."}, "choices": [
+    {"id": "table", "label": "Sit them at the same table", "food": -1, "discontent": -1},
+    {"id": "split", "label": "Split their shifts", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "preacher_next", "title": "Ellis asks for a room", "chain_only": true, "weight": 1, "who": "Ellis", "text": "Ellis wants a room for the talking.", "by": {"allow": "Ellis says the sermon you allowed needs a room now, not a passage.", "stop": "Ellis is quieter, and the people you pulled away from the sermon have not forgotten."}, "choices": [
+    {"id": "corner", "label": "Give the meeting hall's corner", "hope": 1, "discontent": 1},
+    {"id": "no", "label": "Keep the hall for the yard", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "smuggler_next", "title": "Fran has another crate", "chain_only": true, "weight": 1, "who": "Fran", "text": "Fran is back with a price.", "by": {"take": "Fran says the crate you took opened a route. She can run it again, for a cut.", "refuse": "Fran tells the line you sent her crate back. The next offer is smaller, and colder."}, "choices": [
+    {"id": "cut", "label": "Take the cut", "tokens": 4, "discontent": 2},
+    {"id": "end", "label": "End it", "hope": -1, "opinion_exchange": -2}
+  ]},
+  {"id": "rumble_next", "title": "Lila will not go back down", "chain_only": true, "weight": 1, "who": "Lila", "text": "Lila is on the platform and will not take the ladder.", "by": {"shore": "Lila says the shore you built held. She still will not be the first one down.", "push": "Lila remembers being told to keep digging. She will not take the ladder."}, "choices": [
+    {"id": "pair", "label": "Send her with a partner", "hope": 0, "discontent": 1},
+    {"id": "up", "label": "Keep her on the upper level", "hope": -1, "discontent": 1}
+  ]},
+  {"id": "static_next", "title": "June hears it twice", "chain_only": true, "weight": 1, "who": "June", "text": "June has the word again.", "by": {"log": "June brings the page you told her to keep. The voice said Floor a second time.", "ignore": "June heard it again, after you told her to ignore it. She wrote it down anyway."}, "choices": [
+    {"id": "keep", "label": "Add it to the papers", "papers": 1, "hope": 0},
+    {"id": "stop", "label": "Take her off the radio", "hope": -1, "discontent": 1}
+  ]},
+  {"id": "market_next", "title": "Benny's traders come back", "chain_only": true, "weight": 1, "who": "Benny", "text": "Benny's traders are at the handcar again.", "by": {"buy": "Benny's traders are back with more sacks, because you paid last time.", "pass": "Benny's traders are back. They remember that you let them pass, and the price has not improved."}, "choices": [
+    {"id": "buy", "label": "Buy a smaller load", "cost": {"tokens": 6}, "food": 8},
+    {"id": "wave", "label": "Wave them through", "discontent": 1, "hope": -1}
+  ]},
+  {"id": "desertion_next", "title": "A tag comes back", "chain_only": true, "weight": 1, "text": "A tag from the empty bunks is in the yard.", "by": {"search": "The crew you sent comes back with one tag and no person. The other bunk is still empty.", "let": "Someone left a tag on the gate. It belongs to one of the two you let go."}, "choices": [
+    {"id": "hang", "label": "Hang the tag in the hall", "hope": -1, "discontent": -1},
+    {"id": "box", "label": "Put it in a box", "hope": -2}
+  ]},
+  {"id": "cough_next", "title": "Ruth's cough moves", "chain_only": true, "weight": 1, "who": "Ruth", "text": "Ruth's cough is in another room.", "by": {"beds": "The beds you cleared held Ruth. The cough is in the next bunk now.", "work": "Ruth worked through it, like you asked. Two more people are coughing."}, "choices": [
+    {"id": "beds", "label": "Clear beds again", "food": -2, "hope": 0, "sick": 1},
+    {"id": "push", "label": "Keep the shift", "discontent": 2, "sick": 2}
+  ]},
+  {"id": "leak_next", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "Pete's patch held for a while. The drip has found a new seam.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
+    {"id": "patch", "label": "Patch the new seam", "cost": {"materials": 2}, "hope": 0},
+    {"id": "move", "label": "Move the bunks", "discontent": 2, "hope": -1}
   ]}
 ]
