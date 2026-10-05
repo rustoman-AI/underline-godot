@@ -769,23 +769,26 @@ func _show_dawn() -> void:
 		_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
-	for ev in game.pending:
-		_heading(str(ev.title))
-		_body(str(ev.text))
-		for choice in ev.choices:
-			var label := str(choice.label)
-			var extra := _choice_bits(choice)
-			if extra != "":
-				label += "  (" + extra + ")"
-			var pick := _button(label, _pick_event.bind(str(ev.id), str(choice.id)))
-			if not game.afford_choice(choice):
-				var why := game.shortage_text(choice.get("cost", {}))
-				if why == "":
-					why = "That cost cannot be paid."
-				pick.disabled = true
-				pick.text = "%s — %s" % [label, why]
-				pick.custom_minimum_size.y = 72
-			card_body.add_child(pick)
+	var ev: Dictionary = game.front_event()
+	_heading(str(ev.title))
+	_body(str(ev.text))
+	for choice in ev.choices:
+		var label := str(choice.label)
+		var extra := _choice_bits(choice)
+		if extra != "":
+			label += "  (" + extra + ")"
+		var pick := _button(label, _pick_event.bind(str(ev.id), str(choice.id)))
+		if not game.afford_choice(choice):
+			var why := game.shortage_text(choice.get("cost", {}))
+			if why == "":
+				why = "That cost cannot be paid."
+			pick.disabled = true
+			pick.text = "%s — %s" % [label, why]
+			pick.custom_minimum_size.y = 72
+		card_body.add_child(pick)
+	if game.pending.size() > 1:
+		_body("%d more waiting after this one." % (game.pending.size() - 1))
+	card_body.add_child(_button("Close", _dismiss_dawn))
 
 
 func _morning_lines() -> PackedStringArray:
@@ -808,13 +811,30 @@ func _starts(text: String, prefixes: Array) -> bool:
 
 
 func _pick_event(event_id: String, choice_id: String) -> void:
+	var before := str(game.front_event().get("id", ""))
 	if not game.apply({"kind": "event", "event_id": event_id, "choice_id": choice_id}):
 		footer.text = "That choice did not take."
+		return
 	_refresh()
+	_advance_dawn(before)
+
+
+func _dismiss_dawn() -> void:
+	var before := str(game.front_event().get("id", ""))
+	if before != "":
+		game.dismiss_front()
+	_refresh()
+	_advance_dawn(before)
+
+
+func _advance_dawn(before: String) -> void:
 	if game.pending.is_empty():
 		_close_card()
-	else:
-		_show_dawn()
+		return
+	if str(game.front_event().get("id", "")) == before:
+		_close_card()
+		return
+	_show_dawn()
 
 
 func _show_ending() -> void:

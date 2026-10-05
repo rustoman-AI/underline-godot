@@ -70,6 +70,7 @@ var belt_down := false
 var workshop_down := false
 var gen_down := false
 var event_last := {}
+var week_event_ids := {}
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -471,6 +472,7 @@ func _dawn() -> void:
 	orders_left = council.size()
 	pumped = false
 	quarantine = false
+	week_event_ids = {}
 	_season_clock()
 	_queue_crunch()
 	_roll_events()
@@ -2467,59 +2469,76 @@ func _cover_gap(key: String) -> int:
 
 
 func _roll_events() -> void:
-	var picked: Array = []
-	var guard := 0
-	while picked.size() < 2 and guard < 20:
-		guard += 1
-		var pool := _event_pool(picked.size() == 0 and rng.randf() < 0.4)
-		if pool.is_empty():
-			pool = _event_pool(false)
-		if pool.is_empty():
-			break
-		var ev: Dictionary = _weighted(pool)
-		if _has_event(picked, str(ev.id)):
+	var pool := _event_pool(rng.randf() < 0.4)
+	if pool.is_empty():
+		pool = _event_pool(false)
+	if pool.is_empty():
+		return
+	_present_event(_weighted(pool))
+
+
+func front_event() -> Dictionary:
+	if pending.is_empty():
+		return {}
+	return pending[0]
+
+
+func modal_ids() -> Array:
+	var ids: Array = []
+	var seen := {}
+	for ev in pending:
+		var id := str(ev.id)
+		if seen.has(id):
 			continue
-		picked.append(ev)
-	if picked.size() >= 2 and rng.randf() < 0.22:
-		var extra := _event_pool(false)
-		if not extra.is_empty():
-			var ev2: Dictionary = _weighted(extra)
-			if not _has_event(picked, str(ev2.id)):
-				picked.append(ev2)
-	for ev in picked:
-		_present_event(ev)
-	if picked.size() < 2:
-		var relax: Array = []
-		for ev in catalog.events:
-			if bool(ev.get("major", false)) or str(ev.id) == "static":
-				continue
-			if week < int(ev.get("min_week", 1)) or week > int(ev.get("max_week", 99)):
-				continue
-			if str(ev.get("requires", "")) == "digging" and dig.is_empty():
-				continue
-			if _has_event(picked, str(ev.id)):
-				continue
-			relax.append(ev)
-		var guard2 := 0
-		while picked.size() < 2 and not relax.is_empty() and guard2 < 8:
-			guard2 += 1
-			var extra: Dictionary = _weighted(relax)
-			relax = _drop_id(relax, str(extra.id))
-			picked.append(extra)
-			_present_event(extra)
+		seen[id] = true
+		ids.append(id)
+	return ids
+
+
+func dismiss_front() -> bool:
+	if pending.is_empty():
+		return false
+	var ev: Dictionary = pending[0]
+	var choice := _free_choice(ev)
+	if choice.is_empty():
+		pending.pop_front()
+		return true
+	if not _apply_event({"event_id": str(ev.id), "choice_id": str(choice.id)}):
+		pending.pop_front()
+	return pending.is_empty() or str(pending[0].get("id", "")) != str(ev.id)
+
+
+func _free_choice(ev: Dictionary) -> Dictionary:
+	for choice in ev.choices:
+		if _cost_empty(choice.get("cost", {})):
+			return choice
+	return {}
+
+
+func _cost_empty(cost) -> bool:
+	if typeof(cost) != TYPE_DICTIONARY:
+		return true
+	for key in cost:
+		if int(cost[key]) > 0:
+			return false
+	return true
 
 
 func _present_event(ev: Dictionary) -> void:
+	var id := str(ev.id)
+	if _has_event(pending, id) or week_event_ids.has(id):
+		return
 	var copy: Dictionary = _copy(ev)
-	if str(copy.id) == "refugees":
+	if id == "refugees":
 		var n := rng.randi_range(int(bal.refugee_min), int(bal.refugee_max))
 		copy.text = "%d people are at the yard gate with a story about a collapse north of Atlantic Av." % n
 		for choice in copy.choices:
 			if str(choice.id) == "take":
 				choice.people = n
 				choice.label = "Take in %d" % n
+	week_event_ids[id] = true
 	pending.append(copy)
-	event_last[str(copy.id)] = week
+	event_last[id] = week
 
 
 func _event_pool(major_only: bool) -> Array:
