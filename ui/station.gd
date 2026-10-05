@@ -3,7 +3,10 @@ extends Control
 ## Cut-away of the station. Placeholder shapes on a painted wall. The sim stays in charge of the week.
 
 const INK := Color("efe6d2")
+const INK_DARK := Color("24180e")
 const MUTED := Color("b7aa96")
+const PAPER := Color("e6d3b0")
+const STEEL := Color(0.07, 0.08, 0.09, 0.88)
 const ROOM_COLOR := {
 	"platform": Color("c9843a"),
 	"quarters": Color("c4a574"),
@@ -37,6 +40,7 @@ var quarantine_button: Button
 var burn_button: Button
 var power_button: Button
 var forecast_button: Button
+var revolt_button: Button
 var chips := {}
 var hope_label: Label
 var dis_label: Label
@@ -48,19 +52,36 @@ var card_body: VBoxContainer
 var portrait := false
 var power_loss := {}
 var notice := ""
+var display_font: Font
+var body_font: Font
+var hud: PanelContainer
+var hud_box: VBoxContainer
+var meter_box: HBoxContainer
+var ticker: HBoxContainer
+var ticker_label: Label
+var ticker_dismissed := false
+var ticker_week := -1
+var drawer_open := false
+var tray: HBoxContainer
+var people_button: Button
+var on_paper := false
+var turn_clear := false
+var card_fit_queued := false
 
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	_load_fonts()
 	var theme := Theme.new()
+	theme.default_font = body_font
 	theme.default_font_size = 16
 	self.theme = theme
 	_build()
-	get_window().size_changed.connect(_layout)
 	var catalog := Catalog.new()
 	if not catalog.load_all():
 		footer.text = catalog.error
+		footer.visible = true
 		return
 	game = Game.new()
 	game.setup(catalog, 1, 40)
@@ -77,149 +98,191 @@ func _want_shots() -> bool:
 	return OS.get_cmdline_user_args().has("--shots") or OS.get_environment("UNDERLINE_SHOTS") == "1"
 
 
+func _load_fonts() -> void:
+	body_font = FontFile.new()
+	var body_path := ProjectSettings.globalize_path("res://assets/fonts/CourierPrime-Regular.ttf")
+	if body_font.load_dynamic_font(body_path) != OK:
+		body_font = ThemeDB.fallback_font
+	var file := FontFile.new()
+	var display_path := ProjectSettings.globalize_path("res://assets/fonts/BigShouldersDisplay.ttf")
+	if file.load_dynamic_font(display_path) != OK:
+		display_font = ThemeDB.fallback_font
+		return
+	var variation := FontVariation.new()
+	variation.base_font = file
+	variation.set_variation_opentype({"wght": 800.0})
+	display_font = variation
+
+
+func _process(_delta: float) -> void:
+	if end_button == null:
+		return
+	if not turn_clear:
+		end_button.modulate = Color(1, 1, 1, 1)
+		return
+	var wave := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 2.4)
+	end_button.modulate = Color(1.0, 0.97 + 0.03 * wave, 0.82 + 0.1 * wave, 1.0)
+
+
 func _build() -> void:
 	var backdrop := Backdrop.new()
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 
-	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 12)
-	root.add_theme_constant_override("margin_right", 12)
-	root.add_theme_constant_override("margin_top", 10)
-	root.add_theme_constant_override("margin_bottom", 8)
-	add_child(root)
-
-	var column := VBoxContainer.new()
-	column.set_anchors_preset(Control.PRESET_FULL_RECT)
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 8)
-	root.add_child(column)
-
-	column.add_child(_top_bar())
-
-	middle = VBoxContainer.new()
-	middle.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	middle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_child(middle)
-
-	wide_row = HBoxContainer.new()
-	wide_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	wide_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wide_row.add_theme_constant_override("separation", 10)
-	middle.add_child(wide_row)
-
-	stack = VBoxContainer.new()
-	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stack.add_theme_constant_override("separation", 8)
-	stack.visible = false
-	middle.add_child(stack)
-
 	yard = Yard.new()
-	yard.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	yard.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	yard.custom_minimum_size = Vector2(360, 280)
-	wide_row.add_child(yard)
+	yard.set_anchors_preset(Control.PRESET_FULL_RECT)
+	yard.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(yard)
+
+	hud = _top_bar()
+	add_child(hud)
+
+	tray = HBoxContainer.new()
+	tray.add_theme_constant_override("separation", 6)
+	tray.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(tray)
+	pump_button = _tool("pump", "Pump", _ask_pump)
+	quarantine_button = _tool("quarantine", "Quarantine", _ask_quarantine)
+	burn_button = _tool("burn", "Burn", _ask_burn)
+	power_button = _tool("power", "Power", _show_power)
+	people_button = _tool("people", "People", _toggle_drawer)
+	burn_button.tooltip_text = "Burn salvage"
+	power_button.tooltip_text = "Power order"
+	people_button.tooltip_text = "Residents"
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button]:
+		tray.add_child(button)
+
+	end_button = _button("End turn", _end_turn)
+	end_button.custom_minimum_size = Vector2(168, 58)
+	end_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	end_button.add_theme_font_size_override("font_size", 26)
+	end_button.add_theme_font_override("font", display_font)
+	end_button.add_theme_color_override("font_color", INK_DARK)
+	end_button.add_theme_stylebox_override("normal", _brass_style(false))
+	end_button.add_theme_stylebox_override("hover", _brass_style(false))
+	end_button.add_theme_stylebox_override("pressed", _brass_style(true))
+	end_button.add_theme_stylebox_override("disabled", _brass_style(false))
+	add_child(end_button)
 
 	side = _side_panel()
-	wide_row.add_child(side)
+	add_child(side)
 
 	footer = _label("", 14)
-	footer.clip_text = true
-	footer.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	column.add_child(footer)
+	footer.visible = false
+	footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(footer)
 
 	_build_overlay()
 
 
+func _tool(kind: String, caption: String, cb: Callable) -> Button:
+	var button := ToolButton.new()
+	button.glyph_name = kind
+	button.caption = caption
+	button.tooltip_text = caption
+	button.pressed.connect(cb)
+	_style_tool(button)
+	return button
+
+
+func _style_tool(button: Button) -> void:
+	var style := _steel_style()
+	style.set_content_margin_all(4)
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("pressed", style)
+	var dimmed := style.duplicate() as StyleBoxFlat
+	dimmed.bg_color = Color(0.07, 0.08, 0.09, 0.45)
+	button.add_theme_stylebox_override("disabled", dimmed)
+	button.custom_minimum_size = Vector2(58, 66)
+
+
 func _top_bar() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.09, 0.1, 0.12, 0.92)))
+	panel.add_theme_stylebox_override("panel", _steel_style())
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
+	box.add_theme_constant_override("separation", 2)
 	panel.add_child(box)
+	hud_box = box
 
 	title_row = HBoxContainer.new()
-	title_row.add_theme_constant_override("separation", 8)
+	title_row.add_theme_constant_override("separation", 10)
 	box.add_child(title_row)
-	week_label = _label("Week 1", 22)
-	week_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	week_label = _label("Week 1", 22, true)
+	week_label.custom_minimum_size = Vector2(108, 28)
+	week_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	week_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	title_row.add_child(week_label)
-
-	pump_button = _button("Pump", _ask_pump)
-	pump_button.custom_minimum_size = Vector2(96, 48)
-	title_row.add_child(pump_button)
-	quarantine_button = _button("Quarantine", _ask_quarantine)
-	quarantine_button.custom_minimum_size = Vector2(130, 48)
-	title_row.add_child(quarantine_button)
-	end_button = _button("End turn", _end_turn)
-	end_button.custom_minimum_size = Vector2(140, 48)
-	title_row.add_child(end_button)
-	burn_button = _button("Burn salvage", _ask_burn)
-	burn_button.custom_minimum_size = Vector2(150, 48)
-	title_row.add_child(burn_button)
-	power_button = _button("Power", _show_power)
-	power_button.custom_minimum_size = Vector2(96, 48)
-	title_row.add_child(power_button)
-
-	forecast_button = _button("", _open_forecast)
-	forecast_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	forecast_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	forecast_button.visible = false
-	box.add_child(forecast_button)
-
-	action_row = VBoxContainer.new()
-	action_row.visible = false
-	action_row.add_theme_constant_override("separation", 6)
-	box.add_child(action_row)
-	pump_row = HBoxContainer.new()
-	pump_row.add_theme_constant_override("separation", 8)
-	pump_row.visible = false
-	action_row.add_child(pump_row)
 
 	res_grid = GridContainer.new()
 	res_grid.columns = 6
 	res_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(res_grid)
+	title_row.add_child(res_grid)
 	for key in STOCK_KEYS:
-		var chip := VBoxContainer.new()
-		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var chip := HBoxContainer.new()
+		chip.add_theme_constant_override("separation", 3)
 		chip.mouse_filter = Control.MOUSE_FILTER_STOP
-		var name := _label(key.capitalize(), 14)
-		name.add_theme_color_override("font_color", MUTED)
-		name.autowrap_mode = TextServer.AUTOWRAP_OFF
-		name.custom_minimum_size = Vector2(0, 18)
-		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var value := _label("0", 20)
+		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.alignment = BoxContainer.ALIGNMENT_CENTER
+		var icon := Glyph.new()
+		icon.kind = str(key)
+		icon.custom_minimum_size = Vector2(20, 20)
+		chip.tooltip_text = str(key).capitalize()
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var value := _label("0", 16)
 		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var delta := _label("—", 13)
+		value.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		value.custom_minimum_size = Vector2(22, 18)
+		var delta := _label("—", 12)
 		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.add_child(name)
+		delta.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		delta.custom_minimum_size = Vector2(18, 16)
+		chip.add_child(icon)
 		chip.add_child(value)
 		chip.add_child(delta)
 		chip.gui_input.connect(_chip_input.bind(str(key)))
 		res_grid.add_child(chip)
-		chips[key] = {"box": chip, "name": name, "value": value, "delta": delta}
+		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon}
 
 	var meters := HBoxContainer.new()
 	meters.add_theme_constant_override("separation", 12)
-	box.add_child(meters)
-	meters.add_child(_meter("Hope", Color("d7a441"), true))
-	meters.add_child(_meter("Discontent", Color("c4544a"), false))
+	meters.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(meters)
+	meter_box = meters
+	meters.add_child(_meter(Color("d7a441"), true))
+	meters.add_child(_meter(Color("c4544a"), false))
+
+	ticker = HBoxContainer.new()
+	ticker.visible = false
+	ticker.add_theme_constant_override("separation", 6)
+	box.add_child(ticker)
+	ticker_label = _label("", 14)
+	ticker_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ticker_label.custom_minimum_size = Vector2(80, 20)
+	ticker_label.clip_text = true
+	ticker_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	ticker_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	ticker_label.gui_input.connect(_ticker_input)
+	ticker.add_child(ticker_label)
+	var dismiss := _button("×", _dismiss_ticker)
+	dismiss.custom_minimum_size = Vector2(28, 24)
+	dismiss.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ticker.add_child(dismiss)
 	return panel
 
 
-func _meter(title: String, fill_color: Color, hope: bool) -> VBoxContainer:
+func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var lab := _label(title, 14)
+	box.custom_minimum_size = Vector2(88, 0)
+	var lab := _label("Hope", 12)
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(lab)
 	var track := ColorRect.new()
-	track.color = Color(1, 1, 1, 0.08)
-	track.custom_minimum_size = Vector2(0, 16)
+	track.color = Color(1, 1, 1, 0.14)
+	track.custom_minimum_size = Vector2(0, 4)
 	var fill := ColorRect.new()
 	fill.color = fill_color
 	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -239,22 +302,26 @@ func _meter(title: String, fill_color: Color, hope: bool) -> VBoxContainer:
 
 func _side_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(340, 0)
-	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.09, 0.1, 0.12, 0.9)))
+	panel.visible = false
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_theme_stylebox_override("panel", _steel_style())
 	var box := VBoxContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 	var head := HBoxContainer.new()
-	var title := _label("Residents", 18)
+	var title := _label("Residents", 22, true)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	var auto := _button("Auto-staff", _auto_staff)
-	auto.custom_minimum_size = Vector2(120, 48)
+	auto.custom_minimum_size = Vector2(120, 40)
 	head.add_child(auto)
+	var shut := _button("×", _toggle_drawer)
+	shut.custom_minimum_size = Vector2(40, 40)
+	shut.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_child(shut)
 	box.add_child(head)
-	hint = _label("Drag a name onto a room, or tap a room and pick. Best fit is first.", 13)
+	hint = _label("Drag a name onto a room, or tap a room and pick.", 13)
 	hint.add_theme_color_override("font_color", MUTED)
 	box.add_child(hint)
 	people_box = VBoxContainer.new()
@@ -269,15 +336,138 @@ func _side_panel() -> PanelContainer:
 	return panel
 
 
+func _toggle_drawer() -> void:
+	drawer_open = not drawer_open
+	_place_drawer()
+
+
+func _dismiss_ticker() -> void:
+	ticker_dismissed = true
+	ticker.visible = false
+	_place_chrome()
+
+
+func _ticker_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var warning: Dictionary = game.revolt_warning()
+		if not warning.is_empty():
+			_open_forecast_at(str(warning.hint), int(warning.level), int(warning.cell))
+			return
+		_open_forecast()
+
+
+func _layout() -> void:
+	_place_chrome()
+	if yard != null:
+		yard.fit()
+
+
+func _place_chrome() -> void:
+	portrait = size.y > size.x or size.x < 860
+	if res_grid != null:
+		res_grid.columns = 3 if portrait else 6
+	if meter_box != null and hud_box != null and title_row != null:
+		if portrait and meter_box.get_parent() == title_row:
+			title_row.remove_child(meter_box)
+			hud_box.add_child(meter_box)
+			hud_box.move_child(meter_box, 1)
+		elif not portrait and meter_box.get_parent() != title_row:
+			meter_box.get_parent().remove_child(meter_box)
+			title_row.add_child(meter_box)
+	var end_w := 176.0
+	end_button.add_theme_font_size_override("font_size", 22 if portrait else 26)
+	var hud_h := 132.0 if portrait else 56.0
+	if ticker != null and ticker.visible:
+		hud_h += 28.0
+	if hud != null:
+		hud.anchor_left = 0.0
+		hud.anchor_right = 1.0
+		hud.anchor_top = 0.0
+		hud.anchor_bottom = 0.0
+		hud.offset_left = 0.0
+		hud.offset_right = 0.0
+		hud.offset_top = 0.0
+		hud.offset_bottom = hud_h
+	var margin := 12.0
+	var tool_h := 56.0 if portrait else 68.0
+	if end_button != null:
+		end_button.anchor_top = 1.0
+		end_button.anchor_bottom = 1.0
+		if portrait:
+			var stack := margin + tool_h + 8.0
+			end_button.anchor_left = 0.0
+			end_button.anchor_right = 1.0
+			end_button.offset_left = margin
+			end_button.offset_right = -margin
+			end_button.custom_minimum_size.x = 0.0
+			end_button.offset_bottom = -stack
+			end_button.offset_top = -stack - 50.0
+		else:
+			end_button.anchor_left = 1.0
+			end_button.anchor_right = 1.0
+			end_button.offset_right = -margin
+			end_button.offset_left = -margin - end_w
+			end_button.custom_minimum_size.x = end_w
+			end_button.offset_bottom = -margin
+			end_button.offset_top = -margin - 58.0
+	if tray != null:
+		tray.anchor_left = 0.0
+		tray.anchor_top = 1.0
+		tray.anchor_right = 0.0
+		tray.anchor_bottom = 1.0
+		var tool_w := 64.0
+		if portrait:
+			tool_w = (size.x - margin * 2.0 - 24.0) / 5.0
+		for child in tray.get_children():
+			if child is Control:
+				(child as Control).custom_minimum_size = Vector2(tool_w, tool_h)
+		tray.offset_left = margin
+		tray.offset_top = -margin - tool_h
+		tray.offset_right = size.x - margin if portrait else margin + tool_w * 5.0 + 40.0
+		tray.offset_bottom = -margin
+	if footer != null:
+		footer.anchor_left = 0.0
+		footer.anchor_right = 1.0
+		footer.anchor_top = 1.0
+		footer.anchor_bottom = 1.0
+		footer.offset_left = 290.0
+		footer.offset_right = -190.0
+		footer.offset_top = -margin - 22.0
+		footer.offset_bottom = -margin
+	_place_drawer()
+	_place_card()
+	if yard != null:
+		yard.queue_redraw()
+
+
+func _place_drawer() -> void:
+	if side == null:
+		return
+	side.visible = drawer_open
+	if not drawer_open:
+		return
+	var gap := 70.0
+	if portrait:
+		side.offset_left = 0.0
+		side.offset_right = size.x
+		side.offset_top = size.y * 0.52
+		side.offset_bottom = size.y - gap
+	else:
+		var w := minf(360.0, size.x * 0.42)
+		side.offset_left = size.x - w
+		side.offset_right = size.x
+		side.offset_top = 56.0
+		side.offset_bottom = size.y - 8.0
+
 func _build_overlay() -> void:
 	dim = ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.55)
+	dim.color = Color(0, 0, 0, 0.45)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.visible = false
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 	card = PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _panel_style(Color(0.11, 0.12, 0.14, 0.98)))
+	card.add_theme_stylebox_override("panel", _paper_style())
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.add_child(card)
 	var margin := MarginContainer.new()
@@ -299,72 +489,71 @@ func _build_overlay() -> void:
 	scroll.add_child(card_body)
 
 
+func _sticky_note(text: String) -> bool:
+	return text.begins_with("That ") or text.begins_with("The hall") or text.begins_with("Someone is still")
+
+
 func _mood_delta(n: int) -> String:
 	if game.hope_history.is_empty():
 		return "—"
 	return _signed(n)
 
 
-func _layout() -> void:
-	portrait = size.y > size.x or size.x < 860
-	res_grid.columns = 3 if size.x < 900 else 6
-	var yard_parent: Node = stack if portrait else wide_row
-	if yard.get_parent() != yard_parent:
-		yard.get_parent().remove_child(yard)
-		side.get_parent().remove_child(side)
-		yard_parent.add_child(yard)
-		yard_parent.add_child(side)
-	wide_row.visible = not portrait
-	stack.visible = portrait
-	side.custom_minimum_size = Vector2(0, 200) if portrait else Vector2(340, 0)
-	yard.custom_minimum_size = Vector2(280, 188 if portrait else 240)
-	yard.size_flags_vertical = Control.SIZE_FILL if portrait else Control.SIZE_EXPAND_FILL
-	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	if portrait:
-		if end_button.get_parent() != action_row:
-			end_button.get_parent().remove_child(end_button)
-			action_row.add_child(end_button)
-			action_row.move_child(end_button, 0)
-		for button in [pump_button, quarantine_button]:
-			if button.get_parent() != pump_row:
-				button.get_parent().remove_child(button)
-				pump_row.add_child(button)
-			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			button.custom_minimum_size.y = 44
-		end_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		end_button.custom_minimum_size.y = 44
-		pump_row.visible = true
-		action_row.visible = true
-	else:
-		pump_row.visible = false
-		for button in [pump_button, quarantine_button, end_button]:
-			if button.get_parent() != title_row:
-				button.get_parent().remove_child(button)
-				title_row.add_child(button)
-			button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-			button.custom_minimum_size.y = 48
-		action_row.visible = false
-	_place_card()
-	if yard != null:
-		yard.queue_redraw()
-
-
 func _place_card() -> void:
-	if card == null:
+	_fit_card()
+
+
+func _fit_card() -> void:
+	if card == null or not dim.visible:
 		return
-	var margin := 12.0 if portrait else 36.0
+	var margin := 16.0 if portrait else 36.0
 	var max_w := size.x - margin * 2.0
 	if not portrait:
-		max_w = minf(max_w, 640.0)
+		max_w = minf(max_w, 560.0)
+	var top_limit := 140.0 if portrait else margin
+	var bottom_limit := 156.0 if portrait else margin
+	var max_h := size.y - top_limit - bottom_limit
+	card_body.custom_minimum_size.x = max_w - 36.0
 	var left := (size.x - max_w) / 2.0
 	card.anchor_left = 0.0
 	card.anchor_top = 0.0
 	card.anchor_right = 0.0
-	card.anchor_bottom = 1.0
+	card.anchor_bottom = 0.0
 	card.offset_left = left
+	card.offset_top = top_limit
 	card.offset_right = left + max_w
-	card.offset_top = margin
-	card.offset_bottom = -margin
+	card.offset_bottom = top_limit + max_h
+	if not card_fit_queued:
+		card_fit_queued = true
+		_shrink_card.call_deferred()
+
+
+func _shrink_card() -> void:
+	card_fit_queued = false
+	if card == null or card_body == null or not dim.visible:
+		return
+	var margin := 16.0 if portrait else 36.0
+	var max_w := card.offset_right - card.offset_left
+	var top_limit := 140.0 if portrait else margin
+	var bottom_limit := 156.0 if portrait else margin
+	var max_h := size.y - top_limit - bottom_limit
+	var h := 28.0
+	var count := card_body.get_child_count()
+	for child in card_body.get_children():
+		h += child.size.y
+	if count > 1:
+		h += float(count - 1) * 8.0
+	h += 32.0
+	if h < 96.0:
+		if not card_fit_queued:
+			card_fit_queued = true
+			_shrink_card.call_deferred()
+		return
+	h = clampf(h, 96.0, max_h)
+	var top := clampf((size.y - h) / 2.0, top_limit, top_limit + maxf(0.0, max_h - h))
+	card.offset_top = top
+	card.offset_bottom = top + h
+	card.offset_right = card.offset_left + max_w
 
 
 func _refresh() -> void:
@@ -388,11 +577,11 @@ func _refresh() -> void:
 		chips[key].delta.text = delta_text
 		chips[key].delta.add_theme_color_override("font_color", color)
 		var outlook: Dictionary = game.resource_outlook(str(key))
-		chips[key].box.tooltip_text = str(outlook.text)
-		var name_color := MUTED
+		chips[key].box.tooltip_text = "%s. %s" % [str(key).capitalize(), str(outlook.text)]
+		var value_color := INK
 		if bool(outlook.hit):
-			name_color = Color("e0a15a")
-		chips[key].name.add_theme_color_override("font_color", name_color)
+			value_color = Color("e0a15a")
+		chips[key].value.add_theme_color_override("font_color", value_color)
 	power_loss = {}
 	for uid in game.rooms_losing_power():
 		power_loss[str(uid)] = true
@@ -404,15 +593,26 @@ func _refresh() -> void:
 	end_button.text = "End turn" if game.over == "" else _ending()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
-	burn_button.text = "Burn salvage" if bool(burn.ok) else "Burn salvage — %s" % str(burn.reason)
+	burn_button.tooltip_text = "Burn salvage" if bool(burn.ok) else "Burn salvage. %s" % str(burn.reason)
+	if game.week != ticker_week:
+		ticker_week = game.week
+		ticker_dismissed = false
+	var warning: Dictionary = game.revolt_warning()
 	var outlook_rows: Array = game.forecasts()
-	forecast_button.visible = not outlook_rows.is_empty()
-	if not outlook_rows.is_empty():
-		forecast_button.text = str(outlook_rows[0].text)
+	var line := ""
+	if not warning.is_empty():
+		line = str(warning.text)
+	elif not outlook_rows.is_empty():
+		line = str(outlook_rows[0].text)
+	ticker_label.text = line
+	ticker.visible = line != "" and not ticker_dismissed
+	_place_chrome()
+	turn_clear = game.over == "" and game.pending.is_empty() and game.forecasts().is_empty() and game.revolt_warning().is_empty()
 	_fill_people()
 	yard.queue_redraw()
-	if game.log.size() > 0:
-		footer.text = str(game.log[game.log.size() - 1].text)
+	if not _sticky_note(footer.text):
+		footer.text = ""
+		footer.visible = false
 
 
 func _fill_people() -> void:
@@ -468,6 +668,7 @@ func _end_turn() -> void:
 	if not game.pending.is_empty():
 		_show_dawn()
 		footer.text = "Someone is still waiting. Choose before the week ends."
+		footer.visible = true
 		return
 	game.end_week()
 	_refresh()
@@ -507,6 +708,32 @@ func _ask_quarantine() -> void:
 	_confirm("Quarantine?", lines, game.can_quarantine(), {"kind": "quarantine"})
 
 
+func _ask_rally() -> void:
+	var why := game.rally_reason()
+	var lines: PackedStringArray = ["The hall pulls the platform back from a revolt. Discontent %+d. Hope %+d." % [int(game.bal.rally_discontent), int(game.bal.rally_hope)]]
+	if why != "":
+		lines.append(why)
+	_confirm("Hold a rally?", lines, why == "", {"kind": "rally"})
+
+
+func _ask_law(law_id: String) -> void:
+	var defin: Dictionary = game.catalog.laws[law_id]
+	var why := game.enact_reason(law_id)
+	var lines: PackedStringArray = [_law_blurb(defin)]
+	if why != "":
+		lines.append(why)
+	_confirm(str(defin.name) + "?", lines, why == "", {"kind": "law", "law": law_id})
+
+
+func _ask_repeal(law_id: String) -> void:
+	var defin: Dictionary = game.catalog.laws[law_id]
+	var why := game.repeal_reason(law_id)
+	var lines: PackedStringArray = ["Take %s off the books." % str(defin.name)]
+	if why != "":
+		lines.append(why)
+	_confirm("Repeal %s?" % str(defin.name), lines, why == "", {"kind": "repeal", "law": law_id})
+
+
 func _ask_burn() -> void:
 	var info := game.burn_preview()
 	var lines: PackedStringArray = [
@@ -525,7 +752,26 @@ func _open_forecast() -> void:
 	_open_forecast_at(str(row.hint), int(row.level), int(row.cell))
 
 
+func _open_warning() -> void:
+	var warning: Dictionary = game.revolt_warning()
+	if warning.is_empty():
+		return
+	_open_forecast_at(str(warning.hint), int(warning.level), int(warning.cell))
+
+
 func _open_forecast_at(hint: String, level: int, cell: int) -> void:
+	if hint == "rally":
+		_ask_rally()
+		return
+	if hint == "quarantine":
+		_ask_quarantine()
+		return
+	if hint.begins_with("law:"):
+		_ask_law(hint.trim_prefix("law:"))
+		return
+	if hint.begins_with("repeal:"):
+		_ask_repeal(hint.trim_prefix("repeal:"))
+		return
 	if hint.begins_with("staff:"):
 		var type := hint.trim_prefix("staff:")
 		for room in game.rooms:
@@ -634,6 +880,15 @@ func _confirm_build(type: String, level: int, cell: int) -> void:
 	})
 
 
+func _room_lead(detail: Dictionary) -> String:
+	var bits: PackedStringArray = []
+	for out in detail.outputs:
+		bits.append("%s +%d / week" % [str(out.key).capitalize(), int(out.amount)])
+	bits.append("%d of %d crew" % [detail.staff.size(), int(detail.staff_max)])
+	bits.append("uses %d power" % int(detail.power))
+	return " · ".join(bits)
+
+
 func _show_room(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
 	if detail.is_empty():
@@ -642,26 +897,16 @@ func _show_room(uid: String) -> void:
 	if notice != "":
 		_body(notice)
 		notice = ""
-	var level_names := ["Street", "Platform", "Deep"]
-	_body("%s, cell %d." % [level_names[int(detail.level)], int(detail.cell) + 1])
+	_body(_room_lead(detail))
 	if bool(detail.offline):
 		_body("Offline.")
-	if str(detail.skill) != "":
-		_body("Output is base × (1 + 0.15 for each skill point above 1), and it stops at 2.5×.")
-		_body("This crew has %.0f points above 1, so the room runs at ×%.2f." % [float(detail.skill_extra), float(detail.multiplier)])
-	if detail.outputs.is_empty():
-		_body("No weekly output.")
-	else:
-		for out in detail.outputs:
-			_body("%s %d a week, from a base of %.0f." % [str(out.key), int(out.amount), float(out.base)])
-	_body("Draws %d power." % int(detail.power))
-	_body("Staff %d / %d." % [detail.staff.size(), int(detail.staff_max)])
 	for member in detail.staff:
 		var row := HBoxContainer.new()
 		var staff_line := "%s · %s %d" % [str(member.name), str(detail.skill), int(member.skill)]
 		if str(member.traits) != "":
 			staff_line += " · " + str(member.traits)
 		var lab := _label(staff_line, 15)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lab)
 		var off := _button("Off", _unassign.bind(str(member.id), uid))
@@ -670,15 +915,19 @@ func _show_room(uid: String) -> void:
 		card_body.add_child(row)
 	if int(detail.staff_max) > 0:
 		card_body.add_child(_button("Assign someone", _show_assign.bind(uid)))
+	if str(detail.skill) != "":
+		_body("%s from crew skill." % _mult(float(detail.multiplier)))
 	var up: Dictionary = game.upgrade_preview(uid)
-	var up_text := "Upgrade"
+	var up_label := "Upgrade"
+	var up_choice := {}
 	if str(up.name) != "":
-		up_text = "Upgrade: %s (%d materials)" % [str(up.name).replace("_", " "), int(up.materials)]
-	card_body.add_child(_button(up_text, _confirm_upgrade.bind(uid)))
+		up_label = "Upgrade: %s" % str(up.name).replace("_", " ")
+		if int(up.materials) != 0:
+			up_choice = {"cost": {"materials": int(up.materials)}}
+	card_body.add_child(_choice_button(up_label, up_choice, _confirm_upgrade.bind(uid)))
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
 		card_body.add_child(_button("Laws", _show_laws))
-	card_body.add_child(_button("Close", _close_card))
 
 
 func _show_assign(uid: String) -> void:
@@ -688,6 +937,10 @@ func _show_assign(uid: String) -> void:
 	_body("Best %s first. The number is that skill." % skill_name)
 	var filter := LineEdit.new()
 	filter.placeholder_text = "Filter names"
+	filter.add_theme_color_override("font_color", INK_DARK)
+	filter.add_theme_color_override("font_placeholder_color", Color(0.28, 0.22, 0.16, 0.55))
+	if body_font != null:
+		filter.add_theme_font_override("font", body_font)
 	filter.custom_minimum_size = Vector2(0, 44)
 	filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var list := VBoxContainer.new()
@@ -787,6 +1040,7 @@ func _show_laws() -> void:
 func _enact(law_id: String) -> void:
 	if not game.apply({"kind": "law", "law": law_id}):
 		footer.text = "The hall did not pass that."
+		footer.visible = true
 		_show_laws()
 		return
 	_refresh()
@@ -831,47 +1085,122 @@ func _law_blurb(defin: Dictionary) -> String:
 
 
 func _show_dawn() -> void:
-	_open_card("Dawn, week %d" % game.week)
-	_body("Food %d, air %d, power %d, materials %d, tokens %d, influence %d." % [
-		int(game.stock.food), int(game.stock.air), int(game.stock.power),
-		int(game.stock.materials), int(game.stock.tokens), int(game.stock.influence)])
-	_body("%d people. Hope %d (%s). Discontent %d (%s)." % [
-		game.residents.size(), game.hope, _mood_delta(game.last_hope_delta),
-		game.discontent, _mood_delta(game.last_dis_delta)])
 	var lines := _morning_lines()
-	if lines.is_empty():
-		_body("No season warning, and no word from the tunnels.")
-	for line in lines:
-		_body(line)
-	for row in game.forecasts():
-		var forecast := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
-		forecast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		forecast.custom_minimum_size.y = 72
-		card_body.add_child(forecast)
 	if game.pending.is_empty():
+		_open_card("Dawn, week %d" % game.week)
+		_intent_row(lines)
+		_morning_notes(lines)
+		_dawn_alert()
 		_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
 	var ev: Dictionary = game.front_event()
-	_heading(str(ev.title))
+	_open_card(str(ev.title), false)
+	var banner := _event_banner(str(ev.id))
+	if banner != null:
+		card_body.add_child(banner)
+		card_body.move_child(banner, 0)
 	_body(str(ev.text))
+	_intent_row(lines)
+	_morning_notes(lines)
+	_dawn_alert()
 	for choice in ev.choices:
-		var label := str(choice.label)
-		var extra := _choice_bits(choice)
-		if extra != "":
-			label += "  (" + extra + ")"
-		var pick := _button(label, _pick_event.bind(str(ev.id), str(choice.id)))
+		var pick := _choice_button(str(choice.label), choice, _pick_event.bind(str(ev.id), str(choice.id)))
 		if not game.afford_choice(choice):
 			var why := game.shortage_text(choice.get("cost", {}))
 			if why == "":
 				why = "That cost cannot be paid."
 			pick.disabled = true
-			pick.text = "%s — %s" % [label, why]
-			pick.custom_minimum_size.y = 72
+			pick.tooltip_text = why
+			_body(why)
 		card_body.add_child(pick)
 	if game.pending.size() > 1:
 		_body("%d more waiting after this one." % (game.pending.size() - 1))
-	card_body.add_child(_button("Close", _dismiss_dawn))
+	card_body.add_child(_button(game.close_caption(), _dismiss_dawn))
+
+
+func _dawn_alert() -> void:
+	var warning: Dictionary = game.revolt_warning()
+	if not warning.is_empty():
+		var warn := _button(str(warning.text), _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell)))
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_body.add_child(warn)
+		return
+	var rows: Array = game.forecasts()
+	if rows.is_empty():
+		return
+	var row: Dictionary = rows[0]
+	var forecast := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
+	forecast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card_body.add_child(forecast)
+
+
+func _morning_notes(lines: PackedStringArray) -> void:
+	var any := false
+	for line in lines:
+		if line.begins_with("INTENT"):
+			continue
+		any = true
+		_body(line)
+	if not any and game.pending.is_empty():
+		_body("No season warning, and no word from the tunnels.")
+
+
+func _intent_row(lines: PackedStringArray) -> void:
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var count := 0
+	for line in lines:
+		if not line.begins_with("INTENT "):
+			continue
+		var sentence := line.substr(7)
+		var kind := "hold"
+		var low := sentence.to_lower()
+		if "squad" in low:
+			kind = "squad"
+		elif "buy" in low or "sympathy" in low:
+			kind = "buy"
+		elif "secur" in low:
+			kind = "secure"
+		elif "demand" in low:
+			kind = "demand"
+		var chip := HBoxContainer.new()
+		chip.add_theme_constant_override("separation", 4)
+		chip.tooltip_text = sentence
+		var icon := Glyph.new()
+		icon.kind = kind
+		icon.ink = INK_DARK
+		icon.custom_minimum_size = Vector2(18, 18)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(icon)
+		var lab := _label(sentence, 16)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.add_child(lab)
+		row.add_child(chip)
+		count += 1
+	if count > 0:
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(row)
+
+
+func _event_banner(event_id: String) -> TextureRect:
+	var path := ProjectSettings.globalize_path("res://assets/events/%s.webp" % event_id)
+	if not FileAccess.file_exists(path):
+		return null
+	var image := Image.load_from_file(path)
+	if image == null or image.get_width() <= 0:
+		return null
+	var banner := TextureRect.new()
+	banner.texture = ImageTexture.create_from_image(image)
+	banner.custom_minimum_size = Vector2(0, 148)
+	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return banner
 
 
 func _morning_lines() -> PackedStringArray:
@@ -897,6 +1226,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	var before := str(game.front_event().get("id", ""))
 	if not game.apply({"kind": "event", "event_id": event_id, "choice_id": choice_id}):
 		footer.text = "That choice did not take."
+		footer.visible = true
 		return
 	_refresh()
 	_advance_dawn(before)
@@ -946,6 +1276,80 @@ func _ending() -> String:
 			return "The run is over."
 
 
+func _mult(n: float) -> String:
+	if is_equal_approx(n, round(n)):
+		return "×%d" % int(round(n))
+	if is_equal_approx(n * 10.0, round(n * 10.0)):
+		return "×%.1f" % n
+	return "×%.2f" % n
+
+
+func _choice_button(label: String, choice: Dictionary, cb: Callable) -> Button:
+	var button := _button(label, cb)
+	var marks := _marks(choice)
+	if marks.get_child_count() == 0:
+		return button
+	var pad := 24 + marks.get_child_count() * 52
+	var faces := {
+		"normal": _button_face(false, false),
+		"hover": _button_face(false, true),
+		"pressed": _button_face(true, false),
+		"disabled": _button_face(false, false),
+	}
+	for state in faces:
+		var face: StyleBoxFlat = faces[state]
+		face.content_margin_left = 12
+		face.content_margin_right = pad
+		face.content_margin_top = 8
+		face.content_margin_bottom = 8
+		button.add_theme_stylebox_override(state, face)
+	marks.anchor_left = 1.0
+	marks.anchor_right = 1.0
+	marks.anchor_top = 0.0
+	marks.anchor_bottom = 1.0
+	marks.offset_left = float(-pad + 8)
+	marks.offset_right = -10.0
+	marks.offset_top = 0.0
+	marks.offset_bottom = 0.0
+	marks.alignment = BoxContainer.ALIGNMENT_CENTER
+	button.clip_contents = true
+	button.add_child(marks)
+	return button
+
+
+func _marks(choice: Dictionary) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_END
+	if choice.has("cost"):
+		for key in choice.cost:
+			_add_mark(row, str(key), -int(choice.cost[key]))
+	for key in ["food", "air", "power", "materials", "tokens", "influence", "hope", "discontent"]:
+		if choice.has(key):
+			_add_mark(row, key, int(choice[key]))
+	return row
+
+
+func _add_mark(row: HBoxContainer, key: String, amount: int) -> void:
+	if amount == 0:
+		return
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 2)
+	var icon := Glyph.new()
+	icon.kind = key
+	icon.ink = INK_DARK if on_paper else INK
+	icon.custom_minimum_size = Vector2(14, 14)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(icon)
+	var lab := _label(_signed(amount), 14)
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(lab)
+	row.add_child(box)
+
+
 func _choice_bits(choice: Dictionary) -> String:
 	var bits: PackedStringArray = []
 	if choice.has("cost"):
@@ -973,6 +1377,7 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 func _do_confirm(action: Dictionary) -> void:
 	if action.is_empty() or not game.apply(action):
 		footer.text = "That did not happen."
+		footer.visible = true
 		_close_card()
 		_refresh()
 		return
@@ -980,60 +1385,127 @@ func _do_confirm(action: Dictionary) -> void:
 	_refresh()
 
 
-func _open_card(heading: String) -> void:
+func _open_card(heading: String, with_close: bool = true) -> void:
+	on_paper = true
 	_wipe(card_body)
-	_place_card()
 	dim.visible = true
 	var row := HBoxContainer.new()
-	var lab := _label(heading, 20)
+	var lab := _label(heading, 28, true)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(lab)
-	var close := _button("Close", _close_card)
-	close.custom_minimum_size = Vector2(88, 48)
-	close.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	row.add_child(close)
+	if with_close:
+		var close := _button("Close", _close_card)
+		close.custom_minimum_size = Vector2(96, 44)
+		close.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		row.add_child(close)
 	card_body.add_child(row)
+	_fit_card()
+	_fit_card.call_deferred()
 
 
 func _close_card() -> void:
+	on_paper = false
 	dim.visible = false
 	_wipe(card_body)
 
 
 func _heading(text: String) -> void:
-	card_body.add_child(_label(text, 20))
+	card_body.add_child(_label(text, 26, true))
 
 
 func _body(text: String) -> void:
-	card_body.add_child(_label(text, 15))
+	var lab := _label(text, 15)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_body.add_child(lab)
 
 
-func _label(text: String, size: int) -> Label:
+func _label(text: String, size: int, display: bool = false) -> Label:
 	var lab := Label.new()
 	lab.text = text
 	lab.add_theme_font_size_override("font_size", size)
-	lab.add_theme_color_override("font_color", INK)
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.add_theme_color_override("font_color", INK_DARK if on_paper else INK)
+	if display and display_font != null:
+		lab.add_theme_font_override("font", display_font)
+	elif body_font != null:
+		lab.add_theme_font_override("font", body_font)
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	lab.clip_text = false
 	return lab
 
 
 func _button(text: String, cb: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(0, 48)
+	button.custom_minimum_size = Vector2(0, 44)
 	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_font_size_override("font_size", 20)
+	if display_font != null:
+		button.add_theme_font_override("font", display_font)
+	button.add_theme_color_override("font_color", INK_DARK if on_paper else INK)
+	button.add_theme_color_override("font_disabled_color", Color(0.25, 0.2, 0.16, 0.55) if on_paper else MUTED)
+	button.add_theme_stylebox_override("normal", _button_face(false, false))
+	button.add_theme_stylebox_override("hover", _button_face(false, true))
+	button.add_theme_stylebox_override("pressed", _button_face(true, false))
+	button.add_theme_stylebox_override("disabled", _button_face(false, false))
+	button.custom_minimum_size.y = 48
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.pressed.connect(cb)
 	return button
+
+
+func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	if on_paper:
+		style.bg_color = Color("b7a27a") if pressed else (Color("ead9b4") if hover else Color("d4c19a"))
+		style.border_color = INK_DARK
+		style.set_border_width_all(2)
+	else:
+		style.bg_color = Color(0.2, 0.21, 0.23) if pressed else Color(0.14, 0.15, 0.17, 0.96)
+		style.border_color = Color(1, 1, 1, 0.16)
+		style.set_border_width_all(1)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(3)
+	return style
+
+
+func _brass_style(pressed: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("a56b22") if pressed else Color("e2a63a")
+	style.border_color = Color("3a2610")
+	style.set_border_width_all(2)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(3)
+	return style
+
+
+func _paper_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER
+	style.border_color = Color("2a2118")
+	style.set_border_width_all(2)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(2)
+	return style
+
+
+func _steel_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = STEEL
+	style.border_color = Color(1, 1, 1, 0.08)
+	style.set_border_width_all(1)
+	style.set_content_margin_all(8)
+	style.set_corner_radius_all(2)
+	return style
 
 
 func _panel_style(color: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.set_content_margin_all(10)
-	style.set_corner_radius_all(6)
+	style.set_corner_radius_all(2)
 	return style
 
 
@@ -1062,25 +1534,43 @@ func _shots() -> void:
 	_close_card()
 	await _frame()
 	_save("week1_cutaway")
-	_show_room(_room_uid("hydroponics"))
-	await _frame()
-	_save("room_panel")
 	_show_dawn()
 	await _frame()
+	await _frame()
 	_save("dawn_report")
+	_show_room(_room_uid("hydroponics"))
+	await _frame()
+	await _frame()
+	_save("room_panel")
 	_close_card()
+	await _settle(Vector2i(420, 780))
+	_close_card()
+	await _frame()
+	_save("week1_phone")
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("dawn_phone")
+	_show_room(_room_uid("hydroponics"))
+	await _frame()
+	await _frame()
+	_save("room_phone")
+	_close_card()
+	await _settle(Vector2i(1280, 720))
 	var bot := Bot.new()
 	var guard := 0
-	while game.week < 15 and game.over == "" and guard < 20:
+	while game.week < 11 and game.over == "" and guard < 20:
 		guard += 1
 		bot._act(game)
 		game.end_week()
 	_refresh()
 	_close_card()
 	await _settle(Vector2i(1280, 720))
-	_save("week15_cutaway")
+	_save("week11_flood")
 	await _settle(Vector2i(420, 780))
-	_save("portrait")
+	_close_card()
+	await _frame()
+	_save("week11_phone")
 	get_tree().quit()
 
 
@@ -1150,18 +1640,139 @@ class PersonRow extends PanelContainer:
 
 class Yard extends Control:
 	var station
-	const GAP := 8.0
-	const LABEL_W := 84.0
+	const BAND := 12.0
+	const ART := {
+		"hydroponics": "res://assets/rooms/room_hydroponics.webp",
+		"generator": "res://assets/rooms/room_generator.webp",
+		"quarters": "res://assets/rooms/room_quarters.webp",
+		"air_filter": "res://assets/rooms/room_air_filter.webp",
+		"workshop": "res://assets/rooms/room_workshop.webp",
+		"infirmary": "res://assets/rooms/room_infirmary.webp",
+		"meeting_hall": "res://assets/rooms/room_meeting_hall.webp",
+	}
+	var art := {}
+	var art_aspect := 1.9
+	var hover := Vector2i(-1, -1)
+	var zoom := 1.0
+	var pan := Vector2.ZERO
+	var dragging := false
+	var drag_from := Vector2.ZERO
+	var pan_from := Vector2.ZERO
+	var moved := false
+
+	func fit() -> void:
+		zoom = 1.0
+		pan = Vector2.ZERO
+		queue_redraw()
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		for type in ART:
+			var image := Image.load_from_file(ProjectSettings.globalize_path(str(ART[type])))
+			if image != null and image.get_width() > 0:
+				image = _crop_navy(image)
+				if image.get_height() > 0:
+					art_aspect = float(image.get_width()) / float(image.get_height())
+				art[type] = ImageTexture.create_from_image(image)
+
+	func _process(_delta: float) -> void:
+		if station != null and station.game != null:
+			queue_redraw()
+
+	func _crop_navy(image: Image) -> Image:
+		image = image.duplicate()
+		image.convert(Image.FORMAT_RGBA8)
+		var w := image.get_width()
+		var h := image.get_height()
+		var top := 0
+		var bottom := h - 1
+		while top < h - 1 and _navy_row(image, top):
+			top += 1
+		while bottom > top and _navy_row(image, bottom):
+			bottom -= 1
+		var cap := int(float(h) * 0.4)
+		top = mini(top, cap)
+		bottom = maxi(bottom, h - 1 - cap)
+		if top <= 0 and bottom >= h - 1:
+			return image
+		return image.get_region(Rect2i(0, top, w, bottom - top + 1))
+
+	func _navy_row(image: Image, y: int) -> bool:
+		var w := image.get_width()
+		var navy := 0
+		var samples := 12
+		for i in samples:
+			var x := int(round(float(i) * float(w - 1) / float(samples - 1)))
+			var c := image.get_pixel(x, y)
+			var bright := maxf(c.r, maxf(c.g, c.b))
+			if bright > 0.3:
+				navy -= 8
+			elif c.b > c.r and c.r < 0.25 and c.b > 0.06:
+				navy += 1
+		return navy >= int(float(samples) * 0.55)
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_MOUSE_EXIT and hover != Vector2i(-1, -1):
+			hover = Vector2i(-1, -1)
+			queue_redraw()
 
 	func _gui_input(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			var hit: Dictionary = _hit(event.position)
-			if not hit.is_empty():
-				station._tap_cell(int(hit.level), int(hit.cell))
+		if event is InputEventMagnifyGesture:
+			_zoom_at(event.position, event.factor)
 			accept_event()
+			return
+		if event is InputEventPanGesture:
+			pan += event.delta
+			queue_redraw()
+			accept_event()
+			return
+		if event is InputEventMouseButton:
+			if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+				_zoom_at(event.position, 1.12)
+				accept_event()
+				return
+			if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				_zoom_at(event.position, 1.0 / 1.12)
+				accept_event()
+				return
+			if event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_MIDDLE:
+				if event.pressed:
+					dragging = true
+					moved = false
+					drag_from = event.position
+					pan_from = pan
+				else:
+					var tapped: bool = event.button_index == MOUSE_BUTTON_LEFT and not moved
+					dragging = false
+					if tapped:
+						var hit: Dictionary = _hit(event.position)
+						if not hit.is_empty():
+							station._tap_cell(int(hit.level), int(hit.cell))
+				accept_event()
+				return
+		if event is InputEventMouseMotion:
+			if dragging:
+				var delta: Vector2 = event.position - drag_from
+				if delta.length() > 5.0:
+					moved = true
+					pan = pan_from + delta
+			if not moved:
+				var over: Dictionary = _hit(event.position)
+				var next := Vector2i(-1, -1)
+				if not over.is_empty() and _kind(over) != "hidden":
+					next = Vector2i(int(over.level), int(over.cell))
+				if next != hover:
+					hover = next
+			queue_redraw()
+
+	func _zoom_at(screen: Vector2, factor: float) -> void:
+		var world := _unview(screen)
+		zoom = clampf(zoom * factor, 0.65, 3.0)
+		pan = screen - world * zoom
+		queue_redraw()
+
+	func _unview(screen: Vector2) -> Vector2:
+		return (screen - pan) / zoom
 
 	func _can_drop_data(at_position: Vector2, data) -> bool:
 		if typeof(data) != TYPE_DICTIONARY or not data.has("person"):
@@ -1178,13 +1789,14 @@ class Yard extends Control:
 	func _hit(at_position: Vector2) -> Dictionary:
 		if station == null or station.game == null:
 			return {}
+		var world := _unview(at_position)
 		var geo := _geo()
 		if geo.w < 4.0 or geo.h < 4.0:
 			return {}
 		for level in 3:
 			for cell in 6:
 				var rect := _rect(geo, level, cell)
-				if rect.has_point(at_position):
+				if rect.has_point(world):
 					var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
 					spot = spot.duplicate()
 					spot.level = level
@@ -1192,79 +1804,193 @@ class Yard extends Control:
 					return spot
 		return {}
 
+	func _content() -> Rect2:
+		var top := 52.0
+		if station != null and station.hud != null and station.hud.size.y > 8.0:
+			top = station.hud.size.y
+		var bottom := 148.0 if station != null and station.portrait else 96.0
+		return Rect2(0, top, size.x, maxf(48.0, size.y - top - bottom))
+
 	func _geo() -> Dictionary:
-		var label_w := 64.0 if size.x < 560.0 else LABEL_W
-		var origin := Vector2(label_w, 8)
-		var avail := size - origin - Vector2(8, 8)
-		var w := (avail.x - GAP * 5.0) / 6.0
-		var h := (avail.y - GAP * 2.0) / 3.0
-		return {"origin": origin, "w": w, "h": h, "label_w": label_w}
+		var area := _content()
+		var w := area.size.x / 6.0
+		var h := (area.size.y - BAND * 2.0) / 3.0
+		var phone: bool = station != null and station.portrait
+		var origin: Vector2 = area.position
+		if phone:
+			var aspect := art_aspect if art_aspect > 0.4 else 1.9
+			var fit_w := area.size.x / 3.0
+			var fit_h := fit_w / aspect
+			var tall := (area.size.y - BAND * 2.0) / 3.0
+			if fit_h * 3.0 + BAND * 2.0 < area.size.y * 0.72:
+				h = tall
+				w = h * aspect
+			else:
+				w = fit_w
+				h = fit_h
+			var rows := h * 3.0 + BAND * 2.0
+			origin.y += maxf(0.0, (area.size.y - rows) * 0.5)
+		return {"origin": origin, "w": w, "h": h, "band": BAND}
 
 	func _rect(geo: Dictionary, level: int, cell: int) -> Rect2:
 		var origin: Vector2 = geo.origin
 		return Rect2(
-			origin.x + cell * (float(geo.w) + GAP),
-			origin.y + level * (float(geo.h) + GAP),
+			origin.x + cell * float(geo.w),
+			origin.y + level * (float(geo.h) + float(geo.band)),
 			float(geo.w),
 			float(geo.h))
 
 	func _draw() -> void:
 		if station == null or station.game == null:
 			return
+		_paint_rock(Rect2(Vector2.ZERO, size), 2)
+		draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
 		var geo := _geo()
-		var names: PackedStringArray = ["Street", "Platform", "Deep"] if size.x >= 560.0 else ["Street", "Plat", "Deep"]
-		var font := ThemeDB.fallback_font
-		var band := _rect(geo, 1, 0)
-		draw_rect(Rect2(0, band.position.y - 4, size.x, band.size.y + 8), Color(0.55, 0.28, 0.12, 0.22))
+		var span := float(geo.w) * 6.0
+		_paint_rock(Rect2(geo.origin, Vector2(span, float(geo.h) * 3.0 + float(geo.band) * 2.0)), 3)
+		for gap in 2:
+			var y: float = geo.origin.y + float(gap + 1) * float(geo.h) + float(gap) * float(geo.band)
+			_paint_rock(Rect2(geo.origin.x, y, span, float(geo.band)), 9 + gap)
 		for level in 3:
-			var sample := _rect(geo, level, 0)
-			draw_string(font, Vector2(6, sample.position.y + sample.size.y * 0.55), names[level], HORIZONTAL_ALIGNMENT_LEFT, float(geo.label_w) - 8.0, 13 if size.x < 560.0 else 15, Color("efe6d2"))
 			for cell in 6:
 				_draw_cell(_rect(geo, level, cell), level, cell)
-		var rail := _rect(geo, 1, 0)
-		draw_line(
-			Vector2(rail.position.x, rail.position.y + rail.size.y - 8),
-			Vector2(size.x - 10, rail.position.y + rail.size.y - 8),
-			Color("e2b15a"),
-			3.0)
+		var plat := _rect(geo, 1, 0)
+		var rail_y := plat.position.y + plat.size.y - 7.0
+		var x0 := plat.position.x
+		var x1 := plat.position.x + span
+		draw_line(Vector2(x0, rail_y), Vector2(x1, rail_y), Color(0.42, 0.38, 0.32), 2.0)
+		var sleeper := x0 + 6.0
+		while sleeper < x1:
+			draw_line(Vector2(sleeper, rail_y - 3.0), Vector2(sleeper + 7.0, rail_y + 3.0), Color(0.2, 0.15, 0.1), 2.0)
+			sleeper += 16.0
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func _draw_cell(rect: Rect2, level: int, cell: int) -> void:
 		var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
 		var kind := _kind(spot)
-		var fill := Color(0.16, 0.15, 0.13)
+		var room = null
+		var room_type := ""
+		if kind == "room":
+			room = station.game._room(str(spot.room))
+			room_type = str(room.type)
 		if kind == "hidden":
-			fill = Color(0.07, 0.07, 0.08)
+			_paint_rock(rect, 40 + level * 6 + cell)
+			draw_rect(rect, Color(0, 0, 0, 0.28))
 		elif kind == "undug":
-			fill = Color(0.2, 0.16, 0.12)
-		elif kind == "room":
-			var room = station.game._room(str(spot.room))
-			fill = ROOM_COLOR.get(str(room.type), Color("888888"))
-		draw_rect(rect, fill)
-		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
-		draw_rect(rect, Color("e07a6a") if losing else Color(0, 0, 0, 0.35), false, 3.0 if losing else 1.0)
-		if losing:
-			draw_string(ThemeDB.fallback_font, rect.position + Vector2(rect.size.x - 16, 16), "!", HORIZONTAL_ALIGNMENT_LEFT, 14, 16, Color("e07a6a"))
-		if bool(spot.flooded):
-			draw_rect(rect, Color(0.2, 0.35, 0.55, 0.45))
-		var font := ThemeDB.fallback_font
-		var caption := ""
-		if kind == "hidden":
-			caption = ""
-		elif kind == "undug":
-			caption = "Dig"
+			_paint_rock(rect, 10 + level * 6 + cell)
 		elif kind == "dug":
-			caption = "Open"
-		elif kind == "room":
-			var room = station.game._room(str(spot.room))
-			caption = _short(str(room.type), rect.size.x)
+			_draw_cavity(rect)
+		elif room_type == "platform":
+			_draw_platform(rect, cell)
+		else:
+			var fill: Color = ROOM_COLOR.get(room_type, Color(0.12, 0.12, 0.13))
+			draw_rect(rect, fill)
+			var texture = art.get(room_type, null)
+			if texture != null:
+				_blit_room(texture, rect)
+		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
+		if losing:
+			draw_rect(rect, Color(0, 0, 0, _lamp(level, cell)))
+			_draw_power_icon(rect)
+		if kind == "room":
 			_draw_people(rect, room)
+		if _under_water(spot, kind):
+			_draw_water(rect, level, cell)
 		var job := _job_text(level, cell, rect.size.x)
 		if job != "":
-			caption = job
-			draw_rect(rect, Color(0, 0, 0, 0.35))
-		if caption != "":
-			var font_size := 12 if rect.size.x < 100.0 else 14
-			draw_string(font, rect.position + Vector2(6, 16), caption, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8, font_size, Color(0.08, 0.06, 0.05) if kind == "room" else Color("efe6d2"))
+			var font := ThemeDB.fallback_font
+			draw_string(font, rect.position + Vector2(6, 16), job, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8, 13, Color("efe6d2"))
+		elif hover == Vector2i(level, cell) and kind != "hidden":
+			var tip := ""
+			if kind == "undug":
+				tip = "Dig"
+			elif kind == "dug":
+				tip = "Build here"
+			elif kind == "room":
+				tip = str(station.game.catalog.rooms[room_type].name)
+			if tip != "":
+				var bar := Rect2(rect.position.x, rect.position.y + rect.size.y - 20, rect.size.x, 20)
+				draw_rect(bar, Color(0.05, 0.05, 0.06, 0.82))
+				draw_string(ThemeDB.fallback_font, bar.position + Vector2(6, 14), tip, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8, 13, Color("efe6d2"))
+
+	func _paint_rock(rect: Rect2, salt: int) -> void:
+		draw_rect(rect, Color(0.16, 0.13, 0.1))
+		var specks := 22
+		for i in specks:
+			var n := _speck(salt, i)
+			var px := rect.position.x + fmod(n, maxf(rect.size.x, 1.0))
+			var py := rect.position.y + fmod(n * 1.37, maxf(rect.size.y, 1.0))
+			var shade := 0.1 + fmod(n, 9.0) * 0.018
+			draw_rect(Rect2(px, py, 4.0 + fmod(n, 6.0), 2.0), Color(shade, shade * 0.82, shade * 0.62, 0.9))
+
+	func _speck(salt: int, i: int) -> float:
+		var n := (salt * 131 + i * 17) % 997
+		return float(n)
+
+	func _blit_room(texture: Texture2D, rect: Rect2) -> void:
+		var tex := texture.get_size()
+		if tex.x < 1.0 or tex.y < 1.0:
+			return
+		var phone: bool = station != null and station.portrait
+		if not phone:
+			draw_texture_rect(texture, rect, false)
+			return
+		var aspect := tex.x / tex.y
+		var cell_aspect := rect.size.x / maxf(rect.size.y, 1.0)
+		var dest := rect
+		if cell_aspect > aspect:
+			var w := rect.size.y * aspect
+			dest = Rect2(rect.position.x + (rect.size.x - w) * 0.5, rect.position.y, w, rect.size.y)
+		elif cell_aspect < aspect:
+			var h := rect.size.x / aspect
+			dest = Rect2(rect.position.x, rect.position.y + (rect.size.y - h) * 0.5, rect.size.x, h)
+		draw_rect(rect, Color(0.1, 0.08, 0.06))
+		draw_texture_rect(texture, dest, false)
+
+	func _draw_cavity(rect: Rect2) -> void:
+		_paint_rock(rect, 4)
+		draw_rect(rect, Color(0.28, 0.22, 0.16, 0.28))
+		var frame := rect.grow(-5.0)
+		draw_rect(frame, Color(0.42, 0.28, 0.14), false, 4.0)
+		draw_rect(frame.grow(-3.0), Color(0.22, 0.16, 0.1), false, 1.0)
+		var glow := minf(rect.size.x, rect.size.y) * 0.28
+		var lamp := rect.position + Vector2(rect.size.x * 0.5, rect.size.y * 0.34)
+		draw_circle(lamp, glow, Color(0.95, 0.72, 0.32, 0.14))
+		draw_circle(lamp, glow * 0.45, Color(1.0, 0.82, 0.45, 0.22))
+		draw_circle(lamp, 3.5, Color(1.0, 0.9, 0.62, 0.8))
+
+	func _draw_platform(rect: Rect2, cell: int) -> void:
+		draw_rect(rect, Color(0.055, 0.058, 0.062))
+		var x := rect.position.x + fmod(float(cell) * 7.0, 14.0)
+		while x < rect.position.x + rect.size.x:
+			draw_line(Vector2(x, rect.position.y + 2.0), Vector2(x, rect.position.y + rect.size.y - 16.0), Color(1, 1, 1, 0.045), 1.0)
+			x += 14.0
+
+	func _lamp(level: int, cell: int) -> float:
+		var t := Time.get_ticks_msec() / 1000.0
+		var wobble := sin(t * 1.1 + float(cell) * 2.3) * 0.65 + sin(t * 0.37 + float(level) * 1.7 + float(cell)) * 0.35
+		return clampf(0.6 + wobble * 0.08, 0.5, 0.72)
+
+	func _draw_power_icon(rect: Rect2) -> void:
+		var origin := rect.position + Vector2(rect.size.x - 18, 8)
+		var bolt := PackedVector2Array([
+			origin + Vector2(8, 0),
+			origin + Vector2(3, 8),
+			origin + Vector2(7, 8),
+			origin + Vector2(2, 16),
+			origin + Vector2(10, 7),
+			origin + Vector2(6, 7),
+		])
+		draw_colored_polygon(bolt, Color("e07a6a"))
+
+	func _draw_water(rect: Rect2, level: int, cell: int) -> void:
+		var t := Time.get_ticks_msec() / 1000.0
+		var wave := sin(t * 1.25 + float(cell) * 1.3) * 0.018 + sin(t * 0.55 + float(level) * 2.0) * 0.012
+		var frac := clampf(0.33 + wave, 0.28, 0.4)
+		var height := rect.size.y * frac
+		var body := Rect2(rect.position.x, rect.position.y + rect.size.y - height, rect.size.x, height)
+		draw_rect(body, Color(0.04, 0.11, 0.16, 0.82))
+		draw_line(Vector2(body.position.x, body.position.y + 1.0), Vector2(body.position.x + body.size.x, body.position.y + 1.0), Color(0.55, 0.72, 0.8, 0.7), 2.0)
 
 	func _short(type: String, width: float) -> String:
 		var full := str(station.game.catalog.rooms[type].name)
@@ -1292,6 +2018,15 @@ class Yard extends Control:
 			_:
 				return full
 
+	func _under_water(spot: Dictionary, kind: String) -> bool:
+		if bool(spot.flooded):
+			return true
+		if kind != "room" and kind != "dug":
+			return false
+		if not station.game._season_is("flood"):
+			return false
+		return int(spot.level) == station.game._lowest_open_level()
+
 	func _kind(spot: Dictionary) -> String:
 		if str(spot.room) != "":
 			return "room"
@@ -1314,11 +2049,153 @@ class Yard extends Control:
 		var n := int(room.staff.size())
 		if n == 0:
 			return
-		var slot := minf(26.0, (rect.size.x - 8.0) / float(n))
+		var t := Time.get_ticks_msec() / 1000.0
 		for i in n:
-			var cx := rect.position.x + 6.0 + float(i) * slot + slot * 0.45
-			var foot := rect.position.y + rect.size.y - 7.0
-			var ink := Color(0.08, 0.06, 0.05)
-			var head := maxf(3.0, slot * 0.22)
-			draw_circle(Vector2(cx, foot - slot * 0.85), head, ink)
-			draw_rect(Rect2(cx - slot * 0.18, foot - slot * 0.58, slot * 0.36, slot * 0.5), ink)
+			var id := str(room.staff[i])
+			var h := _id_hash(id)
+			var span := rect.size.x * 0.78
+			var jitter := fmod(h, span * 0.28) - span * 0.14
+			var cx := rect.position.x + rect.size.x * 0.11 + span * (float(i) + 0.5) / float(n) + jitter
+			cx = clampf(cx, rect.position.x + 8.0, rect.position.x + rect.size.x - 8.0)
+			var bob := sin(t * 1.7 + h * 0.02) * 1.6
+			var foot := Vector2(cx, rect.position.y + rect.size.y * 0.8 + bob)
+			var scale := 18.0 + fmod(h, 8.0)
+			var tint := Color.from_hsv(fmod(h * 0.013, 1.0), 0.35, 0.16)
+			_silhouette(foot, scale + 2.0, Color(0.45, 0.36, 0.24, 0.85))
+			_silhouette(foot, scale, tint)
+
+	func _id_hash(id: String) -> float:
+		var n := 17
+		for i in id.length():
+			n = (n * 33 + id.unicode_at(i)) % 100003
+		return float(n)
+
+	func _silhouette(foot: Vector2, scale: float, tint: Color) -> void:
+		var head := foot + Vector2(0, -scale * 0.72)
+		draw_circle(head, scale * 0.16, tint)
+		var body := PackedVector2Array([
+			foot + Vector2(-scale * 0.22, -scale * 0.5),
+			foot + Vector2(scale * 0.22, -scale * 0.5),
+			foot + Vector2(scale * 0.28, -scale * 0.22),
+			foot + Vector2(scale * 0.1, -scale * 0.02),
+			foot + Vector2(-scale * 0.1, -scale * 0.02),
+			foot + Vector2(-scale * 0.28, -scale * 0.22),
+		])
+		draw_colored_polygon(body, tint)
+
+
+class Glyph extends Control:
+	var kind := "food"
+	var ink := Color("efe6d2")
+
+	func _draw() -> void:
+		var rect := Rect2(Vector2.ZERO, size)
+		var c := rect.get_center()
+		var s := minf(rect.size.x, rect.size.y)
+		var r := s * 0.38
+		var thick := maxf(2.4, r * 0.55)
+		match kind:
+			"air":
+				draw_arc(c, r * 0.62, 0, TAU, 28, ink, thick)
+				draw_circle(c + Vector2(r * 0.22, -r * 0.18), r * 0.16, ink)
+			"food":
+				draw_circle(c + Vector2(0, r * 0.12), r * 0.62, ink)
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-r * 0.05, -r * 0.35),
+					c + Vector2(r * 0.15, -r * 0.95),
+					c + Vector2(r * 0.62, -r * 0.28),
+				]), ink)
+			"power":
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(r * 0.2, -r), c + Vector2(-r * 0.55, r * 0.08),
+					c + Vector2(r * 0.02, r * 0.08), c + Vector2(-r * 0.28, r),
+					c + Vector2(r * 0.62, -r * 0.18), c + Vector2(r * 0.02, -r * 0.18),
+				]), ink)
+			"materials":
+				draw_rect(Rect2(c + Vector2(-r * 0.85, -r * 0.05), Vector2(r * 1.7, r * 0.7)), ink)
+				draw_rect(Rect2(c + Vector2(-r * 0.55, -r * 0.72), Vector2(r * 1.25, r * 0.48)), ink)
+			"tokens", "buy":
+				draw_circle(c, r * 0.78, ink)
+				draw_arc(c, r * 0.42, 0, TAU, 20, Color(0, 0, 0, 0.35), maxf(1.5, r * 0.18))
+			"demand":
+				draw_circle(c, r * 0.78, ink)
+				draw_line(c + Vector2(-r * 0.4, 0), c + Vector2(r * 0.4, 0), Color(0, 0, 0, 0.45), thick)
+			"influence":
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0, -r), c + Vector2(r * 0.28, -r * 0.28),
+					c + Vector2(r, 0), c + Vector2(r * 0.28, r * 0.28),
+					c + Vector2(0, r), c + Vector2(-r * 0.28, r * 0.28),
+					c + Vector2(-r, 0), c + Vector2(-r * 0.28, -r * 0.28),
+				]), ink)
+			"hope":
+				draw_circle(c, r * 0.45, ink)
+			"discontent":
+				draw_line(c + Vector2(-r, r * 0.4), c + Vector2(-r * 0.2, -r * 0.4), ink, 1.6)
+				draw_line(c + Vector2(-r * 0.2, -r * 0.4), c + Vector2(r * 0.2, r * 0.3), ink, 1.6)
+				draw_line(c + Vector2(r * 0.2, r * 0.3), c + Vector2(r, -r * 0.2), ink, 1.6)
+			"pump":
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0, -r), c + Vector2(r * 0.7, r * 0.45), c + Vector2(-r * 0.7, r * 0.45)
+				]), ink)
+			"quarantine":
+				draw_rect(Rect2(c - Vector2(r, r), Vector2(r * 2, r * 2)), ink, false, 1.6)
+				draw_line(c + Vector2(0, -r * 0.6), c + Vector2(0, r * 0.6), ink, 1.6)
+				draw_line(c + Vector2(-r * 0.6, 0), c + Vector2(r * 0.6, 0), ink, 1.6)
+			"burn":
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0, -r), c + Vector2(r * 0.55, r * 0.2),
+					c + Vector2(r * 0.15, r * 0.15), c + Vector2(r * 0.35, r),
+					c + Vector2(-r * 0.35, r), c + Vector2(-r * 0.1, r * 0.05),
+					c + Vector2(-r * 0.5, r * 0.15),
+				]), ink)
+			"people":
+				draw_circle(c + Vector2(0, -r * 0.55), r * 0.38, ink)
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-r * 0.7, r), c + Vector2(0, -r * 0.1), c + Vector2(r * 0.7, r)
+				]), ink)
+			"squad":
+				draw_line(c + Vector2(-r, 0), c + Vector2(r * 0.2, 0), ink, 1.8)
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(r * 0.1, -r * 0.55), c + Vector2(r, 0), c + Vector2(r * 0.1, r * 0.55)
+				]), ink)
+			"secure":
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0, -r), c + Vector2(r * 0.8, -r * 0.2),
+					c + Vector2(r * 0.55, r), c + Vector2(-r * 0.55, r), c + Vector2(-r * 0.8, -r * 0.2)
+				]), ink)
+			"hold":
+				draw_rect(Rect2(c + Vector2(-r * 0.7, -r), Vector2(s * 0.22, s * 0.75)), ink)
+				draw_rect(Rect2(c + Vector2(r * 0.15, -r), Vector2(s * 0.22, s * 0.75)), ink)
+			_:
+				draw_circle(c, r * 0.4, ink)
+
+
+class ToolButton extends Button:
+	var glyph_name := "pump"
+	var caption := ""
+
+	func _ready() -> void:
+		text = ""
+		var box := VBoxContainer.new()
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.set_anchors_preset(Control.PRESET_FULL_RECT)
+		box.offset_left = 4.0
+		box.offset_top = 4.0
+		box.offset_right = -4.0
+		box.offset_bottom = -2.0
+		box.alignment = BoxContainer.ALIGNMENT_CENTER
+		box.add_theme_constant_override("separation", 1)
+		add_child(box)
+		var mark := Glyph.new()
+		mark.kind = glyph_name
+		mark.custom_minimum_size = Vector2(22, 22)
+		mark.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(mark)
+		var lab := Label.new()
+		lab.text = caption
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lab.add_theme_font_size_override("font_size", 11)
+		lab.add_theme_color_override("font_color", Color("efe6d2"))
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(lab)
