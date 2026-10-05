@@ -81,6 +81,9 @@ func _print_follower(rows: Array) -> void:
 
 func _follower_ok(rows: Array) -> bool:
 	var lived := 0
+	var fed := 0
+	var hopeful := 0
+	var calm := 0
 	var ok := true
 	for row in rows:
 		if int(row.get("power_zero_max", 0)) > 2:
@@ -92,11 +95,26 @@ func _follower_ok(rows: Array) -> bool:
 		if int(row.get("events_by_15", 0)) < 12:
 			ok = false
 			print("  events by week 15 = %d, seed %d" % [int(row.events_by_15), int(row.seed)])
-		if int(row.get("week", 0)) >= 25:
+		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time":
 			lived += 1
-	if lived < 4:
+		if float(row.get("food_med", 0)) >= 1.5:
+			fed += 1
+		if int(row.get("hope_min", 0)) >= 15:
+			hopeful += 1
+		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time" and int(row.get("dis_max", 0)) < 90:
+			calm += 1
+	if lived < 5:
 		ok = false
-		print("  survived to week 25 on %d of 5 seeds" % lived)
+		print("  reached week 40 on %d of 5 seeds" % lived)
+	if fed < 5:
+		ok = false
+		print("  food buffer median at least 1.5 on %d of 5 seeds" % fed)
+	if hopeful < 5:
+		ok = false
+		print("  hope min at least 15 on %d of 5 seeds" % hopeful)
+	if calm < 4:
+		ok = false
+		print("  reached week 40 under discontent 90 on %d of 5 seeds" % calm)
 	return ok
 
 

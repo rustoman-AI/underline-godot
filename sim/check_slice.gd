@@ -19,6 +19,8 @@ func _init() -> void:
 		failed = true
 	if not _check_crisis(catalog):
 		failed = true
+	if not _check_mood(catalog):
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
@@ -347,4 +349,47 @@ func _check_crisis(catalog: Catalog) -> bool:
 			print("Crisis: FAIL ", game.crisis_faults)
 			return false
 	print("Crisis: ok")
+	return true
+
+
+func _check_mood(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	if not game.errors.is_empty():
+		print("Mood: FAIL setup ", game.errors)
+		return false
+	var front: Dictionary = game.front_event()
+	if not front.is_empty():
+		var choice: Dictionary = game._free_choice(front)
+		var caption := game.close_caption()
+		if choice.is_empty() or caption != "Close: %s" % str(choice.label):
+			print("Mood: FAIL close caption %s" % caption)
+			return false
+	game.discontent = 75
+	var warning: Dictionary = game.revolt_warning()
+	if not str(warning.get("text", "")).begins_with("Revolt in about"):
+		print("Mood: FAIL warning ", warning)
+		return false
+	if warning.fixes.size() < 2:
+		print("Mood: FAIL warning fixes ", warning.fixes)
+		return false
+	game.discontent = 98
+	var dis_line := ""
+	for row in game.forecasts():
+		if str(row.key) == "discontent":
+			dis_line = str(row.text)
+	if dis_line == "" or dis_line.find("pushing") < 0:
+		print("Mood: FAIL discontent forecast ", dis_line)
+		return false
+	game.hope = 2
+	var hope_line := ""
+	for row in game.forecasts():
+		if str(row.key) == "hope":
+			hope_line = str(row.text)
+	var hope_fix := hope_line.find("Repeal") >= 0 or hope_line.find("Meeting hall") >= 0 or hope_line.find("Sermons") >= 0
+	if hope_line == "" or hope_line.find("weekly slide") < 0 or not hope_fix:
+		print("Mood: FAIL hope forecast ", hope_line)
+		return false
+	print("Mood: ok")
+	return true
 	return true

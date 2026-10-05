@@ -63,6 +63,8 @@ func _act(game: Game) -> void:
 
 func _follow(game: Game) -> void:
 	var forecasts: Array = game.forecasts()
+	if not game.revolt_warning().is_empty():
+		forecasts.append({"key": "discontent"})
 	var guard := 0
 	while not game.pending.is_empty() and guard < 6:
 		guard += 1
@@ -73,24 +75,76 @@ func _follow(game: Game) -> void:
 		if not game.apply({"kind": "event", "event_id": ev.id, "choice_id": choice.id}):
 			break
 		forecasts = game.forecasts()
-	if forecasts.is_empty():
-		return
-	var row: Dictionary = forecasts[0]
-	var hint := str(row.hint)
+		if not game.revolt_warning().is_empty():
+			forecasts.append({"key": "discontent"})
+	_do_soft(game)
+	var build := _urgent_build(game)
+	if not build.is_empty():
+		_do_row(game, build)
+
+
+func _do_soft(game: Game) -> void:
+	var warning: Dictionary = game.revolt_warning()
+	if not warning.is_empty():
+		for fix in warning.fixes:
+			if _is_soft(fix):
+				_do_row(game, fix)
+	for row in game.forecasts():
+		if _is_soft(row):
+			_do_row(game, row)
+
+
+func _urgent_build(game: Game) -> Dictionary:
+	var best := {}
+	var best_weeks := 99
+	var warning: Dictionary = game.revolt_warning()
+	if not warning.is_empty():
+		for fix in warning.fixes:
+			if _is_buildish(fix) and int(warning.weeks) < best_weeks:
+				best = fix
+				best_weeks = int(warning.weeks)
+	for row in game.forecasts():
+		if _is_buildish(row) and int(row.weeks) < best_weeks:
+			best = row
+			best_weeks = int(row.weeks)
+	return best
+
+
+func _is_soft(row: Dictionary) -> bool:
+	var hint := str(row.get("hint", ""))
+	return hint != "" and hint != "dig" and hint != "burn" and not hint.begins_with("build:")
+
+
+func _is_buildish(row: Dictionary) -> bool:
+	var hint := str(row.get("hint", ""))
+	return hint == "dig" or hint == "burn" or hint.begins_with("build:")
+
+
+func _do_row(game: Game, row: Dictionary) -> bool:
+	var hint := str(row.get("hint", ""))
 	if hint.begins_with("build:"):
 		var type := hint.trim_prefix("build:")
 		var info: Dictionary = game.build_preview(type, int(row.level), int(row.cell))
 		if bool(info.ok):
-			game.apply({"kind": "build", "type": type, "level": int(row.level), "cell": int(row.cell)})
+			return game.apply({"kind": "build", "type": type, "level": int(row.level), "cell": int(row.cell)})
 	elif hint == "dig":
 		var dig: Dictionary = game.dig_preview(int(row.level), int(row.cell))
 		if bool(dig.ok):
-			game.apply({"kind": "dig", "level": int(row.level), "cell": int(row.cell)})
+			return game.apply({"kind": "dig", "level": int(row.level), "cell": int(row.cell)})
 	elif hint.begins_with("staff:"):
-		game.apply({"kind": "staff"})
+		return game.apply({"kind": "staff"})
 	elif hint == "burn":
 		if bool(game.burn_preview().ok):
-			game.apply({"kind": "burn"})
+			return game.apply({"kind": "burn"})
+	elif hint == "rally":
+		return game.apply({"kind": "rally"})
+	elif hint == "quarantine":
+		return game.apply({"kind": "quarantine"})
+	elif hint.begins_with("law:"):
+		return game.apply({"kind": "law", "law": hint.trim_prefix("law:")})
+	elif hint.begins_with("repeal:"):
+		return game.apply({"kind": "repeal", "law": hint.trim_prefix("repeal:")})
+	return false
 
 
 func _visible_choice(game: Game, ev: Dictionary, forecasts: Array) -> Dictionary:
@@ -100,10 +154,29 @@ func _visible_choice(game: Game, ev: Dictionary, forecasts: Array) -> Dictionary
 			continue
 		if fallback.is_empty():
 			fallback = choice
-		if _spends_forecast(choice, forecasts):
+		if _spends_forecast(choice, forecasts) or _hurts_meter(choice, forecasts) or _adds_mouths(choice, forecasts):
 			continue
 		return choice
 	return fallback
+
+
+func _adds_mouths(choice: Dictionary, forecasts: Array) -> bool:
+	if int(choice.get("people", 0)) <= 0:
+		return false
+	for row in forecasts:
+		if str(row.get("key", "")) == "food":
+			return true
+	return false
+
+
+func _hurts_meter(choice: Dictionary, forecasts: Array) -> bool:
+	for row in forecasts:
+		var key := str(row.get("key", ""))
+		if key == "discontent" and int(choice.get("discontent", 0)) > 0:
+			return true
+		if key == "hope" and int(choice.get("hope", 0)) < 0:
+			return true
+	return false
 
 
 func _spends_forecast(choice: Dictionary, forecasts: Array) -> bool:

@@ -81,6 +81,7 @@ var warning_weeks := {}
 var crisis_faults: Array = []
 var demand_log: Array = []
 var power_zero_streak := 0
+var rally_lock := 0
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -218,6 +219,10 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_quarantine()
 		"burn":
 			ok = _apply_burn()
+		"rally":
+			ok = _apply_rally()
+		"repeal":
+			ok = _apply_repeal(str(action.get("law", "")))
 		"power":
 			ok = _move_power(str(action.get("room", "")), bool(action.get("up", false)))
 		"order":
@@ -777,21 +782,257 @@ func forecasts() -> Array:
 	var horizon := int(bal.get("forecast_weeks", 2))
 	for key in ["power", "food", "air", "materials"]:
 		var left := _weeks_until_empty(key)
-		if left > horizon:
+		var thin: bool = key == "food" and _food_thin()
+		if left > horizon and not thin:
 			continue
 		var hint := _supply_hint(_supply_type(key))
 		var name := str(key.capitalize())
-		var when := "is gone" if left <= 0 else "runs out in %d weeks" % left
+		var when := "is gone" if left <= 0 else "runs out in %s" % _week_span(left)
+		var shown := left
+		if thin:
+			var meals := maxi(0, int(floor(food_buffer_weeks())))
+			when = "is down to %d week of meals" % meals if meals == 1 else "is down to %d weeks of meals" % meals
+			if left > horizon:
+				shown = horizon
+		if (key == "food" or key == "air") and _weeks_until_empty("power") <= horizon:
+			hint = _supply_hint("generator")
 		rows.append({
 			"key": key,
-			"weeks": left,
+			"weeks": shown,
 			"text": "%s %s. %s" % [name, when, str(hint.text)],
 			"hint": str(hint.hint),
 			"level": int(hint.get("level", -1)),
 			"cell": int(hint.get("cell", -1)),
 		})
+	for meter in ["discontent", "hope"]:
+		var left := _weeks_until_break(meter)
+		if meter == "hope":
+			left = _hope_warn_weeks()
+		if left > horizon and not (meter == "hope" and hope <= 50):
+			continue
+		if meter == "hope" and hope <= 50 and left > 4:
+			left = 4
+		var pushes := _coming_pushes(meter)
+		var fixes := _best_fixes(meter, 1)
+		var fix: Dictionary = fixes[0] if not fixes.is_empty() else {}
+		var name := "Discontent" if meter == "discontent" else "Hope"
+		var when := "is down to %d" % hope if meter == "hope" else ("is at the edge" if left <= 0 else "hits 100 in %s" % _week_span(left))
+		rows.append({
+			"key": meter,
+			"weeks": left,
+			"text": "%s %s. %s %s" % [name, when, _push_line(pushes), str(fix.get("text", ""))],
+			"hint": str(fix.get("hint", "")),
+			"level": int(fix.get("level", -1)),
+			"cell": int(fix.get("cell", -1)),
+		})
+	if can_quarantine():
+		rows.append({
+			"key": "power",
+			"weeks": 0,
+			"text": "The cough pulls crews off every room. Quarantine ends the Cough.",
+			"hint": "quarantine",
+			"level": -1,
+			"cell": -1,
+		})
 	rows.sort_custom(func(a, b): return int(a.weeks) < int(b.weeks))
 	return rows
+
+
+func revolt_warning() -> Dictionary:
+	if discontent < int(bal.get("revolt_warn", 70)):
+		return {}
+	var gain := _meter_gain("discontent")
+	var left := 99
+	if discontent >= 100:
+		left = 0
+	elif gain > 0:
+		left = int(ceil(float(100 - discontent) / float(gain)))
+	else:
+		left = maxi(1, 100 - discontent)
+	var fixes := _best_fixes("discontent", 2)
+	var bits: PackedStringArray = ["Revolt in about %s." % _week_span(left)]
+	for fix in fixes:
+		bits.append(str(fix.text))
+	var first: Dictionary = fixes[0] if not fixes.is_empty() else {}
+	return {
+		"text": " ".join(bits),
+		"weeks": left,
+		"fixes": fixes,
+		"hint": str(first.get("hint", "")),
+		"level": int(first.get("level", -1)),
+		"cell": int(first.get("cell", -1)),
+	}
+
+
+func close_caption() -> String:
+	var choice := _free_choice(front_event())
+	if choice.is_empty():
+		return "Close"
+	return "Close: %s" % str(choice.label)
+
+
+func _food_thin() -> bool:
+	if food_buffer_weeks() < 2.5:
+		return true
+	return _weeks_until_empty("food") <= int(bal.get("forecast_weeks", 2))
+
+
+func _hope_warn_weeks() -> int:
+	var mark := 20
+	var gain := _meter_gain("hope")
+	if hope <= mark:
+		return 0
+	if gain <= 0:
+		return 99
+	return int(ceil(float(hope - mark) / float(gain)))
+
+
+func _weeks_until_break(meter: String) -> int:
+	var gain := _meter_gain(meter)
+	if gain <= 0:
+		return 99
+	if meter == "discontent":
+		if discontent >= 100:
+			return 0
+		return int(ceil(float(100 - discontent) / float(gain)))
+	if hope <= 0:
+		return 0
+	return int(ceil(float(hope) / float(gain)))
+
+
+func _meter_gain(meter: String) -> int:
+	var total := 0
+	for push in _coming_pushes(meter):
+		total += int(push.amount)
+	return total
+
+
+func _coming_pushes(meter: String) -> Array:
+	var rows: Array = []
+	if meter == "hope":
+		var slide := -int(bal.hope_drift)
+		if slide > 0:
+			rows.append({"name": "the weekly slide", "amount": slide})
+		if _food_thin():
+			rows.append({"name": "a shortage", "amount": 4})
+		for law_id in laws_on:
+			var defin: Dictionary = catalog.laws[law_id]
+			var hit := -int(defin.get("hope_week", 0))
+			if hit > 0:
+				rows.append({"name": str(defin.name), "amount": hit})
+	else:
+		if not active_season.is_empty():
+			var season_id := str(active_season.id)
+			var amount := int(bal.season_discontent[season_id])
+			if amount > 0:
+				rows.append({"name": "the %s" % season_id, "amount": amount})
+		if residents.size() > housing():
+			rows.append({"name": "the crowd", "amount": int(bal.overcrowd_discontent)})
+		for law_id in laws_on:
+			var defin: Dictionary = catalog.laws[law_id]
+			var hit := int(defin.get("discontent_week", 0))
+			if hit > 0:
+				rows.append({"name": str(defin.name), "amount": hit})
+	rows.sort_custom(func(a, b): return int(a.amount) > int(b.amount))
+	return rows
+
+
+func _push_line(pushes: Array) -> String:
+	if pushes.is_empty():
+		return ""
+	var line := ""
+	if pushes.size() == 1:
+		line = "%s is pushing it." % str(pushes[0].name)
+	else:
+		line = "%s and %s are pushing it." % [str(pushes[0].name), str(pushes[1].name)]
+	return line.substr(0, 1).to_upper() + line.substr(1)
+
+
+func _best_fixes(meter: String, limit: int) -> Array:
+	var out: Array = []
+	if meter == "discontent":
+		if _season_is("cough") and can_quarantine():
+			out.append({"hint": "quarantine", "text": "Quarantine ends the Cough.", "level": -1, "cell": -1})
+		_add_repeal(out, "conscription", "Repeal Conscription.")
+		if residents.size() > housing():
+			_add_room_fix(out, "quarters", "Build Quarters so the crowd has beds.")
+		_add_rally(out)
+	else:
+		if _food_thin():
+			if _weeks_until_empty("power") <= int(bal.get("forecast_weeks", 2)):
+				_add_room_fix(out, "generator", "Build a generator so the farms have power.")
+			else:
+				_add_room_fix(out, "hydroponics", "Build Hydroponics so the shortage stops.")
+		_add_repeal(out, "curfew", "Repeal Curfew.")
+		_add_repeal(out, "rationing", "Repeal Rationing.")
+		_add_law(out, "sermons", "Pass Sermons in the meeting hall.")
+		if out.is_empty():
+			_add_hall_step(out)
+	if out.size() > limit:
+		out.resize(limit)
+	return out
+
+
+func _add_law(out: Array, law_id: String, text: String) -> void:
+	if _law_on(law_id) or not can_enact(law_id):
+		return
+	out.append({"hint": "law:%s" % law_id, "text": text, "level": -1, "cell": -1})
+
+
+func _add_repeal(out: Array, law_id: String, text: String) -> void:
+	if repeal_reason(law_id) != "":
+		return
+	out.append({"hint": "repeal:%s" % law_id, "text": text, "level": -1, "cell": -1})
+
+
+func _add_rally(out: Array) -> void:
+	if rally_reason() == "":
+		out.append({"hint": "rally", "text": "Hold a rally in the meeting hall.", "level": -1, "cell": -1})
+		return
+	_add_hall_step(out)
+
+
+func _add_hall_step(out: Array) -> void:
+	if room_count("meeting_hall") == 0:
+		_add_room_fix(out, "meeting_hall", "Build a meeting hall on a dug cell.")
+		return
+	if not _room_ready("meeting_hall"):
+		out.append({"hint": "staff:meeting_hall", "text": "Staff the meeting hall.", "level": -1, "cell": -1})
+
+
+func _add_room_fix(out: Array, type: String, fallback: String) -> void:
+	var hint := _supply_hint(type)
+	var text := str(hint.text)
+	if text == "":
+		text = fallback
+	out.append({
+		"hint": str(hint.hint),
+		"text": text,
+		"level": int(hint.get("level", -1)),
+		"cell": int(hint.get("cell", -1)),
+	})
+
+
+func rally_reason() -> String:
+	if rally_lock > 0:
+		return "The hall held a rally recently. Next one in %d weeks." % rally_lock
+	if not _room_ready("meeting_hall"):
+		if room_count("meeting_hall") == 0:
+			return "Needs a meeting hall."
+		return "Needs a staffed meeting hall. The hall has no one in it."
+	return ""
+
+
+func repeal_reason(law_id: String) -> String:
+	if not _law_on(law_id):
+		return "Not in force."
+	if not bool(catalog.laws[law_id].get("repealable", false)):
+		return "It cannot be repealed."
+	if not _room_ready("meeting_hall"):
+		return "Needs a staffed meeting hall. The hall has no one in it."
+	if law_lock > 0:
+		return "The hall is waiting. Next law in %d weeks." % law_lock
+	return ""
 
 
 func _weeks_until_empty(key: String) -> int:
@@ -841,6 +1082,12 @@ func _supply_type(key: String) -> String:
 			return "workshop"
 
 
+func _week_span(n: int) -> String:
+	if n == 1:
+		return "1 week"
+	return "%d weeks" % n
+
+
 func _supply_hint(type: String) -> Dictionary:
 	var defin: Dictionary = catalog.rooms[type]
 	var cost := int(defin.materials)
@@ -850,13 +1097,13 @@ func _supply_hint(type: String) -> Dictionary:
 	var spot := _first_build_cell()
 	if spot.is_empty():
 		var dig: Dictionary = _pick_dig_cell(true)
-		var dig_line := "Dig a cell, then build a %s (%d materials, %d weeks)." % [str(defin.name).to_lower(), cost, turns]
+		var dig_line := "Dig a cell, then build a %s (%d materials, %s)." % [str(defin.name).to_lower(), cost, _week_span(turns)]
 		if type != "generator":
-			dig_line = "Dig a cell, then build %s (%d materials, %d weeks)." % [str(defin.name), cost, turns]
+			dig_line = "Dig a cell, then build %s (%d materials, %s)." % [str(defin.name), cost, _week_span(turns)]
 		return {"hint": "dig", "text": dig_line, "level": int(dig.get("level", -1)), "cell": int(dig.get("cell", -1))}
-	var line := "Build a %s on a dug cell (%d materials, %d weeks)." % [str(defin.name).to_lower(), cost, turns]
+	var line := "Build a %s on a dug cell (%d materials, %s)." % [str(defin.name).to_lower(), cost, _week_span(turns)]
 	if type != "generator":
-		line = "Build %s on a dug cell (%d materials, %d weeks)." % [str(defin.name), cost, turns]
+		line = "Build %s on a dug cell (%d materials, %s)." % [str(defin.name), cost, _week_span(turns)]
 	return {"hint": "build:%s" % type, "text": line, "level": int(spot.level), "cell": int(spot.cell)}
 
 
@@ -895,6 +1142,27 @@ func _apply_burn() -> bool:
 	_add_hope(int(info.hope), "burn")
 	decisions += 1
 	_log("BURN %d materials into %d power" % [int(info.materials), int(info.power)])
+	return true
+
+
+func _apply_rally() -> bool:
+	if rally_reason() != "":
+		return false
+	_add_discontent(int(bal.rally_discontent), "rally")
+	_add_hope(int(bal.rally_hope), "rally")
+	rally_lock = int(bal.rally_cooldown)
+	decisions += 1
+	_log("RALLY in the meeting hall", true)
+	return true
+
+
+func _apply_repeal(law_id: String) -> bool:
+	if repeal_reason(law_id) != "":
+		return false
+	laws_on.erase(law_id)
+	law_lock = int(bal.law_cooldown)
+	decisions += 1
+	_log("REPEAL %s" % catalog.laws[law_id].name, true)
 	return true
 
 
@@ -1278,6 +1546,8 @@ func _apply_weekly_laws() -> void:
 			synod += int(defin.get("synod", 0))
 	if law_lock > 0:
 		law_lock -= 1
+	if rally_lock > 0:
+		rally_lock -= 1
 
 
 func _decay_filters() -> void:
