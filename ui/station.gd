@@ -49,8 +49,8 @@ var dis_fill: ColorRect
 var dim: ColorRect
 var card: PanelContainer
 var card_body: VBoxContainer
-var portrait := false
 var power_loss := {}
+var chrome_bottom := 96.0
 var notice := ""
 var display_font: Font
 var body_font: Font
@@ -72,6 +72,8 @@ var card_fit_queued := false
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	if OS.get_name() == "Android":
+		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_SENSOR_LANDSCAPE)
 	_load_fonts()
 	var theme := Theme.new()
 	theme.default_font = body_font
@@ -363,20 +365,21 @@ func _layout() -> void:
 
 
 func _place_chrome() -> void:
-	portrait = size.y > size.x or size.x < 860
 	if res_grid != null:
-		res_grid.columns = 3 if portrait else 6
-	if meter_box != null and hud_box != null and title_row != null:
-		if portrait and meter_box.get_parent() == title_row:
-			title_row.remove_child(meter_box)
-			hud_box.add_child(meter_box)
-			hud_box.move_child(meter_box, 1)
-		elif not portrait and meter_box.get_parent() != title_row:
-			meter_box.get_parent().remove_child(meter_box)
-			title_row.add_child(meter_box)
-	var end_w := 176.0
-	end_button.add_theme_font_size_override("font_size", 22 if portrait else 26)
-	var hud_h := 132.0 if portrait else 56.0
+		res_grid.columns = 6
+	if meter_box != null and title_row != null and meter_box.get_parent() != title_row:
+		meter_box.get_parent().remove_child(meter_box)
+		title_row.add_child(meter_box)
+	var short: bool = size.y < 520.0
+	var margin := 8.0 if short else 12.0
+	var tool_w := 76.0 if short else 64.0
+	var tool_h := 48.0 if short else 68.0
+	tool_w = maxf(tool_w, 44.0)
+	tool_h = maxf(tool_h, 44.0)
+	var end_w := 148.0 if short else 176.0
+	var end_h := maxf(48.0 if short else 58.0, 44.0)
+	end_button.add_theme_font_size_override("font_size", 20 if short else 26)
+	var hud_h := 56.0
 	if ticker != null and ticker.visible:
 		hud_h += 28.0
 	if hud != null:
@@ -388,42 +391,28 @@ func _place_chrome() -> void:
 		hud.offset_right = 0.0
 		hud.offset_top = 0.0
 		hud.offset_bottom = hud_h
-	var margin := 12.0
-	var tool_h := 56.0 if portrait else 68.0
+	chrome_bottom = margin + tool_h + 4.0
 	if end_button != null:
+		end_button.anchor_left = 1.0
+		end_button.anchor_right = 1.0
 		end_button.anchor_top = 1.0
 		end_button.anchor_bottom = 1.0
-		if portrait:
-			var stack := margin + tool_h + 8.0
-			end_button.anchor_left = 0.0
-			end_button.anchor_right = 1.0
-			end_button.offset_left = margin
-			end_button.offset_right = -margin
-			end_button.custom_minimum_size.x = 0.0
-			end_button.offset_bottom = -stack
-			end_button.offset_top = -stack - 50.0
-		else:
-			end_button.anchor_left = 1.0
-			end_button.anchor_right = 1.0
-			end_button.offset_right = -margin
-			end_button.offset_left = -margin - end_w
-			end_button.custom_minimum_size.x = end_w
-			end_button.offset_bottom = -margin
-			end_button.offset_top = -margin - 58.0
+		end_button.offset_right = -margin
+		end_button.offset_left = -margin - end_w
+		end_button.custom_minimum_size = Vector2(end_w, end_h)
+		end_button.offset_bottom = -margin
+		end_button.offset_top = -margin - end_h
 	if tray != null:
 		tray.anchor_left = 0.0
 		tray.anchor_top = 1.0
 		tray.anchor_right = 0.0
 		tray.anchor_bottom = 1.0
-		var tool_w := 64.0
-		if portrait:
-			tool_w = (size.x - margin * 2.0 - 24.0) / 5.0
 		for child in tray.get_children():
 			if child is Control:
 				(child as Control).custom_minimum_size = Vector2(tool_w, tool_h)
 		tray.offset_left = margin
 		tray.offset_top = -margin - tool_h
-		tray.offset_right = size.x - margin if portrait else margin + tool_w * 5.0 + 40.0
+		tray.offset_right = margin + tool_w * 5.0 + 40.0
 		tray.offset_bottom = -margin
 	if footer != null:
 		footer.anchor_left = 0.0
@@ -446,18 +435,11 @@ func _place_drawer() -> void:
 	side.visible = drawer_open
 	if not drawer_open:
 		return
-	var gap := 70.0
-	if portrait:
-		side.offset_left = 0.0
-		side.offset_right = size.x
-		side.offset_top = size.y * 0.52
-		side.offset_bottom = size.y - gap
-	else:
-		var w := minf(360.0, size.x * 0.42)
-		side.offset_left = size.x - w
-		side.offset_right = size.x
-		side.offset_top = 56.0
-		side.offset_bottom = size.y - 8.0
+	var w := minf(360.0, size.x * 0.42)
+	side.offset_left = size.x - w
+	side.offset_right = size.x
+	side.offset_top = 56.0
+	side.offset_bottom = size.y - chrome_bottom
 
 func _build_overlay() -> void:
 	dim = ColorRect.new()
@@ -506,12 +488,12 @@ func _place_card() -> void:
 func _fit_card() -> void:
 	if card == null or not dim.visible:
 		return
-	var margin := 16.0 if portrait else 36.0
-	var max_w := size.x - margin * 2.0
-	if not portrait:
-		max_w = minf(max_w, 560.0)
-	var top_limit := 140.0 if portrait else margin
-	var bottom_limit := 156.0 if portrait else margin
+	var margin := 24.0
+	var max_w := minf(size.x - margin * 2.0, 560.0)
+	var top_limit := 64.0
+	if hud != null and hud.size.y > 8.0:
+		top_limit = hud.size.y + 8.0
+	var bottom_limit := chrome_bottom + 8.0
 	var max_h := size.y - top_limit - bottom_limit
 	card_body.custom_minimum_size.x = max_w - 36.0
 	var left := (size.x - max_w) / 2.0
@@ -532,10 +514,11 @@ func _shrink_card() -> void:
 	card_fit_queued = false
 	if card == null or card_body == null or not dim.visible:
 		return
-	var margin := 16.0 if portrait else 36.0
 	var max_w := card.offset_right - card.offset_left
-	var top_limit := 140.0 if portrait else margin
-	var bottom_limit := 156.0 if portrait else margin
+	var top_limit := 64.0
+	if hud != null and hud.size.y > 8.0:
+		top_limit = hud.size.y + 8.0
+	var bottom_limit := chrome_bottom + 8.0
 	var max_h := size.y - top_limit - bottom_limit
 	var h := 28.0
 	var count := card_body.get_child_count()
@@ -1534,28 +1517,10 @@ func _shots() -> void:
 	_close_card()
 	await _frame()
 	_save("week1_cutaway")
-	_show_dawn()
-	await _frame()
-	await _frame()
-	_save("dawn_report")
-	_show_room(_room_uid("hydroponics"))
-	await _frame()
-	await _frame()
-	_save("room_panel")
-	_close_card()
-	await _settle(Vector2i(420, 780))
+	await _settle(Vector2i(844, 390))
 	_close_card()
 	await _frame()
 	_save("week1_phone")
-	_show_dawn()
-	await _frame()
-	await _frame()
-	_save("dawn_phone")
-	_show_room(_room_uid("hydroponics"))
-	await _frame()
-	await _frame()
-	_save("room_phone")
-	_close_card()
 	await _settle(Vector2i(1280, 720))
 	var bot := Bot.new()
 	var guard := 0
@@ -1567,7 +1532,7 @@ func _shots() -> void:
 	_close_card()
 	await _settle(Vector2i(1280, 720))
 	_save("week11_flood")
-	await _settle(Vector2i(420, 780))
+	await _settle(Vector2i(844, 390))
 	_close_card()
 	await _frame()
 	_save("week11_phone")
@@ -1659,10 +1624,16 @@ class Yard extends Control:
 	var drag_from := Vector2.ZERO
 	var pan_from := Vector2.ZERO
 	var moved := false
+	var pending_level := -1
+	var pending_cell := -1
+	var pending_at := 0
+	var focused := Vector2i(-1, -1)
+	const DOUBLE_MS := 320
 
 	func fit() -> void:
 		zoom = 1.0
 		pan = Vector2.ZERO
+		focused = Vector2i(-1, -1)
 		queue_redraw()
 
 	func _ready() -> void:
@@ -1676,6 +1647,12 @@ class Yard extends Control:
 				art[type] = ImageTexture.create_from_image(image)
 
 	func _process(_delta: float) -> void:
+		if pending_level >= 0 and Time.get_ticks_msec() - pending_at >= DOUBLE_MS:
+			var level := pending_level
+			var cell := pending_cell
+			pending_level = -1
+			if station != null:
+				station._tap_cell(level, cell)
 		if station != null and station.game != null:
 			queue_redraw()
 
@@ -1745,9 +1722,7 @@ class Yard extends Control:
 					var tapped: bool = event.button_index == MOUSE_BUTTON_LEFT and not moved
 					dragging = false
 					if tapped:
-						var hit: Dictionary = _hit(event.position)
-						if not hit.is_empty():
-							station._tap_cell(int(hit.level), int(hit.cell))
+						_note_tap(event.position)
 				accept_event()
 				return
 		if event is InputEventMouseMotion:
@@ -1765,9 +1740,42 @@ class Yard extends Control:
 					hover = next
 			queue_redraw()
 
+	func _note_tap(screen: Vector2) -> void:
+		var hit: Dictionary = _hit(screen)
+		if hit.is_empty():
+			pending_level = -1
+			return
+		var level := int(hit.level)
+		var cell := int(hit.cell)
+		var now := Time.get_ticks_msec()
+		if pending_level == level and pending_cell == cell and now - pending_at < DOUBLE_MS:
+			pending_level = -1
+			var key := Vector2i(level, cell)
+			if focused == key:
+				fit()
+			else:
+				_zoom_to(level, cell)
+				focused = key
+			return
+		pending_level = level
+		pending_cell = cell
+		pending_at = now
+
+	func _zoom_to(level: int, cell: int) -> void:
+		var geo := _geo()
+		var rect := _rect(geo, level, cell)
+		var area := _content()
+		var zx := area.size.x / maxf(rect.size.x, 1.0)
+		var zy := area.size.y / maxf(rect.size.y, 1.0)
+		zoom = clampf(minf(zx, zy) * 0.9, 1.0, 6.0)
+		var center := rect.get_center()
+		var view_center := area.get_center()
+		pan = view_center - center * zoom
+		queue_redraw()
+
 	func _zoom_at(screen: Vector2, factor: float) -> void:
 		var world := _unview(screen)
-		zoom = clampf(zoom * factor, 0.65, 3.0)
+		zoom = clampf(zoom * factor, 1.0, 6.0)
 		pan = screen - world * zoom
 		queue_redraw()
 
@@ -1808,28 +1816,22 @@ class Yard extends Control:
 		var top := 52.0
 		if station != null and station.hud != null and station.hud.size.y > 8.0:
 			top = station.hud.size.y
-		var bottom := 148.0 if station != null and station.portrait else 96.0
+		var bottom := 96.0
+		if station != null:
+			bottom = station.chrome_bottom
 		return Rect2(0, top, size.x, maxf(48.0, size.y - top - bottom))
 
 	func _geo() -> Dictionary:
 		var area := _content()
-		var w := area.size.x / 6.0
+		var aspect := art_aspect if art_aspect > 0.4 else 1.9
 		var h := (area.size.y - BAND * 2.0) / 3.0
-		var phone: bool = station != null and station.portrait
-		var origin: Vector2 = area.position
-		if phone:
-			var aspect := art_aspect if art_aspect > 0.4 else 1.9
-			var fit_w := area.size.x / 3.0
-			var fit_h := fit_w / aspect
-			var tall := (area.size.y - BAND * 2.0) / 3.0
-			if fit_h * 3.0 + BAND * 2.0 < area.size.y * 0.72:
-				h = tall
-				w = h * aspect
-			else:
-				w = fit_w
-				h = fit_h
-			var rows := h * 3.0 + BAND * 2.0
-			origin.y += maxf(0.0, (area.size.y - rows) * 0.5)
+		var w := h * aspect
+		var rows := h * 3.0 + BAND * 2.0
+		var origin := area.position
+		origin.y += maxf(0.0, (area.size.y - rows) * 0.5)
+		var span := w * 6.0
+		if span < area.size.x:
+			origin.x += (area.size.x - span) * 0.5
 		return {"origin": origin, "w": w, "h": h, "band": BAND}
 
 	func _rect(geo: Dictionary, level: int, cell: int) -> Rect2:
@@ -1930,10 +1932,6 @@ class Yard extends Control:
 	func _blit_room(texture: Texture2D, rect: Rect2) -> void:
 		var tex := texture.get_size()
 		if tex.x < 1.0 or tex.y < 1.0:
-			return
-		var phone: bool = station != null and station.portrait
-		if not phone:
-			draw_texture_rect(texture, rect, false)
 			return
 		var aspect := tex.x / tex.y
 		var cell_aspect := rect.size.x / maxf(rect.size.y, 1.0)
