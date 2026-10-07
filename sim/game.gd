@@ -396,7 +396,7 @@ func enact_reason(law_id: String) -> String:
 	if not _room_ready("meeting_hall"):
 		return "Needs a staffed meeting hall. The hall has no one in it."
 	if law_lock > 0:
-		return "The hall is waiting. Next law in %d weeks." % law_lock
+		return "The hall is waiting. Next law in %s." % Words.count(law_lock, "week")
 	return ""
 
 
@@ -440,6 +440,51 @@ func resource_outlook(key: String) -> Dictionary:
 		if not names.is_empty():
 			text += " These rooms will not be covered: %s." % ", ".join(names)
 	return {"text": text, "hit": hit, "next": nxt}
+
+
+func dawn_projection() -> Dictionary:
+	var out := {}
+	for key in ["air", "food", "power", "materials", "tokens", "influence"]:
+		var row: Dictionary = resource_outlook(key)
+		out[key] = maxi(0, int(row.next))
+	var hope_d := int(bal.get("hope_drift", 0))
+	var dis_d := 0
+	if quarantine:
+		hope_d -= 1
+	if int(resource_outlook("food").next) < 0 or int(resource_outlook("air").next) < 0:
+		hope_d += int(bal.get("shortage_hope", 0))
+	if int(resource_outlook("power").next) < 0:
+		hope_d += int(bal.get("power_shortage_hope", 0))
+		dis_d += int(bal.get("power_shortage_discontent", 0))
+	if not active_season.is_empty():
+		var season_id := str(active_season.id)
+		var dis_table = bal.get("season_discontent", {})
+		if dis_table is Dictionary and dis_table.has(season_id):
+			dis_d += int(dis_table[season_id])
+		var hope_table = bal.get("season_hope", {})
+		if hope_table is Dictionary and hope_table.has(season_id):
+			hope_d += int(hope_table[season_id])
+	if residents.size() > housing():
+		dis_d += int(bal.get("overcrowd_discontent", 0))
+	for law_id in laws_on:
+		var defin: Dictionary = catalog.laws[law_id]
+		if defin.has("hope_week"):
+			hope_d += int(defin.hope_week)
+		if defin.has("discontent_week"):
+			dis_d += int(defin.discontent_week)
+		if str(law_id) == "sermons" and _any_trait("Devout"):
+			hope_d += int(defin.get("devout_hope", 0))
+	var every := int(bal.get("agent_every", 0))
+	if every > 0 and week % every == 0:
+		var hostile := false
+		for fid in opinions.keys():
+			if int(opinions[fid]) < 0:
+				hostile = true
+		if hostile:
+			dis_d += int(bal.get("agent_discontent", 0))
+	out.hope = clampi(hope + hope_d, 0, 100)
+	out.discontent = clampi(discontent + dis_d, 0, 100)
+	return out
 
 
 func rooms_losing_power() -> Array:
@@ -791,7 +836,7 @@ func forecasts() -> Array:
 		var shown := left
 		if thin:
 			var meals := maxi(0, int(floor(food_buffer_weeks())))
-			when = "is down to %d week of meals" % meals if meals == 1 else "is down to %d weeks of meals" % meals
+			when = "is down to %s of meals" % Words.count(meals, "week")
 			if left > horizon:
 				shown = horizon
 		if (key == "food" or key == "air") and _weeks_until_empty("power") <= horizon:
@@ -1015,7 +1060,7 @@ func _add_room_fix(out: Array, type: String, fallback: String) -> void:
 
 func rally_reason() -> String:
 	if rally_lock > 0:
-		return "The hall held a rally recently. Next one in %d weeks." % rally_lock
+		return "The hall held a rally recently. Next one in %s." % Words.count(rally_lock, "week")
 	if not _room_ready("meeting_hall"):
 		if room_count("meeting_hall") == 0:
 			return "Needs a meeting hall."
@@ -1031,7 +1076,7 @@ func repeal_reason(law_id: String) -> String:
 	if not _room_ready("meeting_hall"):
 		return "Needs a staffed meeting hall. The hall has no one in it."
 	if law_lock > 0:
-		return "The hall is waiting. Next law in %d weeks." % law_lock
+		return "The hall is waiting. Next law in %s." % Words.count(law_lock, "week")
 	return ""
 
 
@@ -1083,9 +1128,7 @@ func _supply_type(key: String) -> String:
 
 
 func _week_span(n: int) -> String:
-	if n == 1:
-		return "1 week"
-	return "%d weeks" % n
+	return Words.count(n, "week")
 
 
 func _supply_hint(type: String) -> Dictionary:
@@ -1097,13 +1140,13 @@ func _supply_hint(type: String) -> Dictionary:
 	var spot := _first_build_cell()
 	if spot.is_empty():
 		var dig: Dictionary = _pick_dig_cell(true)
-		var dig_line := "Dig a cell, then build a %s (%d materials, %s)." % [str(defin.name).to_lower(), cost, _week_span(turns)]
+		var dig_line := "Dig a cell, then build a %s (%s, %s)." % [str(defin.name).to_lower(), Words.count(cost, "material"), _week_span(turns)]
 		if type != "generator":
-			dig_line = "Dig a cell, then build %s (%d materials, %s)." % [str(defin.name), cost, _week_span(turns)]
+			dig_line = "Dig a cell, then build %s (%s, %s)." % [str(defin.name), Words.count(cost, "material"), _week_span(turns)]
 		return {"hint": "dig", "text": dig_line, "level": int(dig.get("level", -1)), "cell": int(dig.get("cell", -1))}
-	var line := "Build a %s on a dug cell (%d materials, %s)." % [str(defin.name).to_lower(), cost, _week_span(turns)]
+	var line := "Build a %s on a dug cell (%s, %s)." % [str(defin.name).to_lower(), Words.count(cost, "material"), _week_span(turns)]
 	if type != "generator":
-		line = "Build %s on a dug cell (%d materials, %s)." % [str(defin.name), cost, _week_span(turns)]
+		line = "Build %s on a dug cell (%s, %s)." % [str(defin.name), Words.count(cost, "material"), _week_span(turns)]
 	return {"hint": "build:%s" % type, "text": line, "level": int(spot.level), "cell": int(spot.cell)}
 
 
@@ -1231,7 +1274,7 @@ func _weekly_draw(key: String) -> int:
 
 func _consumer_line(key: String) -> String:
 	if key == "food":
-		return "Meals for %d people take %d food." % [residents.size(), food_need()]
+		return "Meals for %s take %d food." % [Words.count(residents.size(), "person", "people"), food_need()]
 	if key == "air":
 		return "Breathing takes %d air." % air_need()
 	if key == "power":
@@ -1642,9 +1685,9 @@ func dig_preview(level: int, cell: int) -> Dictionary:
 		return info
 	var reasons: PackedStringArray = []
 	if int(stock.materials) < int(bal.dig_materials):
-		reasons.append("Needs %d materials, the yard has %d." % [int(bal.dig_materials), int(stock.materials)])
+		reasons.append("Needs %s, the yard has %s." % [Words.count(int(bal.dig_materials), "material"), Words.count(int(stock.materials), "material")])
 	if _free_count() < int(cost.workers):
-		reasons.append("Needs %d free people, %d are free." % [int(cost.workers), _free_count()])
+		reasons.append("Needs %s free. %s are free." % [Words.count(int(cost.workers), "person", "people"), Words.count(_free_count(), "person", "people")])
 	info.reason = " ".join(reasons)
 	info.ok = reasons.is_empty()
 	return info
@@ -1668,9 +1711,9 @@ func build_preview(type: String, level: int, cell: int) -> Dictionary:
 	if not build.is_empty():
 		reasons.append("A room is already going up.")
 	if int(stock.materials) < int(defin.materials):
-		reasons.append("Needs %d materials, the yard has %d." % [int(defin.materials), int(stock.materials)])
+		reasons.append("Needs %s, the yard has %s." % [Words.count(int(defin.materials), "material"), Words.count(int(stock.materials), "material")])
 	if _free_count() < int(bal.build_workers):
-		reasons.append("Needs %d free people, %d are free." % [int(bal.build_workers), _free_count()])
+		reasons.append("Needs %s free. %s are free." % [Words.count(int(bal.build_workers), "person", "people"), Words.count(_free_count(), "person", "people")])
 	info.reason = " ".join(reasons)
 	info.ok = reasons.is_empty()
 	return info
@@ -1693,7 +1736,7 @@ func upgrade_preview(uid: String) -> Dictionary:
 		info.reason = "The room is offline."
 		return info
 	if int(stock.materials) < info.materials:
-		info.reason = "Needs %d materials, the yard has %d." % [info.materials, int(stock.materials)]
+		info.reason = "Needs %s, the yard has %s." % [Words.count(info.materials, "material"), Words.count(int(stock.materials), "material")]
 		return info
 	info.ok = true
 	return info
@@ -2995,37 +3038,37 @@ func _crunch_legs() -> Array:
 	var pantry := {
 		"id": "pantry", "short": "the pantry", "title": "The pantry comes up short",
 		"text": "This week's meals outrun the stores. Materials can close it. Leaving it spends what you saved.",
-		"pay": "Spend %d materials to close the gap", "suffer": "Let the stores run down",
+		"pay": "Spend %s to close the gap", "suffer": "Let the stores run down",
 		"pain": food_gap, "hit": {"food": -food_gap},
 	}
 	var ducts := {
 		"id": "ducts", "short": "the ducts", "title": "Ice in the ducts",
 		"text": "Meltwater has frozen in the vent runs. Clear it, or the yard draws twice the power tonight.",
-		"pay": "Spend %d materials to clear the ducts", "suffer": "Leave the ice",
+		"pay": "Spend %s to clear the ducts", "suffer": "Leave the ice",
 		"pain": power_pain, "hit": {"discontent": 4, "power_double": true},
 	}
 	var belt := {
 		"id": "belt", "short": "the belt", "title": "The grow lamps snap",
 		"text": "A belt on the hydroponic lamps snaps. Replace it, or the beds give half a crop this week.",
-		"pay": "Spend %d materials on a new belt", "suffer": "Let the beds run at half",
+		"pay": "Spend %s on a new belt", "suffer": "Let the beds run at half",
 		"pain": belt_pain, "hit": {"hope": -2, "discontent": 2, "hydro_down": true},
 	}
 	var stacks := {
 		"id": "stacks", "short": "the stacks", "title": "The charcoal beds pack solid",
 		"text": "The air filters are caked. Materials can clear them. Leaving them spends the air you saved.",
-		"pay": "Spend %d materials to clear the stacks", "suffer": "Let the air run down",
+		"pay": "Spend %s to clear the stacks", "suffer": "Let the air run down",
 		"pain": air_gap, "hit": {"air": -air_gap},
 	}
 	var shop := {
 		"id": "shopbelt", "short": "the workshop", "title": "A belt in the workshop slips",
 		"text": "The workshop belt is off its wheel. Fix it, or the shop makes nothing this week.",
-		"pay": "Spend %d materials to seat the belt", "suffer": "Let the shop sit idle",
+		"pay": "Spend %s to seat the belt", "suffer": "Let the shop sit idle",
 		"pain": shop_pain, "hit": {"shop_down": true, "discontent": 2},
 	}
 	var dynamo := {
 		"id": "dynamo", "short": "the dynamo", "title": "The dynamo runs hot",
 		"text": "The generator bearing is dry. Grease it, or the dynamo makes half power tonight.",
-		"pay": "Spend %d materials to grease the bearing", "suffer": "Let the dynamo limp",
+		"pay": "Spend %s to grease the bearing", "suffer": "Let the dynamo limp",
 		"pain": gen_pain, "hit": {"gen_down": true, "hope": -1},
 	}
 	if crunch_kind == 1:
@@ -3048,7 +3091,7 @@ func _crunch_event(leg: Dictionary) -> Dictionary:
 		"crunch": true,
 		"text": str(leg.text),
 		"choices": [
-			{"id": "pay", "label": str(leg.pay) % cost, "cost": {"materials": cost}},
+			{"id": "pay", "label": str(leg.pay) % Words.count(cost, "material"), "cost": {"materials": cost}},
 			suffer,
 		],
 	}
@@ -3212,7 +3255,7 @@ func _present_event(ev: Dictionary) -> bool:
 	var copy: Dictionary = _copy(ev)
 	if id == "refugees":
 		var n := rng.randi_range(int(bal.refugee_min), int(bal.refugee_max))
-		copy.text = "%d people are at the yard gate with a story about a collapse north of Atlantic Av." % n
+		copy.text = "%s at the yard gate with a story about a collapse north of Atlantic Av." % Words.count(n, "person", "people")
 		for choice in copy.choices:
 			if str(choice.id) == "take":
 				choice.people = n

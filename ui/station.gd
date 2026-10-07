@@ -5,7 +5,15 @@ extends Control
 const INK := Color("efe6d2")
 const INK_DARK := Color("24180e")
 const MUTED := Color("b7aa96")
-const PAPER := Color("e6d3b0")
+const PAPER := Color("241c14")
+const PAPER_INK := Color("f4efe4")
+const PAPER_MUTED := Color("d9cbb4")
+const PAPER_BUTTON := Color("3a3126")
+const PAPER_BUTTON_HOVER := Color("4a3f32")
+const PAPER_BUTTON_DOWN := Color("1a140e")
+const PAPER_EDGE := Color("b89a6a")
+const DELTA_UP := Color("b6e38a")
+const DELTA_DOWN := Color("ff9b8a")
 const STEEL := Color(0.07, 0.08, 0.09, 0.88)
 const ROOM_COLOR := {
 	"platform": Color("c9843a"),
@@ -19,6 +27,8 @@ const ROOM_COLOR := {
 	"radio": Color("3f74a0"),
 }
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
+const ModalDeck = preload("res://ui/modals.gd")
+const WAITING := "Someone is still waiting. Choose before the week ends."
 
 var game: Game
 var yard: Yard
@@ -67,6 +77,13 @@ var people_button: Button
 var on_paper := false
 var turn_clear := false
 var card_fit_queued := false
+var portraits: Array = []
+var ahead: PanelContainer
+var deck = ModalDeck.new()
+var ambient_restore: Callable = Callable()
+var shelved_event := ""
+var end_cover: Control
+var ahead_box: VBoxContainer
 
 
 func _ready() -> void:
@@ -75,6 +92,7 @@ func _ready() -> void:
 	if OS.get_name() == "Android":
 		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_SENSOR_LANDSCAPE)
 	_load_fonts()
+	_load_portraits()
 	var theme := Theme.new()
 	theme.default_font = body_font
 	theme.default_font_size = 16
@@ -112,12 +130,77 @@ func _load_fonts() -> void:
 		return
 	var variation := FontVariation.new()
 	variation.base_font = file
-	variation.set_variation_opentype({"wght": 800.0})
+	# This file is the variable face. The string key "wght" is ignored and leaves
+	# the Thin instance. The integer OpenType tag selects the real ExtraBold outlines.
+	variation.set_variation_opentype({2003265652: 800.0})
+	variation.get_string_size("Hg", HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
 	display_font = variation
+
+
+func _load_portraits() -> void:
+	portraits.clear()
+	for i in range(1, 17):
+		var path := ProjectSettings.globalize_path("res://assets/portraits/portrait_%02d.webp" % i)
+		var image := Image.load_from_file(path)
+		if image == null or image.get_width() < 1:
+			continue
+		portraits.append(ImageTexture.create_from_image(image))
+
+
+func _portrait_for(id: String) -> Texture2D:
+	if portraits.is_empty():
+		return null
+	var n := 0
+	for i in id.length():
+		n = (n * 33 + id.unicode_at(i)) % portraits.size()
+	return portraits[n]
+
+
+func _portrait_box(id: String, px: int) -> TextureRect:
+	var face := TextureRect.new()
+	face.texture = _portrait_for(id)
+	face.custom_minimum_size = Vector2(px, px)
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	face.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	face.clip_contents = true
+	return face
+
+
+func _resident_id_named(who: String) -> String:
+	var needle := who.strip_edges().to_lower()
+	if needle == "":
+		return ""
+	for person in game.residents:
+		var full := str(person.name).to_lower()
+		var first := full.get_slice(" ", 0)
+		if first == needle or full == needle or str(person.id) == needle:
+			return str(person.id)
+	return ""
+
+
+func _who_row(who: String) -> void:
+	var id := _resident_id_named(who)
+	if id == "":
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_portrait_box(id, 84))
+	var lab := _label(str(game.people[id].name), 18)
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(lab)
+	card_body.add_child(row)
 
 
 func _process(_delta: float) -> void:
 	if end_button == null:
+		return
+	if _choice_shelved():
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
+		end_button.modulate = Color(1.0, 0.94 + 0.06 * pulse, 0.78 + 0.14 * pulse, 1.0)
 		return
 	if not turn_clear:
 		end_button.modulate = Color(1, 1, 1, 1)
@@ -161,11 +244,20 @@ func _build() -> void:
 	end_button.add_theme_font_size_override("font_size", 26)
 	end_button.add_theme_font_override("font", display_font)
 	end_button.add_theme_color_override("font_color", INK_DARK)
+	end_button.add_theme_color_override("font_disabled_color", Color("1a1008"))
 	end_button.add_theme_stylebox_override("normal", _brass_style(false))
 	end_button.add_theme_stylebox_override("hover", _brass_style(false))
 	end_button.add_theme_stylebox_override("pressed", _brass_style(true))
-	end_button.add_theme_stylebox_override("disabled", _brass_style(false))
+	end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
+	end_button.mouse_entered.connect(_show_ahead.bind(true))
+	end_button.mouse_exited.connect(_show_ahead.bind(false))
 	add_child(end_button)
+	end_cover = Control.new()
+	end_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	end_cover.mouse_entered.connect(_show_ahead.bind(true))
+	end_cover.mouse_exited.connect(_show_ahead.bind(false))
+	end_cover.gui_input.connect(_end_cover_input)
+	add_child(end_cover)
 
 	side = _side_panel()
 	add_child(side)
@@ -237,10 +329,10 @@ func _top_bar() -> PanelContainer:
 		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		value.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		value.custom_minimum_size = Vector2(22, 18)
-		var delta := _label("—", 12)
+		var delta := _label("—", 18)
 		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		delta.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		delta.custom_minimum_size = Vector2(18, 16)
+		delta.custom_minimum_size = Vector2(42, 22)
 		chip.add_child(icon)
 		chip.add_child(value)
 		chip.add_child(delta)
@@ -324,6 +416,8 @@ func _side_panel() -> PanelContainer:
 	head.add_child(shut)
 	box.add_child(head)
 	hint = _label("Drag a name onto a room, or tap a room and pick.", 13)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.add_theme_color_override("font_color", MUTED)
 	box.add_child(hint)
 	people_box = VBoxContainer.new()
@@ -361,7 +455,7 @@ func _ticker_input(event: InputEvent) -> void:
 func _layout() -> void:
 	_place_chrome()
 	if yard != null:
-		yard.fit()
+		yard.on_resize()
 
 
 func _place_chrome() -> void:
@@ -402,6 +496,15 @@ func _place_chrome() -> void:
 		end_button.custom_minimum_size = Vector2(end_w, end_h)
 		end_button.offset_bottom = -margin
 		end_button.offset_top = -margin - end_h
+	if end_cover != null:
+		end_cover.anchor_left = 1.0
+		end_cover.anchor_right = 1.0
+		end_cover.anchor_top = 1.0
+		end_cover.anchor_bottom = 1.0
+		end_cover.offset_right = -margin
+		end_cover.offset_left = -margin - end_w
+		end_cover.offset_bottom = -margin
+		end_cover.offset_top = -margin - end_h
 	if tray != null:
 		tray.anchor_left = 0.0
 		tray.anchor_top = 1.0
@@ -425,8 +528,57 @@ func _place_chrome() -> void:
 		footer.offset_bottom = -margin
 	_place_drawer()
 	_place_card()
+	_place_ahead()
 	if yard != null:
-		yard.queue_redraw()
+		yard.on_resize()
+
+
+func _show_ahead(show: bool) -> void:
+	if ahead == null or game == null:
+		return
+	if not game.pending.is_empty():
+		ahead.visible = false
+		return
+	ahead.visible = show and game.over == ""
+	if ahead.visible:
+		_fill_ahead()
+		_place_ahead()
+
+
+func _fill_ahead() -> void:
+	_wipe(ahead_box)
+	var was := on_paper
+	on_paper = true
+	var title := _label("After this week", 22, true)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ahead_box.add_child(title)
+	var proj: Dictionary = game.dawn_projection()
+	for key in STOCK_KEYS:
+		var line := _label("%s %d" % [str(key).capitalize(), int(proj.get(key, 0))], 16)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ahead_box.add_child(line)
+	var hope_line := _label("Hope %d" % int(proj.get("hope", 0)), 16)
+	hope_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ahead_box.add_child(hope_line)
+	var dis_line := _label("Discontent %d" % int(proj.get("discontent", 0)), 16)
+	dis_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ahead_box.add_child(dis_line)
+	on_paper = was
+
+
+func _place_ahead() -> void:
+	if ahead == null or not ahead.visible:
+		return
+	var w := 248.0
+	var h := 248.0
+	ahead.anchor_left = 0.0
+	ahead.anchor_top = 0.0
+	ahead.anchor_right = 0.0
+	ahead.anchor_bottom = 0.0
+	ahead.offset_left = size.x - 16.0 - w
+	ahead.offset_right = size.x - 16.0
+	ahead.offset_bottom = size.y - chrome_bottom - 8.0
+	ahead.offset_top = ahead.offset_bottom - h
 
 
 func _place_drawer() -> void:
@@ -435,15 +587,24 @@ func _place_drawer() -> void:
 	side.visible = drawer_open
 	if not drawer_open:
 		return
-	var w := minf(360.0, size.x * 0.42)
+	var w := minf(520.0, size.x * 0.56)
 	side.offset_left = size.x - w
 	side.offset_right = size.x
 	side.offset_top = 56.0
 	side.offset_bottom = size.y - chrome_bottom
 
 func _build_overlay() -> void:
+	ahead = PanelContainer.new()
+	ahead.visible = false
+	ahead.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ahead.add_theme_stylebox_override("panel", _paper_style())
+	ahead_box = VBoxContainer.new()
+	ahead_box.add_theme_constant_override("separation", 2)
+	ahead_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ahead.add_child(ahead_box)
+	add_child(ahead)
 	dim = ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.45)
+	dim.color = Color(0, 0, 0, 0.62)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.visible = false
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -467,6 +628,7 @@ func _build_overlay() -> void:
 	margin.add_child(scroll)
 	card_body = VBoxContainer.new()
 	card_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_body.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	card_body.add_theme_constant_override("separation", 8)
 	scroll.add_child(card_body)
 
@@ -520,13 +682,13 @@ func _shrink_card() -> void:
 		top_limit = hud.size.y + 8.0
 	var bottom_limit := chrome_bottom + 8.0
 	var max_h := size.y - top_limit - bottom_limit
-	var h := 28.0
-	var count := card_body.get_child_count()
-	for child in card_body.get_children():
-		h += child.size.y
-	if count > 1:
-		h += float(count - 1) * 8.0
-	h += 32.0
+	var content_h := card_body.size.y
+	if content_h < 40.0:
+		if not card_fit_queued:
+			card_fit_queued = true
+			_shrink_card.call_deferred()
+		return
+	var h := content_h + 52.0
 	if h < 96.0:
 		if not card_fit_queued:
 			card_fit_queued = true
@@ -554,9 +716,9 @@ func _refresh() -> void:
 			var d := int(game.last_net.get(key, 0))
 			delta_text = "+%d" % d if d > 0 else str(d)
 			if d > 0:
-				color = Color("8fbf6a")
+				color = DELTA_UP
 			elif d < 0:
-				color = Color("e07a6a")
+				color = DELTA_DOWN
 		chips[key].delta.text = delta_text
 		chips[key].delta.add_theme_color_override("font_color", color)
 		var outlook: Dictionary = game.resource_outlook(str(key))
@@ -572,7 +734,6 @@ func _refresh() -> void:
 	dis_label.text = "Discontent %d  %s" % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
 	dis_fill.anchor_right = clampf(float(game.discontent) / 100.0, 0.0, 1.0)
-	end_button.disabled = game.over != ""
 	end_button.text = "End turn" if game.over == "" else _ending()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
@@ -580,6 +741,8 @@ func _refresh() -> void:
 	if game.week != ticker_week:
 		ticker_week = game.week
 		ticker_dismissed = false
+		shelved_event = ""
+	_sync_shelf()
 	var warning: Dictionary = game.revolt_warning()
 	var outlook_rows: Array = game.forecasts()
 	var line := ""
@@ -596,6 +759,8 @@ func _refresh() -> void:
 	if not _sticky_note(footer.text):
 		footer.text = ""
 		footer.visible = false
+	_sync_waiting()
+	_offer_pending()
 
 
 func _fill_people() -> void:
@@ -606,27 +771,44 @@ func _fill_people() -> void:
 		row.person_id = id
 		row.person_name = str(person.name)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var line := HBoxContainer.new()
+		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_theme_constant_override("separation", 8)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		line.add_child(_portrait_box(id, 52))
+		row.add_child(line)
 		var box := VBoxContainer.new()
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box.add_theme_constant_override("separation", 1)
-		row.add_child(box)
 		var traits: PackedStringArray = []
 		for trait_name in person.traits:
 			traits.append(str(trait_name))
 		var trait_line := ", ".join(traits) if not traits.is_empty() else "no trait"
-		var skills := ""
-		for key in person.skills:
-			if skills != "":
-				skills += "  "
-			skills += "%s %d" % [key, int(person.skills[key])]
-		box.add_child(_label(str(person.name), 16))
-		var skill_label := _label(skills, 13)
+		var name_label := _label(str(person.name), 16)
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box.add_child(name_label)
+		var skill_label := _label(_skill_line(person), 14)
 		skill_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		skill_label.clip_text = false
+		skill_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		skill_label.add_theme_color_override("font_color", Color(INK.r, INK.g, INK.b, 0.8))
 		box.add_child(skill_label)
-		var where := _label("%s · %s" % [trait_line, _where(id)], 13)
+		var where := _label("%s · %s" % [trait_line, _where(id)], 14)
+		where.autowrap_mode = TextServer.AUTOWRAP_OFF
+		where.clip_text = false
+		where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		where.add_theme_color_override("font_color", MUTED)
 		box.add_child(where)
+		line.add_child(box)
 		people_box.add_child(row)
+
+
+func _skill_line(person: Dictionary) -> String:
+	var bits: PackedStringArray = []
+	for key in ["care", "fight", "labor", "talk", "tech"]:
+		if person.skills.has(key):
+			bits.append("%s %d" % [str(key).capitalize(), int(person.skills[key])])
+	return " · ".join(bits)
 
 
 func _where(id: String) -> String:
@@ -645,13 +827,57 @@ func _where(id: String) -> String:
 	return "Unassigned"
 
 
+func _choice_shelved() -> bool:
+	if game == null or game.pending.is_empty() or shelved_event == "":
+		return false
+	return str(game.front_event().get("id", "")) == shelved_event
+
+
+func _sync_shelf() -> void:
+	if game.pending.is_empty():
+		shelved_event = ""
+	elif shelved_event != "" and str(game.front_event().get("id", "")) != shelved_event:
+		shelved_event = ""
+
+
+func _sync_waiting() -> void:
+	_sync_shelf()
+	var waiting := game.over == "" and not game.pending.is_empty()
+	end_button.disabled = game.over != "" or waiting
+	if end_cover != null:
+		end_cover.mouse_filter = Control.MOUSE_FILTER_STOP if waiting else Control.MOUSE_FILTER_IGNORE
+		end_cover.tooltip_text = WAITING if waiting else ""
+	if waiting:
+		end_button.tooltip_text = WAITING
+		end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
+	elif game.over != "":
+		end_button.tooltip_text = _ending()
+	else:
+		end_button.tooltip_text = "End the week"
+
+
+func _offer_pending() -> void:
+	if game.over != "" or game.pending.is_empty():
+		return
+	if _choice_shelved():
+		return
+	if deck.top_token() == "dawn":
+		return
+	_show_dawn()
+
+
+func _end_cover_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if not game.pending.is_empty():
+			_show_dawn()
+			end_cover.accept_event()
+
+
 func _end_turn() -> void:
 	if game.over != "":
 		return
 	if not game.pending.is_empty():
 		_show_dawn()
-		footer.text = "Someone is still waiting. Choose before the week ends."
-		footer.visible = true
 		return
 	game.end_week()
 	_refresh()
@@ -668,15 +894,21 @@ func _auto_staff() -> void:
 
 func _chip_input(event: InputEvent, key: String) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var info: Dictionary = game.resource_outlook(key)
-		_open_card(key.capitalize())
-		_body(str(info.text))
-		card_body.add_child(_button("Close", _close_card))
+		_show_resource(key)
+
+
+func _show_resource(key: String) -> void:
+	if not _claim(ModalDeck.AMBIENT, "resource", _show_resource.bind(key)):
+		return
+	var info: Dictionary = game.resource_outlook(key)
+	_open_card(key.capitalize())
+	_body(str(info.text))
+	card_body.add_child(_button("Close", _close_card))
 
 
 func _ask_pump() -> void:
 	var lines: PackedStringArray = [
-		"%d materials and %d power." % [int(game.bal.pump_materials), int(game.bal.pump_power)],
+		"%s and %d power." % [Words.count(int(game.bal.pump_materials), "material"), int(game.bal.pump_power)],
 	]
 	var why := game.pump_reason()
 	if why != "":
@@ -720,7 +952,7 @@ func _ask_repeal(law_id: String) -> void:
 func _ask_burn() -> void:
 	var info := game.burn_preview()
 	var lines: PackedStringArray = [
-		"%d materials become %d power this week. Hope %+d." % [int(info.materials), int(info.power), int(info.hope)],
+		"%s %s %d power this week. Hope %+d." % [Words.count(int(info.materials), "material"), "becomes" if int(info.materials) == 1 else "become", int(info.power), int(info.hope)],
 	]
 	if str(info.reason) != "":
 		lines.append(str(info.reason))
@@ -768,6 +1000,8 @@ func _open_forecast_at(hint: String, level: int, cell: int) -> void:
 
 
 func _show_power() -> void:
+	if not _claim(ModalDeck.AMBIENT, "power", _show_power):
+		return
 	_open_card("Power order")
 	_body("Higher rooms keep their power when it runs short. The rest go dark.")
 	var index := 0
@@ -799,22 +1033,22 @@ func _tap_cell(level: int, cell: int) -> void:
 		return
 	if not game.dig.is_empty() and int(game.dig.level) == level and int(game.dig.cell) == cell:
 		var digging: PackedStringArray = [
-			"%d turns left." % int(game.dig.left),
-			"%d people on the crew." % game.dig.workers.size(),
+			"%s left." % Words.count(int(game.dig.left), "week"),
+			"%s on the crew." % Words.count(game.dig.workers.size(), "person", "people"),
 		]
 		_confirm("Dig in progress", digging, false, {})
 		return
 	if not game.build.is_empty() and int(game.build.level) == level and int(game.build.cell) == cell:
 		var name := str(game.catalog.rooms[str(game.build.type)].name)
-		var building: PackedStringArray = ["%d turns left." % int(game.build.left)]
+		var building: PackedStringArray = ["%s left." % Words.count(int(game.build.left), "week")]
 		_confirm(name, building, false, {})
 		return
 	if not bool(spot.dug):
 		var info := game.dig_preview(level, cell)
 		var lines: PackedStringArray = [
-			"%d turns." % int(info.turns),
-			"%d workers." % int(info.workers),
-			"%d materials." % int(info.materials),
+			Words.count(int(info.turns), "week"),
+			Words.count(int(info.workers), "worker"),
+			Words.count(int(info.materials), "material"),
 		]
 		if str(info.reason) != "":
 			lines.append(str(info.reason))
@@ -825,22 +1059,34 @@ func _tap_cell(level: int, cell: int) -> void:
 
 func _drop_person(person_id: String, uid: String) -> void:
 	var info := game.assign_preview(person_id, uid)
+	drawer_open = true
 	if not bool(info.ok):
-		_open_card(str(game.people[person_id].name))
-		_body(str(info.reason))
-		card_body.add_child(_button("Close", _close_card))
+		var room = game._room(uid)
+		if room != null and yard != null:
+			yard.shake_cell = Vector2i(int(room.level), int(room.cell))
+			yard.shake_until = Time.get_ticks_msec() + 560
+			yard.shake_px = 0.0
+			yard.shake_reason = str(info.reason)
+			yard.queue_redraw()
+		_place_drawer()
 		return
+	if yard != null:
+		yard.shake_cell = Vector2i(-1, -1)
+		yard.shake_reason = ""
+		yard.shake_px = 0.0
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
 
 
 func _show_build(level: int, cell: int) -> void:
+	if not _claim(ModalDeck.AMBIENT, "build", _show_build.bind(level, cell)):
+		return
 	_open_card("Build here")
 	_body("Level %d, cell %d. An open floor." % [level + 1, cell + 1])
 	for type in game.buildable_types():
 		var info := game.build_preview(str(type), level, cell)
-		var text := "%s — %d materials, %d turns, %d workers, power %d" % [
-			str(info.name), int(info.materials), int(info.turns), int(info.workers), int(info.power)]
+		var text := "%s — %s, %s, %s, power %d" % [
+			str(info.name), Words.count(int(info.materials), "material"), Words.count(int(info.turns), "week"), Words.count(int(info.workers), "worker"), int(info.power)]
 		if not bool(info.ok) and str(info.reason) != "":
 			text += " — " + str(info.reason)
 		var build_button := _button(text, _confirm_build.bind(str(type), level, cell))
@@ -853,7 +1099,7 @@ func _show_build(level: int, cell: int) -> void:
 func _confirm_build(type: String, level: int, cell: int) -> void:
 	var info := game.build_preview(type, level, cell)
 	var lines: PackedStringArray = [
-		"%d materials, %d turns, %d workers." % [int(info.materials), int(info.turns), int(info.workers)],
+		"%s, %s, %s." % [Words.count(int(info.materials), "material"), Words.count(int(info.turns), "week"), Words.count(int(info.workers), "worker")],
 		"Power use once it is running: %d." % int(info.power),
 	]
 	if str(info.reason) != "":
@@ -876,6 +1122,8 @@ func _show_room(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
 	if detail.is_empty():
 		return
+	if not _claim(ModalDeck.AMBIENT, "room", _show_room.bind(uid)):
+		return
 	_open_card(str(detail.name))
 	if notice != "":
 		_body(notice)
@@ -885,6 +1133,8 @@ func _show_room(uid: String) -> void:
 		_body("Offline.")
 	for member in detail.staff:
 		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.add_child(_portrait_box(str(member.id), 44))
 		var staff_line := "%s · %s %d" % [str(member.name), str(detail.skill), int(member.skill)]
 		if str(member.traits) != "":
 			staff_line += " · " + str(member.traits)
@@ -897,7 +1147,23 @@ func _show_room(uid: String) -> void:
 		row.add_child(off)
 		card_body.add_child(row)
 	if int(detail.staff_max) > 0:
-		card_body.add_child(_button("Assign someone", _show_assign.bind(uid)))
+		var picks: Array = []
+		var blocked := ""
+		for row in game.candidates_for(uid):
+			if bool(row.here):
+				continue
+			var preview: Dictionary = game.assign_preview(str(row.id), uid)
+			if not bool(preview.ok):
+				blocked = str(preview.reason)
+				continue
+			picks.append(row)
+		if picks.is_empty():
+			if blocked != "":
+				_body(blocked)
+		else:
+			_body("Tap a name to assign.")
+			for row in picks:
+				card_body.add_child(_button(str(row.name), _assign_person.bind(str(row.id), uid)))
 	if str(detail.skill) != "":
 		_body("%s from crew skill." % _mult(float(detail.multiplier)))
 	var up: Dictionary = game.upgrade_preview(uid)
@@ -915,13 +1181,15 @@ func _show_room(uid: String) -> void:
 
 func _show_assign(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
+	if not _claim(ModalDeck.AMBIENT, "assign", _show_assign.bind(uid)):
+		return
 	_open_card("Assign to %s" % str(detail.name))
 	var skill_name := str(detail.skill)
 	_body("Best %s first. The number is that skill." % skill_name)
 	var filter := LineEdit.new()
 	filter.placeholder_text = "Filter names"
-	filter.add_theme_color_override("font_color", INK_DARK)
-	filter.add_theme_color_override("font_placeholder_color", Color(0.28, 0.22, 0.16, 0.55))
+	filter.add_theme_color_override("font_color", PAPER_INK)
+	filter.add_theme_color_override("font_placeholder_color", PAPER_MUTED)
 	if body_font != null:
 		filter.add_theme_font_override("font", body_font)
 	filter.custom_minimum_size = Vector2(0, 44)
@@ -977,7 +1245,7 @@ func _confirm_upgrade(uid: String) -> void:
 	var info := game.upgrade_preview(uid)
 	var lines: PackedStringArray = []
 	if str(info.name) != "":
-		lines.append("%s for %d materials." % [str(info.name), int(info.materials)])
+		lines.append("%s for %s." % [str(info.name), Words.count(int(info.materials), "material")])
 	if str(info.reason) != "":
 		lines.append(str(info.reason))
 	if lines.is_empty():
@@ -987,20 +1255,23 @@ func _confirm_upgrade(uid: String) -> void:
 
 func _confirm_demolish(uid: String) -> void:
 	var info := game.demolish_preview(uid)
-	var lines: PackedStringArray = ["%d materials come back." % int(info.refund)]
+	var refund_n := int(info.refund)
+	var lines: PackedStringArray = ["%s %s back." % [Words.count(refund_n, "material"), "comes" if refund_n == 1 else "come"]]
 	if str(info.reason) != "":
 		lines.append(str(info.reason))
 	_confirm("Pull down %s?" % str(info.name), lines, bool(info.ok), {"kind": "demolish", "room": uid})
 
 
 func _show_laws() -> void:
+	if not _claim(ModalDeck.AMBIENT, "laws", _show_laws):
+		return
 	_open_card("Laws")
 	if not game._room_ready("meeting_hall"):
-		_body("Staff the meeting hall. The hall can pass one law, then it waits %d weeks." % int(game.bal.law_cooldown))
+		_body("Staff the meeting hall. The hall can pass one law, then it waits %s." % Words.count(int(game.bal.law_cooldown), "week"))
 	elif game.law_lock > 0:
-		_body("A law was just passed. The next one is %d weeks away." % game.law_lock)
+		_body("A law was just passed. The next one is %s away." % Words.count(game.law_lock, "week"))
 	else:
-		_body("One law this sitting. The next sitting is %d weeks later." % int(game.bal.law_cooldown))
+		_body("One law this sitting. The next sitting is %s later." % Words.count(int(game.bal.law_cooldown), "week"))
 	for id in game.catalog.laws:
 		var defin: Dictionary = game.catalog.laws[id]
 		_heading(str(defin.name))
@@ -1035,7 +1306,7 @@ func _law_blurb(defin: Dictionary) -> String:
 	if defin.has("power"):
 		bits.append("The charter adds %d power." % int(defin.power))
 	if defin.has("dig_faster"):
-		bits.append("Digs finish %d week sooner." % int(defin.dig_faster))
+		bits.append("Digs finish %s sooner." % Words.count(int(defin.dig_faster), "week"))
 	if defin.has("food_mult"):
 		bits.append("Food use ×%s." % str(defin.food_mult))
 	if defin.has("prod_mult"):
@@ -1068,6 +1339,12 @@ func _law_blurb(defin: Dictionary) -> String:
 
 
 func _show_dawn() -> void:
+	shelved_event = ""
+	if not _claim(ModalDeck.NARRATIVE, "dawn", _show_dawn):
+		return
+	if footer.text == WAITING:
+		footer.text = ""
+		footer.visible = false
 	var lines := _morning_lines()
 	if game.pending.is_empty():
 		_open_card("Dawn, week %d" % game.week)
@@ -1083,6 +1360,7 @@ func _show_dawn() -> void:
 	if banner != null:
 		card_body.add_child(banner)
 		card_body.move_child(banner, 0)
+	_who_row(str(ev.get("who", "")))
 	_body(str(ev.text))
 	_intent_row(lines)
 	_morning_notes(lines)
@@ -1098,8 +1376,10 @@ func _show_dawn() -> void:
 			_body(why)
 		card_body.add_child(pick)
 	if game.pending.size() > 1:
-		_body("%d more waiting after this one." % (game.pending.size() - 1))
-	card_body.add_child(_button(game.close_caption(), _dismiss_dawn))
+		_body("%s waiting after this one." % Words.count(game.pending.size() - 1, "other", "others"))
+	var later := _button("Not now", _close_card)
+	_style_choice(later)
+	card_body.add_child(later)
 
 
 func _dawn_alert() -> void:
@@ -1153,7 +1433,7 @@ func _intent_row(lines: PackedStringArray) -> void:
 		chip.tooltip_text = sentence
 		var icon := Glyph.new()
 		icon.kind = kind
-		icon.ink = INK_DARK
+		icon.ink = PAPER_INK
 		icon.custom_minimum_size = Vector2(18, 18)
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		chip.add_child(icon)
@@ -1234,10 +1514,12 @@ func _advance_dawn(before: String) -> void:
 
 
 func _show_ending() -> void:
+	if not _claim(ModalDeck.NARRATIVE, "ending", _show_ending):
+		return
 	_open_card(_ending())
 	_body("Week %d. Food %d, air %d, power %d, materials %d." % [
 		game.week, int(game.stock.food), int(game.stock.air), int(game.stock.power), int(game.stock.materials)])
-	_body("Hope %d. Discontent %d. %d people." % [game.hope, game.discontent, game.residents.size()])
+	_body("Hope %d. Discontent %d. %s." % [game.hope, game.discontent, Words.count(game.residents.size(), "person", "people")])
 	card_body.add_child(_button("Close", _close_card))
 
 
@@ -1267,8 +1549,19 @@ func _mult(n: float) -> String:
 	return "×%.2f" % n
 
 
+func _style_choice(button: Button) -> void:
+	button.add_theme_font_size_override("font_size", 20)
+	if display_font != null:
+		button.add_theme_font_override("font", display_font)
+	button.add_theme_color_override("font_color", PAPER_INK)
+	button.add_theme_color_override("font_hover_color", PAPER_INK)
+	button.add_theme_color_override("font_pressed_color", PAPER_INK)
+	button.add_theme_color_override("font_disabled_color", PAPER_MUTED)
+
+
 func _choice_button(label: String, choice: Dictionary, cb: Callable) -> Button:
 	var button := _button(label, cb)
+	_style_choice(button)
 	var marks := _marks(choice)
 	if marks.get_child_count() == 0:
 		return button
@@ -1322,7 +1615,7 @@ func _add_mark(row: HBoxContainer, key: String, amount: int) -> void:
 	box.add_theme_constant_override("separation", 2)
 	var icon := Glyph.new()
 	icon.kind = key
-	icon.ink = INK_DARK if on_paper else INK
+	icon.ink = PAPER_INK if on_paper else INK
 	icon.custom_minimum_size = Vector2(14, 14)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(icon)
@@ -1345,6 +1638,8 @@ func _choice_bits(choice: Dictionary) -> String:
 
 
 func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dictionary) -> void:
+	if not _claim(ModalDeck.AMBIENT, "confirm", _confirm.bind(heading, lines, ok, action)):
+		return
 	_open_card(heading)
 	for line in lines:
 		_body(line)
@@ -1368,7 +1663,15 @@ func _do_confirm(action: Dictionary) -> void:
 	_refresh()
 
 
+func _claim(priority: int, token: String, restore: Callable) -> bool:
+	if priority == ModalDeck.AMBIENT:
+		ambient_restore = restore
+	deck.push(priority, token)
+	return deck.top_token() == token
+
+
 func _open_card(heading: String, with_close: bool = true) -> void:
+	_show_ahead(false)
 	on_paper = true
 	_wipe(card_body)
 	dim.visible = true
@@ -1388,9 +1691,18 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 
 
 func _close_card() -> void:
+	var token := deck.top_token()
+	if token == "dawn" and game != null and not game.pending.is_empty():
+		shelved_event = str(game.front_event().get("id", ""))
+	deck.pop()
+	if deck.top_priority() == ModalDeck.AMBIENT and ambient_restore.is_valid():
+		ambient_restore.call()
+		_sync_waiting()
+		return
 	on_paper = false
 	dim.visible = false
 	_wipe(card_body)
+	_sync_waiting()
 
 
 func _heading(text: String) -> void:
@@ -1408,7 +1720,7 @@ func _label(text: String, size: int, display: bool = false) -> Label:
 	var lab := Label.new()
 	lab.text = text
 	lab.add_theme_font_size_override("font_size", size)
-	lab.add_theme_color_override("font_color", INK_DARK if on_paper else INK)
+	lab.add_theme_color_override("font_color", PAPER_INK if on_paper else INK)
 	if display and display_font != null:
 		lab.add_theme_font_override("font", display_font)
 	elif body_font != null:
@@ -1427,8 +1739,8 @@ func _button(text: String, cb: Callable) -> Button:
 	button.add_theme_font_size_override("font_size", 20)
 	if display_font != null:
 		button.add_theme_font_override("font", display_font)
-	button.add_theme_color_override("font_color", INK_DARK if on_paper else INK)
-	button.add_theme_color_override("font_disabled_color", Color(0.25, 0.2, 0.16, 0.55) if on_paper else MUTED)
+	button.add_theme_color_override("font_color", PAPER_INK if on_paper else INK)
+	button.add_theme_color_override("font_disabled_color", PAPER_MUTED if on_paper else MUTED)
 	button.add_theme_stylebox_override("normal", _button_face(false, false))
 	button.add_theme_stylebox_override("hover", _button_face(false, true))
 	button.add_theme_stylebox_override("pressed", _button_face(true, false))
@@ -1442,8 +1754,8 @@ func _button(text: String, cb: Callable) -> Button:
 func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	if on_paper:
-		style.bg_color = Color("b7a27a") if pressed else (Color("ead9b4") if hover else Color("d4c19a"))
-		style.border_color = INK_DARK
+		style.bg_color = PAPER_BUTTON_DOWN if pressed else (PAPER_BUTTON_HOVER if hover else PAPER_BUTTON)
+		style.border_color = PAPER_EDGE
 		style.set_border_width_all(2)
 	else:
 		style.bg_color = Color(0.2, 0.21, 0.23) if pressed else Color(0.14, 0.15, 0.17, 0.96)
@@ -1454,9 +1766,12 @@ func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
 	return style
 
 
-func _brass_style(pressed: bool) -> StyleBoxFlat:
+func _brass_style(pressed: bool, enabled: bool = true) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("a56b22") if pressed else Color("e2a63a")
+	if enabled:
+		style.bg_color = Color("a56b22") if pressed else Color("e2a63a")
+	else:
+		style.bg_color = Color("c4a15c")
 	style.border_color = Color("3a2610")
 	style.set_border_width_all(2)
 	style.set_content_margin_all(10)
@@ -1467,7 +1782,7 @@ func _brass_style(pressed: bool) -> StyleBoxFlat:
 func _paper_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = PAPER
-	style.border_color = Color("2a2118")
+	style.border_color = PAPER_EDGE
 	style.set_border_width_all(2)
 	style.set_content_margin_all(10)
 	style.set_corner_radius_all(2)
@@ -1496,7 +1811,7 @@ func _wipe(node: Node) -> void:
 	while node.get_child_count() > 0:
 		var child := node.get_child(0)
 		node.remove_child(child)
-		child.free()
+		child.queue_free()
 
 
 func _signed(n: int) -> String:
@@ -1516,27 +1831,137 @@ func _shots() -> void:
 	await _settle(Vector2i(1280, 720))
 	_close_card()
 	await _frame()
-	_save("week1_cutaway")
-	await _settle(Vector2i(844, 390))
-	_close_card()
 	await _frame()
-	_save("week1_phone")
-	await _settle(Vector2i(1280, 720))
-	var bot := Bot.new()
-	var guard := 0
-	while game.week < 11 and game.over == "" and guard < 20:
-		guard += 1
-		bot._act(game)
-		game.end_week()
+	var station_px := yard._station_rect().size.x * yard.zoom
+	var ratio := station_px / maxf(size.x, 1.0)
+	print("STATION width %.3f" % ratio)
+	_save("ux_opening")
+	if ratio < 0.85 or ratio > 0.90:
+		get_tree().quit(1)
+		return
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("ux_event")
+	_close_card()
+	drawer_open = true
+	_place_drawer()
+	await _frame()
+	_save("ux_residents")
+	get_tree().quit(0)
+
+
+func _card_title() -> String:
+	if card_body == null:
+		return ""
+	for child in card_body.get_children():
+		if child is HBoxContainer:
+			for inner in child.get_children():
+				if inner is Label:
+					return inner.text
+	return ""
+
+
+func _first_open_floor() -> Vector2i:
+	for level in 3:
+		for cell in 6:
+			var spot: Dictionary = game.cells["%d:%d" % [level, cell]]
+			if bool(spot.dug) and str(spot.room) == "":
+				return Vector2i(level, cell)
+	return Vector2i(2, 0)
+
+
+func _shot_drag() -> bool:
+	var donor = null
+	for room in game.rooms:
+		var cap := int(game.catalog.rooms[str(room.type)].get("staff_max", 0))
+		if cap > 0 and room.staff.size() > 0:
+			donor = room
+			break
+	if donor == null:
+		print("DRAG: FAIL no staffed room")
+		return false
+	var person_id := str(donor.staff[0])
+	game.apply({"kind": "unassign", "person": person_id})
 	_refresh()
-	_close_card()
-	await _settle(Vector2i(1280, 720))
-	_save("week11_flood")
-	await _settle(Vector2i(844, 390))
-	_close_card()
-	await _frame()
-	_save("week11_phone")
-	get_tree().quit()
+	var full = null
+	for room in game.rooms:
+		var cap := int(game.catalog.rooms[str(room.type)].get("staff_max", 0))
+		if cap > 0 and room.staff.size() >= cap:
+			full = room
+			break
+	if full == null:
+		print("DRAG: FAIL no full room")
+		return false
+	var reason := str(game.assign_preview(person_id, str(full.uid)).reason)
+	if reason == "" or bool(game.assign_preview(person_id, str(full.uid)).ok):
+		print("DRAG: FAIL full room accepted the drop")
+		return false
+	yard.drag_id = person_id
+	yard.drag_lock = true
+	yard.shake_cell = Vector2i(int(full.level), int(full.cell))
+	yard.shake_until = Time.get_ticks_msec() + 60000
+	yard.shake_px = 8.0
+	yard.shake_reason = reason
+	drawer_open = true
+	_place_drawer()
+	yard.queue_redraw()
+	print("DRAG person=%s reason=%s" % [person_id, reason])
+	return true
+
+
+func _sample_dig() -> void:
+	for level in 3:
+		for cell in 6:
+			var info: Dictionary = game.dig_preview(level, cell)
+			if bool(info.ok):
+				game.apply({"kind": "dig", "level": level, "cell": cell})
+				return
+
+
+func _mark_hover_diggable() -> void:
+	if not game.dig.is_empty():
+		yard.hover = Vector2i(int(game.dig.level), int(game.dig.cell))
+		return
+	for level in 3:
+		for cell in 6:
+			if not game.dig.is_empty() and int(game.dig.level) == level and int(game.dig.cell) == cell:
+				continue
+			var spot: Dictionary = game.cells["%d:%d" % [level, cell]]
+			if str(spot.room) != "" or bool(spot.dug):
+				continue
+			if game._beside_dug(spot):
+				yard.hover = Vector2i(level, cell)
+				return
+
+
+func _zoom_pair(a: String, b: String) -> void:
+	var geo := yard._geo()
+	var best := -1.0
+	var rect := Rect2()
+	for left in game.rooms:
+		if str(left.type) != a:
+			continue
+		if left.staff.is_empty():
+			continue
+		for right in game.rooms:
+			if str(right.type) != b or right.staff.is_empty():
+				continue
+			var box := yard._rect(geo, int(left.level), int(left.cell)).merge(yard._rect(geo, int(right.level), int(right.cell)))
+			var area := box.size.x * box.size.y
+			if best < 0.0 or area < best:
+				best = area
+				rect = box
+	if best < 0.0:
+		return
+	yard._zoom_to_rect(rect.grow(6.0))
+
+
+func _zoom_room(type: String) -> void:
+	for room in game.rooms:
+		if str(room.type) == type:
+			yard._zoom_to(int(room.level), int(room.cell))
+			return
 
 
 func _settle(window_size: Vector2i) -> void:
@@ -1591,7 +2016,7 @@ class PersonRow extends PanelContainer:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		var style := StyleBoxFlat.new()
 		style.bg_color = Color(1, 1, 1, 0.06)
-		style.set_content_margin_all(8)
+		style.set_content_margin_all(6)
 		style.set_corner_radius_all(4)
 		add_theme_stylebox_override("panel", style)
 
@@ -1614,11 +2039,41 @@ class Yard extends Control:
 		"workshop": "res://assets/rooms/room_workshop.webp",
 		"infirmary": "res://assets/rooms/room_infirmary.webp",
 		"meeting_hall": "res://assets/rooms/room_meeting_hall.webp",
+		"platform": "res://assets/rooms/room_platform.webp",
+		"radio": "res://assets/rooms/room_radio.webp",
 	}
+	const POSE_ART := {
+		"standing": "res://assets/figures/fig_standing.webp",
+		"walking": "res://assets/figures/fig_walking.webp",
+		"working": "res://assets/figures/fig_working.webp",
+		"carrying": "res://assets/figures/fig_carrying.webp",
+		"kneeling": "res://assets/figures/fig_kneeling.webp",
+		"sitting": "res://assets/figures/fig_sitting.webp",
+	}
+	# Backdrop image: tunnel rail, and how much of each side is the mouth.
+	const BACKDROP_RAIL := 0.783
+	# Inner lip of each tunnel mouth, so the arches meet the station edges.
+	const BACKDROP_SIDE := 0.147
+	const OPEN_WIDTH := 0.875
+	const PLATFORM_RAIL := 0.96
+	const SKY_FRAC := 0.268
+	const ROCK_LIP := 0.0
 	var art := {}
-	var art_aspect := 1.9
+	var poses := {}
+	var figure_scale_px := 660.0
+	var cell_rock: Texture2D
+	var cell_dug: Texture2D
+	var backdrop_tex: Texture2D
+	var art_aspect := 1.6
 	var hover := Vector2i(-1, -1)
+	var drag_id := ""
+	var drag_lock := false
+	var shake_cell := Vector2i(-1, -1)
+	var shake_until := 0
+	var shake_px := 0.0
+	var shake_reason := ""
 	var zoom := 1.0
+	var user_zoom := 1.0
 	var pan := Vector2.ZERO
 	var dragging := false
 	var drag_from := Vector2.ZERO
@@ -1631,20 +2086,99 @@ class Yard extends Control:
 	const DOUBLE_MS := 320
 
 	func fit() -> void:
-		zoom = 1.0
-		pan = Vector2.ZERO
+		user_zoom = 1.0
 		focused = Vector2i(-1, -1)
+		_frame_station()
+
+	func on_resize() -> void:
+		if user_zoom <= 1.001 and focused.x < 0:
+			fit()
+			return
+		var area := _content()
+		var focus := _unview(area.get_center())
+		var base := _fit_zoom()
+		zoom = base * user_zoom
+		pan = area.get_center() - focus * zoom
 		queue_redraw()
+
+	func _frame_station() -> void:
+		var base := _fit_zoom()
+		zoom = base * maxf(user_zoom, 1.0)
+		var area := _content()
+		var station_rect := _station_rect()
+		var pan_x := area.get_center().x - station_rect.get_center().x * zoom
+		var pan_y := area.position.y + area.size.y - 6.0 - (station_rect.position.y + station_rect.size.y) * zoom
+		pan = Vector2(pan_x, pan_y)
+		queue_redraw()
+
+	func _fit_zoom() -> float:
+		var station_rect := _station_rect()
+		var area := _content()
+		if station_rect.size.x < 1.0 or area.size.x < 1.0 or area.size.y < 1.0:
+			return 1.0
+		var by_width := area.size.x * OPEN_WIDTH / station_rect.size.x
+		var sky := station_rect.size.y * 0.12
+		var by_height := maxf(area.size.y - 8.0, 48.0) / (station_rect.size.y + sky)
+		return minf(by_width, by_height)
+
+	func _station_rect() -> Rect2:
+		var geo := _geo()
+		return Rect2(geo.origin, Vector2(float(geo.w) * 6.0, float(geo.h) * 3.0 + float(geo.band) * 2.0))
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		for type in ART:
-			var image := Image.load_from_file(ProjectSettings.globalize_path(str(ART[type])))
-			if image != null and image.get_width() > 0:
-				image = _crop_navy(image)
-				if image.get_height() > 0:
-					art_aspect = float(image.get_width()) / float(image.get_height())
+			var image := _load_image(str(ART[type]))
+			if image != null:
+				art_aspect = float(image.get_width()) / float(image.get_height())
 				art[type] = ImageTexture.create_from_image(image)
+		cell_rock = _tex("res://assets/cells/cell_rock.webp")
+		cell_dug = _tex("res://assets/cells/cell_dug.webp")
+		backdrop_tex = _tex("res://assets/backdrop_station.webp")
+		for pose_name in POSE_ART:
+			var figure := _load_image(str(POSE_ART[pose_name]))
+			if figure == null:
+				continue
+			if str(pose_name) == "standing":
+				figure_scale_px = float(figure.get_height())
+			poses[pose_name] = ImageTexture.create_from_image(_erode_alpha(figure, 2))
+
+	func _load_image(path: String) -> Image:
+		var image := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if image == null or image.get_width() < 1:
+			return null
+		return image
+
+	func _tex(path: String) -> Texture2D:
+		var image := _load_image(path)
+		if image == null:
+			return null
+		return ImageTexture.create_from_image(image)
+
+	func _erode_alpha(image: Image, radius: int) -> Image:
+		var src := image.duplicate()
+		src.convert(Image.FORMAT_RGBA8)
+		var out := src.duplicate()
+		var w: int = src.get_width()
+		var h: int = src.get_height()
+		for y in h:
+			for x in w:
+				var c: Color = src.get_pixel(x, y)
+				if c.a < 0.02:
+					continue
+				var clear := false
+				for dy in range(-radius, radius + 1):
+					for dx in range(-radius, radius + 1):
+						var xx: int = x + dx
+						var yy: int = y + dy
+						if xx < 0 or yy < 0 or xx >= w or yy >= h or src.get_pixel(xx, yy).a < 0.08:
+							clear = true
+							break
+					if clear:
+						break
+				if clear:
+					out.set_pixel(x, y, Color(c.r, c.g, c.b, 0.0))
+		return out
 
 	func _process(_delta: float) -> void:
 		if pending_level >= 0 and Time.get_ticks_msec() - pending_at >= DOUBLE_MS:
@@ -1654,39 +2188,23 @@ class Yard extends Control:
 			if station != null:
 				station._tap_cell(level, cell)
 		if station != null and station.game != null:
+			_track_drag()
 			queue_redraw()
 
-	func _crop_navy(image: Image) -> Image:
-		image = image.duplicate()
-		image.convert(Image.FORMAT_RGBA8)
-		var w := image.get_width()
-		var h := image.get_height()
-		var top := 0
-		var bottom := h - 1
-		while top < h - 1 and _navy_row(image, top):
-			top += 1
-		while bottom > top and _navy_row(image, bottom):
-			bottom -= 1
-		var cap := int(float(h) * 0.4)
-		top = mini(top, cap)
-		bottom = maxi(bottom, h - 1 - cap)
-		if top <= 0 and bottom >= h - 1:
-			return image
-		return image.get_region(Rect2i(0, top, w, bottom - top + 1))
-
-	func _navy_row(image: Image, y: int) -> bool:
-		var w := image.get_width()
-		var navy := 0
-		var samples := 12
-		for i in samples:
-			var x := int(round(float(i) * float(w - 1) / float(samples - 1)))
-			var c := image.get_pixel(x, y)
-			var bright := maxf(c.r, maxf(c.g, c.b))
-			if bright > 0.3:
-				navy -= 8
-			elif c.b > c.r and c.r < 0.25 and c.b > 0.06:
-				navy += 1
-		return navy >= int(float(samples) * 0.55)
+	func _track_drag() -> void:
+		if drag_lock or station == null:
+			return
+		var vp := get_viewport()
+		if vp != null and vp.gui_is_dragging():
+			var data = vp.gui_get_drag_data()
+			if typeof(data) == TYPE_DICTIONARY and data.has("person"):
+				drag_id = str(data.person)
+				if not station.drawer_open:
+					station.drawer_open = true
+					station._place_drawer()
+				return
+		if drag_id != "":
+			drag_id = ""
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_MOUSE_EXIT and hover != Vector2i(-1, -1):
@@ -1767,15 +2285,32 @@ class Yard extends Control:
 		var area := _content()
 		var zx := area.size.x / maxf(rect.size.x, 1.0)
 		var zy := area.size.y / maxf(rect.size.y, 1.0)
-		zoom = clampf(minf(zx, zy) * 0.9, 1.0, 6.0)
+		var base := _fit_zoom()
+		user_zoom = clampf(minf(zx, zy) * 0.9 / maxf(base, 0.0001), 1.0, 8.0)
+		zoom = base * user_zoom
 		var center := rect.get_center()
-		var view_center := area.get_center()
-		pan = view_center - center * zoom
+		pan = area.get_center() - center * zoom
+		queue_redraw()
+
+	func _zoom_to_rect(rect: Rect2) -> void:
+		var area := _content()
+		var zx := area.size.x / maxf(rect.size.x, 1.0)
+		var zy := area.size.y / maxf(rect.size.y, 1.0)
+		var base := _fit_zoom()
+		user_zoom = clampf(minf(zx, zy) * 0.92 / maxf(base, 0.0001), 1.0, 8.0)
+		zoom = base * user_zoom
+		pan = area.get_center() - rect.get_center() * zoom
 		queue_redraw()
 
 	func _zoom_at(screen: Vector2, factor: float) -> void:
 		var world := _unview(screen)
-		zoom = clampf(zoom * factor, 1.0, 6.0)
+		var base := _fit_zoom()
+		user_zoom = clampf(user_zoom * factor, 1.0, 8.0)
+		zoom = base * user_zoom
+		if user_zoom <= 1.001:
+			focused = Vector2i(-1, -1)
+			_frame_station()
+			return
 		pan = screen - world * zoom
 		queue_redraw()
 
@@ -1822,17 +2357,10 @@ class Yard extends Control:
 		return Rect2(0, top, size.x, maxf(48.0, size.y - top - bottom))
 
 	func _geo() -> Dictionary:
-		var area := _content()
 		var aspect := art_aspect if art_aspect > 0.4 else 1.9
-		var h := (area.size.y - BAND * 2.0) / 3.0
-		var w := h * aspect
-		var rows := h * 3.0 + BAND * 2.0
-		var origin := area.position
-		origin.y += maxf(0.0, (area.size.y - rows) * 0.5)
-		var span := w * 6.0
-		if span < area.size.x:
-			origin.x += (area.size.x - span) * 0.5
-		return {"origin": origin, "w": w, "h": h, "band": BAND}
+		var w := 240.0
+		var h := w / aspect
+		return {"origin": Vector2.ZERO, "w": w, "h": h, "band": BAND}
 
 	func _rect(geo: Dictionary, level: int, cell: int) -> Rect2:
 		var origin: Vector2 = geo.origin
@@ -1845,29 +2373,55 @@ class Yard extends Control:
 	func _draw() -> void:
 		if station == null or station.game == null:
 			return
-		_paint_rock(Rect2(Vector2.ZERO, size), 2)
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.06, 0.07))
 		draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
 		var geo := _geo()
+		_draw_backdrop(geo)
 		var span := float(geo.w) * 6.0
-		_paint_rock(Rect2(geo.origin, Vector2(span, float(geo.h) * 3.0 + float(geo.band) * 2.0)), 3)
 		for gap in 2:
 			var y: float = geo.origin.y + float(gap + 1) * float(geo.h) + float(gap) * float(geo.band)
-			_paint_rock(Rect2(geo.origin.x, y, span, float(geo.band)), 9 + gap)
+			_blit_fill(cell_rock, Rect2(geo.origin.x, y, span, float(geo.band)))
 		for level in 3:
 			for cell in 6:
 				_draw_cell(_rect(geo, level, cell), level, cell)
-		var plat := _rect(geo, 1, 0)
-		var rail_y := plat.position.y + plat.size.y - 7.0
-		var x0 := plat.position.x
-		var x1 := plat.position.x + span
-		draw_line(Vector2(x0, rail_y), Vector2(x1, rail_y), Color(0.42, 0.38, 0.32), 2.0)
-		var sleeper := x0 + 6.0
-		while sleeper < x1:
-			draw_line(Vector2(sleeper, rail_y - 3.0), Vector2(sleeper + 7.0, rail_y + 3.0), Color(0.2, 0.15, 0.1), 2.0)
-			sleeper += 16.0
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
+	func _platform_rail_y(geo: Dictionary) -> float:
+		var plat := _rect(geo, 1, 0)
+		return plat.position.y + plat.size.y * PLATFORM_RAIL
+
+	func _backdrop_dest(station_rect: Rect2) -> Rect2:
+		var tex := backdrop_tex.get_size()
+		var inner := 1.0 - BACKDROP_SIDE * 2.0
+		var scale := station_rect.size.x / (tex.x * inner)
+		return Rect2(
+			station_rect.position.x - tex.x * BACKDROP_SIDE * scale,
+			_platform_rail_y(_geo()) - BACKDROP_RAIL * tex.y * scale,
+			tex.x * scale,
+			tex.y * scale)
+
+	func _draw_backdrop(_geo: Dictionary) -> void:
+		if backdrop_tex == null:
+			return
+		var dest := _backdrop_dest(_station_rect())
+		var tex := backdrop_tex.get_size()
+		var station_top := _station_rect().position.y
+		var src_y := (station_top - ROCK_LIP - dest.position.y) / dest.size.y * tex.y
+		src_y = clampf(src_y, 0.0, tex.y - 1.0)
+		var src_h := tex.y - src_y
+		var lower_h := dest.size.y * src_h / tex.y
+		var lower_y := dest.position.y + dest.size.y * src_y / tex.y
+		draw_texture_rect_region(backdrop_tex, Rect2(dest.position.x, lower_y, dest.size.x, lower_h), Rect2(0, src_y, tex.x, src_h))
+		var sky_src_h := tex.y * SKY_FRAC
+		var sky_h := dest.size.y * SKY_FRAC
+		draw_texture_rect_region(backdrop_tex, Rect2(dest.position.x, lower_y - sky_h, dest.size.x, sky_h), Rect2(0, 0, tex.x, sky_src_h))
+
 	func _draw_cell(rect: Rect2, level: int, cell: int) -> void:
+		var shift := 0.0
+		if shake_cell == Vector2i(level, cell) and (shake_px != 0.0 or Time.get_ticks_msec() < shake_until):
+			shift = shake_px if shake_px != 0.0 else sin(Time.get_ticks_msec() / 45.0) * 8.0
+		if shift != 0.0:
+			rect.position += Vector2(shift, 0.0)
 		var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
 		var kind := _kind(spot)
 		var room = null
@@ -1876,14 +2430,12 @@ class Yard extends Control:
 			room = station.game._room(str(spot.room))
 			room_type = str(room.type)
 		if kind == "hidden":
-			_paint_rock(rect, 40 + level * 6 + cell)
-			draw_rect(rect, Color(0, 0, 0, 0.28))
+			_blit_fill(cell_rock, rect)
+			draw_rect(rect, Color(0, 0, 0, 0.38))
 		elif kind == "undug":
-			_paint_rock(rect, 10 + level * 6 + cell)
+			_blit_fill(cell_rock, rect)
 		elif kind == "dug":
-			_draw_cavity(rect)
-		elif room_type == "platform":
-			_draw_platform(rect, cell)
+			_blit_fill(cell_dug, rect)
 		else:
 			var fill: Color = ROOM_COLOR.get(room_type, Color(0.12, 0.12, 0.13))
 			draw_rect(rect, fill)
@@ -1895,25 +2447,46 @@ class Yard extends Control:
 			draw_rect(rect, Color(0, 0, 0, _lamp(level, cell)))
 			_draw_power_icon(rect)
 		if kind == "room":
-			_draw_people(rect, room)
+			if room_type == "platform":
+				_draw_platform(rect, room)
+			else:
+				_draw_people(rect, room)
+		_draw_carriers(rect, level, cell)
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
-		var job := _job_text(level, cell, rect.size.x)
-		if job != "":
-			var font := ThemeDB.fallback_font
-			draw_string(font, rect.position + Vector2(6, 16), job, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8, 13, Color("efe6d2"))
-		elif hover == Vector2i(level, cell) and kind != "hidden":
-			var tip := ""
-			if kind == "undug":
-				tip = "Dig"
-			elif kind == "dug":
-				tip = "Build here"
-			elif kind == "room":
-				tip = str(station.game.catalog.rooms[room_type].name)
+		var job_left := _job_left(level, cell)
+		if job_left >= 0:
+			_draw_scaffold(rect)
+			_draw_pips(rect, job_left)
+		elif kind == "undug":
+			_draw_dig_outline(rect, level, cell)
+		if drag_id != "" and kind == "room" and room != null:
+			var preview: Dictionary = station.game.assign_preview(drag_id, str(room.uid))
+			if bool(preview.ok):
+				draw_rect(rect, Color(0.95, 0.84, 0.55, 0.28))
+				draw_rect(rect.grow(-4.0), Color(0.95, 0.84, 0.55, 0.95), false, 4.0)
+		if shake_reason != "" and shake_cell == Vector2i(level, cell):
+			var reason_font: Font = ThemeDB.fallback_font
+			if station.body_font != null:
+				reason_font = station.body_font
+			var reason_size: Vector2 = reason_font.get_string_size(shake_reason, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+			var reason_w := maxf(rect.size.x, reason_size.x + 16.0)
+			var reason_bar := Rect2(rect.get_center().x - reason_w * 0.5, rect.position.y + rect.size.y - 26, reason_w, 26)
+			draw_rect(reason_bar, Color(0.28, 0.08, 0.06, 0.94))
+			draw_rect(Rect2(reason_bar.position, Vector2(reason_bar.size.x, 2)), Color(0.9, 0.35, 0.28, 0.95))
+			draw_string(reason_font, reason_bar.position + Vector2(8, 18), shake_reason, HORIZONTAL_ALIGNMENT_LEFT, reason_bar.size.x - 12, 15, Color("f4efe4"))
+		if hover == Vector2i(level, cell):
+			var tip := _cell_action(level, cell, kind, room_type)
 			if tip != "":
-				var bar := Rect2(rect.position.x, rect.position.y + rect.size.y - 20, rect.size.x, 20)
-				draw_rect(bar, Color(0.05, 0.05, 0.06, 0.82))
-				draw_string(ThemeDB.fallback_font, bar.position + Vector2(6, 14), tip, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8, 13, Color("efe6d2"))
+				var font: Font = ThemeDB.fallback_font
+				if station.body_font != null:
+					font = station.body_font
+				var text_size: Vector2 = font.get_string_size(tip, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+				var bar_w := maxf(rect.size.x, text_size.x + 16.0)
+				var bar := Rect2(rect.get_center().x - bar_w * 0.5, rect.position.y + rect.size.y - 26, bar_w, 26)
+				draw_rect(bar, Color(0.05, 0.04, 0.03, 0.92))
+				draw_rect(Rect2(bar.position, Vector2(bar.size.x, 2)), Color(0.85, 0.72, 0.4, 0.95))
+				draw_string(font, bar.position + Vector2(8, 18), tip, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 12, 15, Color("f4efe4"))
 
 	func _paint_rock(rect: Rect2, salt: int) -> void:
 		draw_rect(rect, Color(0.16, 0.13, 0.1))
@@ -1928,6 +2501,12 @@ class Yard extends Control:
 	func _speck(salt: int, i: int) -> float:
 		var n := (salt * 131 + i * 17) % 997
 		return float(n)
+
+	func _blit_fill(texture: Texture2D, rect: Rect2) -> void:
+		if texture == null:
+			_paint_rock(rect, 1)
+			return
+		draw_texture_rect(texture, rect, false)
 
 	func _blit_room(texture: Texture2D, rect: Rect2) -> void:
 		var tex := texture.get_size()
@@ -1944,25 +2523,6 @@ class Yard extends Control:
 			dest = Rect2(rect.position.x, rect.position.y + (rect.size.y - h) * 0.5, rect.size.x, h)
 		draw_rect(rect, Color(0.1, 0.08, 0.06))
 		draw_texture_rect(texture, dest, false)
-
-	func _draw_cavity(rect: Rect2) -> void:
-		_paint_rock(rect, 4)
-		draw_rect(rect, Color(0.28, 0.22, 0.16, 0.28))
-		var frame := rect.grow(-5.0)
-		draw_rect(frame, Color(0.42, 0.28, 0.14), false, 4.0)
-		draw_rect(frame.grow(-3.0), Color(0.22, 0.16, 0.1), false, 1.0)
-		var glow := minf(rect.size.x, rect.size.y) * 0.28
-		var lamp := rect.position + Vector2(rect.size.x * 0.5, rect.size.y * 0.34)
-		draw_circle(lamp, glow, Color(0.95, 0.72, 0.32, 0.14))
-		draw_circle(lamp, glow * 0.45, Color(1.0, 0.82, 0.45, 0.22))
-		draw_circle(lamp, 3.5, Color(1.0, 0.9, 0.62, 0.8))
-
-	func _draw_platform(rect: Rect2, cell: int) -> void:
-		draw_rect(rect, Color(0.055, 0.058, 0.062))
-		var x := rect.position.x + fmod(float(cell) * 7.0, 14.0)
-		while x < rect.position.x + rect.size.x:
-			draw_line(Vector2(x, rect.position.y + 2.0), Vector2(x, rect.position.y + rect.size.y - 16.0), Color(1, 1, 1, 0.045), 1.0)
-			x += 14.0
 
 	func _lamp(level: int, cell: int) -> float:
 		var t := Time.get_ticks_msec() / 1000.0
@@ -2034,6 +2594,74 @@ class Yard extends Control:
 			return "undug"
 		return "hidden"
 
+	func _draw_dig_outline(rect: Rect2, level: int, cell: int) -> void:
+		var t := Time.get_ticks_msec() / 1000.0
+		var wave := 0.5 + 0.5 * sin(t * 2.4 + float(level) * 1.3 + float(cell) * 0.7)
+		var alpha := 0.55 + 0.4 * wave
+		var ring := rect.grow(-4.0)
+		draw_rect(ring, Color(0.02, 0.015, 0.01, 0.9), false, 5.0)
+		draw_rect(ring, Color(0.95, 0.84, 0.55, alpha), false, 2.0)
+
+	func _draw_scaffold(rect: Rect2) -> void:
+		var box := rect.grow(-12.0)
+		var ink := Color(0.08, 0.05, 0.03, 0.95)
+		var wood := Color(0.78, 0.58, 0.3, 0.96)
+		_beam(box.position, box.position + Vector2(box.size.x, 0), ink, wood)
+		_beam(box.position + Vector2(0, box.size.y), box.position + box.size, ink, wood)
+		_beam(box.position, box.position + Vector2(0, box.size.y), ink, wood)
+		_beam(box.position + Vector2(box.size.x, 0), box.position + box.size, ink, wood)
+		var mid := box.position.y + box.size.y * 0.5
+		_beam(Vector2(box.position.x, mid), Vector2(box.end.x, mid), ink, wood)
+		_beam(box.position, box.position + box.size, ink, wood)
+		_beam(Vector2(box.end.x, box.position.y), Vector2(box.position.x, box.end.y), ink, wood)
+
+	func _beam(a: Vector2, b: Vector2, ink: Color, wood: Color) -> void:
+		draw_line(a, b, ink, 6.0)
+		draw_line(a, b, wood, 2.5)
+
+	func _draw_pips(rect: Rect2, left: int) -> void:
+		if left <= 0:
+			return
+		var pip := 11.0
+		var gap := 5.0
+		var count := mini(left, 8)
+		var total := float(count) * pip + float(count - 1) * gap
+		var x := rect.position.x + (rect.size.x - total) * 0.5
+		var y := rect.position.y + rect.size.y - 40.0
+		for i in count:
+			var mark := Rect2(x, y, pip, 7.0)
+			draw_rect(mark.grow(1.5), Color(0.04, 0.03, 0.02, 0.92))
+			draw_rect(mark, Color(0.95, 0.78, 0.38))
+			x += pip + gap
+
+	func _job_left(level: int, cell: int) -> int:
+		var digging: Dictionary = station.game.dig
+		if not digging.is_empty() and int(digging.level) == level and int(digging.cell) == cell:
+			return int(digging.left)
+		var building: Dictionary = station.game.build
+		if not building.is_empty() and int(building.level) == level and int(building.cell) == cell:
+			return int(building.left)
+		return -1
+
+	func _cell_action(level: int, cell: int, kind: String, room_type: String) -> String:
+		var digging: Dictionary = station.game.dig
+		if not digging.is_empty() and int(digging.level) == level and int(digging.cell) == cell:
+			return "Digging, %s left" % Words.count(int(digging.left), "week")
+		var building: Dictionary = station.game.build
+		if not building.is_empty() and int(building.level) == level and int(building.cell) == cell:
+			var name := str(station.game.catalog.rooms[str(building.type)].name)
+			return "Building %s, %s left" % [name, Words.count(int(building.left), "week")]
+		match kind:
+			"hidden":
+				return "Solid rock"
+			"undug":
+				return "Dig"
+			"dug":
+				return "Build"
+			"room":
+				return "Open %s" % str(station.game.catalog.rooms[room_type].name)
+		return ""
+
 	func _job_text(level: int, cell: int, width: float) -> String:
 		var digging: Dictionary = station.game.dig
 		if not digging.is_empty() and int(digging.level) == level and int(digging.cell) == cell:
@@ -2044,42 +2672,160 @@ class Yard extends Control:
 		return ""
 
 	func _draw_people(rect: Rect2, room: Dictionary) -> void:
-		var n := int(room.staff.size())
-		if n == 0:
+		var crew: Array = room.staff
+		if crew.is_empty() or poses.is_empty():
 			return
+		_draw_crew(rect, crew, str(room.type))
+
+	func _draw_platform(rect: Rect2, room: Dictionary) -> void:
+		var entries: Array = []
+		for sid in room.staff:
+			entries.append({"id": str(sid), "pose": _pose_name("platform", entries.size())})
+		if poses.has("walking"):
+			for sid in _idle_ids():
+				entries.append({"id": str(sid), "pose": "walking"})
+		_draw_figures(rect, entries, true)
+
+	func _draw_carriers(rect: Rect2, level: int, cell: int) -> void:
+		var crew: Array = []
+		var digging: Dictionary = station.game.dig
+		if not digging.is_empty() and int(digging.level) == level and int(digging.cell) == cell:
+			crew = digging.workers
+		var building: Dictionary = station.game.build
+		if not building.is_empty() and int(building.level) == level and int(building.cell) == cell:
+			crew = building.workers
+		if crew.is_empty():
+			return
+		_draw_crew(rect, crew, "carry")
+
+	func _draw_crew(rect: Rect2, crew: Array, room_type: String) -> void:
+		var entries: Array = []
+		for i in crew.size():
+			var pose_name := "carrying" if room_type == "carry" else _pose_name(room_type, i)
+			entries.append({"id": str(crew[i]), "pose": pose_name})
+		_draw_figures(rect, entries, false)
+
+	func _draw_figures(rect: Rect2, entries: Array, sway: bool) -> void:
+		var n := entries.size()
+		if n == 0 or poses.is_empty():
+			return
+		var shown := mini(n, 5)
+		var extra := n - shown
+		var widths: Array[float] = []
+		var total := 0.0
+		for i in shown:
+			var pose_name := str(entries[i].pose)
+			if not poses.has(pose_name):
+				widths.append(0.0)
+				continue
+			var width := _pose_size(poses[pose_name], rect.size.y).x
+			widths.append(width)
+			total += width
+		var tag_w := 36.0 if extra > 0 else 0.0
+		var pad := 6.0
+		var usable := maxf(8.0, rect.size.x - pad * 2.0 - tag_w)
+		var min_gap := 8.0
+		var gaps := shown - 1
+		var gap := min_gap
+		if gaps > 0:
+			gap = maxf(min_gap, (usable - total) / float(gaps))
+			var run_try := total + gap * float(gaps)
+			if run_try > usable:
+				gap = maxf(2.0, (usable - total) / float(gaps))
+		var run := total + gap * float(maxi(gaps, 0))
+		var x := rect.position.x + pad + maxf(0.0, (usable - run) * 0.5)
 		var t := Time.get_ticks_msec() / 1000.0
-		for i in n:
-			var id := str(room.staff[i])
+		for i in shown:
+			var id := str(entries[i].id)
+			var pose_name := str(entries[i].pose)
+			var width: float = widths[i]
+			if width <= 0.0:
+				continue
 			var h := _id_hash(id)
-			var span := rect.size.x * 0.78
-			var jitter := fmod(h, span * 0.28) - span * 0.14
-			var cx := rect.position.x + rect.size.x * 0.11 + span * (float(i) + 0.5) / float(n) + jitter
-			cx = clampf(cx, rect.position.x + 8.0, rect.position.x + rect.size.x - 8.0)
+			var slide := 0.0
+			if sway:
+				var spare := maxf(0.0, gap - min_gap)
+				slide = sin(t * 0.7 + h * 0.02) * minf(spare * 0.35, 6.0)
+			var cx := x + width * 0.5 + slide
+			var left_lim := rect.position.x + pad + width * 0.5
+			var right_lim := rect.position.x + pad + usable - width * 0.5
+			cx = clampf(cx, left_lim, right_lim)
 			var bob := sin(t * 1.7 + h * 0.02) * 1.6
-			var foot := Vector2(cx, rect.position.y + rect.size.y * 0.8 + bob)
-			var scale := 18.0 + fmod(h, 8.0)
-			var tint := Color.from_hsv(fmod(h * 0.013, 1.0), 0.35, 0.16)
-			_silhouette(foot, scale + 2.0, Color(0.45, 0.36, 0.24, 0.85))
-			_silhouette(foot, scale, tint)
+			var foot_y := rect.position.y + rect.size.y + bob
+			_paint_pose(pose_name, cx, foot_y, rect.size.y, id, sway and int(h) % 2 == 0)
+			x += width + gap
+		if extra > 0:
+			_draw_more(rect, extra)
+
+	func _draw_more(rect: Rect2, extra: int) -> void:
+		var label := "+%d" % extra
+		var font: Font = ThemeDB.fallback_font
+		if station.body_font != null:
+			font = station.body_font
+		var font_size := 13
+		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+		var box := Vector2(text_size.x + 10.0, text_size.y + 4.0)
+		var origin := Vector2(rect.position.x + rect.size.x - box.x - 4.0, rect.position.y + rect.size.y - box.y - 6.0)
+		draw_rect(Rect2(origin, box), Color(0.09, 0.06, 0.04, 0.88))
+		draw_string(font, origin + Vector2(5.0, text_size.y * 0.82), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("efe6d2"))
+
+	func _pose_name(room_type: String, index: int) -> String:
+		match room_type:
+			"workshop":
+				return "working"
+			"hydroponics":
+				return "kneeling"
+			"quarters", "meeting_hall":
+				return "sitting"
+			"infirmary":
+				return "standing"
+			"generator", "air_filter":
+				if index % 2 == 0:
+					return "working"
+				return "standing"
+			_:
+				return "standing"
+
+	func _pose_size(sprite: Texture2D, cell_h: float) -> Vector2:
+		var scale := (cell_h * 0.58) / maxf(figure_scale_px, 1.0)
+		return sprite.get_size() * scale
+
+	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool) -> void:
+		if not poses.has(pose_name):
+			return
+		var sprite: Texture2D = poses[pose_name]
+		var fitted := _pose_size(sprite, cell_h)
+		var dest := Rect2(cx - fitted.x * 0.5, foot_y - fitted.y, fitted.x, fitted.y)
+		if flip:
+			dest.position.x += dest.size.x
+			dest.size.x = -dest.size.x
+		var warm := fmod(_id_hash(id), 9.0) / 90.0
+		draw_texture_rect(sprite, dest, false, Color(0.96 + warm, 0.97, 1.02 - warm))
+
+	func _idle_ids() -> Array:
+		var busy := {}
+		for room in station.game.rooms:
+			for sid in room.staff:
+				busy[str(sid)] = true
+		if not station.game.dig.is_empty():
+			for sid in station.game.dig.workers:
+				busy[str(sid)] = true
+		if not station.game.build.is_empty():
+			for sid in station.game.build.workers:
+				busy[str(sid)] = true
+		var ids: Array = []
+		for person in station.game.residents:
+			var id := str(person.id)
+			if busy.has(id) or int(person.absent) > 0:
+				continue
+			ids.append(id)
+		return ids
 
 	func _id_hash(id: String) -> float:
 		var n := 17
 		for i in id.length():
 			n = (n * 33 + id.unicode_at(i)) % 100003
 		return float(n)
-
-	func _silhouette(foot: Vector2, scale: float, tint: Color) -> void:
-		var head := foot + Vector2(0, -scale * 0.72)
-		draw_circle(head, scale * 0.16, tint)
-		var body := PackedVector2Array([
-			foot + Vector2(-scale * 0.22, -scale * 0.5),
-			foot + Vector2(scale * 0.22, -scale * 0.5),
-			foot + Vector2(scale * 0.28, -scale * 0.22),
-			foot + Vector2(scale * 0.1, -scale * 0.02),
-			foot + Vector2(-scale * 0.1, -scale * 0.02),
-			foot + Vector2(-scale * 0.28, -scale * 0.22),
-		])
-		draw_colored_polygon(body, tint)
 
 
 class Glyph extends Control:

@@ -18,9 +18,9 @@ Then open `http://localhost:8060`. If Python is not installed, use the Windows b
 
 ## How a week goes
 
-Dawn opens with the stocks and any choice that is waiting. Pick one. On the cut-away, tap a dark cell to dig, an open floor to build, and a room to staff, upgrade, or pull it down. Drag a resident onto a room, or tap the room and filter the list. The best skill for that room is listed first, with the number beside the name.
+Dawn opens on a card: the stocks, and a choice when one is waiting. Pick a choice, or press Not now to set it aside. On the station, tap a dark cell to dig, an open floor to build, and a room to staff, upgrade, or pull it down. Drag a resident from the People drawer onto a room, or tap the room and pick a name. The best skill for that room is listed first, with the number beside the name.
 
-End turn closes the week. If someone is still waiting, the dawn card stays up until you choose.
+End turn closes the week. While a choice is still waiting, End turn stays dark. Hover it and it says someone is waiting. The button wakes up once you choose. If you pressed Not now, the button pulses until you do.
 
 Pump is only there during a flood, and it spends materials and power. Quarantine is only there during the cough.
 
@@ -33,4 +33,4 @@ Pump is only there during a flood, and it spends materials and power. Quarantine
 
 ## What this build is not
 
-No network map, no bunker scene, and no ending beyond the week-40 clock, a revolt, or the yard emptying. The rooms are flat colors, not painted art.
+No network map, no bunker scene, and no ending beyond the week-40 clock, a revolt, or the yard emptying. Pinch or scroll to look closer. The station is drawn for a wide landscape frame.

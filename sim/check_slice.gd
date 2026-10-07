@@ -21,6 +21,10 @@ func _init() -> void:
 		failed = true
 	if not _check_mood(catalog):
 		failed = true
+	if not _check_plurals(catalog):
+		failed = true
+	if not _check_modals():
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
@@ -392,4 +396,79 @@ func _check_mood(catalog: Catalog) -> bool:
 		return false
 	print("Mood: ok")
 	return true
+
+
+func _check_plurals(catalog: Catalog) -> bool:
+	if Words.count(1, "week") != "1 week" or Words.count(2, "week") != "2 weeks":
+		print("Plurals: FAIL helper week")
+		return false
+	if Words.count(0, "week") != "0 weeks":
+		print("Plurals: FAIL zero stays plural")
+		return false
+	if Words.count(1, "crew") != "1 crew" or Words.count(2, "crew") != "2 crews":
+		print("Plurals: FAIL helper crew")
+		return false
+	if Words.count(1, "week") == "1 weeks" or Words.count(2, "week") == "2 week":
+		print("Plurals: FAIL 1 weeks or 2 week")
+		return false
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	var lines: PackedStringArray = [
+		game._week_span(0), game._week_span(1), game._week_span(2),
+		game.rally_reason(), game.enact_reason("rations"), game.repeal_reason("rations"),
+	]
+	for key in ["air", "food", "power", "materials", "tokens", "influence"]:
+		lines.append(str(game.resource_outlook(key).text))
+	for row in game.forecasts():
+		lines.append(str(row.text))
+	var warn: Dictionary = game.revolt_warning()
+	lines.append(str(warn.get("text", "")))
+	for level in 3:
+		for cell in 6:
+			var dig: Dictionary = game.dig_preview(level, cell)
+			lines.append(str(dig.reason))
+			var built: Dictionary = game.build_preview("workshop", level, cell)
+			lines.append(str(built.reason))
+	var ui := FileAccess.get_file_as_string(ProjectSettings.globalize_path("res://ui/station.gd"))
+	lines.append(ui)
+	for line in lines:
+		if _bad_plural(line):
+			print("Plurals: FAIL 1 weeks or 2 week in: ", line.substr(0, 180))
+			return false
+	print("Plurals: ok")
 	return true
+
+
+func _check_modals() -> bool:
+	var Deck = load("res://ui/modals.gd")
+	var deck = Deck.new()
+	deck.push(Deck.AMBIENT, "build")
+	deck.push(Deck.NARRATIVE, "dawn")
+	if deck.visible_count() != 1 or deck.depth() != 2 or deck.top_token() != "dawn":
+		print("Modals: FAIL event over build list")
+		return false
+	deck.pop()
+	if deck.visible_count() != 1 or deck.top_token() != "build":
+		print("Modals: FAIL ambient restore")
+		return false
+	deck.pop()
+	if deck.visible_count() != 0:
+		print("Modals: FAIL empty")
+		return false
+	print("Modals: ok")
+	return true
+
+
+func _bad_plural(text: String) -> bool:
+	if text.find("1 weeks") >= 0:
+		return true
+	var from := 0
+	while true:
+		var at := text.find("2 week", from)
+		if at < 0:
+			return false
+		var tail := at + 6
+		if tail >= text.length() or text.substr(tail, 1) != "s":
+			return true
+		from = tail
+	return false
