@@ -51,6 +51,11 @@ func _init() -> void:
 		_print_failures(expander)
 	else:
 		print("Expander target: ok")
+	if not _payback_ok(careful, expander):
+		failed = true
+		print("OUTPOST PAYBACK FAIL")
+	else:
+		print("Outpost payback: ok")
 	if not _follower_ok(follower):
 		failed = true
 		print("FOLLOWER TARGET FAIL")
@@ -74,7 +79,7 @@ func _init() -> void:
 
 func _print_network(careful: Array, expander: Array, follower: Array) -> void:
 	print("Network gates")
-	print("profile    seed  ult  flip  unrest  stations  over")
+	print("profile    seed  ult  flip  unrest  stations  influence  over")
 	for row in careful:
 		_print_net_row("careful", row)
 	for row in expander:
@@ -84,13 +89,14 @@ func _print_network(careful: Array, expander: Array, follower: Array) -> void:
 
 
 func _print_net_row(profile: String, row: Dictionary) -> void:
-	print("%-9s  %4d  %3d  %4d  %6d  %8d  %s" % [
+	print("%-9s  %4d  %3d  %4d  %6d  %8d  %9d  %s" % [
 		profile,
 		int(row.get("seed", 0)),
 		int(row.get("first_ultimatum", 0)),
 		int(row.get("flip_week", 0)),
 		int(row.get("unrest_weeks", 0)),
 		int(row.get("stations", 0)),
+		int(row.get("influence", 0)),
 		str(row.get("over", "")),
 	])
 
@@ -252,6 +258,36 @@ func _careful_ok(rows: Array) -> bool:
 		if med < 2.0 or med > 4.0:
 			return false
 	return weeks.size() >= 3
+
+
+func _payback_ok(careful: Array, expander: Array) -> bool:
+	var ok := true
+	var careful_stations := 0
+	var expander_stations := 0
+	var careful_influence := 0
+	var expander_influence := 0
+	for row in careful:
+		careful_stations += int(row.get("stations", 0))
+		careful_influence += int(row.get("influence", 0))
+	for row in expander:
+		expander_stations += int(row.get("stations", 0))
+		expander_influence += int(row.get("influence", 0))
+		if int(row.get("hope_min", 0)) < 20:
+			ok = false
+			print("  expander hope min %d, seed %d" % [int(row.hope_min), int(row.seed)])
+		if int(row.get("dis_max", 0)) > 75:
+			ok = false
+			print("  expander discontent peak %d, seed %d" % [int(row.dis_max), int(row.seed)])
+		if int(row.get("week", 0)) < 40 or str(row.get("over", "")) != "time":
+			ok = false
+			print("  expander lost before week 40, seed %d (%s week %d)" % [int(row.seed), str(row.over), int(row.week)])
+	if expander_stations <= careful_stations:
+		ok = false
+		print("  expander stations %d, careful %d" % [expander_stations, careful_stations])
+	if expander_influence <= careful_influence:
+		ok = false
+		print("  expander influence %d, careful %d" % [expander_influence, careful_influence])
+	return ok
 
 
 func _hope_ok(careful: Array, expander: Array) -> bool:

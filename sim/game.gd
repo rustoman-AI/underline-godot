@@ -288,6 +288,7 @@ func report() -> Dictionary:
 		"pop40": int(stats.pop40),
 		"unrest_weeks": int(stats.unrest_weeks),
 		"stations": owned_count(),
+		"influence": int(stock.influence),
 		"first_ultimatum": int(stats.get("first_ultimatum", 0)),
 		"flip_week": int(stats.get("flip_week", 0)),
 		"hope_end": hope,
@@ -2776,7 +2777,7 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		_add_opinion(owner, -20)
 	if not player_move and owner == player and not bool(at_war.get(sq.faction, false)):
 		return false
-	if not player_move and nxt == capital_id and int(ambition.get(str(sq.faction), 0)) < 80:
+	if not player_move and nxt == capital_id and (week <= max_weeks or int(ambition.get(str(sq.faction), 0)) < 100):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
 		return false
 	var win := _battle(sq, nxt)
@@ -2828,6 +2829,8 @@ func _capture(sid: String, fid: String, force: bool) -> void:
 	st.loyalty = 20 if force else 72
 	st.unrest = net_rng.randi_range(4, 6)
 	st.known = true
+	st.held_weeks = 0
+	st.low_weeks = 0
 	_note_flip()
 	if str(st.focus) == "":
 		st.focus = "food"
@@ -2877,8 +2880,18 @@ func _deliver_outposts() -> void:
 		var st: Dictionary = stations[sid]
 		if str(st.owner) != player or sid == capital_id:
 			continue
-		if _connected(sid) and int(st.unrest) == 0:
-			_outpost_yield(st)
+		st.held_weeks = int(st.get("held_weeks", 0)) + 1
+		var hops := _supply_hops(str(sid))
+		if hops >= 900:
+			continue
+		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus))
+		var upkeep := int(flow.upkeep_materials)
+		if upkeep > 0:
+			stock.materials = maxi(0, int(stock.materials) - upkeep)
+		for key in ["food", "materials", "tokens", "influence", "air"]:
+			var gain := int(flow.get(key, 0))
+			if gain > 0:
+				stock[key] = int(stock.get(key, 0)) + gain
 
 
 func _tick_holdings() -> void:
@@ -2910,19 +2923,6 @@ func _tick_holdings() -> void:
 				st.sympathy = 0
 				st.unrest = 0
 				_note_flip()
-
-
-func _outpost_yield(st: Dictionary) -> void:
-	# Food focus only feeds the outpost. Expansion never adds food at the capital.
-	match str(st.focus):
-		"air":
-			stock.air = int(stock.air) + 1
-		"defense":
-			st.garrison = mini(22, int(st.garrison) + 1)
-		"influence":
-			stock.influence = int(stock.influence) + 1
-		_:
-			pass
 
 
 func _drift_opinion() -> void:
@@ -3727,6 +3727,27 @@ func _hops(a: String, b: String) -> int:
 	return path.size() - 1
 
 
+func _supply_hops(sid: String) -> int:
+	if sid == capital_id:
+		return 0
+	var queue: Array = [capital_id]
+	var dist := {capital_id: 0}
+	var qi := 0
+	while qi < queue.size():
+		var cur: String = queue[qi]
+		qi += 1
+		for n in _neighbors(cur):
+			if dist.has(n):
+				continue
+			if not _supplies(str(n)):
+				continue
+			dist[n] = int(dist[cur]) + 1
+			if str(n) == sid:
+				return int(dist[n])
+			queue.append(n)
+	return 999
+
+
 func _connected(sid: String) -> bool:
 	if sid == capital_id:
 		return true
@@ -4069,6 +4090,8 @@ func _init_map() -> void:
 			"deals": 0,
 			"passage": false,
 			"known": false,
+			"held_weeks": 0,
+			"low_weeks": 0,
 			"rival_symp": {"exchange": 0, "directorate": 0, "synod": 0},
 		}
 	var seen := {}

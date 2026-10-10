@@ -5,6 +5,7 @@ extends RefCounted
 
 var profile := "careful"
 var _did_aid := false
+var _did_talk := false
 
 
 func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictionary:
@@ -30,6 +31,7 @@ func _act(game: Game) -> void:
 		_follow(game)
 		return
 	_did_aid = false
+	_did_talk = false
 	var guard := 0
 	while not game.pending.is_empty() and guard < 6:
 		guard += 1
@@ -240,10 +242,12 @@ func _project(game: Game) -> Dictionary:
 func _project_expander(game: Game) -> Dictionary:
 	if game.room_count("generator") == 0 and game.week >= 2 and game.build_possible("generator"):
 		return {"kind": "build", "type": "generator"}
+	if game.housing() < game.residents.size() and game.build_possible("quarters"):
+		return {"kind": "build", "type": "quarters"}
+	if game.food_buffer_weeks() < 1.4 and game.room_count("hydroponics") < 3 and game.build_possible("hydroponics"):
+		return {"kind": "build", "type": "hydroponics"}
 	if game.room_count("meeting_hall") == 0 and game.build_possible("meeting_hall"):
 		return {"kind": "build", "type": "meeting_hall"}
-	if game.discontent >= 55 and game.housing() < game.residents.size() and game.build_possible("quarters"):
-		return {"kind": "build", "type": "quarters"}
 	if game.output_of("food") < game.food_need() and game.build_possible("hydroponics"):
 		return {"kind": "build", "type": "hydroponics"}
 	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
@@ -299,14 +303,19 @@ func _order_expander(game: Game) -> Dictionary:
 	for demand in game.demands:
 		if bool(demand.paid):
 			continue
-		if int(game.stock.tokens) >= int(demand.amount) + 40:
+		if int(game.stock.tokens) >= int(demand.amount) + 20:
 			return {"kind": "order", "order": "pay", "demand": str(demand.id)}
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
+	if game.hope < 40 and not _did_talk:
+		_did_talk = true
+		return {"kind": "order", "order": "address"}
+	if game.owned_count() >= 5:
+		return {}
 	var border := _best_border(game)
 	if border != "" and int(game.stock.influence) >= int(game.bal.propaganda_influence):
 		var st: Dictionary = game.stations[border]
-		if not _did_aid and int(st.sympathy) >= 15 and int(st.sympathy) < 85 and _avg_need(st) < 0.75 and int(game.stock.food) >= int(game.bal.aid_food):
+		if not _did_aid and int(st.sympathy) >= 15 and int(st.sympathy) < 85 and _avg_need(st) < 0.75 and int(game.stock.food) >= int(game.bal.aid_food) + game.food_need():
 			_did_aid = true
 			return {"kind": "order", "order": "aid", "station": border}
 		return {"kind": "order", "order": "propaganda", "station": border}

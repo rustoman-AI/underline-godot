@@ -40,6 +40,36 @@ static func sympathy_gain(base: float, player_lean: String, station_lean: String
 	return int(round(base * lean_mult(player_lean, station_lean) * need_factor(avg_fill)))
 
 
+## First 4 weeks the capital pays upkeep. After that the outpost ships surplus, minus 1 per tunnel segment.
+static func outpost_flow(age: int, hops: int, focus: String) -> Dictionary:
+	var flow := {"food": 0, "materials": 0, "tokens": 0, "influence": 0, "air": 0, "upkeep_materials": 0}
+	if hops < 1 or hops >= 900 or age <= 0:
+		return flow
+	if age <= 4:
+		flow.upkeep_materials = 1
+		return flow
+	var food := 5
+	var materials := 3
+	var tokens := 2
+	var influence := 0
+	var air := 0
+	match focus:
+		"food":
+			food = 7
+		"defense":
+			materials = 5
+		"influence":
+			influence = 6
+		"air":
+			air = 2
+	flow.food = maxi(0, food - hops)
+	flow.materials = maxi(0, materials - hops)
+	flow.tokens = maxi(0, tokens - hops)
+	flow.influence = maxi(0, influence - hops)
+	flow.air = maxi(0, air - hops)
+	return flow
+
+
 static func self_check() -> PackedStringArray:
 	var errs: PackedStringArray = []
 	# Tech 5: skill above 1 is 4, multiplier 1.6, output 16 from base 10.
@@ -67,4 +97,13 @@ static func self_check() -> PackedStringArray:
 	# factor 1.5, lean 0.5, gain 9
 	if opposed != 9:
 		errs.append("opposed %s" % opposed)
+	var young: Dictionary = outpost_flow(2, 1, "food")
+	if int(young.upkeep_materials) != 1 or int(young.food) != 0:
+		errs.append("upkeep %s" % young)
+	var ripe: Dictionary = outpost_flow(5, 2, "food")
+	if int(ripe.food) != 5 or int(ripe.upkeep_materials) != 0:
+		errs.append("surplus %s" % ripe)
+	var cut: Dictionary = outpost_flow(8, 999, "food")
+	if int(cut.food) != 0 or int(cut.upkeep_materials) != 0:
+		errs.append("cut %s" % cut)
 	return errs
