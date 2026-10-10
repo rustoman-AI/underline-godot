@@ -11,6 +11,8 @@ var events: Array = []
 var residents: Array = []
 var names: Dictionary = {}
 var grid: Dictionary = {}
+var communities: Dictionary = {}
+var geo: Dictionary = {}
 var error: String = ""
 
 
@@ -25,6 +27,8 @@ func load_all() -> bool:
 	residents = _arr("residents.json")
 	names = _obj("names.json")
 	grid = _obj("start_grid.json")
+	communities = _obj("station_communities.json")
+	geo = _obj("map_geo.json")
 	return error == ""
 
 

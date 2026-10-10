@@ -3,7 +3,7 @@
     "name": "The Depot",
     "short": "Depot",
     "color": "#ff7a2f",
-    "capital": "coney",
+    "capital": "southdepot",
     "leader": "The Senior Driver",
     "lean": "craft",
     "law": "engineers_charter",
@@ -13,8 +13,8 @@
     "name": "Free Exchange",
     "short": "Exchange",
     "color": "#ffd23f",
-    "capital": "wall",
-    "second": "bowling",
+    "capital": "trampark",
+    "second": "eastwater",
     "leader": "Elder Soren",
     "leader_title": "Voice of the Rate Council",
     "lieutenant": "Broker Lin",
@@ -28,8 +28,8 @@
     "name": "Iron Directorate",
     "short": "Directorate",
     "color": "#ff4d5e",
-    "capital": "grand",
-    "second": "spring",
+    "capital": "northgate",
+    "second": "dockyard",
     "leader": "Halden Voss",
     "leader_title": "The Traffic Chief",
     "lieutenant": "Captain Rhee",
@@ -39,5 +39,17 @@
     "ambition": 12,
     "squad": {"size": 14, "gear": 1.2, "fight": 4, "name": "Captain Rhee"},
     "opinion_drift": -1
+  },
+  "synod": {
+    "name": "Synod of the Tunnel",
+    "short": "Synod",
+    "color": "#c9b6ff",
+    "capital": "chapel",
+    "leader": "The Last Preacher",
+    "leader_title": "Voice of the Last Train",
+    "traits": ["Patient", "Certain"],
+    "lean": "faith",
+    "opinion": 0,
+    "ambition": 4
   }
 }
