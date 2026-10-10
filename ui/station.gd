@@ -28,6 +28,7 @@ const ROOM_COLOR := {
 }
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
 const ModalDeck = preload("res://ui/modals.gd")
+const NetworkViewScript = preload("res://ui/network_view.gd")
 const ArtPack = preload("res://ui/art_pack.gd")
 const Brief = preload("res://sim/brief.gd")
 const WAITING := "Someone is still waiting. Choose before the week ends."
@@ -107,6 +108,9 @@ var guide_played := false
 var shot_mode := false
 var menu_button: Button
 var hub_button: Button
+var network_button: Button
+var network_view: Control
+var showing_network := false
 var hub_layer: Control
 var hub_station_label: Label
 var hub_community_label: Label
@@ -161,7 +165,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network():
 		shot_mode = true
 	if hub_button != null:
 		hub_button.visible = _hub_texture() != null
@@ -169,7 +173,7 @@ func _ready() -> void:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub() and not _want_polish():
+		if not _want_hub() and not _want_polish() and not _want_network():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -194,6 +198,8 @@ func _ready() -> void:
 		await _review_shots()
 	elif _want_hub():
 		await _hub_shots()
+	elif _want_network():
+		await _network_shots()
 
 
 func _want_shots() -> bool:
@@ -214,6 +220,10 @@ func _want_hub() -> bool:
 
 func _want_polish() -> bool:
 	return OS.get_cmdline_user_args().has("--polish")
+
+
+func _want_network() -> bool:
+	return OS.get_cmdline_user_args().has("--network")
 
 
 func _tabular(base: Font) -> Font:
@@ -381,6 +391,10 @@ func _build() -> void:
 	yard.set_anchors_preset(Control.PRESET_FULL_RECT)
 	yard.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(yard)
+	network_view = NetworkViewScript.new()
+	network_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	network_view.visible = false
+	add_child(network_view)
 
 	hud = _top_bar()
 	add_child(hud)
@@ -417,6 +431,11 @@ func _build() -> void:
 	end_button.mouse_entered.connect(_show_ahead.bind(true))
 	end_button.mouse_exited.connect(_show_ahead.bind(false))
 	add_child(end_button)
+	network_button = _button("Network", _toggle_network)
+	network_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	network_button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	network_button.add_theme_font_size_override("font_size", 16)
+	add_child(network_button)
 	hub_button = _button("Station view", _show_hub_view)
 	hub_button.visible = false
 	hub_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -739,6 +758,18 @@ func _place_chrome() -> void:
 		end_cover.offset_left = -margin - end_w
 		end_cover.offset_bottom = -margin
 		end_cover.offset_top = -margin - end_h
+	if network_button != null:
+		var net_w := 132.0
+		network_button.anchor_left = 1.0
+		network_button.anchor_right = 1.0
+		network_button.anchor_top = 1.0
+		network_button.anchor_bottom = 1.0
+		network_button.custom_minimum_size = Vector2(net_w, tool_h)
+		network_button.offset_right = -margin - end_w - 8.0
+		network_button.offset_left = -margin - end_w - 8.0 - net_w
+		network_button.offset_bottom = -margin
+		network_button.offset_top = -margin - tool_h
+		network_button.text = Copy.t("Station") if showing_network else Copy.t("Network")
 	if hub_button != null and hub_button.visible:
 		var view_w := 210.0
 		var tray_right := margin + tool_w * 5.0 + 48.0
@@ -1079,6 +1110,18 @@ func _fill_people() -> void:
 			_people_group(room_name, grouped[uid], skill, false)
 		if (people_filter == "" or people_filter == "crew") and not grouped["crew"].is_empty():
 			_people_group(Copy.t("Crew"), grouped["crew"], "labor", false)
+	if showing_network and network_view != null:
+		network_view.refresh()
+
+
+func _toggle_network() -> void:
+	showing_network = not showing_network
+	if network_view != null:
+		network_view.visible = showing_network
+		network_view.bind(self)
+	if yard != null:
+		yard.visible = not showing_network
+	_place_chrome()
 
 
 func _skill_line(person: Dictionary) -> String:
@@ -2037,7 +2080,7 @@ func _morning_lines() -> PackedStringArray:
 		var text := str(entry.text)
 		if w == game.week and _starts(text, ["INTENT", "SEASON", "ULTIMATUM", "PRESSURE", "No warning"]):
 			lines.append(text)
-		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND"]):
+		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH"]):
 			lines.append(text)
 	return lines
 
@@ -3594,6 +3637,51 @@ func _finish_hide_modal() -> void:
 	if card != null:
 		card.scale = Vector2.ONE
 		card.modulate.a = 1.0
+
+
+func _network_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(Vector2i(1280, 720))
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	showing_network = true
+	yard.visible = false
+	network_view.visible = true
+	network_view.bind(self)
+	await _frame()
+	await _frame()
+	network_view._fit()
+	_place_chrome()
+	await _frame()
+	_save("network_week1")
+	var sid: String = network_view.first_known_neighbor()
+	if sid != "":
+		network_view.open_sheet(sid)
+	await _frame()
+	await _frame()
+	_save("network_sheet")
+	network_view.close_sheet()
+	await _frame()
+	_save("network_council")
+	var bot := Bot.new()
+	bot.profile = "careful"
+	var guard := 0
+	while game.over == "" and game.week < 20 and guard < 30:
+		guard += 1
+		bot._act(game)
+		game.end_week()
+	hold_dawn = true
+	_close_card()
+	_refresh()
+	network_view.focus_intent()
+	await _frame()
+	await _frame()
+	_save("network_week20")
+	_save("network_intents")
+	get_tree().quit()
 
 
 func _polish_shots() -> void:

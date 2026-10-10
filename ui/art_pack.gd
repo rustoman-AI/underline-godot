@@ -118,7 +118,7 @@ static func icon_texture(kind: String) -> Texture2D:
 		var cached = _icons[kind]
 		return cached if cached is Texture2D else null
 	var found: Texture2D = null
-	var folders := ["", "resources/", "actions/", "rooms/", "status/"]
+	var folders := ["", "resources/", "actions/", "rooms/", "status/", "map/", "factions/"]
 	for folder in folders:
 		if found != null:
 			break
