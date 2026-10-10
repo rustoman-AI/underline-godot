@@ -3704,10 +3704,18 @@ func _network_shots() -> void:
 	var bot := Bot.new()
 	bot.profile = "careful"
 	var guard := 0
+	var saw_warn := false
+	var saw_ult := false
 	while game.over == "" and game.week < 20 and guard < 30:
 		guard += 1
 		bot._act(game)
 		game.end_week()
+		if not saw_warn and _shot_logged("WARN", game.week - 1):
+			saw_warn = true
+			await _card_shot("flip_warning")
+		if not saw_ult and _shot_logged("ULTIMATUM", game.week):
+			saw_ult = true
+			await _card_shot("ultimatum_card")
 	hold_dawn = true
 	_close_card()
 	_refresh()
@@ -3717,6 +3725,30 @@ func _network_shots() -> void:
 	_save("network_week20")
 	_save("network_intents")
 	get_tree().quit()
+
+
+func _shot_logged(prefix: String, week_n: int) -> bool:
+	for entry in game.log:
+		if int(entry.week) == week_n and str(entry.text).begins_with(prefix):
+			return true
+	return false
+
+
+func _card_shot(shot_name: String) -> void:
+	var saved: Array = game.pending.duplicate()
+	game.pending.clear()
+	if dim.visible:
+		_close_card()
+	hold_dawn = true
+	_refresh()
+	hold_dawn = false
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save(shot_name)
+	if dim.visible:
+		_close_card()
+	game.pending = saved
 
 
 func _polish_shots() -> void:
