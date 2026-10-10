@@ -57,12 +57,83 @@ func _init() -> void:
 	else:
 		print("Follower target: ok")
 	print("")
+	_print_network(careful, expander, follower)
+	if not _network_ok(careful, expander, follower):
+		failed = true
+		print("NETWORK TARGET FAIL")
+	else:
+		print("Network target: ok")
+	print("")
 	if failed:
 		print("BOT RUN FAILED")
 		quit(1)
 	else:
 		print("BOT RUN OK")
 		quit(0)
+
+
+func _print_network(careful: Array, expander: Array, follower: Array) -> void:
+	print("Network gates")
+	print("profile    seed  ult  flip  unrest  stations  over")
+	for row in careful:
+		_print_net_row("careful", row)
+	for row in expander:
+		_print_net_row("expander", row)
+	for row in follower:
+		_print_net_row("follower", row)
+
+
+func _print_net_row(profile: String, row: Dictionary) -> void:
+	print("%-9s  %4d  %3d  %4d  %6d  %8d  %s" % [
+		profile,
+		int(row.get("seed", 0)),
+		int(row.get("first_ultimatum", 0)),
+		int(row.get("flip_week", 0)),
+		int(row.get("unrest_weeks", 0)),
+		int(row.get("stations", 0)),
+		str(row.get("over", "")),
+	])
+
+
+func _network_ok(careful: Array, expander: Array, follower: Array) -> bool:
+	var ok := true
+	var all: Array = []
+	all.append_array(careful)
+	all.append_array(expander)
+	all.append_array(follower)
+	for row in all:
+		var ult := int(row.get("first_ultimatum", 0))
+		if ult <= 0 or ult > 20:
+			ok = false
+			print("  ultimatum week %d on seed %d" % [ult, int(row.seed)])
+		var flip := int(row.get("flip_week", 0))
+		if flip <= 0 or flip > 30:
+			ok = false
+			print("  no station lost or defected by week 30, seed %d (%s)" % [int(row.seed), str(row.get("profile", ""))])
+	var careful_stations := 0
+	var expander_stations := 0
+	var careful_unrest := 0
+	var expander_unrest := 0
+	for row in careful:
+		careful_stations += int(row.get("stations", 0))
+		careful_unrest += int(row.get("unrest_weeks", 0))
+	for row in expander:
+		expander_stations += int(row.get("stations", 0))
+		expander_unrest += int(row.get("unrest_weeks", 0))
+	if expander_stations <= careful_stations:
+		ok = false
+		print("  expander stations %d, careful %d" % [expander_stations, careful_stations])
+	if expander_unrest <= careful_unrest:
+		ok = false
+		print("  expander unrest %d, careful %d" % [expander_unrest, careful_unrest])
+	var lived := 0
+	for row in follower:
+		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time":
+			lived += 1
+	if lived < 4:
+		ok = false
+		print("  follower reached week 40 on %d of 5" % lived)
+	return ok
 
 
 func _print_follower(rows: Array) -> void:

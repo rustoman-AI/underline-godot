@@ -62,6 +62,12 @@ func _act(game: Game) -> void:
 
 
 func _follow(game: Game) -> void:
+	for demand in game.demands:
+		if bool(demand.paid):
+			continue
+		if int(game.stock.tokens) >= int(demand.amount):
+			game.apply({"kind": "order", "order": "pay", "demand": str(demand.id)})
+			break
 	var forecasts: Array = game.forecasts()
 	if not game.revolt_warning().is_empty():
 		forecasts.append({"key": "discontent"})
@@ -261,6 +267,10 @@ func _order(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "gift", "faction": "directorate"}
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
+	if game.owned_count() >= 3:
+		if game.hope < 40:
+			return {"kind": "order", "order": "address"}
+		return {}
 	var border := _best_border(game)
 	if border != "" and int(game.stock.influence) >= int(game.bal.propaganda_influence):
 		var st: Dictionary = game.stations[border]
@@ -302,8 +312,8 @@ func _order_expander(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "propaganda", "station": border}
 	for sid in game.stations:
 		var held: Dictionary = game.stations[sid]
-		if str(held.owner) == game.player and str(sid) != game.capital_id and str(held.focus) == "":
-			return {"kind": "order", "order": "focus", "station": str(sid), "focus": "food"}
+		if str(held.owner) == game.player and str(sid) != game.capital_id and str(held.focus) != "influence":
+			return {"kind": "order", "order": "focus", "station": str(sid), "focus": "influence"}
 	if game.can_expedition():
 		return {"kind": "order", "order": "expedition"}
 	if game.can_approach():

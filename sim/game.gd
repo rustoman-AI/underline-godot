@@ -1,5 +1,6 @@
 class_name Game
 extends RefCounted
+const Brief = preload("res://sim/brief.gd")
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -10,7 +11,7 @@ var max_weeks := 40
 var over := ""
 var player := "depot"
 var player_lean := "craft"
-var capital_id := "coney"
+var capital_id := "southdepot"
 
 var stock := {}
 var hope := 60
@@ -26,6 +27,7 @@ var stations := {}
 var tunnels: Array = []
 var squads := {}
 var opinions := {}
+var opinion_memory := {}
 var ambition := {}
 var at_war := {}
 var trade_on := false
@@ -42,6 +44,7 @@ var quarantine := false
 var synod := 0
 var floor_met := false
 var orders_left := 0
+var seat_used := {}
 var decisions := 0
 var hope_zero := 0
 var next_person := 0
@@ -85,6 +88,7 @@ var rally_lock := 0
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
+var net_rng := RandomNumberGenerator.new()
 var bal := {}
 
 
@@ -94,6 +98,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	seed = run_seed
 	max_weeks = weeks
 	rng.seed = run_seed
+	net_rng.seed = run_seed * 17 + 3
 	week = 1
 	over = ""
 	player_lean = str(cat.factions[player].lean)
@@ -120,6 +125,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		"dis_min": discontent,
 		"dis_max": discontent,
 		"unrest_weeks": 0,
+		"first_ultimatum": 0,
+		"flip_week": 0,
 		"pop10": -1,
 		"pop20": -1,
 		"pop40": -1,
@@ -143,7 +150,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	_auto_staff()
 	if residents.size() != int(bal.start_pop):
 		errors.append("start pop %d" % residents.size())
-	if stations.size() != 15:
+	if stations.size() != 25:
 		errors.append("stations %d" % stations.size())
 	if council.size() != 3:
 		errors.append("council %d" % council.size())
@@ -281,6 +288,8 @@ func report() -> Dictionary:
 		"pop40": int(stats.pop40),
 		"unrest_weeks": int(stats.unrest_weeks),
 		"stations": owned_count(),
+		"first_ultimatum": int(stats.get("first_ultimatum", 0)),
+		"flip_week": int(stats.get("flip_week", 0)),
 		"hope_end": hope,
 		"hope_avg": _hope_avg(),
 		"hope_sources": hope_totals.duplicate(),
@@ -384,19 +393,19 @@ func can_pump() -> bool:
 
 func pump_reason() -> String:
 	if not _needs_pump():
-		return "There is no flood to pump."
+		return Copy.t("There is no flood to pump.")
 	return shortage_text({"materials": int(bal.pump_materials), "power": int(bal.pump_power)})
 
 
 func enact_reason(law_id: String) -> String:
 	if _law_on(law_id):
-		return "Already in force."
+		return Copy.t("Already in force.")
 	if not catalog.laws.has(law_id):
-		return "No such law."
+		return Copy.t("No such law.")
 	if not _room_ready("meeting_hall"):
-		return "Needs a staffed meeting hall. The hall has no one in it."
+		return Copy.t("Needs a staffed meeting hall. The hall has no one in it.")
 	if law_lock > 0:
-		return "The hall is waiting. Next law in %s." % Words.count(law_lock, "week")
+		return Copy.t("The hall is waiting. Next law in %s.") % Words.count(law_lock, "week")
 	return ""
 
 
@@ -413,11 +422,23 @@ func shortage_text(need: Dictionary) -> String:
 		var have := int(stock.get(key, 0))
 		if have >= want:
 			continue
-		needs.append("%d %s" % [want, key])
-		short.append("%d %s" % [have, key])
+		needs.append(Copy.stock(want, str(key)))
+		short.append(Copy.stock(have, str(key)))
 	if needs.is_empty():
 		return ""
-	return "Needs %s. You have %s." % [", ".join(needs), ", ".join(short)]
+	var line := Copy.t("Needs %s. You have %s.") % [", ".join(needs), ", ".join(short)]
+	var where: PackedStringArray = []
+	for key in order:
+		if not need.has(key):
+			continue
+		if int(stock.get(key, 0)) >= int(need[key]):
+			continue
+		var hint := Brief.where_for(self, str(key))
+		if hint != "":
+			where.append(hint)
+	if not where.is_empty():
+		line += " " + " ".join(where)
+	return line
 
 
 func resource_outlook(key: String) -> Dictionary:
@@ -429,16 +450,16 @@ func resource_outlook(key: String) -> Dictionary:
 	var nxt := have + made - use
 	var hit: bool = have <= 0 or nxt <= 0
 	var dawn := maxi(0, nxt)
-	var text := "%s %d on hand. The yard makes %d and uses %d. By dawn: %d." % [key.capitalize(), have, made, use, dawn]
+	var text := Copy.t("%s %d on hand. The yard makes %d and uses %d. By dawn: %d.") % [Copy.res(key), have, made, use, dawn]
 	if nxt < 0:
-		text += " Short %d." % -nxt
+		text += Copy.t(" Short %d.") % -nxt
 	var who := _consumer_line(key)
 	if who != "":
 		text += " " + who
 	if key == "power" and nxt < 0:
 		var names := _uncovered_power_names()
 		if not names.is_empty():
-			text += " These rooms will not be covered: %s." % ", ".join(names)
+			text += Copy.t(" These rooms will not be covered: %s.") % ", ".join(names)
 	return {"text": text, "hit": hit, "next": nxt}
 
 
@@ -544,6 +565,7 @@ func dig_possible(for_space: bool) -> bool:
 
 func _dawn() -> void:
 	orders_left = council.size()
+	seat_used = {}
 	pumped = false
 	quarantine = false
 	week_event_ids = {}
@@ -562,7 +584,10 @@ func _dawn() -> void:
 	for d in demands:
 		if bool(d.paid):
 			continue
-		_log("ULTIMATUM %s wants %d tokens, %d turns left" % [_fname(str(d.faction)), int(d.amount), int(d.deadline)], true)
+		var ultimatum := "ULTIMATUM %s wants %d tokens, %d turns left" % [_fname(str(d.faction)), int(d.amount), int(d.deadline)]
+		if Copy.ru():
+			ultimatum = "ULTIMATUM %s хочет %s, осталось %s." % [Copy.t(_fname(str(d.faction))), Copy.stock(int(d.amount), "tokens"), Words.count(int(d.deadline), "week")]
+		_log(ultimatum, true)
 
 
 func _rival_phase() -> void:
@@ -574,7 +599,10 @@ func _rival_phase() -> void:
 		if int(d.deadline) <= 0:
 			_add_opinion(str(d.faction), -15)
 			stock.food = maxi(0, int(stock.food) - 10)
-			_log("ULTIMATUM %s takes its price. Food -10." % _fname(str(d.faction)), true)
+			var taken := "ULTIMATUM %s takes its price. Food -10." % _fname(str(d.faction))
+			if Copy.ru():
+				taken = "ULTIMATUM %s забирает цену. Еда −10." % Copy.t(_fname(str(d.faction)))
+			_log(taken, true)
 		else:
 			keep.append(d)
 	demands = keep
@@ -625,7 +653,7 @@ func _night() -> void:
 		var people_short := food_short * int(bal.food_per) + air_short * int(bal.air_per)
 		var deaths := int(people_short / 10)
 		week_short = true
-		_log("SHORT food %d air %d" % [food_short, air_short], true)
+		_note("SHORT food %d air %d" % [food_short, air_short], "SHORT еды не хватило на %d, воздуха на %d." % [food_short, air_short])
 		if deaths > 0:
 			_kill(deaths, "Supplies ran out")
 	var power_short := maxi(0, need_power - int(stock.power))
@@ -634,7 +662,7 @@ func _night() -> void:
 		_add_hope(int(bal.power_shortage_hope), "power")
 		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
-		_log("SHORT power %d" % power_short, true)
+		_note("SHORT power %d" % power_short, "SHORT энергии не хватило на %d." % power_short)
 	for room in rooms:
 		room.browned = false
 	if int(stock.power) <= 0:
@@ -662,9 +690,12 @@ func _night() -> void:
 	_add_hope(int(bal.hope_drift), "drift")
 	for key in before:
 		last_net[key] = int(stock.get(key, 0)) - int(before[key])
+	_synod_preach()
 	_tick_holdings()
 	_drift_opinion()
 	for fid in ambition:
+		if str(fid) == "synod":
+			continue
 		ambition[fid] = int(ambition[fid]) + int(bal.ambition_week)
 	_grow()
 	_advance_jobs()
@@ -831,7 +862,7 @@ func forecasts() -> Array:
 		if left > horizon and not thin:
 			continue
 		var hint := _supply_hint(_supply_type(key))
-		var name := str(key.capitalize())
+		var name := Copy.res(key)
 		var when := "is gone" if left <= 0 else "runs out in %s" % _week_span(left)
 		var shown := left
 		if thin:
@@ -841,10 +872,13 @@ func forecasts() -> Array:
 				shown = horizon
 		if (key == "food" or key == "air") and _weeks_until_empty("power") <= horizon:
 			hint = _supply_hint("generator")
+		var stock_text := "%s %s. %s" % [name, when, str(hint.text)]
+		if Copy.ru():
+			stock_text = "%s %s" % [_ru_stock_when(key, left, thin, maxi(0, int(floor(food_buffer_weeks()))) if thin else left), str(hint.text)]
 		rows.append({
 			"key": key,
 			"weeks": shown,
-			"text": "%s %s. %s" % [name, when, str(hint.text)],
+			"text": stock_text,
 			"hint": str(hint.hint),
 			"level": int(hint.get("level", -1)),
 			"cell": int(hint.get("cell", -1)),
@@ -862,10 +896,13 @@ func forecasts() -> Array:
 		var fix: Dictionary = fixes[0] if not fixes.is_empty() else {}
 		var name := "Discontent" if meter == "discontent" else "Hope"
 		var when := "is down to %d" % hope if meter == "hope" else ("is at the edge" if left <= 0 else "hits 100 in %s" % _week_span(left))
+		var meter_text := "%s %s. %s %s" % [name, when, _push_line(pushes), str(fix.get("text", ""))]
+		if Copy.ru():
+			meter_text = _ru_meter_when(meter, left, _push_line(pushes), str(fix.get("text", "")))
 		rows.append({
 			"key": meter,
 			"weeks": left,
-			"text": "%s %s. %s %s" % [name, when, _push_line(pushes), str(fix.get("text", ""))],
+			"text": meter_text,
 			"hint": str(fix.get("hint", "")),
 			"level": int(fix.get("level", -1)),
 			"cell": int(fix.get("cell", -1)),
@@ -874,13 +911,49 @@ func forecasts() -> Array:
 		rows.append({
 			"key": "power",
 			"weeks": 0,
-			"text": "The cough pulls crews off every room. Quarantine ends the Cough.",
+			"text": Copy.t("The cough pulls crews off every room. Quarantine ends the Cough."),
 			"hint": "quarantine",
 			"level": -1,
 			"cell": -1,
 		})
 	rows.sort_custom(func(a, b): return int(a.weeks) < int(b.weeks))
 	return rows
+
+
+func _ru_stock_when(key: String, left: int, thin: bool, meals: int) -> String:
+	if key == "food" and thin:
+		return "Еды осталось на %s." % Words.count(meals, "week")
+	if left <= 0:
+		match key:
+			"food":
+				return "Еда кончилась."
+			"air":
+				return "Воздух кончился."
+			"power":
+				return "Энергия кончилась."
+			_:
+				return "Материалы кончились."
+	var span := _week_span(left)
+	match key:
+		"food":
+			return "Еда кончится через %s." % span
+		"air":
+			return "Воздух кончится через %s." % span
+		"power":
+			return "Энергия кончится через %s." % span
+		_:
+			return "Материалы кончатся через %s." % span
+
+
+func _ru_meter_when(meter: String, left: int, push: String, fix: String) -> String:
+	var bit := ""
+	if meter == "hope":
+		bit = "Надежда упала до %d." % hope
+	elif left <= 0:
+		bit = "Недовольство на пределе."
+	else:
+		bit = "Недовольство дойдёт до 100 через %s." % _week_span(left)
+	return "%s %s %s" % [bit, push, fix]
 
 
 func revolt_warning() -> Dictionary:
@@ -895,7 +968,7 @@ func revolt_warning() -> Dictionary:
 	else:
 		left = maxi(1, 100 - discontent)
 	var fixes := _best_fixes("discontent", 2)
-	var bits: PackedStringArray = ["Revolt in about %s." % _week_span(left)]
+	var bits: PackedStringArray = [Copy.t("Revolt in about %s.") % _week_span(left)]
 	for fix in fixes:
 		bits.append(str(fix.text))
 	var first: Dictionary = fixes[0] if not fixes.is_empty() else {}
@@ -912,8 +985,8 @@ func revolt_warning() -> Dictionary:
 func close_caption() -> String:
 	var choice := _free_choice(front_event())
 	if choice.is_empty():
-		return "Close"
-	return "Close: %s" % str(choice.label)
+		return Copy.t("Close")
+	return Copy.t("Close: %s") % Copy.t(str(choice.label))
 
 
 func _food_thin() -> bool:
@@ -990,27 +1063,33 @@ func _push_line(pushes: Array) -> String:
 		line = "%s is pushing it." % str(pushes[0].name)
 	else:
 		line = "%s and %s are pushing it." % [str(pushes[0].name), str(pushes[1].name)]
-	return line.substr(0, 1).to_upper() + line.substr(1)
+	line = line.substr(0, 1).to_upper() + line.substr(1)
+	if not Copy.ru():
+		return line
+	var first := Copy.t(str(pushes[0].name))
+	if pushes.size() == 1:
+		return Copy.t("%s is pushing it.") % first
+	return Copy.t("%s and %s are pushing it.") % [first, Copy.t(str(pushes[1].name))]
 
 
 func _best_fixes(meter: String, limit: int) -> Array:
 	var out: Array = []
 	if meter == "discontent":
 		if _season_is("cough") and can_quarantine():
-			out.append({"hint": "quarantine", "text": "Quarantine ends the Cough.", "level": -1, "cell": -1})
-		_add_repeal(out, "conscription", "Repeal Conscription.")
+			out.append({"hint": "quarantine", "text": Copy.t("Quarantine ends the Cough."), "level": -1, "cell": -1})
+		_add_repeal(out, "conscription", Copy.t("Repeal Conscription."))
 		if residents.size() > housing():
-			_add_room_fix(out, "quarters", "Build Quarters so the crowd has beds.")
+			_add_room_fix(out, "quarters", Copy.t("Build Quarters so the crowd has beds."))
 		_add_rally(out)
 	else:
 		if _food_thin():
 			if _weeks_until_empty("power") <= int(bal.get("forecast_weeks", 2)):
-				_add_room_fix(out, "generator", "Build a generator so the farms have power.")
+				_add_room_fix(out, "generator", Copy.t("Build a generator so the farms have power."))
 			else:
-				_add_room_fix(out, "hydroponics", "Build Hydroponics so the shortage stops.")
-		_add_repeal(out, "curfew", "Repeal Curfew.")
-		_add_repeal(out, "rationing", "Repeal Rationing.")
-		_add_law(out, "sermons", "Pass Sermons in the meeting hall.")
+				_add_room_fix(out, "hydroponics", Copy.t("Build Hydroponics so the shortage stops."))
+		_add_repeal(out, "curfew", Copy.t("Repeal Curfew."))
+		_add_repeal(out, "rationing", Copy.t("Repeal Rationing."))
+		_add_law(out, "sermons", Copy.t("Pass Sermons in the meeting hall."))
 		if out.is_empty():
 			_add_hall_step(out)
 	if out.size() > limit:
@@ -1032,17 +1111,17 @@ func _add_repeal(out: Array, law_id: String, text: String) -> void:
 
 func _add_rally(out: Array) -> void:
 	if rally_reason() == "":
-		out.append({"hint": "rally", "text": "Hold a rally in the meeting hall.", "level": -1, "cell": -1})
+		out.append({"hint": "rally", "text": Copy.t("Hold a rally in the meeting hall."), "level": -1, "cell": -1})
 		return
 	_add_hall_step(out)
 
 
 func _add_hall_step(out: Array) -> void:
 	if room_count("meeting_hall") == 0:
-		_add_room_fix(out, "meeting_hall", "Build a meeting hall on a dug cell.")
+		_add_room_fix(out, "meeting_hall", Copy.t("Build a meeting hall on a dug cell."))
 		return
 	if not _room_ready("meeting_hall"):
-		out.append({"hint": "staff:meeting_hall", "text": "Staff the meeting hall.", "level": -1, "cell": -1})
+		out.append({"hint": "staff:meeting_hall", "text": Copy.t("Staff the meeting hall."), "level": -1, "cell": -1})
 
 
 func _add_room_fix(out: Array, type: String, fallback: String) -> void:
@@ -1060,23 +1139,23 @@ func _add_room_fix(out: Array, type: String, fallback: String) -> void:
 
 func rally_reason() -> String:
 	if rally_lock > 0:
-		return "The hall held a rally recently. Next one in %s." % Words.count(rally_lock, "week")
+		return Copy.t("The hall held a rally recently. Next one in %s.") % Words.count(rally_lock, "week")
 	if not _room_ready("meeting_hall"):
 		if room_count("meeting_hall") == 0:
-			return "Needs a meeting hall."
-		return "Needs a staffed meeting hall. The hall has no one in it."
+			return Copy.t("Needs a meeting hall.")
+		return Copy.t("Needs a staffed meeting hall. The hall has no one in it.")
 	return ""
 
 
 func repeal_reason(law_id: String) -> String:
 	if not _law_on(law_id):
-		return "Not in force."
+		return Copy.t("Not in force.")
 	if not bool(catalog.laws[law_id].get("repealable", false)):
-		return "It cannot be repealed."
+		return Copy.t("It cannot be repealed.")
 	if not _room_ready("meeting_hall"):
-		return "Needs a staffed meeting hall. The hall has no one in it."
+		return Copy.t("Needs a staffed meeting hall. The hall has no one in it.")
 	if law_lock > 0:
-		return "The hall is waiting. Next law in %s." % Words.count(law_lock, "week")
+		return Copy.t("The hall is waiting. Next law in %s.") % Words.count(law_lock, "week")
 	return ""
 
 
@@ -1136,17 +1215,17 @@ func _supply_hint(type: String) -> Dictionary:
 	var cost := int(defin.materials)
 	var turns := maxi(1, int(defin.build_turns))
 	if _type_understaffed(type):
-		return {"hint": "staff:%s" % type, "text": "Staff the %s." % str(defin.name).to_lower(), "level": -1, "cell": -1}
+		return {"hint": "staff:%s" % type, "text": Copy.t("Staff the %s.") % _line_name(str(defin.name), true), "level": -1, "cell": -1}
 	var spot := _first_build_cell()
 	if spot.is_empty():
 		var dig: Dictionary = _pick_dig_cell(true)
-		var dig_line := "Dig a cell, then build a %s (%s, %s)." % [str(defin.name).to_lower(), Words.count(cost, "material"), _week_span(turns)]
+		var dig_line := Copy.t("Dig a cell, then build a %s (%s, %s).") % [_line_name(str(defin.name), true), Words.count(cost, "material"), _week_span(turns)]
 		if type != "generator":
-			dig_line = "Dig a cell, then build %s (%s, %s)." % [str(defin.name), Words.count(cost, "material"), _week_span(turns)]
+			dig_line = Copy.t("Dig a cell, then build %s (%s, %s).") % [_line_name(str(defin.name), false), Words.count(cost, "material"), _week_span(turns)]
 		return {"hint": "dig", "text": dig_line, "level": int(dig.get("level", -1)), "cell": int(dig.get("cell", -1))}
-	var line := "Build a %s on a dug cell (%s, %s)." % [str(defin.name).to_lower(), Words.count(cost, "material"), _week_span(turns)]
+	var line := Copy.t("Build a %s on a dug cell (%s, %s).") % [_line_name(str(defin.name), true), Words.count(cost, "material"), _week_span(turns)]
 	if type != "generator":
-		line = "Build %s on a dug cell (%s, %s)." % [str(defin.name), Words.count(cost, "material"), _week_span(turns)]
+		line = Copy.t("Build %s on a dug cell (%s, %s).") % [_line_name(str(defin.name), false), Words.count(cost, "material"), _week_span(turns)]
 	return {"hint": "build:%s" % type, "text": line, "level": int(spot.level), "cell": int(spot.cell)}
 
 
@@ -1274,9 +1353,9 @@ func _weekly_draw(key: String) -> int:
 
 func _consumer_line(key: String) -> String:
 	if key == "food":
-		return "Meals for %s take %d food." % [Words.count(residents.size(), "person", "people"), food_need()]
+		return Copy.t("Meals for %s take %d food.") % [Words.count(residents.size(), "person", "people"), food_need()]
 	if key == "air":
-		return "Breathing takes %d air." % air_need()
+		return Copy.t("Breathing takes %d air.") % air_need()
 	if key == "power":
 		var draws: Array = []
 		for room in rooms:
@@ -1289,10 +1368,10 @@ func _consumer_line(key: String) -> String:
 		draws.sort_custom(func(a, b): return int(a.draw) > int(b.draw))
 		var bits: PackedStringArray = []
 		for i in mini(3, draws.size()):
-			bits.append("%s %d" % [str(draws[i].name), int(draws[i].draw)])
+			bits.append("%s %d" % [Copy.t(str(draws[i].name)), int(draws[i].draw)])
 		if bits.is_empty():
 			return ""
-		return "Biggest draws: %s." % ", ".join(bits)
+		return Copy.t("Biggest draws: %s.") % ", ".join(bits)
 	return ""
 
 
@@ -1338,7 +1417,7 @@ func _uncovered_power_names() -> PackedStringArray:
 		var room = _room(str(uid))
 		if room == null:
 			continue
-		names.append(str(catalog.rooms[room.type].name))
+		names.append(Copy.t(str(catalog.rooms[room.type].name)))
 	return names
 
 
@@ -1356,7 +1435,7 @@ func _demolish_loss(defin: Dictionary) -> String:
 	for key in base:
 		if not _stock_thin(str(key)):
 			continue
-		bits.append("%s is at %d, and this room is part of what makes it." % [str(key).capitalize(), int(stock.get(key, 0))])
+		bits.append(Copy.t("%s is at %d, and this room is part of what makes it.") % [Copy.res(str(key)), int(stock.get(key, 0))])
 	return " ".join(bits)
 
 
@@ -1521,7 +1600,7 @@ func _rot_stores() -> void:
 		return
 	var loss := int(stock.food) - target
 	stock.food = target
-	_log("ROT %d food turns in the stores" % loss, true)
+	_note("ROT %d food turns in the stores" % loss, "ROT В кладовых испортилось %d еды." % loss)
 
 
 func _rival_agents() -> void:
@@ -1535,7 +1614,7 @@ func _rival_agents() -> void:
 	if not hostile:
 		return
 	_add_discontent(int(bal.agent_discontent), "agent")
-	_log("AGENT a rival rumor moves through the yard", true)
+	_note("AGENT a rival rumor moves through the yard", "AGENT По двору прошёл слух соперника.")
 
 
 func _buffer_span() -> Dictionary:
@@ -1664,7 +1743,7 @@ func _dig_at(level: int, cell: int) -> bool:
 func dig_preview(level: int, cell: int) -> Dictionary:
 	var key := _ck(level, cell)
 	if not cells.has(key):
-		return {"ok": false, "reason": "No such cell.", "turns": 0, "workers": 0, "materials": int(bal.dig_materials)}
+		return {"ok": false, "reason": Copy.t("No such cell."), "turns": 0, "workers": 0, "materials": int(bal.dig_materials)}
 	var spot: Dictionary = cells[key]
 	var cost := _dig_cost(level)
 	var info := {
@@ -1675,19 +1754,19 @@ func dig_preview(level: int, cell: int) -> Dictionary:
 		"materials": int(bal.dig_materials),
 	}
 	if bool(spot.dug):
-		info.reason = "Already open."
+		info.reason = Copy.t("Already open.")
 		return info
 	if not _beside_dug(spot):
-		info.reason = "Solid rock. Dig from a cell that touches an open one."
+		info.reason = Copy.t("Solid rock. Dig from a cell that touches an open one.")
 		return info
 	if not dig.is_empty():
-		info.reason = "A crew is already digging."
+		info.reason = Copy.t("A crew is already digging.")
 		return info
 	var reasons: PackedStringArray = []
 	if int(stock.materials) < int(bal.dig_materials):
-		reasons.append("Needs %s, the yard has %s." % [Words.count(int(bal.dig_materials), "material"), Words.count(int(stock.materials), "material")])
+		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(int(bal.dig_materials), "material"), Words.count(int(stock.materials), "material")])
 	if _free_count() < int(cost.workers):
-		reasons.append("Needs %s free. %s are free." % [Words.count(int(cost.workers), "person", "people"), Words.count(_free_count(), "person", "people")])
+		reasons.append(Copy.t("Needs %s free. %s are free.") % [Words.count(int(cost.workers), "person", "people"), Words.count(_free_count(), "person", "people")])
 	info.reason = " ".join(reasons)
 	info.ok = reasons.is_empty()
 	return info
@@ -1697,7 +1776,7 @@ func build_preview(type: String, level: int, cell: int) -> Dictionary:
 	var defin: Dictionary = catalog.rooms.get(type, {})
 	var info := {"ok": false, "reason": "", "materials": 0, "turns": 0, "workers": int(bal.build_workers), "power": 0, "name": type}
 	if defin.is_empty() or not bool(defin.get("buildable", false)):
-		info.reason = "That cannot be built."
+		info.reason = Copy.t("That cannot be built.")
 		return info
 	info.materials = int(defin.materials)
 	info.turns = int(defin.build_turns)
@@ -1705,15 +1784,15 @@ func build_preview(type: String, level: int, cell: int) -> Dictionary:
 	info.name = str(defin.name)
 	var key := _ck(level, cell)
 	if not cells.has(key) or not _cell_buildable(cells[key]):
-		info.reason = "That cell is not an open, empty floor."
+		info.reason = Copy.t("That cell is not an open, empty floor.")
 		return info
 	var reasons: PackedStringArray = []
 	if not build.is_empty():
-		reasons.append("A room is already going up.")
+		reasons.append(Copy.t("A room is already going up."))
 	if int(stock.materials) < int(defin.materials):
-		reasons.append("Needs %s, the yard has %s." % [Words.count(int(defin.materials), "material"), Words.count(int(stock.materials), "material")])
+		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(int(defin.materials), "material"), Words.count(int(stock.materials), "material")])
 	if _free_count() < int(bal.build_workers):
-		reasons.append("Needs %s free. %s are free." % [Words.count(int(bal.build_workers), "person", "people"), Words.count(_free_count(), "person", "people")])
+		reasons.append(Copy.t("Needs %s free. %s are free.") % [Words.count(int(bal.build_workers), "person", "people"), Words.count(_free_count(), "person", "people")])
 	info.reason = " ".join(reasons)
 	info.ok = reasons.is_empty()
 	return info
@@ -1723,20 +1802,20 @@ func upgrade_preview(uid: String) -> Dictionary:
 	var room = _room(uid)
 	var info := {"ok": false, "reason": "", "materials": 0, "name": ""}
 	if room == null:
-		info.reason = "No such room."
+		info.reason = Copy.t("No such room.")
 		return info
 	var defin: Dictionary = catalog.rooms[room.type]
 	var steps: Array = defin.get("upgrades", [])
 	info.materials = int(defin.get("upgrade_materials", 0))
 	if int(room.upgrade) >= steps.size():
-		info.reason = "Nothing left to upgrade."
+		info.reason = Copy.t("Nothing left to upgrade.")
 		return info
 	info.name = str(steps[int(room.upgrade)])
 	if bool(room.offline):
-		info.reason = "The room is offline."
+		info.reason = Copy.t("The room is offline.")
 		return info
 	if int(stock.materials) < info.materials:
-		info.reason = "Needs %s, the yard has %s." % [Words.count(info.materials, "material"), Words.count(int(stock.materials), "material")]
+		info.reason = Copy.t("Needs %s, the yard has %s.") % [Words.count(info.materials, "material"), Words.count(int(stock.materials), "material")]
 		return info
 	info.ok = true
 	return info
@@ -1746,15 +1825,15 @@ func demolish_preview(uid: String) -> Dictionary:
 	var room = _room(uid)
 	var info := {"ok": false, "reason": "", "refund": 0, "name": ""}
 	if room == null:
-		info.reason = "No such room."
+		info.reason = Copy.t("No such room.")
 		return info
 	var defin: Dictionary = catalog.rooms[room.type]
 	info.name = str(defin.name)
 	if not bool(defin.get("buildable", false)):
-		info.reason = "The platform stays."
+		info.reason = Copy.t("The platform stays.")
 		return info
 	if not build.is_empty() and int(build.level) == int(room.level) and int(build.cell) == int(room.cell):
-		info.reason = "A crew is still on this cell."
+		info.reason = Copy.t("A crew is still on this cell.")
 		return info
 	info.refund = int(defin.materials) / 2
 	info.ok = true
@@ -1825,32 +1904,32 @@ func _apply_unassign(person_id: String) -> bool:
 func assign_preview(person_id: String, uid: String) -> Dictionary:
 	var info := {"ok": false, "reason": ""}
 	if not people.has(person_id):
-		info.reason = "No such resident."
+		info.reason = Copy.t("No such resident.")
 		return info
 	var room = _room(uid)
 	if room == null:
-		info.reason = "No such room."
+		info.reason = Copy.t("No such room.")
 		return info
 	var person: Dictionary = people[person_id]
 	var defin: Dictionary = catalog.rooms[room.type]
 	if int(defin.staff_max) <= 0:
-		info.reason = "No one works this room."
+		info.reason = Copy.t("No one works this room.")
 		return info
 	if bool(room.offline):
-		info.reason = "The room is offline."
+		info.reason = Copy.t("The room is offline.")
 		return info
 	if int(person.sick) > 0 or int(person.absent) > 0:
-		info.reason = "%s cannot work right now." % person.name
+		info.reason = Copy.t("%s cannot work right now.") % Copy.person(str(person.name))
 		return info
 	if _locked_ids().has(person_id):
-		info.reason = "%s is on a crew." % person.name
+		info.reason = Copy.t("%s is on a crew.") % Copy.person(str(person.name))
 		return info
 	var already := false
 	for id in room.staff:
 		if str(id) == person_id:
 			already = true
 	if not already and room.staff.size() >= int(defin.staff_max):
-		info.reason = "The room is fully staffed."
+		info.reason = Copy.t("The room is fully staffed.")
 		return info
 	info.ok = true
 	return info
@@ -1872,9 +1951,9 @@ func room_detail(uid: String) -> Dictionary:
 		skills.append(value)
 		staff.append({
 			"id": str(id),
-			"name": str(person.name),
+			"name": Copy.person(str(person.name)),
 			"skill": value,
-			"traits": ", ".join(person.traits),
+			"traits": Copy.trait_list(person.traits),
 		})
 	var outputs: Array = []
 	var base: Dictionary = defin.base
@@ -1931,7 +2010,7 @@ func candidates_for(uid: String) -> Array:
 		for sid in room.staff:
 			if str(sid) == id:
 				here = true
-		rows.append({"id": id, "name": str(person.name), "skill": value, "here": here, "traits": ", ".join(person.traits)})
+		rows.append({"id": id, "name": Copy.person(str(person.name)), "skill": value, "here": here, "traits": Copy.trait_list(person.traits)})
 	rows.sort_custom(func(a, b): return int(a.skill) > int(b.skill))
 	return rows
 
@@ -2042,22 +2121,22 @@ func _finish_dig() -> void:
 	var find := str(cell.find)
 	if find == "flooded":
 		cell.flooded = true
-		_log("FIND flooded pocket on the lower level", true)
+		_note("FIND flooded pocket on the lower level", "FIND на нижнем уровне затопленный карман.")
 	elif find == "maintenance":
 		stock.materials = int(stock.materials) + 15
-		_log("FIND old maintenance room, +15 materials", true)
+		_note("FIND old maintenance room, +15 materials", "FIND старая служебная комната, +15 материалов.")
 	elif find == "sealed_door":
 		artifacts.papers = int(artifacts.papers) + 1
 		var tunnel := _tunnel_by_id("to_floor")
 		if not tunnel.is_empty():
 			tunnel.dug = true
-		_log("FIND a sealed door. The stencil says FLOOR.", true)
+		_note("FIND a sealed door. The stencil says FLOOR.", "FIND запечатанная дверь. На трафарете: ЭТАЖ.")
 	elif find == "cable":
 		stock.power = int(stock.power) + int(bal.find_cable_power)
-		_log("FIND old cable, +%d power" % int(bal.find_cable_power), true)
+		_note("FIND old cable, +%d power" % int(bal.find_cable_power), "FIND старый кабель, +%d энергии." % int(bal.find_cable_power))
 	elif find == "salvage":
 		stock.materials = int(stock.materials) + int(bal.find_salvage_materials)
-		_log("FIND salvage, +%d materials" % int(bal.find_salvage_materials), true)
+		_note("FIND salvage, +%d materials" % int(bal.find_salvage_materials), "FIND лом, +%d материалов." % int(bal.find_salvage_materials))
 	if rng.randf() < 0.12 and dig.workers.size() > 0:
 		var hit := str(dig.workers[0])
 		if people.has(hit):
@@ -2152,10 +2231,13 @@ func _apply_flood_if_needed() -> void:
 			var room = _room(str(cell.room))
 			if room != null:
 				room.offline = true
-				names.append(str(catalog.rooms[room.type].name))
+				names.append(Copy.t(str(catalog.rooms[room.type].name)))
 	if _any_trait("Claustrophobic"):
 		_add_hope(-2, "trait")
-	_log("SEASON flood on level %d (%s)" % [lowest, ", ".join(names)], true)
+	var flood_note := "SEASON flood on level %d (%s)" % [lowest, ", ".join(names)]
+	if Copy.ru():
+		flood_note = "SEASON Паводок на уровне %d (%s)." % [lowest, ", ".join(names)]
+	_log(flood_note, true)
 
 
 func _needs_pump() -> bool:
@@ -2177,6 +2259,8 @@ func _apply_order(action: Dictionary) -> bool:
 	match order:
 		"propaganda":
 			ok = _order_propaganda(str(action.get("station", "")))
+		"envoy":
+			ok = _order_envoy(str(action.get("station", "")))
 		"aid":
 			ok = _order_aid(str(action.get("station", "")))
 		"pay":
@@ -2184,7 +2268,10 @@ func _apply_order(action: Dictionary) -> bool:
 		"gift":
 			ok = _order_gift(str(action.get("faction", "")))
 		"trade":
-			ok = _order_trade()
+			if str(action.get("station", "")) != "":
+				ok = _order_deal(str(action.station))
+			else:
+				ok = _order_trade()
 		"move":
 			ok = _order_move(str(action.get("dest", "")))
 		"focus":
@@ -2198,18 +2285,14 @@ func _apply_order(action: Dictionary) -> bool:
 	if ok:
 		orders_left -= 1
 		decisions += 1
+		_take_seat(order)
 	return ok
 
 
 func _order_propaganda(sid: String) -> bool:
-	if not stations.has(sid) or not borders_player(sid):
+	if _propaganda_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
-	var owner := str(st.owner)
-	if owner == player or owner == "bunker" or owner == "ruin" or str(st.get("bunker", "")) != "":
-		return false
-	if int(stock.influence) < int(bal.propaganda_influence):
-		return false
 	stock.influence = int(stock.influence) - int(bal.propaganda_influence)
 	var gain := sympathy_preview(sid)
 	st.sympathy = int(st.sympathy) + gain
@@ -2217,6 +2300,133 @@ func _order_propaganda(sid: String) -> bool:
 	if int(st.sympathy) >= 100:
 		_capture(sid, player, false)
 	return true
+
+
+func _order_envoy(sid: String) -> bool:
+	if _envoy_block(sid) != "":
+		return false
+	var st: Dictionary = stations[sid]
+	stock.influence = int(stock.influence) - 3
+	_bump_need(st, _lowest_need(st), 0.2)
+	var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
+	st.sympathy = int(st.sympathy) + gain
+	_log("ORDER envoy %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
+	if int(st.sympathy) >= 100:
+		_capture(sid, player, false)
+	return true
+
+
+func _order_deal(sid: String) -> bool:
+	if _deal_block(sid) != "":
+		return false
+	var st: Dictionary = stations[sid]
+	stock.influence = int(stock.influence) - 4
+	st.deals = int(st.get("deals", 0)) + 1
+	st.passage = true
+	_log("DEAL %s (%d)" % [st.name, int(st.deals)], true)
+	if int(st.deals) >= 3 and str(st.owner) == "neutral":
+		_log("DEAL %s asks to join" % st.name, true)
+		_capture(sid, player, false)
+	return true
+
+
+func _take_seat(order_name: String) -> void:
+	for seat in council:
+		var role := str(seat.role)
+		if str(seat_used.get(role, "")) == "":
+			seat_used[role] = order_name
+			return
+
+
+func order_block(kind: String, sid: String = "") -> String:
+	if orders_left <= 0:
+		return Copy.t("No council order left this week.")
+	match kind:
+		"envoy":
+			return _envoy_block(sid)
+		"propaganda":
+			return _propaganda_block(sid)
+		"move":
+			return _move_block(sid)
+		"trade":
+			if sid != "":
+				return _deal_block(sid)
+			if trade_on:
+				return Copy.t("Trade with the Exchange is already open.")
+			if int(opinions.get("exchange", -100)) < 0:
+				return Copy.t("The Exchange will not deal with you.")
+			if int(stock.influence) < 4:
+				return Copy.t("Not enough influence.")
+			return ""
+		"expedition":
+			return _expedition_block()
+		_:
+			return Copy.t("No such order.")
+	return ""
+
+
+func _court_block(sid: String) -> String:
+	if not stations.has(sid) or not borders_player(sid):
+		return Copy.t("That station is out of reach.")
+	var st: Dictionary = stations[sid]
+	var owner := str(st.owner)
+	if owner == player:
+		return Copy.t("They already stand with you.")
+	if owner == "bunker" or owner == "ruin" or owner == "enemy" or bool(st.get("hidden", false)) or str(st.get("bunker", "")) != "":
+		return Copy.t("That station will not hear an envoy.")
+	return ""
+
+
+func _propaganda_block(sid: String) -> String:
+	var why := _court_block(sid)
+	if why != "":
+		return why
+	if int(stock.influence) < int(bal.propaganda_influence):
+		return Copy.t("Not enough influence.")
+	return ""
+
+
+func _envoy_block(sid: String) -> String:
+	var why := _court_block(sid)
+	if why != "":
+		return why
+	if int(stock.influence) < 3:
+		return Copy.t("Not enough influence.")
+	return ""
+
+
+func _deal_block(sid: String) -> String:
+	var why := _court_block(sid)
+	if why != "":
+		return why
+	if int(stations[sid].get("deals", 0)) >= 3:
+		return Copy.t("Three deals are already in force.")
+	if int(stock.influence) < 4:
+		return Copy.t("Not enough influence.")
+	return ""
+
+
+func _move_block(dest: String) -> String:
+	var sq: Dictionary = squads[player]
+	if bool(sq.away):
+		return Copy.t("The squad is away.")
+	if not stations.has(dest):
+		return Copy.t("No open tunnel that way.")
+	if _path(str(sq.station), dest).size() < 2:
+		return Copy.t("No open tunnel that way.")
+	return ""
+
+
+func _expedition_block() -> String:
+	if not expedition.is_empty():
+		return Copy.t("The expedition is already out.")
+	var sq: Dictionary = squads.get(player, {})
+	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
+		return Copy.t("The squad must be home first.")
+	var tunnel := _tunnel_by_id("to_ferry")
+	if tunnel.is_empty() or bool(tunnel.get("dug", false)):
+		return Copy.t("South Ferry is already open.")
+	return ""
 
 
 func _order_aid(sid: String) -> bool:
@@ -2333,9 +2543,11 @@ func _tick_expedition() -> void:
 	var tunnel := _tunnel_by_id(str(expedition.tunnel))
 	if not tunnel.is_empty():
 		tunnel.dug = true
-	var st: Dictionary = stations.southferry
+	var st: Dictionary = stations.vault
 	st.owner = "neutral"
 	st.ruin = false
+	st.hidden = false
+	st.known = true
 	st.pop = 18
 	st.garrison = 6
 	var sq: Dictionary = squads[player]
@@ -2355,7 +2567,7 @@ func _plan_intents() -> Array:
 		if _faction_dead(fid):
 			continue
 		var intent := _plan_one(fid)
-		var hide: bool = str(intent.kind) != "demand_posted" and not _has_radio() and rng.randf() < 0.25
+		var hide: bool = str(intent.kind) != "demand_posted" and not _has_radio() and net_rng.randf() < 0.25
 		intent.hidden = hide
 		out.append(intent)
 	return out
@@ -2414,17 +2626,24 @@ func _book_pressure(at: int, kind: String) -> bool:
 
 
 func _post_ultimatum(fid: String) -> Dictionary:
-	var first := week + 1
-	var last := week + 2
-	if _pressure_taken(first) or _pressure_taken(last) or warning_weeks.has(last):
-		return {}
 	var income := token_income()
-	if income <= 0:
-		return {}
+	var basis := maxi(8, income)
 	var span := 2 + int((week / int(bal.demand_every)) % 2)
+	var first := 0
+	var last := 0
+	for shift in 8:
+		var open_at := week + 1 + shift
+		var close_at := open_at + 1
+		if _pressure_taken(open_at) or _pressure_taken(close_at) or warning_weeks.has(close_at):
+			continue
+		first = open_at
+		last = close_at
+		break
+	if first == 0:
+		return {}
 	if not _book_pressure(first, "ultimatum") or not _book_pressure(last, "ultimatum"):
 		return {}
-	var amount := income * span
+	var amount := basis * span
 	demands.append({
 		"id": "d%d" % demand_seq,
 		"faction": fid,
@@ -2444,11 +2663,15 @@ func _post_ultimatum(fid: String) -> Dictionary:
 	})
 	demand_seq += 1
 	stats.ultimatums = int(stats.ultimatums) + 1
+	if int(stats.get("first_ultimatum", 0)) == 0:
+		stats.first_ultimatum = week
 	return {"faction": fid, "kind": "demand_posted"}
 
 
 func _plan_one(fid: String) -> Dictionary:
-	if fid == "exchange" and week > 0 and week % int(bal.demand_every) == 0 and not _demand_open(fid):
+	var due: bool = week > 0 and week % int(bal.demand_every) == 0
+	var waiting: bool = int(stats.get("first_ultimatum", 0)) == 0 and week >= 8 and week <= 18
+	if (due or waiting) and not _demand_open(fid):
 		var posted := _post_ultimatum(fid)
 		if not posted.is_empty():
 			return posted
@@ -2457,6 +2680,8 @@ func _plan_one(fid: String) -> Dictionary:
 		return {"faction": fid, "kind": "secure", "station": str(sq.station)}
 	var target := _campaign_target(fid)
 	sq.dest = target
+	if target != "" and stations.has(target):
+		stations[target].known = true
 	if target == "":
 		return {"faction": fid, "kind": "hold"}
 	if fid == "exchange" and not bool(at_war.get(fid, false)):
@@ -2482,7 +2707,10 @@ func _resolve_intent(intent: Dictionary) -> void:
 		"demand_posted", "hold":
 			pass
 	if hidden and kind in ["buy", "squad"]:
-		_log("No warning from %s." % _fname(fid), true)
+		var quiet := "No warning from %s." % _fname(fid)
+		if Copy.ru():
+			quiet = "No warning from %s." % Copy.t(_fname(fid))
+		_log(quiet, true)
 
 
 func _resolve_buy(fid: String, sid: String) -> void:
@@ -2520,14 +2748,25 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 	var edge := _edge(str(sq.station), nxt)
 	if edge.is_empty():
 		return false
-	if bool(edge.get("flooded", false)) and not bool(sq.fording):
-		sq.fording = true
+	var state := str(edge.get("state", "open"))
+	if state == "sealed" and not bool(edge.get("dug", false)):
+		return false
+	if state == "collapsed" and not bool(edge.get("dug", false)):
+		edge.dug = true
+		edge.state = "open"
+		_log("DIG the tunnel toward %s is clear" % stations[nxt].name, true)
+		return true
+	var flooded: bool = state == "flooded" or bool(edge.get("flooded", false))
+	if flooded and int(sq.get("ford", 0)) < 1:
+		sq.ford = 1
 		_log("%s is held up by flood water toward %s" % [sq.name, stations[nxt].name])
 		return true
-	sq.fording = false
+	sq.ford = 0
+	sq.left = str(sq.station)
 	var owner := str(stations[nxt].owner)
 	if owner == str(sq.faction) or (player_move and (owner == "neutral" or owner == "ruin")):
 		sq.station = nxt
+		stations[nxt].known = true
 		if player_move:
 			_log("ORDER move to %s" % stations[nxt].name)
 		return true
@@ -2537,10 +2776,14 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		_add_opinion(owner, -20)
 	if not player_move and owner == player and not bool(at_war.get(sq.faction, false)):
 		return false
+	if not player_move and nxt == capital_id and int(ambition.get(str(sq.faction), 0)) < 80:
+		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
+		return false
 	var win := _battle(sq, nxt)
 	if win:
 		_capture(nxt, str(sq.faction), true)
 		sq.station = nxt
+		stations[nxt].known = true
 		if not player_move:
 			sq.secure = int(bal.secure_turns)
 	else:
@@ -2550,7 +2793,7 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 
 func _battle(sq: Dictionary, sid: String) -> bool:
 	var st: Dictionary = stations[sid]
-	var roll := rng.randf_range(0.8, 1.2)
+	var roll := net_rng.randf_range(0.8, 1.2)
 	var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0) * roll
 	var garrison := float(st.garrison)
 	var defender: Dictionary = {}
@@ -2561,14 +2804,14 @@ func _battle(sq: Dictionary, sid: String) -> bool:
 			defender = psq
 	var defense := garrison * float(st.fort) * 1.3
 	var win := attack > defense
-	var loss := rng.randf_range(0.3, 0.6)
+	var loss := net_rng.randf_range(0.3, 0.6)
 	if win:
-		st.garrison = maxi(2, int(round(float(st.garrison) * (1.0 - loss))))
+		st.garrison = clampi(int(round(float(st.garrison) * (1.0 - loss))), 2, 22)
 		_log("BATTLE %s takes %s" % [sq.name, st.name], true)
 	else:
-		sq.size = maxi(2, int(round(float(sq.size) * (1.0 - loss))))
+		sq.size = clampi(int(round(float(sq.size) * (1.0 - loss))), 5, 20)
 		if not defender.is_empty():
-			defender.size = maxi(2, int(round(float(defender.size) * (1.0 - loss * 0.5))))
+			defender.size = clampi(int(round(float(defender.size) * (1.0 - loss * 0.5))), 5, 20)
 		_log("BATTLE %s is thrown back from %s" % [sq.name, st.name], true)
 	return win
 
@@ -2583,7 +2826,9 @@ func _capture(sid: String, fid: String, force: bool) -> void:
 	st.owner = fid
 	st.sympathy = 0
 	st.loyalty = 20 if force else 72
-	st.unrest = 5 if fid == player else 0
+	st.unrest = net_rng.randi_range(4, 6)
+	st.known = true
+	_note_flip()
 	if str(st.focus) == "":
 		st.focus = "food"
 	for key in st.rival_symp:
@@ -2594,7 +2839,12 @@ func _capture(sid: String, fid: String, force: bool) -> void:
 		_log("%s will remember %s." % [_fname(prev), st.name])
 	if fid == player:
 		_add_hope(int(bal.join_hope), "victory")
-		_log("JOIN %s (%s)" % [st.name, "force" if force else "peace"], true)
+		var how := "force" if force else "peace"
+		var joined := str(st.name)
+		if Copy.ru():
+			how = "силой" if force else "мирно"
+			joined = Copy.t(joined)
+		_log("JOIN %s (%s)" % [joined, how], true)
 	else:
 		_log("%s takes %s" % [_fname(fid), st.name], true)
 	if sid == capital_id and fid != player and over == "":
@@ -2627,7 +2877,7 @@ func _deliver_outposts() -> void:
 		var st: Dictionary = stations[sid]
 		if str(st.owner) != player or sid == capital_id:
 			continue
-		if _connected(sid):
+		if _connected(sid) and int(st.unrest) == 0:
 			_outpost_yield(st)
 
 
@@ -2642,26 +2892,37 @@ func _tick_holdings() -> void:
 			st.loyalty = int(st.loyalty) - 2
 		if _avg_fill(st) < 0.45:
 			st.loyalty = int(st.loyalty) - 4
-			st.rival_symp.exchange = int(st.rival_symp.exchange) + 8
+			var courting := _courting_rival()
+			if courting != "" and st.rival_symp.has(courting):
+				st.rival_symp[courting] = int(st.rival_symp[courting]) + 8
 		if not _connected(sid):
 			st.loyalty = int(st.loyalty) - 5
 		st.loyalty = clampi(int(st.loyalty), 0, 100)
-		if int(st.loyalty) < 30 and int(st.rival_symp.exchange) > int(st.loyalty):
-			_log("%s slips toward the Exchange" % st.name, true)
-			_capture(sid, "exchange", false)
+		if int(st.unrest) == 0 and int(st.loyalty) < 30 and net_rng.randf() < 0.4:
+			var suitor := _suitor(st)
+			if suitor != "":
+				_log("DEFECT %s leaves for %s" % [st.name, _fname(suitor)], true)
+				_capture(sid, suitor, false)
+			else:
+				_log("REVOLT %s throws the garrison out" % st.name, true)
+				st.owner = "neutral"
+				st.loyalty = 45
+				st.sympathy = 0
+				st.unrest = 0
+				_note_flip()
 
 
 func _outpost_yield(st: Dictionary) -> void:
-	var n := int(bal.outpost_yield_unrest) if int(st.unrest) > 0 else int(bal.outpost_yield)
+	# Food focus only feeds the outpost. Expansion never adds food at the capital.
 	match str(st.focus):
 		"air":
-			stock.air = int(stock.air) + n
+			stock.air = int(stock.air) + 1
 		"defense":
-			st.garrison = int(st.garrison) + 1
+			st.garrison = mini(22, int(st.garrison) + 1)
 		"influence":
-			stock.influence = int(stock.influence) + int(bal.outpost_influence)
+			stock.influence = int(stock.influence) + 1
 		_:
-			stock.food = int(stock.food) + n
+			pass
 
 
 func _drift_opinion() -> void:
@@ -3022,7 +3283,7 @@ func _queue_crunch() -> void:
 	legs.sort_custom(func(a, b): return int(a.pain) > int(b.pain))
 	var names: PackedStringArray = []
 	for leg in legs:
-		names.append(str(leg.short))
+		names.append(Copy.t(str(leg.short)))
 	_log("PRESSURE %s" % ", ".join(names), true)
 	for leg in legs:
 		_present_event(_crunch_event(leg))
@@ -3091,7 +3352,7 @@ func _crunch_event(leg: Dictionary) -> Dictionary:
 		"crunch": true,
 		"text": str(leg.text),
 		"choices": [
-			{"id": "pay", "label": str(leg.pay) % Words.count(cost, "material"), "cost": {"materials": cost}},
+			{"id": "pay", "label": Copy.t(str(leg.pay)) % Words.count(cost, "material"), "cost": {"materials": cost}},
 			suffer,
 		],
 	}
@@ -3255,11 +3516,11 @@ func _present_event(ev: Dictionary) -> bool:
 	var copy: Dictionary = _copy(ev)
 	if id == "refugees":
 		var n := rng.randi_range(int(bal.refugee_min), int(bal.refugee_max))
-		copy.text = "%s at the yard gate with a story about a collapse north of Atlantic Av." % Words.count(n, "person", "people")
+		copy.text = Copy.t("%s at the yard gate with a story about a collapse north of Atlantic Av.") % Words.count(n, "person", "people")
 		for choice in copy.choices:
 			if str(choice.id) == "take":
 				choice.people = n
-				choice.label = "Take in %d" % n
+				choice.label = Copy.t("Take in %d") % n
 	week_event_ids[id] = true
 	pending.append(copy)
 	event_last[id] = week
@@ -3413,9 +3674,14 @@ func _neighbors(sid: String) -> Array:
 
 
 func _edge_open(tunnel: Dictionary) -> bool:
-	if bool(tunnel.sealed) and not bool(tunnel.dug):
+	var state := str(tunnel.get("state", ""))
+	if state == "":
+		state = "sealed" if bool(tunnel.get("sealed", false)) else "open"
+	if state == "sealed" and not bool(tunnel.get("dug", false)):
 		return false
-	if int(tunnel.closed_until) > week:
+	if state == "collapsed" and not bool(tunnel.get("dug", false)):
+		return false
+	if int(tunnel.get("closed_until", 0)) > week:
 		return false
 	return true
 
@@ -3475,7 +3741,7 @@ func _connected(sid: String) -> bool:
 		for n in _neighbors(cur):
 			if seen.has(n):
 				continue
-			if str(stations[n].owner) != player:
+			if not _supplies(str(n)):
 				continue
 			seen[n] = true
 			queue.append(n)
@@ -3500,10 +3766,16 @@ func _season_clock() -> void:
 	for season in bal.seasons:
 		var at := int(season.week)
 		if week == at - warning:
-			_log("SEASON warning %s" % str(season.id), true)
+			var soon := "SEASON warning %s" % str(season.id)
+			if Copy.ru():
+				soon = "SEASON Скоро %s." % Copy.season(str(season.id))
+			_log(soon, true)
 		if week == at:
 			active_season = {"id": str(season.id), "start": at, "until": at + int(season.weeks) - 1}
-			_log("SEASON %s" % str(season.id), true)
+			var begun := "SEASON %s" % str(season.id)
+			if Copy.ru():
+				begun = "SEASON Начался %s." % Copy.season(str(season.id))
+			_log(begun, true)
 			if str(season.id) == "cough":
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):
@@ -3591,33 +3863,254 @@ func _init_grid() -> void:
 			_place_room(room_type, int(open.level), int(open.cell))
 
 
-func _init_map() -> void:
-	for raw in catalog.stations:
-		var st: Dictionary = _copy(raw)
-		st.sympathy = 0
-		st.loyalty = 40 if str(st.owner) == "neutral" else 75
-		st.unrest = 0
-		st.focus = ""
-		st.rival_symp = {"exchange": 0, "directorate": 0}
-		var needs: Array = []
-		for need in st.needs:
-			needs.append({"id": str(need), "fill": 0.4})
-		st.needs = needs
-		stations[str(st.id)] = st
-	for raw in catalog.tunnels:
-		var tunnel: Dictionary = _copy(raw)
-		tunnel.sealed = bool(tunnel.get("sealed", false))
-		tunnel.dug = not tunnel.sealed
-		tunnel.flooded = bool(tunnel.get("flooded", false))
-		tunnel.closed_until = 0
-		if not tunnel.has("id"):
-			tunnel.id = "%s_%s" % [str(tunnel.a), str(tunnel.b)]
-		tunnels.append(tunnel)
+func _ideology(tag: String) -> String:
+	match tag:
+		"depot":
+			return "craft"
+		"exchange":
+			return "trade"
+		"dir":
+			return "order"
+		"synod":
+			return "faith"
+		_:
+			return ""
+
+
+func _lean_for(sid: String, ideo: String, old: Dictionary) -> String:
+	if ideo != "":
+		return ideo
+	if str(old.get("lean", "")) != "":
+		return str(old.lean)
+	var cycle := ["order", "faith", "trade", "craft"]
+	return cycle[absi(sid.hash()) % cycle.size()]
+
+
+func _default_needs(ideo: String) -> Array:
+	match ideo:
+		"craft":
+			return ["food", "air", "work"]
+		"trade":
+			return ["trade", "food", "protection"]
+		"order":
+			return ["protection", "work", "food"]
+		"faith":
+			return ["faith", "air", "medicine"]
+		_:
+			return ["food", "air", "protection"]
+
+
+func _opening_owner(sid: String, row: Dictionary) -> String:
+	if sid == "vault":
+		return "ruin"
+	var tag := str(row.lean)
+	if bool(row.get("hidden", false)) or tag == "bunker":
+		return "bunker"
+	if tag == "enemy":
+		return "enemy"
+	if bool(row.get("capital", false)):
+		match tag:
+			"depot":
+				return "depot"
+			"exchange":
+				return "exchange"
+			"dir":
+				return "directorate"
+			"synod":
+				return "synod"
+	if tag == "synod":
+		return "synod"
+	if sid == "dockyard":
+		return "directorate"
+	return "neutral"
+
+
+func _add_tunnel(a: String, b: String, state: String, line_id: String, seen: Dictionary) -> void:
+	if a == "" or b == "" or a == b:
+		return
+	var key := a + "|" + b if a < b else b + "|" + a
+	if seen.has(key):
+		return
+	seen[key] = true
+	var sealed := state == "sealed"
+	tunnels.append({
+		"id": "%s_%s" % [a, b],
+		"a": a,
+		"b": b,
+		"line": line_id,
+		"state": state,
+		"sealed": sealed,
+		"dug": not sealed and state != "collapsed",
+		"flooded": state == "flooded",
+		"closed_until": 0,
+	})
+
+
+func _mark_tunnel(a: String, b: String, state: String) -> void:
+	var tunnel := _edge(a, b)
+	if tunnel.is_empty():
+		return
+	tunnel.state = state
+	tunnel.flooded = state == "flooded"
+	tunnel.sealed = state == "sealed"
+	tunnel.dug = state != "sealed" and state != "collapsed"
+
+
+func _supplies(sid: String) -> bool:
+	if sid == capital_id:
+		return true
+	if not stations.has(sid):
+		return false
+	var st: Dictionary = stations[sid]
+	var owner := str(st.owner)
+	if owner == player:
+		return true
+	if bool(st.get("passage", false)):
+		return true
+	if trade_on and owner == "exchange":
+		return true
+	return false
+
+
+func _note_flip() -> void:
+	if int(stats.get("flip_week", 0)) == 0:
+		stats.flip_week = week
+
+
+func _courting_rival() -> String:
+	var best := ""
+	var best_n := -999
 	for fid in ["exchange", "directorate"]:
+		var n := int(ambition.get(fid, 0))
+		if n > best_n:
+			best_n = n
+			best = fid
+	return best
+
+
+func _suitor(st: Dictionary) -> String:
+	var best := ""
+	var best_n := 20
+	for fid in ["exchange", "directorate", "synod"]:
+		var n := int(st.rival_symp.get(fid, 0))
+		if n > best_n:
+			best_n = n
+			best = fid
+	return best
+
+
+func _synod_preach() -> void:
+	if not catalog.factions.has("synod"):
+		return
+	var cap := str(catalog.factions.synod.capital)
+	var best := ""
+	var best_hops := 99
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		if str(st.owner) != "neutral" or bool(st.get("hidden", false)):
+			continue
+		var hops := _hops(str(sid), cap)
+		if hops > 2 or hops >= best_hops:
+			continue
+		best_hops = hops
+		best = str(sid)
+	if best == "":
+		return
+	var st: Dictionary = stations[best]
+	st.rival_symp.synod = int(st.rival_symp.synod) + 14
+	st.known = true
+	_log("PREACH The Synod speaks at %s" % st.name, true)
+	if int(st.rival_symp.synod) >= 100:
+		_capture(best, "synod", false)
+
+
+func _init_map() -> void:
+	var legacy := {}
+	for raw in catalog.stations:
+		legacy[str(raw.name)] = raw
+	var pack: Dictionary = catalog.communities
+	var rows: Dictionary = pack.get("stations", {})
+	for sid in rows:
+		var row: Dictionary = rows[sid]
+		var old: Dictionary = legacy.get(str(row.name), {})
+		var ideo := _ideology(str(row.lean))
+		var owner := _opening_owner(str(sid), row)
+		var need_ids: Array = old.get("needs", _default_needs(ideo))
+		var needs: Array = []
+		for need in need_ids:
+			needs.append({"id": str(need), "fill": 0.4})
+		var pop := int(old.get("pop", 40 if owner != "ruin" else 0))
+		var garrison := int(old.get("garrison", 0 if owner == "ruin" else 10))
+		stations[str(sid)] = {
+			"id": str(sid),
+			"name": str(row.name),
+			"full": str(old.get("full", row.name)),
+			"desc": str(old.get("desc", row.get("art", ""))),
+			"community": str(row.community),
+			"who": str(row.who),
+			"conflict": str(row.conflict),
+			"art": str(row.art),
+			"lat": float(row.lat),
+			"lon": float(row.lon),
+			"owner": owner,
+			"lean": _lean_for(str(sid), ideo, old),
+			"pop": pop,
+			"garrison": garrison,
+			"fort": float(old.get("fort", 1.25 if bool(row.get("capital", false)) else 1.0)),
+			"needs": needs,
+			"capital": bool(row.get("capital", false)),
+			"hidden": bool(row.get("hidden", false)),
+			"bunker": "floor" if str(sid) == "archive" else "",
+			"ruin": str(sid) == "vault",
+			"sympathy": 0,
+			"loyalty": 70 if owner != "neutral" and owner != "ruin" else 40,
+			"unrest": 0,
+			"focus": "",
+			"deals": 0,
+			"passage": false,
+			"known": false,
+			"rival_symp": {"exchange": 0, "directorate": 0, "synod": 0},
+		}
+	var seen := {}
+	for line_id in pack.get("lines", {}):
+		var stops: Array = pack.lines[line_id]
+		for i in range(stops.size() - 1):
+			_add_tunnel(str(stops[i]), str(stops[i + 1]), "open", str(line_id), seen)
+	for pair in pack.get("sealed", []):
+		if pair is Array and pair.size() >= 2:
+			_add_tunnel(str(pair[0]), str(pair[1]), "sealed", "", seen)
+	_mark_tunnel("mill", "harbor", "flooded")
+	_mark_tunnel("library", "observatory", "collapsed")
+	var ferry := _edge("eastwater", "vault")
+	if not ferry.is_empty():
+		ferry.id = "to_ferry"
+		ferry.state = "sealed"
+		ferry.sealed = true
+		ferry.dug = false
+	var floor_tunnel := _edge("dockyard", "archive")
+	if not floor_tunnel.is_empty():
+		floor_tunnel.id = "to_floor"
+		floor_tunnel.state = "sealed"
+		floor_tunnel.sealed = true
+		floor_tunnel.dug = false
+	for fid in ["exchange", "directorate", "synod"]:
+		if not catalog.factions.has(fid):
+			continue
 		var fac: Dictionary = catalog.factions[fid]
 		opinions[fid] = int(fac.opinion)
 		ambition[fid] = int(fac.ambition)
 		at_war[fid] = false
+	if stations.has(capital_id):
+		stations[capital_id].known = true
+		stations[capital_id].owner = player
+		for n in _neighbors(capital_id):
+			stations[str(n)].known = true
+	for fid in ["exchange", "directorate", "synod"]:
+		if not catalog.factions.has(fid):
+			continue
+		var cap := str(catalog.factions[fid].capital)
+		if stations.has(cap):
+			stations[cap].known = true
 
 
 func _init_squads() -> void:
@@ -3723,10 +4216,16 @@ func _pay(cost) -> void:
 		stock[key] = int(stock.get(key, 0)) - int(cost[key])
 
 
-func _add_opinion(fid: String, amount: int) -> void:
-	if not opinions.has(fid):
+func _add_opinion(fid: String, amount: int, why: String = "") -> void:
+	if not opinions.has(fid) or fid == "synod":
 		return
 	opinions[fid] = clampi(int(opinions[fid]) + amount, -100, 100)
+	if not opinion_memory.has(fid):
+		opinion_memory[fid] = []
+	var note := why if why != "" else "shift"
+	opinion_memory[fid].append({"week": week, "delta": amount, "why": note})
+	if opinion_memory[fid].size() > 8:
+		opinion_memory[fid].pop_front()
 
 
 func _staff_line() -> String:
@@ -3747,15 +4246,15 @@ func _intent_text(intent: Dictionary) -> String:
 		station_name = str(stations[sid].name)
 	match kind:
 		"squad":
-			return "%s squad moving to %s" % [fid, station_name]
+			return Copy.t("%s squad moving to %s") % [Copy.t(fid), Copy.t(station_name)]
 		"buy":
-			return "%s will buy sympathy at %s" % [fid, station_name]
+			return Copy.t("%s will buy sympathy at %s") % [Copy.t(fid), Copy.t(station_name)]
 		"secure":
-			return "%s is securing %s" % [fid, station_name]
+			return Copy.t("%s is securing %s") % [Copy.t(fid), Copy.t(station_name)]
 		"demand_posted":
-			return "%s will demand tokens" % fid
+			return Copy.t("%s will demand tokens") % Copy.t(fid)
 		_:
-			return "%s holds" % fid
+			return Copy.t("%s holds") % Copy.t(fid)
 
 
 func _fname(fid: String) -> String:
@@ -3839,10 +4338,6 @@ func _invariants() -> void:
 		over = "error"
 
 
-func _log(text: String, important := false) -> void:
-	log.append({"week": week, "text": text, "important": important})
-
-
 const PERSIST := [
 	"seed", "week", "max_weeks", "over", "player", "player_lean", "capital_id",
 	"stock", "hope", "discontent", "residents", "people", "cells", "rooms",
@@ -3857,12 +4352,12 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock",
+	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory",
 ]
 
 
 func export_state() -> Dictionary:
-	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state}
+	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state, "net_state": net_rng.state}
 	for key in PERSIST:
 		data[key] = get(key)
 	return data
@@ -3878,4 +4373,20 @@ func import_state(data: Dictionary) -> bool:
 		rng.state = int(data.rng_state)
 	if data.has("crunch_state"):
 		crunch_rng.state = int(data.crunch_state)
+	if data.has("net_state"):
+		net_rng.state = int(data.net_state)
 	return true
+
+
+func _line_name(room_name: String, lower: bool) -> String:
+	if Copy.ru():
+		return Copy.t(room_name)
+	return room_name.to_lower() if lower else room_name
+
+
+func _note(en: String, ru_line: String) -> void:
+	_log(ru_line if Copy.ru() else en, true)
+
+
+func _log(text: String, important := false) -> void:
+	log.append({"week": week, "text": text, "important": important})

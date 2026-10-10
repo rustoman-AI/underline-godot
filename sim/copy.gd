@@ -148,6 +148,11 @@ static func gloss(line: String) -> String:
 		["AGENT ", ""],
 		["FIND ", "Находка. "],
 		["JOIN ", "К вам. "],
+		["BATTLE ", "Бой. "],
+		["DEFECT ", "Уход. "],
+		["REVOLT ", "Бунт. "],
+		["DEAL ", "Сделка. "],
+		["PREACH ", "Проповедь. "],
 		["ROT ", ""],
 	]
 	for pair in tags:
