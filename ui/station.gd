@@ -107,6 +107,8 @@ var guide_copy: Label
 var guide_count: Label
 var guide_next: Button
 var guide_step := -1
+var guide_skips := 0
+var toast_label: Label
 var net_guide := false
 var net_guided := false
 var net_guide_sid := ""
@@ -744,6 +746,8 @@ func _place_chrome() -> void:
 	if ticker != null and ticker.visible:
 		hud_h += 28.0
 	if hud != null:
+		hud_h = maxf(hud_h, hud.get_combined_minimum_size().y)
+	if hud != null:
 		hud.anchor_left = 0.0
 		hud.anchor_right = 1.0
 		hud.anchor_top = 0.0
@@ -1116,6 +1120,10 @@ func _fill_people() -> void:
 		var clear := _button("All", _clear_people_filter)
 		clear.custom_minimum_size.y = 36
 		people_box.add_child(clear)
+	if bool(game.flags.get("medkits", false)) and game.medkit_targets() > 0:
+		var kits := _button("Use medkits", _use_medkits)
+		kits.custom_minimum_size.y = 36
+		people_box.add_child(kits)
 	if people_filter == "" or people_filter == "free":
 		_people_group(Copy.t("Free"), grouped["free"], "", true)
 	if people_filter != "free":
@@ -1212,6 +1220,12 @@ func _ru_singular(n: int) -> bool:
 	if n_abs > 10 and n_abs < 20:
 		return false
 	return n_abs % 10 == 1
+
+
+func _use_medkits() -> void:
+	if game.apply({"kind": "medkits"}):
+		_fill_people()
+		_refresh()
 
 
 func _clear_people_filter() -> void:
@@ -1971,8 +1985,47 @@ func _law_blurb(defin: Dictionary) -> String:
 	return " ".join(bits)
 
 
+func _toast(text: String) -> void:
+	if toast_label == null:
+		toast_label = _label("", 16, true)
+		toast_label.z_index = 30
+		toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(toast_label)
+	toast_label.text = text
+	toast_label.position = Vector2(16.0, (hud.size.y if hud != null else 72.0) + 8.0)
+	toast_label.visible = true
+	toast_label.modulate.a = 1.0
+	var fade := create_tween()
+	fade.tween_interval(1.8)
+	fade.tween_property(toast_label, "modulate:a", 0.0, 0.35)
+	fade.tween_callback(func() -> void:
+		if toast_label != null:
+			toast_label.visible = false)
+
+
+func note_spend(cost: Dictionary) -> void:
+	if game == null:
+		return
+	if stock_tween != null:
+		stock_tween.kill()
+	stock_tween = create_tween()
+	for key in cost:
+		var spent := int(cost[key])
+		if spent == 0 or not chips.has(str(key)):
+			continue
+		var target := float(int(game.stock.get(key, 0)))
+		var start := target + float(spent)
+		stock_shown[str(key)] = target
+		chips[str(key)].delta.text = "-%d" % spent
+		chips[str(key)].delta.add_theme_color_override("font_color", DELTA_DOWN)
+		stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), start, target, 0.45)
+
+
 func _show_dawn() -> void:
 	shelved_event = ""
+	if game != null and not game.order_reports.is_empty():
+		_show_order_report()
+		return
 	if not _claim(ModalDeck.NARRATIVE, "dawn", _show_dawn):
 		return
 	if footer.text == WAITING or footer.text == Copy.t(WAITING):
@@ -1993,13 +2046,13 @@ func _paint_dawn() -> void:
 		return
 	Sound.play("card")
 	var ev: Dictionary = game.front_event()
-	_open_card(str(ev.title), false)
-	var banner := _event_banner(str(ev.id))
+	_open_card(game.line_of(ev, "title"), false)
+	var banner := _event_banner(ev)
 	if banner != null:
 		card_body.add_child(banner)
 		card_body.move_child(banner, 0)
 	_who_row(str(ev.get("who", "")))
-	_body(str(ev.text))
+	_body(game.line_of(ev, "text"))
 	if check_flash:
 		var rolled := _check_result_line()
 		if rolled != "":
@@ -2009,11 +2062,13 @@ func _paint_dawn() -> void:
 	_morning_notes(lines)
 	_dawn_alert()
 	for choice in ev.choices:
+		if not game.choice_offered(choice):
+			continue
 		if choice.has("check") and not game.choice_locked(choice):
 			_check_block(ev, choice)
 		elif choice.has("bet"):
 			_body("The odds are hidden.")
-		var pick := _choice_button(str(choice.label), choice, _pick_event.bind(str(ev.id), str(choice.id)))
+		var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
 		if game.choice_locked(choice):
 			var held := str(choice.get("lock_reason", ""))
 			pick.disabled = true
@@ -2032,6 +2087,25 @@ func _paint_dawn() -> void:
 	var later := _button("Not now", _close_card)
 	_style_choice(later)
 	card_body.add_child(later)
+
+
+func _show_order_report() -> void:
+	if game == null or game.order_reports.is_empty():
+		_show_dawn()
+		return
+	if not _claim(ModalDeck.NARRATIVE, "order", _show_order_report):
+		return
+	var row: Dictionary = game.order_reports[0]
+	_open_card(str(row.get("title", Copy.t("Dawn report"))))
+	_body(str(row.get("text", "")))
+	card_body.add_child(_button("Continue", _next_order_report))
+
+
+func _next_order_report() -> void:
+	if game != null and not game.order_reports.is_empty():
+		game.order_reports.pop_front()
+	_close_card()
+	_show_dawn()
 
 
 func _dawn_alert() -> void:
@@ -2111,10 +2185,11 @@ func _intent_row(lines: PackedStringArray) -> void:
 		card_body.add_child(row)
 
 
-func _event_banner(event_id: String) -> TextureRect:
-	var path := "res://assets/events/%s.webp" % event_id
-	if not ArtPack.has_event_art(event_id):
+func _event_banner(ev: Dictionary) -> TextureRect:
+	var use := str(ev.get("banner", ev.get("id", "")))
+	if use == "" or not ArtPack.has_event_art(use):
 		return null
+	var path := "res://assets/events/%s.webp" % use
 	var tex := ArtPack.load_texture(path)
 	if tex == null:
 		return null
@@ -2235,6 +2310,13 @@ func _check_result_line() -> String:
 		if bool(last.get("success", false)):
 			return Copy.t("The bet wins.")
 		return Copy.t("The bet loses.")
+	var outcome := str(last.get("outcome", ""))
+	if outcome != "":
+		if bool(last.get("box", false)):
+			return "%s %s" % [Copy.t("Double 6. Success."), outcome]
+		if bool(last.get("snake", false)):
+			return "%s %s" % [Copy.t("Double 1. Failure."), outcome]
+		return outcome
 	if bool(last.get("box", false)):
 		return Copy.t("Double 6. Success.")
 	if bool(last.get("snake", false)):
@@ -2251,7 +2333,7 @@ func _show_pending() -> void:
 		_body("Nothing is waiting on a retry.")
 		return
 	for ev in game.white_pending:
-		_body(str(ev.get("title", "")))
+		_body(game.line_of(ev, "title"))
 		for choice in ev.get("choices", []):
 			if game.choice_locked(choice):
 				_body(str(choice.get("lock_reason", "")))
@@ -3060,6 +3142,7 @@ func _start_net_guide() -> void:
 
 func _start_guide() -> void:
 	guide_played = true
+	guide_skips = 0
 	guide_step = 0
 	if guide_layer == null:
 		_build_guide()
@@ -3119,6 +3202,7 @@ func _fill_guide() -> void:
 		people_filter = "free"
 		_fill_people()
 		_place_drawer()
+	_keep_guide_on_screen()
 
 
 func _build_guide() -> void:
@@ -3155,6 +3239,38 @@ func _build_guide() -> void:
 	actions.add_child(guide_next)
 	actions.add_child(skip)
 	box.add_child(actions)
+
+
+func _keep_guide_on_screen() -> void:
+	if guide_step < 0:
+		return
+	var view := Rect2(Vector2(8, 8), size - Vector2(16, 16))
+	if net_guide and network_view != null:
+		network_view.focus_station(net_guide_sid)
+		var aimed := _guide_target()
+		if aimed.size.x < 2.0 or not view.intersects(aimed):
+			_skip_guide()
+		return
+	if guide_step >= 1 and guide_step <= 3 and yard != null:
+		var cell := Vector2i(-1, -1)
+		match guide_step:
+			1:
+				cell = _guide_cell(false)
+			2:
+				cell = _quarters_cell()
+			3:
+				cell = _first_open_floor()
+		if cell.x >= 0:
+			yard.nudge_into_view(cell.x, cell.y)
+	var target := _guide_target()
+	if target.size.x >= 2.0 and view.intersects(target):
+		guide_skips = 0
+		return
+	if guide_skips > 6:
+		_skip_guide()
+		return
+	guide_skips += 1
+	_advance_guide()
 
 
 func _guide_target() -> Rect2:
@@ -3211,18 +3327,34 @@ func _guide_cell(open_floor: bool) -> Vector2i:
 	return Vector2i(-1, -1)
 
 
+func _resident_name(person: Dictionary) -> String:
+	if Copy.ru() and str(person.get("name_ru", "")) != "":
+		return str(person.name_ru)
+	return Copy.person(str(person.get("name", "")))
+
+
+func _dossier_line(person: Dictionary, key: String) -> String:
+	var dossier: Dictionary = person.get("dossier", {})
+	if dossier.is_empty():
+		return ""
+	return game.line_of(dossier, key)
+
+
 func _show_person(person_id: String) -> void:
 	if not game.people.has(person_id):
 		return
 	if not _claim(ModalDeck.AMBIENT, "person", _show_person.bind(person_id)):
 		return
 	var person: Dictionary = game.people[person_id]
-	_open_card(Copy.person(str(person.name)))
+	_open_card(_resident_name(person))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.add_child(_portrait_box(person_id, 64))
 	var text := VBoxContainer.new()
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title := _dossier_line(person, "title")
+	if title != "":
+		text.add_child(_label(title, 14))
 	text.add_child(_label(_skill_line(person), 14))
 	text.add_child(_label(_check_line(person), 14))
 	var traits := Copy.trait_list(person.get("traits", []))
@@ -3246,40 +3378,51 @@ func _show_dossier(person_id: String) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.add_child(_portrait_box(person_id, 72))
-	var who := _label(Copy.person(str(person.name)), 22, true)
+	var who := _label(_resident_name(person), 22, true)
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(who)
 	card_body.add_child(row)
+	var title := _dossier_line(person, "title")
+	if title != "":
+		card_body.add_child(_label(title, 16))
 	card_body.add_child(_label(_check_line(person), 15))
-	_heading("Before the Silence")
-	_placeholder(str(person.get("before_silence", "")), "Not written yet.")
-	_heading("Keepsake")
-	_placeholder(str(person.get("keepsake", "")), "Not written yet.")
-	_heading("Album")
-	var album: Array = person.get("album", [])
-	if album.is_empty():
-		_placeholder("", "No pictures yet.")
+	if person.has("dossier"):
+		_heading("Look")
+		_placeholder(_dossier_line(person, "look"), "Not written yet.")
+		_heading("Bio")
+		_placeholder(_dossier_line(person, "bio"), "Not written yet.")
+		_heading("Hook")
+		_placeholder(_dossier_line(person, "hook"), "Not written yet.")
 	else:
-		for image_id in album:
-			_body(str(image_id))
-	_heading(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100))
-	var track := ColorRect.new()
-	track.color = Color(1, 1, 1, 0.14)
-	track.custom_minimum_size = Vector2(0, 8)
-	var fill := ColorRect.new()
-	fill.color = Color("e2a63a")
-	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fill.anchor_right = clampf(float(person.get("memory", 0)) / 100.0, 0.0, 1.0)
-	fill.offset_right = 0.0
-	track.add_child(fill)
-	card_body.add_child(track)
-	_heading("Events")
-	var events: Array = person.get("story_events", [])
-	if events.is_empty():
-		_placeholder("", "No events yet.")
-	else:
-		for event_id in events:
-			_body(Copy.t(str(event_id)))
+		_heading("Before the Silence")
+		_placeholder(str(person.get("before_silence", "")), "Not written yet.")
+		_heading("Keepsake")
+		_placeholder(str(person.get("keepsake", "")), "Not written yet.")
+		_heading("Album")
+		var album: Array = person.get("album", [])
+		if album.is_empty():
+			_placeholder("", "No pictures yet.")
+		else:
+			for image_id in album:
+				_body(str(image_id))
+		_heading(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100))
+		var track := ColorRect.new()
+		track.color = Color(1, 1, 1, 0.14)
+		track.custom_minimum_size = Vector2(0, 8)
+		var fill := ColorRect.new()
+		fill.color = Color("e2a63a")
+		fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+		fill.anchor_right = clampf(float(person.get("memory", 0)) / 100.0, 0.0, 1.0)
+		fill.offset_right = 0.0
+		track.add_child(fill)
+		card_body.add_child(track)
+		_heading("Events")
+		var events: Array = person.get("story_events", [])
+		if events.is_empty():
+			_placeholder("", "No events yet.")
+		else:
+			for event_id in events:
+				_body(Copy.t(str(event_id)))
 	card_body.add_child(_button("Back", _show_person.bind(person_id)))
 
 
@@ -3424,7 +3567,7 @@ func _hide_hub() -> void:
 
 func _hub_shots() -> void:
 	shot_mode = true
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	_show_start()
 	await _frame()
@@ -3443,7 +3586,7 @@ func _hub_shots() -> void:
 
 
 func _shots() -> void:
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	await _frame()
 	await _frame()
@@ -3467,7 +3610,7 @@ func _shots() -> void:
 
 
 func _review_shots() -> void:
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	await _frame()
 	_pin_source("materials")
@@ -3531,7 +3674,7 @@ func _review_shots() -> void:
 
 func _clarity_shots() -> void:
 	shot_mode = true
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	await _frame()
 	_start_guide()
@@ -3760,14 +3903,24 @@ func _zoom_room(type: String) -> void:
 			return
 
 
+func _shot_size() -> Vector2i:
+	for arg in OS.get_cmdline_user_args():
+		if str(arg).begins_with("--size="):
+			var bits := str(arg).trim_prefix("--size=").split("x")
+			if bits.size() == 2 and int(bits[0]) >= 320 and int(bits[1]) >= 240:
+				return Vector2i(int(bits[0]), int(bits[1]))
+	return Vector2i(1280, 720)
+
+
 func _settle(window_size: Vector2i) -> void:
 	var win := get_window()
 	win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	win.content_scale_factor = 1.0
-	win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
+	win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 	win.content_scale_size = window_size
 	win.mode = Window.MODE_WINDOWED
 	win.size = window_size
+	get_tree().root.size = window_size
 	for _i in 4:
 		await get_tree().process_frame
 	_layout()
@@ -3847,45 +4000,37 @@ func _check_shots() -> void:
 	shot_mode = true
 	hold_dawn = false
 	at_menu = false
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	if guide_layer != null:
 		guide_layer.visible = false
-	_offer_shot("queens_door")
+	_offer_shot("queens_expedition")
 	await _frame()
 	await _frame()
-	_save("check_queens")
-	_swap_check("queens_door", "open")
-	await _frame()
-	await _frame()
-	_save("check_swap")
+	_save("check_card_white")
 	_close_card()
-	_show_person(str(game.residents[0].id))
+	game.week = 8
+	_offer_shot("showtime_betting")
 	await _frame()
 	await _frame()
-	_save("check_person")
+	_save("check_card_red")
 	_close_card()
-	var waiting: Dictionary = game._copy(game._event_by_id("vents"))
-	waiting.choices[0].locked = true
-	waiting.choices[0].lock_reason = "Retry after: build Meeting hall"
+	_show_person("kim")
+	await _frame()
+	await _frame()
+	_save("resident_card_bait")
+	_close_card()
+	game.pending.clear()
+	hold_dawn = true
+	var waiting: Dictionary = game._copy(game._event_by_id("moles_vents"))
+	waiting.choices[1].locked = true
+	waiting.choices[1].lock_reason = "Retry after: A resident with Senses 2"
 	game.white_pending = [waiting]
 	_refresh()
 	_show_pending()
 	await _frame()
 	await _frame()
-	_save("check_pending")
-	_close_card()
-	game.last_check = {"skill": "wits", "d1": 6, "d2": 6, "box": true, "snake": false, "success": true}
-	check_flash = true
-	_offer_shot("mold")
-	await _frame()
-	await _frame()
-	_save("check_mold")
-	_close_card()
-	_offer_shot("showtime")
-	await _frame()
-	await _frame()
-	_save("check_showtime")
+	_save("pending_list")
 	get_tree().quit(0)
 
 
@@ -3900,7 +4045,7 @@ func _network_shots() -> void:
 	shot_mode = true
 	hold_dawn = false
 	at_menu = false
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	if guide_layer != null:
 		guide_layer.visible = false
@@ -3948,6 +4093,49 @@ func _network_shots() -> void:
 	await _frame()
 	await _frame()
 	_save("network_intents")
+	network_view.open_sheet(game.capital_id)
+	await _frame()
+	await _frame()
+	_save("network_own")
+	var foreign := ""
+	for candidate in game.stations:
+		var st: Dictionary = game.stations[candidate]
+		if str(candidate) == game.capital_id or str(st.owner) == game.player:
+			continue
+		if not bool(st.get("known", false)):
+			continue
+		if foreign == "" or game.borders_player(str(candidate)):
+			foreign = str(candidate)
+		if game.borders_player(str(candidate)) and game.order_block("envoy", str(candidate)) == "":
+			foreign = str(candidate)
+			break
+	if foreign != "":
+		network_view.open_sheet(foreign)
+		await _frame()
+		await _frame()
+		_save("network_foreign")
+		if game.queue_order({"kind": "order", "order": "envoy", "station": foreign}):
+			var spent: Dictionary = game.order_cost("envoy", foreign)
+			_refresh()
+			note_spend(spent)
+			_toast(Copy.t("Order sent. The result comes at next dawn."))
+			network_view.refresh()
+			await _frame()
+			await _frame()
+			_save("network_order")
+			if toast_label != null:
+				toast_label.visible = false
+			game._resolve_queued()
+			hold_dawn = false
+			_show_order_report()
+			await _frame()
+			await _frame()
+			_save("order_dawn")
+			_close_card()
+		network_view.open_visit(foreign)
+		await _frame()
+		await _frame()
+		_save("station_visit")
 	get_tree().quit()
 
 
@@ -3978,7 +4166,7 @@ func _card_shot(shot_name: String) -> void:
 func _polish_shots() -> void:
 	shot_mode = true
 	hold_dawn = false
-	await _settle(Vector2i(1280, 720))
+	await _settle(_shot_size())
 	_close_card()
 	guide_played = true
 	_show_main_menu()
@@ -3999,6 +4187,10 @@ func _polish_shots() -> void:
 	await _frame()
 	await _frame()
 	_save("station_week1")
+	_start_guide()
+	await _frame()
+	await _frame()
+	_save("station_guide")
 	get_tree().quit()
 
 
@@ -4483,6 +4675,7 @@ class Yard extends Control:
 	var art := {}
 	var poses := {}
 	var figure_scale_px := 660.0
+	var lamp_glow: Texture2D
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
 	var backdrop_tex: Texture2D
@@ -4714,6 +4907,23 @@ class Yard extends Control:
 		var world := _rect(_geo(), level, cell)
 		return Rect2(pan + world.position * zoom, world.size * zoom)
 
+	func nudge_into_view(level: int, cell: int) -> void:
+		var box := cell_screen(level, cell)
+		var view := _content().grow(-16.0)
+		var shift := Vector2.ZERO
+		if box.position.x < view.position.x:
+			shift.x = view.position.x - box.position.x
+		elif box.end.x > view.end.x:
+			shift.x = view.end.x - box.end.x
+		if box.position.y < view.position.y:
+			shift.y = view.position.y - box.position.y
+		elif box.end.y > view.end.y:
+			shift.y = view.end.y - box.end.y
+		if shift == Vector2.ZERO:
+			return
+		pan += shift
+		queue_redraw()
+
 	func _note_tap(screen: Vector2) -> void:
 		for mark in more_hits:
 			var area: Rect2 = mark.rect
@@ -4886,18 +5096,23 @@ class Yard extends Control:
 			backdrop_tex,
 			Rect2(dest.position.x, soil_y, dest.size.x, soil_h),
 			Rect2(0, tex.y * SKYLINE_FRAC, tex.x, soil_src))
-		var hud_h := 72.0
+		var screen_h := size.y
+		if station != null and station.size.y > 8.0:
+			screen_h = station.size.y
+		var band_h := minf(0.22 * screen_h / maxf(zoom, 0.001), maxf(soil_y - (72.0 - pan.y) / maxf(zoom, 0.001), 8.0))
+		var band := Rect2(dest.position.x, soil_y - band_h, dest.size.x, band_h)
+		var sky_w := tex.x
+		var sky_h := tex.y * SKYLINE_FRAC
+		var cover := maxf(band.size.x / sky_w, band.size.y / sky_h)
+		var vis_w := band.size.x / cover
+		var vis_h := band.size.y / cover
+		var sky_src := Rect2((sky_w - vis_w) * 0.5, sky_h - vis_h, vis_w, vis_h)
+		var sky_top := (72.0 - pan.y) / maxf(zoom, 0.001)
 		if station != null and station.hud != null and station.hud.size.y > 8.0:
-			hud_h = station.hud.size.y
-		var visible_top := (hud_h - pan.y) / maxf(zoom, 0.001)
-		var sky_h := soil_y - visible_top
-		if sky_h < 8.0:
-			sky_h = dest.size.y * SKYLINE_FRAC
-			visible_top = soil_y - sky_h
-		draw_texture_rect_region(
-			backdrop_tex,
-			Rect2(dest.position.x, visible_top, dest.size.x, sky_h),
-			Rect2(0, 0, tex.x, tex.y * SKYLINE_FRAC))
+			sky_top = (station.hud.size.y - pan.y) / maxf(zoom, 0.001)
+		if band.position.y > sky_top:
+			draw_rect(Rect2(dest.position.x, sky_top, dest.size.x, band.position.y - sky_top), Color(0.11, 0.13, 0.16))
+		draw_texture_rect_region(backdrop_tex, band, sky_src)
 
 	func _draw_cell(rect: Rect2, level: int, cell: int) -> void:
 		var shift := 0.0
@@ -4928,8 +5143,7 @@ class Yard extends Control:
 			else:
 				_paint_rock(rect, level * 6 + cell)
 		else:
-			var fill: Color = ROOM_COLOR.get(room_type, Color(0.12, 0.12, 0.13))
-			draw_rect(rect, fill)
+			draw_rect(rect, Color(0.08, 0.07, 0.06))
 			var texture = art.get(room_type, null)
 			if texture != null:
 				_blit_room(texture, rect)
@@ -5110,11 +5324,35 @@ class Yard extends Control:
 		draw_rect(ring, Color(0.95, 0.84, 0.55, alpha), false, 2.0)
 		_draw_status(rect.get_center() - Vector2(12, 12), "dig")
 
+	func _lamp_texture() -> Texture2D:
+		if lamp_glow != null:
+			return lamp_glow
+		var n := 64
+		var image := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var center := Vector2(float(n) * 0.5, float(n) * 0.5)
+		var radius := float(n) * 0.5
+		for y in n:
+			for x in n:
+				var dist := Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(center) / radius
+				var alpha := 0.0
+				if dist < 1.0:
+					alpha = pow(1.0 - dist, 2.0) * 0.15
+				image.set_pixel(x, y, Color(1, 1, 1, alpha))
+		lamp_glow = ImageTexture.create_from_image(image)
+		return lamp_glow
+
 	func _draw_lamp_glow(rect: Rect2, room_type: String) -> void:
-		var tint: Color = LAMP.get(room_type, Color(1.0, 0.82, 0.48, 0.08))
-		var pool := Rect2(rect.position.x + rect.size.x * 0.22, rect.position.y, rect.size.x * 0.56, rect.size.y * 0.34)
-		draw_rect(pool, tint)
-		draw_rect(rect, Color(tint.r, tint.g, tint.b, tint.a * 0.45))
+		var tex := _lamp_texture()
+		if tex == null:
+			return
+		var warm := Color(1.0, 0.78, 0.46, 1.0)
+		var typed: Color = LAMP.get(room_type, warm)
+		var col := warm.lerp(Color(typed.r, typed.g, typed.b, 1.0), 0.12)
+		col.a = 1.0
+		var glow_w := rect.size.x * 0.34
+		var glow_h := rect.size.y * 0.28
+		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.06)
+		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
 
 	func _draw_progress(rect: Rect2, left: int, total: int, with_label: bool = true) -> void:
 		var span := maxi(total, 1)
@@ -5587,20 +5825,26 @@ class GuideLayer extends Control:
 		var target: Rect2 = host._guide_target()
 		if target.size.x < 2.0:
 			return
+		var view := Rect2(Vector2.ZERO, size)
+		if not view.intersects(target):
+			return
+		var color := Color("e2a63a")
+		draw_rect(target.grow(5.0), color, false, 3.0)
 		var card: Control = host.guide_card
 		var from := _edge_point(Rect2(card.position, card.size), target.get_center())
-		var to := _edge_point(target, from)
-		var color := Color("e2a63a")
-		draw_line(from, to, color, 3.0)
-		var dir := to - from
-		if dir.length() < 4.0:
+		var to := _edge_point(target.grow(5.0), from)
+		var dir := from - to
+		if dir.length() < 8.0:
 			return
 		dir = dir.normalized()
+		var tip := to + dir * 4.0
+		var tail := tip + dir * 18.0
+		draw_line(tail, tip, color, 3.0)
 		var side := Vector2(-dir.y, dir.x)
 		draw_colored_polygon(PackedVector2Array([
-			to,
-			to - dir * 14.0 + side * 6.0,
-			to - dir * 14.0 - side * 6.0,
+			tip,
+			tip + dir * 12.0 + side * 5.0,
+			tip + dir * 12.0 - side * 5.0,
 		]), color)
 
 	func _edge_point(rect: Rect2, toward: Vector2) -> Vector2:
