@@ -6,6 +6,7 @@ extends RefCounted
 var profile := "careful"
 var _did_aid := false
 var _did_talk := false
+var _did_ration := false
 
 
 func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictionary:
@@ -89,6 +90,20 @@ func _follow(game: Game) -> void:
 	var build := _urgent_build(game)
 	if not build.is_empty():
 		_do_row(game, build)
+	_follow_network(game)
+
+
+func _follow_network(game: Game) -> void:
+	if game.week < 3:
+		return
+	if game.owned_count() >= 2 and game.deal_count() >= 1:
+		return
+	var sid := game.nearest_neutral()
+	if sid == "":
+		return
+	if game.order_block("trade", sid) != "":
+		return
+	game.apply({"kind": "order", "order": "trade", "station": sid})
 
 
 func _do_soft(game: Game) -> void:
@@ -207,20 +222,25 @@ func _project(game: Game) -> Dictionary:
 		return _project_expander(game)
 	if game.can_quarantine() and _sick(game) >= 2:
 		return {"kind": "quarantine"}
+	if game.room_count("hydroponics") < 1 and game.build_possible("hydroponics"):
+		return {"kind": "build", "type": "hydroponics"}
+	if game.week == 2 and game.room_count("hydroponics") < 2 and game.food_buffer_weeks() < 2.4 and game.build_possible("hydroponics"):
+		return {"kind": "build", "type": "hydroponics"}
+	if game.week >= 3 and not _did_ration and game.can_enact("rationing") and game.food_buffer_weeks() < 2.2:
+		_did_ration = true
+		return {"kind": "law", "law": "rationing"}
 	if game.room_count("generator") == 0 and game.build_possible("generator"):
 		return {"kind": "build", "type": "generator"}
-	if game.housing() < game.residents.size() and game.build_possible("quarters"):
+	if game.housing() < game.residents.size() and game.residents.size() < 66 and game.build_possible("quarters"):
 		return {"kind": "build", "type": "quarters"}
-	if game.room_count("hydroponics") < 2 and game.food_buffer_weeks() < 2.0 and game.build_possible("hydroponics"):
-		return {"kind": "build", "type": "hydroponics"}
 	if game.room_count("meeting_hall") == 0 and game.build_possible("meeting_hall"):
 		return {"kind": "build", "type": "meeting_hall"}
-	if game.output_of("food") < game.food_need() and game.build_possible("hydroponics"):
+	if game.output_of("food") < game.food_need() and game.food_buffer_weeks() < 1.3 and game.room_count("hydroponics") < 2 and game.build_possible("hydroponics"):
 		return {"kind": "build", "type": "hydroponics"}
 	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
 		return {"kind": "build", "type": "air_filter"}
 	var spare := game.housing() - game.residents.size()
-	if game.build_possible("quarters") and (spare < 0 or (spare < 8 and game.food_buffer_weeks() > float(game.bal.growth_buffer))):
+	if game.residents.size() < 62 and game.build_possible("quarters") and (spare < 0 or (spare < 4 and game.food_buffer_weeks() > float(game.bal.growth_buffer))):
 		return {"kind": "build", "type": "quarters"}
 	if _sick(game) >= 1 and game.room_count("infirmary") == 0 and game.build_possible("infirmary"):
 		return {"kind": "build", "type": "infirmary"}
@@ -230,8 +250,6 @@ func _project(game: Game) -> Dictionary:
 		return {"kind": "dig", "space": true}
 	if game.week >= 4 and int(game.stock.materials) >= 16 and game.build_slots() > 0 and game.dig_possible(false):
 		return {"kind": "dig", "space": false}
-	if game.can_enact("rationing") and int(game.stock.food) < game.food_need() * 3:
-		return {"kind": "law", "law": "rationing"}
 	if game.can_enact("sermons") and game.hope < 42:
 		return {"kind": "law", "law": "sermons"}
 	if game.can_enact("open_market") and int(game.stock.tokens) < 24 and game.discontent < 55:
@@ -271,14 +289,14 @@ func _order(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "gift", "faction": "directorate"}
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
-	if game.owned_count() >= 3:
+	if game.owned_count() >= 2:
 		if game.hope < 40:
 			return {"kind": "order", "order": "address"}
 		return {}
 	var border := _best_border(game)
 	if border != "" and int(game.stock.influence) >= int(game.bal.propaganda_influence):
 		var st: Dictionary = game.stations[border]
-		if not _did_aid and int(st.sympathy) >= 20 and int(st.sympathy) < 70 and _avg_need(st) < 0.55 and int(game.stock.food) > game.food_need() * 2:
+		if not _did_aid and int(st.sympathy) >= 20 and int(st.sympathy) < 70 and _avg_need(st) < 0.55 and game.food_buffer_weeks() > 3.0:
 			_did_aid = true
 			return {"kind": "order", "order": "aid", "station": border}
 		return {"kind": "order", "order": "propaganda", "station": border}
@@ -373,13 +391,11 @@ func _avg_need(st: Dictionary) -> float:
 
 
 func _focus_for(game: Game) -> String:
-	if int(game.stock.food) < game.food_need() * 3:
+	if game.food_buffer_weeks() < 1.5:
 		return "food"
-	if int(game.stock.air) < game.air_need() * 3:
+	if int(game.stock.air) < game.air_need() * 2:
 		return "air"
-	if int(game.stock.influence) < 8:
-		return "influence"
-	return "food"
+	return "defense"
 
 
 func _score_choice(game: Game, choice: Dictionary) -> int:
