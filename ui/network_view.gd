@@ -768,12 +768,32 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	if game != null:
 		why = game.order_block(kind, sid)
 	button.disabled = why != ""
-	button.tooltip_text = why
+	if game != null:
+		button.tooltip_text = _order_tip(game, kind, sid, why)
+	button.set_meta("order_kind", kind)
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
 	button.custom_minimum_size = Vector2(0, 52)
 	parent.add_child(button)
+
+
+func _order_tip(game, kind: String, sid: String, why: String) -> String:
+	var cost: Dictionary = game.order_cost(kind, sid)
+	if why != "":
+		if why == Copy.t("Not enough influence."):
+			var need := int(cost.get("influence", 4))
+			return Copy.t("Not enough influence: need %d, have %d.") % [need, int(game.stock.get("influence", 0))]
+		return why
+	var who: Dictionary = game.order_councillor()
+	var lines: PackedStringArray = []
+	lines.append("%s: %s" % [Copy.t("Cost"), _cost_text(cost)])
+	lines.append("%s: %s" % [Copy.t("Goes"), str(who.get("name", ""))])
+	lines.append("%s: %s" % [Copy.t("Result"), Copy.t("Next dawn")])
+	var risk: String = game.order_risk(kind, sid)
+	if risk != "":
+		lines.append("%s: %s" % [Copy.t("Risk"), risk])
+	return "\n".join(lines)
 
 
 func _issue(kind: String, sid: String) -> void:

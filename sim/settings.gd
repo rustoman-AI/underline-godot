@@ -12,6 +12,7 @@ static var language := ""
 static var fullscreen := false
 static var ui_scale := 1.0
 static var reduce_motion := false
+static var people_free_only := false
 static var loaded := false
 static var resume := false
 static var reopen := ""
@@ -31,6 +32,7 @@ static func load_file() -> void:
 	fullscreen = bool(cfg.get_value("game", "fullscreen", false))
 	ui_scale = clampf(float(cfg.get_value("game", "ui_scale", 1.0)), 0.75, 1.5)
 	reduce_motion = bool(cfg.get_value("game", "reduce_motion", false))
+	people_free_only = bool(cfg.get_value("game", "people_free_only", false))
 
 
 static func save() -> void:
@@ -42,6 +44,7 @@ static func save() -> void:
 	cfg.set_value("game", "fullscreen", fullscreen)
 	cfg.set_value("game", "ui_scale", ui_scale)
 	cfg.set_value("game", "reduce_motion", reduce_motion)
+	cfg.set_value("game", "people_free_only", people_free_only)
 	cfg.save(PATH)
 
 

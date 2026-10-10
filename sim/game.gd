@@ -48,6 +48,7 @@ var orders_left := 0
 var seat_used := {}
 var queued_orders: Array = []
 var order_reports: Array = []
+var choice_results: Array = []
 var decisions := 0
 var hope_zero := 0
 var next_person := 0
@@ -2656,6 +2657,45 @@ func order_block(kind: String, sid: String = "") -> String:
 			return _expedition_block()
 		_:
 			return Copy.t("No such order.")
+	return ""
+
+
+func order_risk(kind: String, sid: String = "") -> String:
+	match kind:
+		"envoy":
+			if not stations.has(sid):
+				return ""
+			var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
+			return Copy.t("No risk. Sympathy +%d, and their weakest need improves.") % gain
+		"propaganda":
+			return Copy.t("No risk. Sympathy +%d.") % sympathy_preview(sid)
+		"trade":
+			if sid != "":
+				return Copy.t("No risk. A deal opens passage; three deals and a neutral station joins you.")
+			return Copy.t("No risk. Exchange opinion +6, and tokens every week.")
+		"move":
+			var sq: Dictionary = squads[player]
+			if not stations.has(sid):
+				return ""
+			var path := _path(str(sq.station), sid)
+			if path.size() < 2:
+				return ""
+			var nxt := str(path[1])
+			var owner := str(stations[nxt].owner)
+			if owner == player or owner == "neutral" or owner == "ruin":
+				return Copy.t("No fight on the next step.")
+			var st: Dictionary = stations[nxt]
+			var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0)
+			var defense := float(st.garrison) * float(st.fort) * 1.3
+			var odds := 100
+			if attack > 0.0:
+				odds = int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
+			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [str(st.get("community", st.name)), odds]
+			if not bool(at_war.get(owner, false)):
+				line += " " + Copy.t("Their opinion of you drops by 20.")
+			return line
+		"expedition":
+			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
 	return ""
 
 
@@ -5471,7 +5511,7 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports",
+	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags",
 ]
 

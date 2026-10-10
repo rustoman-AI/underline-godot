@@ -109,6 +109,10 @@ var guide_next: Button
 var guide_step := -1
 var guide_skips := 0
 var toast_label: Label
+var undo_toast: PanelContainer
+var delta_hold_until := 0
+var news_open := false
+var news_week := -1
 var net_guide := false
 var net_guided := false
 var net_guide_sid := ""
@@ -157,6 +161,7 @@ func _ready() -> void:
 	theme.default_font = body_font
 	theme.default_font_size = 16
 	self.theme = theme
+	get_tree().root.theme = _tooltip_theme()
 	_build()
 	Sound.boot(self)
 	_audit_art()
@@ -173,7 +178,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux():
 		shot_mode = true
 	if hub_button != null:
 		hub_button.visible = _hub_texture() != null
@@ -181,7 +186,7 @@ func _ready() -> void:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -210,6 +215,12 @@ func _ready() -> void:
 		await _hub_shots()
 	elif _want_network():
 		await _network_shots()
+	elif _want_ux():
+		await _ux_shots()
+
+
+func _want_ux() -> bool:
+	return OS.get_cmdline_user_args().has("--ux")
 
 
 func _want_shots() -> bool:
@@ -937,7 +948,7 @@ func _build_overlay() -> void:
 	card_body = VBoxContainer.new()
 	card_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_body.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	card_body.add_theme_constant_override("separation", 8)
+	card_body.add_theme_constant_override("separation", 6)
 	scroll.add_child(card_body)
 
 
@@ -964,11 +975,11 @@ func _fit_card() -> void:
 	if card == null or not dim.visible:
 		return
 	var margin := 24.0
-	var max_w := minf(size.x - margin * 2.0, 560.0)
+	var max_w := minf(size.x - margin * 2.0, 680.0)
 	var top_limit := 64.0
 	if hud != null and hud.size.y > 8.0:
 		top_limit = hud.size.y + 8.0
-	var bottom_limit := chrome_bottom + 8.0
+	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
 	card_body.custom_minimum_size.x = max_w - 36.0
 	var left := (size.x - max_w) / 2.0
@@ -993,7 +1004,7 @@ func _shrink_card() -> void:
 	var top_limit := 64.0
 	if hud != null and hud.size.y > 8.0:
 		top_limit = hud.size.y + 8.0
-	var bottom_limit := chrome_bottom + 8.0
+	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
 	var content_h := card_body.size.y
 	if content_h < 40.0:
@@ -1025,7 +1036,9 @@ func _refresh() -> void:
 	_paint_stocks(roll)
 	stock_week = game.week
 	_sync_resource_names()
+	var hold_deltas := Time.get_ticks_msec() < delta_hold_until
 	for key in STOCK_KEYS:
+		var keep_delta: bool = hold_deltas and chips[key].delta.text != ""
 		var delta_text := ""
 		var color := MUTED
 		if not game.last_net.is_empty():
@@ -1036,8 +1049,9 @@ func _refresh() -> void:
 				color = DELTA_UP
 			elif d < 0:
 				color = DELTA_DOWN
-		chips[key].delta.text = delta_text
-		chips[key].delta.add_theme_color_override("font_color", color)
+		if not keep_delta:
+			chips[key].delta.text = delta_text
+			chips[key].delta.add_theme_color_override("font_color", color)
 		var outlook: Dictionary = game.resource_outlook(str(key))
 		chips[key].box.tooltip_text = "%s. %s" % [Copy.res(str(key)), str(outlook.text)]
 		var value_color := INK
@@ -1120,13 +1134,30 @@ func _fill_people() -> void:
 		var clear := _button("All", _clear_people_filter)
 		clear.custom_minimum_size.y = 36
 		people_box.add_child(clear)
+	else:
+		var toggle := HBoxContainer.new()
+		toggle.add_theme_constant_override("separation", 6)
+		var only := _pick_button("Only free", Settings.people_free_only, _set_people_free_only.bind(true), 0.0)
+		only.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		only.custom_minimum_size.y = 36
+		only.add_theme_font_size_override("font_size", 16)
+		toggle.add_child(only)
+		var every := _pick_button("All", not Settings.people_free_only, _set_people_free_only.bind(false), 0.0)
+		every.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		every.custom_minimum_size.y = 36
+		every.add_theme_font_size_override("font_size", 16)
+		toggle.add_child(every)
+		people_box.add_child(toggle)
 	if bool(game.flags.get("medkits", false)) and game.medkit_targets() > 0:
 		var kits := _button("Use medkits", _use_medkits)
 		kits.custom_minimum_size.y = 36
 		people_box.add_child(kits)
-	if people_filter == "" or people_filter == "free":
+	var view := people_filter
+	if view == "" and Settings.people_free_only:
+		view = "free"
+	if view == "" or view == "free":
 		_people_group(Copy.t("Free"), grouped["free"], "", true)
-	if people_filter != "free":
+	if view != "free":
 		for uid in room_order:
 			if people_filter != "" and people_filter != uid:
 				continue
@@ -1230,6 +1261,15 @@ func _use_medkits() -> void:
 
 func _clear_people_filter() -> void:
 	people_filter = ""
+	_fill_people()
+
+
+func _set_people_free_only(on: bool) -> void:
+	if Settings.people_free_only == on:
+		return
+	Settings.people_free_only = on
+	if not shot_mode:
+		Settings.save()
 	_fill_people()
 
 
@@ -1352,6 +1392,13 @@ func _sync_resource_names() -> void:
 
 
 func _paint_stocks(roll: bool) -> void:
+	if not roll and Time.get_ticks_msec() < delta_hold_until:
+		var settled := true
+		for key in STOCK_KEYS:
+			if not is_equal_approx(float(stock_shown.get(key, -1.0)), float(int(game.stock.get(key, 0)))):
+				settled = false
+		if settled:
+			return
 	if stock_tween != null:
 		stock_tween.kill()
 	var can_roll := roll and not _motion_off()
@@ -1403,12 +1450,17 @@ func _end_turn() -> void:
 		before[str(room.uid)] = true
 	Sound.play("whoosh")
 	game.end_week()
+	var placed: Array = []
 	if game.over == "" and yard != null:
 		for room in game.rooms:
 			if before.has(str(room.uid)):
 				continue
 			yard.flash_at(int(room.level), int(room.cell))
 			Sound.play("built")
+			placed.append(str(room.uid))
+	if game.over == "":
+		for uid in placed:
+			_staff_new_room(uid)
 	if game.over == "" and not shot_mode:
 		SaveGame.write_auto(game)
 	_refresh()
@@ -1421,6 +1473,42 @@ func _end_turn() -> void:
 func _auto_staff() -> void:
 	game.apply({"kind": "staff"})
 	_refresh()
+
+
+func _staff_new_room(uid: String) -> Array:
+	var room = game._room(uid)
+	if room == null:
+		return []
+	var defin: Dictionary = game.catalog.rooms[str(room.type)]
+	var skill := str(defin.get("skill", ""))
+	var open_seats: int = int(defin.get("staff_max", 0)) - int(room.staff.size())
+	var pool: Array = []
+	for person in game.residents:
+		var id := str(person.id)
+		if _person_post(id) != "free" or int(person.sick) > 0 or int(person.absent) > 0:
+			continue
+		pool.append(person)
+	pool.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.skills.get(skill, 0)) > int(b.skills.get(skill, 0)))
+	var placed: Array = []
+	for person in pool:
+		if placed.size() >= open_seats:
+			break
+		var id := str(person.id)
+		if game.apply({"kind": "assign", "person": id, "room": uid}):
+			placed.append(id)
+	if not placed.is_empty():
+		_undo_toast(Copy.t("Assigned: %d") % placed.size(), _undo_new_staff.bind(placed))
+	return placed
+
+
+func _undo_new_staff(ids: Array) -> void:
+	for id in ids:
+		if _person_post(str(id)) == "room":
+			game.apply({"kind": "unassign", "person": str(id)})
+	_hide_undo_toast()
+	_refresh()
+	_fill_people()
 
 
 func _chip_input(event: InputEvent, key: String) -> void:
@@ -2003,6 +2091,60 @@ func _toast(text: String) -> void:
 			toast_label.visible = false)
 
 
+func _tooltip_theme() -> Theme:
+	var tips := Theme.new()
+	tips.default_font = body_font
+	tips.default_font_size = 16
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
+	plate.set_border_width_all(1)
+	plate.set_content_margin_all(8)
+	tips.set_stylebox("panel", "TooltipPanel", plate)
+	tips.set_color("font_color", "TooltipLabel", Color("efe6d2"))
+	tips.set_font_size("font_size", "TooltipLabel", 16)
+	return tips
+
+
+func _undo_toast(text: String, undo: Callable) -> void:
+	_hide_undo_toast()
+	undo_toast = PanelContainer.new()
+	undo_toast.z_index = 31
+	undo_toast.mouse_filter = Control.MOUSE_FILTER_STOP
+	undo_toast.add_theme_stylebox_override("panel", _paper_style())
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	undo_toast.add_child(row)
+	var was := on_paper
+	on_paper = true
+	var lab := _label(text, 18, true)
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(lab)
+	var back := _button("Undo", undo)
+	back.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	back.custom_minimum_size = Vector2(110, 40)
+	back.add_theme_font_size_override("font_size", 18)
+	row.add_child(back)
+	on_paper = was
+	add_child(undo_toast)
+	undo_toast.position = Vector2(16.0, (hud.size.y if hud != null else 72.0) + 8.0)
+	var fade := create_tween()
+	fade.tween_interval(8.0)
+	fade.tween_property(undo_toast, "modulate:a", 0.0, 0.4)
+	fade.tween_callback(_expire_undo_toast.bind(undo_toast))
+
+
+func _expire_undo_toast(which: PanelContainer) -> void:
+	if which == undo_toast:
+		_hide_undo_toast()
+
+
+func _hide_undo_toast() -> void:
+	if undo_toast != null and is_instance_valid(undo_toast):
+		undo_toast.queue_free()
+	undo_toast = null
+
+
 func note_spend(cost: Dictionary) -> void:
 	if game == null:
 		return
@@ -2038,6 +2180,7 @@ func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	if game.pending.is_empty():
 		_open_card(Copy.t("Dawn, week %d") % game.week)
+		_choice_tally()
 		_intent_row(lines)
 		_morning_notes(lines)
 		_dawn_alert()
@@ -2057,10 +2200,20 @@ func _paint_dawn() -> void:
 		var rolled := _check_result_line()
 		if rolled != "":
 			_body(rolled)
-		check_flash = false
-	_intent_row(lines)
-	_morning_notes(lines)
-	_dawn_alert()
+			check_flash = false
+	_choice_tally()
+	var news := _news_count(lines)
+	if news > 0:
+		var fold := _button(Copy.t("Morning news (%d) ▾") % news if news_open else Copy.t("Morning news (%d) ▸") % news, _toggle_news)
+		fold.custom_minimum_size = Vector2(0, 34)
+		fold.add_theme_font_size_override("font_size", 16)
+		card_body.add_child(fold)
+	if news_open:
+		_intent_row(lines)
+		_morning_notes(lines)
+		_dawn_alert()
+	else:
+		_dawn_alert(false)
 	for choice in ev.choices:
 		if not game.choice_offered(choice):
 			continue
@@ -2086,6 +2239,8 @@ func _paint_dawn() -> void:
 		_body(Copy.t("%s waiting after this one.") % Words.count(game.pending.size() - 1, "other", "others"))
 	var later := _button("Not now", _close_card)
 	_style_choice(later)
+	later.custom_minimum_size.y = 40
+	later.add_theme_font_size_override("font_size", 17)
 	card_body.add_child(later)
 
 
@@ -2108,12 +2263,14 @@ func _next_order_report() -> void:
 	_show_dawn()
 
 
-func _dawn_alert() -> void:
+func _dawn_alert(forecasts: bool = true) -> void:
 	var warning: Dictionary = game.revolt_warning()
 	if not warning.is_empty():
 		var warn := _button(str(warning.text), _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell)))
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		card_body.add_child(warn)
+	if not forecasts:
+		return
 	var rows: Array = game.forecasts()
 	if rows.is_empty():
 		return
@@ -2131,6 +2288,18 @@ func _dawn_alert() -> void:
 		var more := _button(str(extra.text), _open_forecast_at.bind(str(extra.hint), int(extra.level), int(extra.cell)))
 		more.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		card_body.add_child(more)
+
+
+func _news_count(lines: PackedStringArray) -> int:
+	if news_week != game.week:
+		news_week = game.week
+		news_open = false
+	return lines.size() + mini(game.forecasts().size(), 1)
+
+
+func _toggle_news() -> void:
+	news_open = not news_open
+	_paint_dawn()
 
 
 func _morning_notes(lines: PackedStringArray) -> void:
@@ -2195,7 +2364,7 @@ func _event_banner(ev: Dictionary) -> TextureRect:
 		return null
 	var banner := TextureRect.new()
 	banner.texture = tex
-	banner.custom_minimum_size = Vector2(0, 148)
+	banner.custom_minimum_size = Vector2(0, clampf((size.y - 420.0) * 0.25, 72.0, 148.0))
 	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2227,17 +2396,164 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	var action := {"kind": "event", "event_id": event_id, "choice_id": choice_id}
 	if choice.has("check"):
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
+	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
+	var snapshot := _tally_snapshot()
 	if not game.apply(action):
 		footer.text = Copy.t("That choice did not take.")
 		footer.visible = true
 		return
 	if choice.has("check") or choice.has("bet"):
 		check_flash = true
+	var changes := _tally_changes(snapshot)
+	_record_choice(title, game.line_of(choice, "label"), changes)
 	_refresh()
+	note_change(changes)
+	if card != null and dim.visible:
+		_fly_changes(changes, card.get_global_rect().get_center())
 	if check_flash:
 		footer.text = _check_result_line()
 		footer.visible = footer.text != ""
 	_advance_dawn(before)
+
+
+func _tally_snapshot() -> Dictionary:
+	var snap := {}
+	for key in STOCK_KEYS:
+		snap[key] = int(game.stock.get(key, 0))
+	snap["hope"] = int(game.hope)
+	snap["discontent"] = int(game.discontent)
+	return snap
+
+
+func _tally_changes(before: Dictionary) -> Dictionary:
+	var after := _tally_snapshot()
+	var out := {}
+	for key in after:
+		var d := int(after[key]) - int(before.get(key, after[key]))
+		if d != 0:
+			out[key] = d
+	return out
+
+
+func _record_choice(title: String, label: String, changes: Dictionary) -> void:
+	var keep: Array = []
+	for row in game.choice_results:
+		if int(row.get("week", 0)) >= game.week:
+			keep.append(row)
+	keep.append({"week": game.week, "title": title, "label": label, "changes": changes})
+	game.choice_results = keep
+
+
+func _change_text(changes: Dictionary) -> String:
+	var bits: PackedStringArray = []
+	for key in STOCK_KEYS + ["hope", "discontent"]:
+		if not changes.has(key):
+			continue
+		var name := Copy.res(str(key)) if key in STOCK_KEYS else Copy.t("Hope" if key == "hope" else "Discontent")
+		bits.append("%s %+d" % [name, int(changes[key])])
+	if bits.is_empty():
+		return Copy.t("No change to stocks.")
+	return ", ".join(bits)
+
+
+func _choice_tally() -> void:
+	var rows: Array = []
+	for row in game.choice_results:
+		if int(row.get("week", 0)) == game.week:
+			return
+		if int(row.get("week", 0)) == game.week - 1:
+			rows.append(row)
+	if rows.is_empty():
+		return
+	var lines: PackedStringArray = []
+	for row in rows:
+		var label := Copy.t(str(row.get("label", ""))).trim_suffix(".")
+		lines.append("%s: %s. %s" % [Copy.t(str(row.get("title", ""))), label, _change_text(row.get("changes", {}))])
+	var tally := RichTextLabel.new()
+	tally.bbcode_enabled = true
+	tally.fit_content = true
+	tally.scroll_active = false
+	tally.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tally.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tally.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tally.add_theme_font_size_override("normal_font_size", 17)
+	tally.add_theme_font_size_override("bold_font_size", 17)
+	tally.add_theme_color_override("default_color", PAPER_INK if on_paper else INK)
+	if body_font != null:
+		tally.add_theme_font_override("normal_font", body_font)
+	if display_font != null:
+		tally.add_theme_font_override("bold_font", display_font)
+	tally.text = "[b]%s:[/b] %s" % [Copy.t("Decision results"), "\n".join(lines).replace("[", "(").replace("]", ")")]
+	card_body.add_child(tally)
+
+
+func note_change(changes: Dictionary) -> void:
+	if game == null or changes.is_empty():
+		return
+	if stock_tween != null:
+		stock_tween.kill()
+	stock_tween = create_tween()
+	var any := false
+	for key in changes:
+		if not chips.has(str(key)):
+			continue
+		var d := int(changes[key])
+		var target := float(int(game.stock.get(key, 0)))
+		stock_shown[str(key)] = target
+		chips[str(key)].delta.text = "%+d" % d
+		chips[str(key)].delta.add_theme_color_override("font_color", DELTA_UP if d > 0 else DELTA_DOWN)
+		stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), target - float(d), target, 0.45)
+		any = true
+	if not any:
+		stock_tween.kill()
+		stock_tween = null
+		return
+	delta_hold_until = Time.get_ticks_msec() + 1500
+
+
+func _change_anchor(key: String) -> Vector2:
+	var target: Control = null
+	if chips.has(key):
+		target = chips[key].icon
+	elif key == "hope" and hope_label != null:
+		target = hope_label
+	elif key == "discontent" and dis_label != null:
+		target = dis_label
+	if target == null:
+		return Vector2(-1, -1)
+	return target.get_global_rect().get_center() - get_global_rect().position
+
+
+func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:
+	if Settings.reduced():
+		return
+	var start := from_global - get_global_rect().position
+	var i := 0
+	for key in STOCK_KEYS + ["hope", "discontent"]:
+		if not changes.has(key):
+			continue
+		var goal := _change_anchor(str(key))
+		if goal.x < 0.0:
+			continue
+		var d := int(changes[key])
+		var lab := _label("%+d" % d, 32, true)
+		if number_font != null:
+			lab.add_theme_font_override("font", number_font)
+		lab.add_theme_color_override("font_color", DELTA_UP if d > 0 else DELTA_DOWN)
+		lab.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03))
+		lab.add_theme_constant_override("outline_size", 6)
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lab.z_index = 32
+		add_child(lab)
+		var origin := start + Vector2(float(i) * 54.0 - 40.0, 0.0)
+		lab.position = origin
+		lab.set_meta("fly_goal", goal)
+		var hop := create_tween()
+		hop.tween_interval(0.06 * float(i))
+		hop.tween_property(lab, "position", goal - Vector2(10.0, 14.0), 0.75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		hop.tween_property(lab, "modulate:a", 0.0, 0.25)
+		hop.tween_callback(lab.queue_free)
+		i += 1
 
 
 func _choice_by_id(event_id: String, choice_id: String) -> Dictionary:
@@ -2260,19 +2576,31 @@ func _check_block(ev: Dictionary, choice: Dictionary) -> void:
 	var key := _check_key(str(ev.id), str(choice.id))
 	var preview: Dictionary = game.check_preview(choice, str(check_picks.get(key, "")))
 	check_picks[key] = str(preview.get("person", ""))
-	if str(preview.get("color", "")) == "red":
-		_body("Red check. One roll. It stands.")
-	else:
-		_body("White check")
+	var kind_line := Copy.t("Red check. One roll. It stands.") if str(preview.get("color", "")) == "red" else Copy.t("White check")
+	_body("%s · %s" % [kind_line, Copy.t("Success %d%%") % int(preview.get("chance", 0))])
 	var who := Copy.person(str(preview.get("name", "")))
-	_body("%s · %s %d" % [who, Copy.skill(str(preview.skill)), int(preview.get("value", 0))])
+	var bits: PackedStringArray = ["%s · %s %d" % [who, Copy.skill(str(preview.skill)), int(preview.get("value", 0))]]
 	for row in preview.get("modifiers", []):
 		var amount := int(row.get("amount", 0))
 		var signed := "+%d" % amount if amount >= 0 else str(amount)
-		_body("%s %s" % [signed, Copy.t(str(row.get("text", "")))])
-	_body(Copy.t("Success %d%%") % int(preview.get("chance", 0)))
+		bits.append("%s %s" % [signed, Copy.t(str(row.get("text", "")))])
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lab := _label(" · ".join(bits), 17)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	line.add_child(lab)
 	if _check_roster().size() > 1:
-		card_body.add_child(_button("Someone else", _swap_check.bind(str(ev.id), str(choice.id))))
+		var swap := _button("Someone else", _swap_check.bind(str(ev.id), str(choice.id)))
+		swap.custom_minimum_size = Vector2(0, 36)
+		swap.autowrap_mode = TextServer.AUTOWRAP_OFF
+		swap.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		swap.add_theme_font_size_override("font_size", 16)
+		swap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(swap)
+	card_body.add_child(line)
 
 
 func _check_roster() -> Array:
@@ -2407,6 +2735,8 @@ func _style_choice(button: Button) -> void:
 func _choice_button(label: String, choice: Dictionary, cb: Callable) -> Button:
 	var button := _button(label, cb, "confirm")
 	_style_choice(button)
+	button.custom_minimum_size.y = 48
+	button.add_theme_font_size_override("font_size", 18)
 	var marks := _marks(choice)
 	if marks.get_child_count() == 0:
 		return button
@@ -2566,7 +2896,7 @@ func _heading(text: String) -> void:
 
 
 func _body(text: String) -> void:
-	var lab := _label(text, 15)
+	var lab := _label(text, 17)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_body.add_child(lab)
@@ -4034,6 +4364,211 @@ func _check_shots() -> void:
 	get_tree().quit(0)
 
 
+func _ux_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	game.pending.clear()
+	_refresh()
+	var started := false
+	var types: Array = game.catalog.rooms.keys()
+	types.sort_custom(func(a, b) -> bool:
+		return int(game.catalog.rooms[a].get("staff_max", 0)) > int(game.catalog.rooms[b].get("staff_max", 0)))
+	for type in types:
+		if started or not game.build_possible(str(type)):
+			continue
+		for level in 3:
+			for cell in 6:
+				if started:
+					break
+				var spot: Dictionary = game.cells["%d:%d" % [level, cell]]
+				if not bool(spot.get("dug", false)) or str(spot.get("room", "")) != "":
+					continue
+				started = game.apply({"kind": "build", "type": str(type), "level": level, "cell": cell})
+	print("UX build started %s %s" % [started, str(game.build)])
+	_refresh()
+	await _frame()
+	await _frame()
+	_save("build_timer")
+	Settings.people_free_only = true
+	_open_people_for("")
+	await _frame()
+	await _frame()
+	_save("people_free_only")
+	Settings.people_free_only = false
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save("people_all")
+	drawer_open = false
+	_place_drawer()
+	var pick := _ux_choice()
+	if not pick.is_empty():
+		_offer_shot(str(pick.event))
+		await _frame()
+		await _frame()
+		_pick_event(str(pick.event), str(pick.choice))
+		await get_tree().create_timer(0.3).timeout
+		await _frame()
+		_save("choice_fly")
+		await get_tree().create_timer(1.2).timeout
+	game.pending.clear()
+	_close_card()
+	_end_turn()
+	await _frame()
+	await _frame()
+	_save("dawn_tally")
+	_close_card()
+	var guard := 0
+	while not game.build.is_empty() and guard < 6 and game.over == "":
+		guard += 1
+		game.pending.clear()
+		_end_turn()
+		_close_card()
+	await _frame()
+	await _frame()
+	_save("room_staffed")
+	_hide_undo_toast()
+	game.pending.clear()
+	_close_card()
+	await _ux_map_tips()
+	await _ux_card_fit()
+	get_tree().quit(0)
+
+
+func _ux_choice() -> Dictionary:
+	var best := {}
+	var best_n := 0
+	for ev in game.catalog.events:
+		if ev.has("check_event") or str(ev.get("kind", "")) == "check":
+			continue
+		for choice in ev.get("choices", []):
+			if choice.has("check") or choice.has("bet") or choice.has("cost"):
+				continue
+			var n := 0
+			var stock_hits := 0
+			for key in STOCK_KEYS:
+				if choice.has(key):
+					n += 1
+					stock_hits += 1
+			for key in ["hope", "discontent"]:
+				if choice.has(key):
+					n += 1
+			if stock_hits > 0 and n > best_n:
+				best_n = n
+				best = {"event": str(ev.id), "choice": str(choice.id)}
+	print("UX choice %s" % str(best))
+	return best
+
+
+func _ux_order_button(kind: String) -> Button:
+	if network_view == null or network_view._sheet_body == null:
+		return null
+	var stack: Array = [network_view._sheet_body]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is Button and node.has_meta("order_kind") and str(node.get_meta("order_kind")) == kind:
+			return node
+		stack.append_array(node.get_children())
+	return null
+
+
+func _ux_hover(button: Button) -> void:
+	if button == null:
+		return
+	var at := button.get_global_rect().get_center()
+	get_viewport().warp_mouse(at)
+	var motion := InputEventMouseMotion.new()
+	motion.position = at
+	motion.global_position = at
+	get_viewport().push_input(motion)
+	await get_tree().create_timer(1.0).timeout
+	await _frame()
+
+
+func _ux_map_tips() -> void:
+	if not showing_network:
+		_toggle_network()
+	await _frame()
+	var foreign := ""
+	for candidate in game.stations:
+		var st: Dictionary = game.stations[candidate]
+		if str(st.owner) == game.player or not bool(st.get("known", false)):
+			continue
+		if game.borders_player(str(candidate)) and game._court_block(str(candidate)) == "":
+			foreign = str(candidate)
+			break
+	print("UX map station %s" % foreign)
+	if foreign == "":
+		return
+	var keep_influence := int(game.stock.influence)
+	game.stock.influence = 1
+	_refresh()
+	network_view.open_sheet(foreign)
+	await _frame()
+	await _ux_hover(_ux_order_button("envoy"))
+	_save("map_tip_disabled")
+	game.stock.influence = maxi(keep_influence, 12)
+	_refresh()
+	network_view.open_sheet(foreign)
+	await _frame()
+	await _ux_hover(_ux_order_button("move"))
+	_save("map_tip_enabled")
+	var keep_seats: Dictionary = game.seat_used.duplicate()
+	for seat in game.council:
+		game.seat_used[str(seat.role)] = "envoy"
+	_refresh()
+	network_view.open_sheet(foreign)
+	await _frame()
+	await _ux_hover(_ux_order_button("envoy"))
+	_save("map_tip_no_councillor")
+	game.seat_used = keep_seats
+	network_view.close_sheet()
+	_toggle_network()
+
+
+func _ux_card_fit() -> void:
+	var worst := ""
+	var worst_over := -99999.0
+	var over_n := 0
+	var seen := 0
+	for ev in game.catalog.events:
+		game.pending.clear()
+		game.week_event_ids = {}
+		game._present_event(ev)
+		if game.pending.is_empty():
+			continue
+		_show_dawn()
+		await _frame()
+		seen += 1
+		var over := card_body.size.y - card_scroll.size.y
+		if over > 1.0:
+			over_n += 1
+			print("FIT over %s %.0f" % [str(ev.id), over])
+		if over > worst_over:
+			worst_over = over
+			worst = str(ev.id)
+		_close_card()
+	game.pending.clear()
+	_show_dawn()
+	await _frame()
+	print("FIT plain dawn over %.0f" % (card_body.size.y - card_scroll.size.y))
+	_close_card()
+	print("FIT cards %d overflowing %d tallest %s (%.0f px)" % [seen, over_n, worst, worst_over])
+	if worst != "":
+		_offer_shot(worst)
+		await _frame()
+		await _frame()
+		_save("card_tallest")
+		_close_card()
+
+
 func _offer_shot(event_id: String) -> void:
 	game.pending.clear()
 	game.week_event_ids = {}
@@ -5163,7 +5698,7 @@ class Yard extends Control:
 			_draw_water(rect, level, cell)
 		var job := _job_span(level, cell)
 		if job.x >= 0:
-			_draw_progress(rect, job.x, job.y, true)
+			_draw_progress(rect, job.x, job.y, false)
 		elif kind == "undug":
 			_draw_dig_outline(rect, level, cell)
 		if drag_id != "" and kind == "room" and room != null:
@@ -5453,6 +5988,7 @@ class Yard extends Control:
 			for cell in 6:
 				if _job_is_build(level, cell):
 					_draw_build_bar(geo, level, cell)
+				_draw_job_timer(geo, level, cell, font)
 				var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
 				if str(spot.room) == "":
 					continue
@@ -5479,6 +6015,27 @@ class Yard extends Control:
 		if done > 0.0:
 			draw_rect(Rect2(bar.position, Vector2(bar.size.x * done, bar.size.y)), Color(0.95, 0.82, 0.42, 1.0))
 		_draw_status(screen.get_center() - Vector2(12, 12), "building")
+
+	func _draw_job_timer(geo: Dictionary, level: int, cell: int, font: Font) -> void:
+		var job := _job_span(level, cell)
+		if job.x < 0:
+			return
+		var world := _rect(geo, level, cell)
+		var screen := Rect2(pan + world.position * zoom, world.size * zoom)
+		if screen.size.x < 40.0:
+			return
+		var label := Copy.t("%d wk") % job.x
+		var font_size := 26
+		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+		var room := screen.size.x - 16.0
+		if text_size.x + 16.0 > room:
+			font_size = maxi(18, int(floor(float(font_size) * room / (text_size.x + 16.0))))
+			text_size = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+		var plate := Rect2(screen.position.x + 8.0, screen.position.y + screen.size.y - 20.0 - text_size.y - 6.0, text_size.x + 16.0, text_size.y + 6.0)
+		draw_rect(plate, Color(0.05, 0.04, 0.03, 0.82))
+		draw_rect(plate, Color(0.93, 0.78, 0.42, 0.9), false, 1.5)
+		var ascent := font.get_ascent(font_size)
+		draw_string(font, plate.position + Vector2(8.0, 3.0 + ascent), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.98, 0.94, 0.84))
 
 	func _room_glyph(room_type: String) -> String:
 		return room_type
