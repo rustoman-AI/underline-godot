@@ -288,6 +288,8 @@ func report() -> Dictionary:
 		"pop40": int(stats.pop40),
 		"unrest_weeks": int(stats.unrest_weeks),
 		"stations": owned_count(),
+		"deals_w10": int(stats.get("deals_w10", 0)),
+		"stations_w25": int(stats.get("stations_w25", owned_count() if week >= 25 else 0)),
 		"influence": int(stock.influence),
 		"first_ultimatum": int(stats.get("first_ultimatum", 0)),
 		"flip_week": int(stats.get("flip_week", 0)),
@@ -365,6 +367,41 @@ func build_slots() -> int:
 
 func output_of(key: String) -> int:
 	return int(_tally().get(key, 0))
+
+
+func nearest_neutral() -> String:
+	var best := ""
+	var best_hops := 999
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		if str(st.owner) != "neutral" or bool(st.get("hidden", false)):
+			continue
+		if not borders_player(str(sid)):
+			continue
+		var hops := _hops(str(sid), capital_id)
+		if hops < best_hops:
+			best_hops = hops
+			best = str(sid)
+	return best
+
+
+func trade_pitch(sid: String) -> String:
+	if not stations.has(sid):
+		return ""
+	var st: Dictionary = stations[sid]
+	var need := _lowest_need(st)
+	var who := str(st.community) if Copy.ru() else str(st.name)
+	var lack := Copy.t(need) if Copy.ru() else need
+	if Copy.ru():
+		return "%s нуждается: %s. Сделка стоит 4 влияния и открывает тоннель." % [who, lack]
+	return "%s is short of %s. A trade deal costs 4 influence and opens the tunnel." % [who, lack]
+
+
+func deal_count() -> int:
+	var total := 0
+	for sid in stations:
+		total += int(stations[sid].get("deals", 0))
+	return total
 
 
 func borders_player(sid: String) -> bool:
@@ -715,6 +752,9 @@ func _finish_checks() -> void:
 	_sample_meters()
 	if week == 10:
 		stats.pop10 = residents.size()
+		stats.deals_w10 = deal_count()
+	if week == 25:
+		stats.stations_w25 = owned_count()
 	elif week == 20:
 		stats.pop20 = residents.size()
 	elif week == 40 or (over != "" and week >= 40):
@@ -2325,6 +2365,7 @@ func _order_deal(sid: String) -> bool:
 	stock.influence = int(stock.influence) - 4
 	st.deals = int(st.get("deals", 0)) + 1
 	st.passage = true
+	_bump_need(st, _lowest_need(st), 0.25)
 	_log("DEAL %s (%d)" % [st.name, int(st.deals)], true)
 	if int(st.deals) >= 3 and str(st.owner) == "neutral":
 		_log("DEAL %s asks to join" % st.name, true)
@@ -2934,7 +2975,7 @@ func _claim_swayed() -> void:
 		var st: Dictionary = stations[sid]
 		if str(st.owner) != "neutral" and str(st.owner) != "ruin":
 			continue
-		if int(st.sympathy) >= 100:
+		if int(st.get("deals", 0)) >= 3 or int(st.sympathy) >= 100:
 			_capture(str(sid), player, false)
 			continue
 		for fid in ["exchange", "directorate", "synod"]:

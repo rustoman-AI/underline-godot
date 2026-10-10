@@ -84,6 +84,25 @@ func first_known_neighbor() -> String:
 	return fallback
 
 
+func focus_station(sid: String) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	origin = _station_world(game.stations[sid])
+	zoom = maxf(zoom, 1.6)
+	queue_redraw()
+
+
+func station_anchor(sid: String, host: Control) -> Rect2:
+	var game = _game()
+	if game == null or not game.stations.has(sid) or host == null:
+		return Rect2()
+	var at := _screen(_station_world(game.stations[sid]))
+	var global_at := get_global_rect().position + at
+	var origin := host.get_global_rect().position
+	return Rect2(global_at - origin - Vector2(18, 18), Vector2(36, 36))
+
+
 func focus_intent() -> void:
 	var game = _game()
 	if game == null:

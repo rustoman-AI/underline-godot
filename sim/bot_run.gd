@@ -158,15 +158,17 @@ func _one_week(rows: Array, key: String) -> bool:
 
 func _print_follower(rows: Array) -> void:
 	print("Follower gates")
-	print("seed  over      wk  power0  unafford  events15")
+	print("seed  over      wk  power0  unafford  events15  deals  st25")
 	for row in rows:
-		print("%-4d  %-8s  %2d  %6d  %8d  %8d" % [
+		print("%-4d  %-8s  %2d  %6d  %8d  %8d  %5d  %5d" % [
 			int(row.get("seed", 0)),
 			str(row.get("over", "?")),
 			int(row.get("week", 0)),
 			int(row.get("power_zero_max", 0)),
 			int(row.get("unaffordable_dawn", 0)),
 			int(row.get("events_by_15", 0)),
+			int(row.get("deals_w10", 0)),
+			int(row.get("stations_w25", 0)),
 		])
 
 
@@ -175,6 +177,8 @@ func _follower_ok(rows: Array) -> bool:
 	var fed := 0
 	var hopeful := 0
 	var calm := 0
+	var dealt := 0
+	var widened := 0
 	var ok := true
 	for row in rows:
 		if int(row.get("power_zero_max", 0)) > 2:
@@ -194,6 +198,10 @@ func _follower_ok(rows: Array) -> bool:
 			hopeful += 1
 		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time" and int(row.get("dis_max", 0)) < 90:
 			calm += 1
+		if int(row.get("deals_w10", 0)) >= 1:
+			dealt += 1
+		if int(row.get("stations_w25", 0)) >= 2:
+			widened += 1
 	if lived < 5:
 		ok = false
 		print("  reached week 40 on %d of 5 seeds" % lived)
@@ -206,6 +214,12 @@ func _follower_ok(rows: Array) -> bool:
 	if calm < 4:
 		ok = false
 		print("  reached week 40 under discontent 90 on %d of 5 seeds" % calm)
+	if dealt < 4:
+		ok = false
+		print("  trade deal by week 10 on %d of 5 seeds" % dealt)
+	if widened < 4:
+		ok = false
+		print("  two stations by week 25 on %d of 5 seeds" % widened)
 	return ok
 
 

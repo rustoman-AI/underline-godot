@@ -104,6 +104,9 @@ var guide_copy: Label
 var guide_count: Label
 var guide_next: Button
 var guide_step := -1
+var net_guide := false
+var net_guided := false
+var net_guide_sid := ""
 var guide_played := false
 var shot_mode := false
 var menu_button: Button
@@ -2875,11 +2878,32 @@ func _replay_guide() -> void:
 
 
 func _maybe_guide() -> void:
-	if shot_mode or guide_played or game == null or int(game.week) != 1:
+	if shot_mode or game == null:
 		return
 	if not deck.is_empty():
 		return
-	_start_guide()
+	if not guide_played and int(game.week) == 1:
+		_start_guide()
+		return
+	if not net_guided and int(game.week) >= 4:
+		_start_net_guide()
+
+
+func _start_net_guide() -> void:
+	net_guided = true
+	net_guide_sid = game.nearest_neutral()
+	if net_guide_sid == "":
+		return
+	if not showing_network:
+		_toggle_network()
+	if network_view != null:
+		network_view.focus_station(net_guide_sid)
+	net_guide = true
+	guide_step = 0
+	if guide_layer == null:
+		_build_guide()
+	guide_layer.visible = true
+	_fill_guide()
 
 
 func _start_guide() -> void:
@@ -2893,6 +2917,7 @@ func _start_guide() -> void:
 
 
 func _skip_guide() -> void:
+	net_guide = false
 	guide_step = -1
 	guide_played = true
 	if guide_layer != null:
@@ -2901,6 +2926,9 @@ func _skip_guide() -> void:
 
 
 func _advance_guide() -> void:
+	if net_guide:
+		_skip_guide()
+		return
 	guide_step += 1
 	if guide_step >= 5:
 		_skip_guide()
@@ -2920,6 +2948,11 @@ func _guide_lines() -> PackedStringArray:
 
 func _fill_guide() -> void:
 	if guide_copy == null or guide_step < 0:
+		return
+	if net_guide:
+		guide_copy.text = game.trade_pitch(net_guide_sid)
+		guide_count.text = "1 / 1"
+		guide_next.text = Copy.t("Done")
 		return
 	var lines := _guide_lines()
 	guide_copy.text = Copy.t(lines[guide_step])
@@ -2969,6 +3002,8 @@ func _build_guide() -> void:
 
 
 func _guide_target() -> Rect2:
+	if net_guide and network_view != null:
+		return network_view.station_anchor(net_guide_sid, self)
 	match guide_step:
 		0:
 			if res_grid != null:
