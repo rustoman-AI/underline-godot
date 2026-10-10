@@ -8,6 +8,8 @@ var factions: Dictionary = {}
 var stations: Array = []
 var tunnels: Array = []
 var events: Array = []
+var check_events: Dictionary = {}
+var coney: Dictionary = {}
 var residents: Array = []
 var names: Dictionary = {}
 var grid: Dictionary = {}
@@ -24,6 +26,8 @@ func load_all() -> bool:
 	stations = _arr("stations.json")
 	tunnels = _arr("tunnels.json")
 	events = _arr("events.json")
+	check_events = _obj("events_checks.json")
+	coney = _obj("characters_coney.json")
 	residents = _arr("residents.json")
 	names = _obj("names.json")
 	grid = _obj("start_grid.json")

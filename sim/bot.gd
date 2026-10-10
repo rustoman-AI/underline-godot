@@ -28,6 +28,8 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictio
 
 
 func _act(game: Game) -> void:
+	if game.use_medkits():
+		pass
 	if profile == "follower":
 		_follow(game)
 		return
@@ -39,13 +41,16 @@ func _act(game: Game) -> void:
 		var ev: Dictionary = game.pending[0]
 		var best: Dictionary = {}
 		var best_score := -99999
-		for choice in ev.choices:
-			if game.choice_locked(choice) or not game.afford_choice(choice):
-				continue
-			var score := _score_choice(game, choice)
-			if score > best_score:
-				best_score = score
-				best = choice
+		if profile == "expander" and _all_checks(ev):
+			best = _expander_check_choice(game, ev)
+		else:
+			for choice in ev.choices:
+				if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
+					continue
+				var score := _score_choice(game, choice)
+				if score > best_score:
+					best_score = score
+					best = choice
 		if best.is_empty():
 			break
 		if not game.apply(_event_action(game, ev, best)):
@@ -62,6 +67,8 @@ func _act(game: Game) -> void:
 		if not game.apply(order):
 			break
 		spent += 1
+	if profile != "follower" and game.decisions < 2:
+		game.apply({"kind": "staff"})
 
 
 func _follow(game: Game) -> void:
@@ -87,11 +94,54 @@ func _follow(game: Game) -> void:
 		if not game.revolt_warning().is_empty():
 			forecasts.append({"key": "discontent"})
 	_do_soft(game)
-	if not _build_crowd(game) and not _build_power(game) and not _ease_mood(game):
+	var retry := _retry_build(game)
+	if not retry.is_empty():
+		game.apply(retry)
+	elif game.output_of("air") < game.air_need() and game.room_count("air_filter") < 2 and game.build_possible("air_filter"):
+		game.apply({"kind": "build", "type": "air_filter"})
+	elif not _build_power(game) and not _build_crowd(game) and not _ease_mood(game):
 		var build := _urgent_build(game)
 		if not build.is_empty():
 			_do_row(game, build)
+	_top_up_air(game)
 	_follow_network(game)
+
+
+func _top_up_air(game: Game) -> void:
+	_fill_free(game, "generator", int(game.stock.power) < 30)
+	_fill_free(game, "air_filter", game.output_of("air") < game.air_need())
+
+
+func _fill_free(game: Game, type: String, needed: bool) -> void:
+	if not needed:
+		return
+	var used := {}
+	for room in game.rooms:
+		for id in room.staff:
+			used[str(id)] = true
+	for room in game.rooms:
+		if str(room.type) != type or bool(room.get("offline", false)) or int(room.get("disabled", 0)) > 0:
+			continue
+		var defin: Dictionary = game.catalog.rooms[type]
+		var skill := str(defin.get("skill", ""))
+		while room.staff.size() < int(defin.staff_max):
+			if type == "air_filter" and game.output_of("air") >= game.air_need():
+				return
+			var pick := ""
+			var best := -1
+			for person in game.residents:
+				var id := str(person.id)
+				if used.has(id) or int(person.sick) > 0 or int(person.absent) > 0:
+					continue
+				var v := int(person.skills.get(skill, 0))
+				if v > best:
+					best = v
+					pick = id
+			if pick == "":
+				return
+			if not game.apply({"kind": "assign", "person": pick, "room": str(room.uid)}):
+				return
+			used[pick] = true
 
 
 func _follow_network(game: Game) -> void:
@@ -237,7 +287,38 @@ func _do_row(game: Game, row: Dictionary) -> bool:
 	return false
 
 
+func _all_checks(ev: Dictionary) -> bool:
+	var choices: Array = ev.get("choices", [])
+	if choices.is_empty():
+		return false
+	for choice in choices:
+		if not choice.has("check"):
+			return false
+	return true
+
+
+func _best_check_choice(game: Game, ev: Dictionary) -> Dictionary:
+	var best := {}
+	var best_p := -1
+	for choice in ev.choices:
+		if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
+			continue
+		var skill := str(choice.check.get("skill", "wits"))
+		var who := game.best_check_resident(skill)
+		var chance := game.check_chance(skill, int(choice.check.get("difficulty", 10)), who, str(choice.check.get("color", "")))
+		if chance > best_p:
+			best_p = chance
+			best = choice
+	return best
+
+
 func _visible_choice(game: Game, ev: Dictionary, forecasts: Array) -> Dictionary:
+	if _all_checks(ev):
+		for choice in ev.choices:
+			if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
+				continue
+			return choice
+		return {}
 	var fallback := {}
 	for choice in ev.choices:
 		if game.choice_locked(choice) or choice.has("bet") or not game.afford_choice(choice):
@@ -287,6 +368,9 @@ func _project(game: Game) -> Dictionary:
 		return {"kind": "pump"}
 	if profile == "expander":
 		return _project_expander(game)
+	var retry := _retry_build(game)
+	if not retry.is_empty():
+		return retry
 	if game.can_quarantine() and _sick(game) >= 2:
 		return {"kind": "quarantine"}
 	if game.room_count("hydroponics") < 1 and game.build_possible("hydroponics"):
@@ -327,6 +411,9 @@ func _project(game: Game) -> Dictionary:
 func _project_expander(game: Game) -> Dictionary:
 	if game.can_quarantine():
 		return {"kind": "quarantine"}
+	var retry := _retry_build(game)
+	if not retry.is_empty():
+		return retry
 	if game.room_count("generator") == 0 and game.week >= 2 and game.build_possible("generator"):
 		return {"kind": "build", "type": "generator"}
 	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
@@ -474,7 +561,121 @@ func _event_action(game: Game, ev: Dictionary, choice: Dictionary) -> Dictionary
 	return action
 
 
+func _check_ev(game: Game, choice: Dictionary) -> int:
+	var skill := str(choice.check.get("skill", "wits"))
+	var who := game.best_check_resident(skill)
+	var chance := game.check_chance(skill, int(choice.check.get("difficulty", 10)), who, str(choice.check.get("color", "")))
+	var p := float(chance) / 100.0
+	var win := _effect_value(game, choice.get("success", {}))
+	var lose := _effect_value(game, choice.get("failure", {}))
+	var ev := int(round(p * float(win) + (1.0 - p) * float(lose)))
+	var cost = choice.get("cost", {})
+	if cost is Dictionary:
+		ev -= int(cost.get("tokens", 0)) / 2
+		ev -= int(cost.get("materials", 0))
+	return ev
+
+
+func _effect_value(game: Game, fx: Dictionary) -> int:
+	var value := int(fx.get("hope", 0)) * 4
+	value -= int(fx.get("discontent", 0)) * 3
+	value += int(fx.get("air", 0))
+	value += int(fx.get("materials", 0))
+	value += int(fx.get("food", 0))
+	value += int(fx.get("tokens", 0)) / 2
+	value += int(fx.get("influence", 0))
+	if fx.has("food_pct"):
+		value += int(round(float(game.stock.food) * float(int(fx.food_pct)) / 100.0))
+	value -= int(fx.get("injured", 0)) * 8
+	value -= int(fx.get("sick", 0)) * 6
+	value -= int(fx.get("residents_lost", 0)) * 30
+	var shut = fx.get("room_disabled", {})
+	if shut is Dictionary:
+		value -= int(shut.get("weeks", 0)) * 5
+	var rel = fx.get("relation", {})
+	if rel is Dictionary:
+		for fid in rel:
+			value += int(rel[fid]) / 5
+	if str(fx.get("flag", "")) != "":
+		value += 6
+	if fx.has("brownout"):
+		value += 4 if not bool(fx.brownout) else -6
+	return value
+
+
+func _expander_check_choice(game: Game, ev: Dictionary) -> Dictionary:
+	var cynical := {}
+	var best_cyn := 0
+	var risk := {}
+	var best_risk := -99999
+	for choice in ev.choices:
+		if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
+			continue
+		var cyn := _cynicism(choice)
+		if cyn > best_cyn:
+			best_cyn = cyn
+			cynical = choice
+		var skill := str(choice.check.get("skill", "wits"))
+		var who := game.best_check_resident(skill)
+		var chance := game.check_chance(skill, int(choice.check.get("difficulty", 10)), who, str(choice.check.get("color", "")))
+		var risk_score := 100 - chance
+		if str(choice.check.get("color", "")) == "red":
+			risk_score += 40
+		if risk_score > best_risk:
+			best_risk = risk_score
+			risk = choice
+	if best_cyn > 0:
+		return cynical
+	return risk
+
+
+func _cynicism(choice: Dictionary) -> int:
+	var fx: Dictionary = choice.get("success", {})
+	var score := 0
+	if int(fx.get("hope", 0)) < 0:
+		score += -int(fx.hope)
+	if int(fx.get("discontent", 0)) > 0:
+		score += int(fx.discontent)
+	if int(fx.get("sick", 0)) > 0:
+		score += int(fx.sick)
+	var rel = fx.get("relation", {})
+	if rel is Dictionary:
+		for fid in rel:
+			if int(rel[fid]) < 0:
+				score += -int(rel[fid]) / 5
+	return score
+
+
+func _retry_build(game: Game) -> Dictionary:
+	for ev in game.white_pending:
+		for choice in ev.choices:
+			if not bool(choice.get("locked", false)) or bool(choice.get("spent", false)):
+				continue
+			var retry: Dictionary = choice.get("check", {}).get("retry", {})
+			if retry.is_empty():
+				continue
+			if retry.has("level"):
+				var kind := str(retry.get("room", ""))
+				if game._room_built_level(kind) >= int(retry.level) or int(game.stock.materials) < 10:
+					continue
+				for room in game.rooms:
+					if str(room.type) != kind:
+						continue
+					var info: Dictionary = game.upgrade_preview(str(room.uid))
+					if bool(info.get("ok", false)):
+						return {"kind": "upgrade", "room": str(room.uid)}
+			elif retry.has("room"):
+				var kind := str(retry.room)
+				if game.room_count(kind) > 0 or game.food_buffer_weeks() < 1.3:
+					continue
+				if game.build_possible(kind):
+					return {"kind": "build", "type": kind}
+	return {}
+
+
 func _score_choice(game: Game, choice: Dictionary) -> int:
+	if choice.has("check"):
+		return _check_ev(game, choice)
 	if choice.has("bet"):
 		return -40
 	var score := int(choice.get("hope", 0)) * 3

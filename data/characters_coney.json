@@ -1,0 +1,50 @@
+{
+  "_note": "Coney Island core characters. Text by Night Moon, edited. Skills 0-3: grit, wits, voice, senses. 'hook' = what the character does in the game.",
+  "characters": [
+    {
+      "id": "old_man_coney",
+      "name": {"ru": "Старик Кони", "en": "Old Man Coney"},
+      "title": {"ru": "Смотритель ржавых каруселей", "en": "Keeper of the Rusted Rides"},
+      "skills": {"grit": 1, "wits": 2, "voice": 1, "senses": 3},
+      "look": {"ru": "Дряхлый, но жилистый старик. Вместо шлема носит облезлую голову плюшевого тигра с аттракциона, из пасти которой торчит сигарета. Рваный матросский бушлат.", "en": "Frail but wiry. Wears a balding plush tiger head from an old ride instead of a helmet, a cigarette poking out of its mouth. Torn pea coat."},
+      "bio": {"ru": "Одичал от одиночества у океана. Разговаривает с колесом обозрения как с живой женщиной. Кашляет и вечно ищет «артефакты»: старые билеты в кино, пластинки.", "en": "Gone strange from years alone by the ocean. Talks to the Ferris wheel as if she were alive. Coughs constantly and hunts for 'artifacts': old movie tickets, records."},
+      "hook": {"ru": "Даёт абсурдные поручения на поверхности, платит чертежами.", "en": "Gives absurd surface errands, pays in blueprints."}
+    },
+    {
+      "id": "salty_maggie",
+      "name": {"ru": "Солёная Мэгги", "en": "Salty Maggie"},
+      "title": {"ru": "Королева солеварен", "en": "Queen of the Salt Pans"},
+      "skills": {"grit": 2, "wits": 2, "voice": 2, "senses": 0},
+      "look": {"ru": "Грузная женщина лет пятидесяти, кожа в соляной корке. Фартук из резинового коврика вагона, в руках огромный черпак.", "en": "Heavyset, about fifty, skin crusted with salt. Apron cut from a subway car floor mat, a huge ladle always in hand."},
+      "bio": {"ru": "Циничная и жёсткая. Держит выпарку соли из океанской воды у конечной. Считает, что человек стоит ровно столько, сколько из него можно выварить соли.", "en": "Hard and cynical. Runs the salt pans by the end of the line. Believes a person is worth exactly as much salt as you could boil out of them."},
+      "hook": {"ru": "Тяжёлый торговый партнёр. Консерванты замедляют порчу еды.", "en": "Tough trade partner. Her preservatives slow food rot."}
+    },
+    {
+      "id": "bait",
+      "name": {"ru": "Наживка", "en": "Bait"},
+      "title": {"ru": "Гарпунёр Мёртвого пирса", "en": "Harpooner of the Dead Pier"},
+      "skills": {"grit": 3, "wits": 1, "voice": 0, "senses": 0},
+      "look": {"ru": "Худой одноглазый парень в татуировках чаек и якорей. Левая рука по локоть заменена самодельным пружинным гарпуном.", "en": "Thin, one-eyed, tattooed with gulls and anchors. His left arm below the elbow is a homemade spring harpoon."},
+      "bio": {"ru": "Его команду забрал шторм, а он остался. Говорит шёпотом, всё время проверяет натяжение троса. Ненавидит туннели, держится открытых платформ.", "en": "A storm took his crew and left him. Speaks in a whisper, keeps checking the tension on his line. Hates the tunnels, sticks to the open platforms."},
+      "hook": {"ru": "Наёмник: лучшая Сила на станции, нулевое Чутьё.", "en": "Hired muscle: best Grit on the station, zero Senses."}
+    },
+    {
+      "id": "barnum",
+      "name": {"ru": "Барнум", "en": "Barnum"},
+      "title": {"ru": "Хозяин Кунсткамеры", "en": "Keeper of the Curiosity Cabinet"},
+      "skills": {"grit": 0, "wits": 3, "voice": 1, "senses": 2},
+      "look": {"ru": "Маленький сутулый человек в пожелтевшем халате поверх свитера. Толстые очки, перемотанные изолентой, делают глаза огромными.", "en": "Small and stooped, a yellowed lab coat over a wool sweater. Thick taped-up glasses make his eyes enormous."},
+      "bio": {"ru": "Бывший таксидермист, а может, музейный воришка. Собирает черепа, заспиртованных крыс и странные грибы со всей подземки. Считает, что конец света лучшее, что случалось с биологией Нью-Йорка.", "en": "Former taxidermist, or maybe a museum thief. Collects skulls, rats in jars and strange fungi from all over the tunnels. Thinks the end of the world is the best thing that ever happened to New York biology."},
+      "hook": {"ru": "Разгадывает фиолетовую плесень, даёт бонус к проверкам Смекалки против болезней.", "en": "Figures out the purple mold, gives a bonus to Wits checks against disease."}
+    },
+    {
+      "id": "sylvia",
+      "name": {"ru": "Русалка Сильвия", "en": "Sylvia the Mermaid"},
+      "title": {"ru": "Голос Прибоя", "en": "Voice of the Surf"},
+      "skills": {"grit": 0, "wits": 1, "voice": 3, "senses": 2},
+      "look": {"ru": "Молодая девушка в обрывках рыбацких сетей и пластиковых водорослях. Лицо в синей краске, на шее довоенный мегафон на верёвке.", "en": "Young, wrapped in torn fishing nets and plastic seaweed. Face painted blue, a pre-war megaphone on a rope round her neck."},
+      "bio": {"ru": "Проповедница Культа Великого Прилива. Голос завораживает даже через хрипящий мегафон. Обещает, что океан очистится и заберёт верных в наземный рай.", "en": "Preacher of the Great Tide. Her voice holds a crowd even through a crackling megaphone. Promises the ocean will heal and carry the faithful to a paradise above."},
+      "hook": {"ru": "Переманивает жителей с чужих станций. Проваленная проверка Речи при встрече: часть рабочих уходит за ней к Прибою.", "en": "Lures residents away from other stations. Fail a Voice check against her and some of your workers follow her to the Surf."}
+    }
+  ]
+}

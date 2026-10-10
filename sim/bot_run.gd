@@ -77,12 +77,150 @@ func _init() -> void:
 	else:
 		print("Network target: ok")
 	print("")
+	_print_seed_gates(careful, expander, follower)
+	if not _checks_ok("Careful", careful):
+		failed = true
+		print("CHECK TARGET FAIL careful")
+	if not _checks_ok("Expander", expander):
+		failed = true
+		print("CHECK TARGET FAIL expander")
+	if not _checks_ok("Follower", follower):
+		failed = true
+		print("CHECK TARGET FAIL follower")
+	print("")
+	_print_banners()
+	print("")
 	if failed:
 		print("BOT RUN FAILED")
 		quit(1)
 	else:
 		print("BOT RUN OK")
 		quit(0)
+
+
+func _checks_ok(title: String, rows: Array) -> bool:
+	var white_rolls := 0
+	var white_wins := 0
+	var red_rolls := 0
+	var red_wins := 0
+	var passed := 0
+	for row in rows:
+		white_rolls += int(row.get("check_white_rolls", 0))
+		white_wins += int(row.get("check_white_success", 0))
+		red_rolls += int(row.get("check_red_rolls", 0))
+		red_wins += int(row.get("check_red_success", 0))
+		passed += int(row.get("check_retry_passed", 0))
+	var ok := true
+	var white_pct := _pct_n(white_wins, white_rolls)
+	var red_pct := _pct_n(red_wins, red_rolls)
+	if white_rolls <= 0 or white_pct < 55 or white_pct > 80:
+		ok = false
+		print("  %s white %s outside 55-80" % [title, _pct(white_wins, white_rolls)])
+	if red_rolls <= 0 or red_pct < 40 or red_pct > 70:
+		ok = false
+		print("  %s red %s outside 40-70" % [title, _pct(red_wins, red_rolls)])
+	if passed < 3:
+		ok = false
+		print("  %s white retries passed %d, need 3" % [title, passed])
+	if ok:
+		print("%s checks: pass" % title)
+	return ok
+
+
+func _pct_n(won: int, rolls: int) -> int:
+	if rolls <= 0:
+		return -1
+	return int(round(float(won) * 100.0 / float(rolls)))
+
+
+func _print_seed_gates(careful: Array, expander: Array, follower: Array) -> void:
+	print("Per seed")
+	for row in careful:
+		print("  careful   seed %d  %s" % [int(row.seed), _careful_seed(row)])
+	for row in expander:
+		print("  expander  seed %d  %s" % [int(row.seed), _expander_seed(row)])
+	for row in follower:
+		print("  follower  seed %d  %s" % [int(row.seed), _follower_seed(row)])
+	for bundle in [["careful", careful], ["expander", expander], ["follower", follower]]:
+		for row in bundle[1]:
+			var ult := int(row.get("first_ultimatum", 0))
+			var flip := int(row.get("flip_week", 0))
+			var net := "pass"
+			var why: PackedStringArray = []
+			if ult < 6 or ult > 16:
+				why.append("ult %d" % ult)
+			if flip < 4:
+				why.append("flip %d" % flip)
+			if not why.is_empty():
+				net = "FAIL " + ", ".join(why)
+			print("  network   %s seed %d  %s" % [str(bundle[0]), int(row.seed), net])
+
+
+func _careful_seed(row: Dictionary) -> String:
+	var why: PackedStringArray = []
+	if not row.get("errors", []).is_empty() or str(row.get("over", "")) != "time":
+		why.append(str(row.get("over", "error")))
+	var shorts := int(row.get("shortage_weeks", 0))
+	if shorts < 0 or shorts > 2:
+		why.append("short %d" % shorts)
+	var peak := int(row.get("dis_max", 0))
+	if peak < 35 or peak > 55:
+		why.append("dis %d" % peak)
+	var pop := int(row.get("pop40", 0))
+	if pop < 45 or pop > 70:
+		why.append("pop %d" % pop)
+	var med := float(row.get("food_med", 0))
+	if med < 2.0 or med > 4.0:
+		why.append("food %.1f" % med)
+	if why.is_empty():
+		return "pass"
+	return "FAIL " + ", ".join(why)
+
+
+func _expander_seed(row: Dictionary) -> String:
+	var why: PackedStringArray = []
+	if not row.get("errors", []).is_empty() or str(row.get("over", "")) != "time":
+		why.append(str(row.get("over", "error")))
+	if int(row.get("shortage_weeks", 0)) > 5:
+		why.append("short %d" % int(row.shortage_weeks))
+	if int(row.get("hope_min", 0)) < 20:
+		why.append("hope %d" % int(row.hope_min))
+	if int(row.get("dis_max", 0)) > 75:
+		why.append("dis %d" % int(row.dis_max))
+	if why.is_empty():
+		return "pass"
+	return "FAIL " + ", ".join(why)
+
+
+func _follower_seed(row: Dictionary) -> String:
+	var why: PackedStringArray = []
+	if int(row.get("week", 0)) < 40 or str(row.get("over", "")) != "time":
+		why.append(str(row.get("over", "short")))
+	if float(row.get("food_med", 0)) < 1.5:
+		why.append("food %.1f" % float(row.food_med))
+	if int(row.get("hope_min", 0)) < 15:
+		why.append("hope %d" % int(row.hope_min))
+	if int(row.get("dis_max", 0)) > 65:
+		why.append("dis %d" % int(row.dis_max))
+	if int(row.get("pop40", 0)) < 45:
+		why.append("pop %d" % int(row.pop40))
+	if int(row.get("shortage_weeks", 0)) > 3:
+		why.append("short %d" % int(row.shortage_weeks))
+	if why.is_empty():
+		return "pass"
+	return "FAIL " + ", ".join(why)
+
+
+func _print_banners() -> void:
+	var want := ["expedition", "moles", "showtime", "cough", "brownout"]
+	var missing: PackedStringArray = []
+	for id in want:
+		if not FileAccess.file_exists("res://assets/events/%s.webp" % id):
+			missing.append(id)
+	if missing.is_empty():
+		print("Missing banners: none")
+	else:
+		print("Missing banners: %s" % ", ".join(missing))
 
 
 func _print_network(careful: Array, expander: Array, follower: Array) -> void:

@@ -110,8 +110,12 @@ static func _loop_player(path: String, node_name: String) -> AudioStreamPlayer:
 
 static func _stream(path: String) -> AudioStream:
 	if not ResourceLoader.exists(path):
+		print("Missing audio: %s" % path)
 		return null
 	var res: Resource = ResourceLoader.load(path)
+	if res == null or not (res is AudioStream):
+		print("Missing audio: %s" % path)
+		return null
 	return res as AudioStream
 
 

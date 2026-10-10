@@ -94,12 +94,17 @@ static func textures() -> Dictionary:
 		"res://assets/portraits/portrait_14.webp": preload("res://assets/portraits/portrait_14.webp"),
 		"res://assets/portraits/portrait_15.webp": preload("res://assets/portraits/portrait_15.webp"),
 		"res://assets/portraits/portrait_16.webp": preload("res://assets/portraits/portrait_16.webp"),
+		"res://assets/events/brownout.webp": preload("res://assets/events/brownout.webp"),
+		"res://assets/events/cough.webp": preload("res://assets/events/cough.webp"),
+		"res://assets/events/expedition.webp": preload("res://assets/events/expedition.webp"),
 		"res://assets/events/flood.webp": preload("res://assets/events/flood.webp"),
 		"res://assets/events/headphones.webp": preload("res://assets/events/headphones.webp"),
 		"res://assets/events/letter.webp": preload("res://assets/events/letter.webp"),
+		"res://assets/events/moles.webp": preload("res://assets/events/moles.webp"),
 		"res://assets/events/preacher.webp": preload("res://assets/events/preacher.webp"),
 		"res://assets/events/rat.webp": preload("res://assets/events/rat.webp"),
 		"res://assets/events/refugees.webp": preload("res://assets/events/refugees.webp"),
+		"res://assets/events/showtime.webp": preload("res://assets/events/showtime.webp"),
 		"res://assets/events/toll.webp": preload("res://assets/events/toll.webp"),
 		"res://assets/events/vote.webp": preload("res://assets/events/vote.webp"),
 	}
@@ -152,7 +157,7 @@ static func _icon_names(kind: String) -> PackedStringArray:
 		"expedition":
 			return PackedStringArray(["artifact", "expedition"])
 		"dig":
-			return PackedStringArray(["workshop", "dig"])
+			return PackedStringArray(["dig", "workshop"])
 		"hold":
 			return PackedStringArray(["warning", "hold"])
 		_:
