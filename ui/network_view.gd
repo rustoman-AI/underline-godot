@@ -226,6 +226,10 @@ func _draw() -> void:
 	_draw_intents(game)
 
 
+func _palette_tint(base: Color, lift: float) -> Color:
+	return Color(lerpf(base.r, 1.0, lift), lerpf(base.g, 1.0, lift), lerpf(base.b, 1.0, lift), 1.0)
+
+
 func _map_tex(path: String) -> Texture2D:
 	if not ResourceLoader.exists(path):
 		return null
@@ -240,7 +244,7 @@ func _draw_land(game) -> void:
 	var land: Dictionary = game.catalog.geo.get("land", {})
 	var step := float(spec.get("densify_step", 0.0025))
 	if _water_tex != null:
-		draw_texture_rect(_water_tex, Rect2(Vector2.ZERO, size), true, WATER)
+		draw_texture_rect(_water_tex, Rect2(Vector2.ZERO, size), true, _palette_tint(WATER, 0.42))
 	for key in land:
 		var ring: Array = land[key]
 		var projected := Geo.project_ring(ring, spec, step)
@@ -263,7 +267,7 @@ func _draw_land(game) -> void:
 				uvs.append(Vector2((point.x - bounds.position.x) / span.x, (point.y - bounds.position.y) / span.y))
 			var tint := PackedColorArray()
 			tint.resize(screen.size())
-			tint.fill(LAND)
+			tint.fill(_palette_tint(LAND, 0.22))
 			draw_polygon(screen, tint, uvs, _paper)
 		else:
 			draw_colored_polygon(screen, LAND)
