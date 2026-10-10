@@ -87,6 +87,9 @@ var ahead: PanelContainer
 var deck = ModalDeck.new()
 var ambient_restore: Callable = Callable()
 var shelved_event := ""
+var check_picks := {}
+var check_flash := false
+var pending_button: Button
 var end_cover: Control
 var ahead_box: VBoxContainer
 var source_panel: Panel
@@ -168,7 +171,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks():
 		shot_mode = true
 	if hub_button != null:
 		hub_button.visible = _hub_texture() != null
@@ -176,7 +179,7 @@ func _ready() -> void:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -191,7 +194,9 @@ func _ready() -> void:
 		if Settings.reopen == "settings":
 			Settings.reopen = ""
 			_open_settings(false)
-	if _want_polish():
+	if _want_checks():
+		await _check_shots()
+	elif _want_polish():
 		await _polish_shots()
 	elif _want_shots():
 		await _shots()
@@ -219,6 +224,10 @@ func _want_clarity() -> bool:
 
 func _want_hub() -> bool:
 	return OS.get_cmdline_user_args().has("--hub")
+
+
+func _want_checks() -> bool:
+	return OS.get_cmdline_user_args().has("--checks")
 
 
 func _want_polish() -> bool:
@@ -411,10 +420,12 @@ func _build() -> void:
 	burn_button = _tool("burn", "Burn", _ask_burn)
 	power_button = _tool("power", "Power", _show_power)
 	people_button = _tool("people", "People", _toggle_drawer)
+	pending_button = _tool("lock", "Pending", _show_pending)
+	pending_button.visible = false
 	burn_button.tooltip_text = "Burn salvage"
 	power_button.tooltip_text = "Power order"
 	people_button.tooltip_text = "Residents"
-	for button in [pump_button, quarantine_button, burn_button, power_button, people_button]:
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, pending_button]:
 		tray.add_child(button)
 
 	end_button = _button("End turn", _end_turn)
@@ -1048,12 +1059,16 @@ func _refresh() -> void:
 	var warning: Dictionary = game.revolt_warning()
 	var outlook_rows: Array = game.forecasts()
 	var line := ""
+	var hold := false
 	if not warning.is_empty():
 		line = str(warning.text)
+	elif game.residents.size() > game.housing():
+		line = game.crowd_line()
+		hold = true
 	elif not outlook_rows.is_empty():
 		line = str(outlook_rows[0].text)
 	ticker_label.text = line
-	ticker.visible = line != "" and not ticker_dismissed
+	ticker.visible = line != "" and (hold or not ticker_dismissed)
 	_place_chrome()
 	turn_clear = game.over == "" and game.pending.is_empty() and game.forecasts().is_empty() and game.revolt_warning().is_empty()
 	_fill_people()
@@ -1061,6 +1076,8 @@ func _refresh() -> void:
 	if not _sticky_note(footer.text):
 		footer.text = ""
 		footer.visible = false
+	if pending_button != null:
+		pending_button.visible = game.over == "" and not game.white_pending.is_empty()
 	_sync_waiting()
 	_offer_pending()
 
@@ -1132,6 +1149,13 @@ func _skill_line(person: Dictionary) -> String:
 	for key in ["care", "fight", "labor", "talk", "tech"]:
 		if person.skills.has(key):
 			bits.append("%s %d" % [Copy.skill(str(key)), int(person.skills[key])])
+	return " · ".join(bits)
+
+
+func _check_line(person: Dictionary) -> String:
+	var bits: PackedStringArray = []
+	for key in ["grit", "wits", "voice", "senses"]:
+		bits.append("%s %d" % [Copy.skill(str(key)), game.check_value(person, str(key))])
 	return " · ".join(bits)
 
 
@@ -1954,6 +1978,10 @@ func _show_dawn() -> void:
 	if footer.text == WAITING or footer.text == Copy.t(WAITING):
 		footer.text = ""
 		footer.visible = false
+	_paint_dawn()
+
+
+func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	if game.pending.is_empty():
 		_open_card(Copy.t("Dawn, week %d") % game.week)
@@ -1972,12 +2000,26 @@ func _show_dawn() -> void:
 		card_body.move_child(banner, 0)
 	_who_row(str(ev.get("who", "")))
 	_body(str(ev.text))
+	if check_flash:
+		var rolled := _check_result_line()
+		if rolled != "":
+			_body(rolled)
+		check_flash = false
 	_intent_row(lines)
 	_morning_notes(lines)
 	_dawn_alert()
 	for choice in ev.choices:
+		if choice.has("check") and not game.choice_locked(choice):
+			_check_block(ev, choice)
+		elif choice.has("bet"):
+			_body("The odds are hidden.")
 		var pick := _choice_button(str(choice.label), choice, _pick_event.bind(str(ev.id), str(choice.id)))
-		if not game.afford_choice(choice):
+		if game.choice_locked(choice):
+			var held := str(choice.get("lock_reason", ""))
+			pick.disabled = true
+			pick.tooltip_text = held
+			_body(held)
+		elif not game.afford_choice(choice):
 			var why := game.shortage_text(choice.get("cost", {}))
 			if why == "":
 				why = Copy.t("That cost cannot be paid.")
@@ -1998,14 +2040,23 @@ func _dawn_alert() -> void:
 		var warn := _button(str(warning.text), _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell)))
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		card_body.add_child(warn)
-		return
 	var rows: Array = game.forecasts()
 	if rows.is_empty():
 		return
+	var shown := {}
 	var row: Dictionary = rows[0]
+	shown[str(row.get("key", ""))] = true
 	var forecast := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
 	forecast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card_body.add_child(forecast)
+	for extra in rows:
+		var key := str(extra.get("key", ""))
+		if shown.has(key) or (key != "overcrowd" and key != "flood"):
+			continue
+		shown[key] = true
+		var more := _button(str(extra.text), _open_forecast_at.bind(str(extra.hint), int(extra.level), int(extra.cell)))
+		more.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_body.add_child(more)
 
 
 func _morning_notes(lines: PackedStringArray) -> void:
@@ -2097,12 +2148,113 @@ func _starts(text: String, prefixes: Array) -> bool:
 
 func _pick_event(event_id: String, choice_id: String) -> void:
 	var before := str(game.front_event().get("id", ""))
-	if not game.apply({"kind": "event", "event_id": event_id, "choice_id": choice_id}):
+	var choice := _choice_by_id(event_id, choice_id)
+	var action := {"kind": "event", "event_id": event_id, "choice_id": choice_id}
+	if choice.has("check"):
+		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
+	if not game.apply(action):
 		footer.text = Copy.t("That choice did not take.")
 		footer.visible = true
 		return
+	if choice.has("check") or choice.has("bet"):
+		check_flash = true
 	_refresh()
+	if check_flash:
+		footer.text = _check_result_line()
+		footer.visible = footer.text != ""
 	_advance_dawn(before)
+
+
+func _choice_by_id(event_id: String, choice_id: String) -> Dictionary:
+	if game.pending.is_empty():
+		return {}
+	var ev: Dictionary = game.front_event()
+	if str(ev.get("id", "")) != event_id:
+		return {}
+	for choice in ev.choices:
+		if str(choice.get("id", "")) == choice_id:
+			return choice
+	return {}
+
+
+func _check_key(event_id: String, choice_id: String) -> String:
+	return "%s:%s" % [event_id, choice_id]
+
+
+func _check_block(ev: Dictionary, choice: Dictionary) -> void:
+	var key := _check_key(str(ev.id), str(choice.id))
+	var preview: Dictionary = game.check_preview(choice, str(check_picks.get(key, "")))
+	check_picks[key] = str(preview.get("person", ""))
+	if str(preview.get("color", "")) == "red":
+		_body("Red check. One roll. It stands.")
+	else:
+		_body("White check")
+	var who := Copy.person(str(preview.get("name", "")))
+	_body("%s · %s %d" % [who, Copy.skill(str(preview.skill)), int(preview.get("value", 0))])
+	for row in preview.get("modifiers", []):
+		var amount := int(row.get("amount", 0))
+		var signed := "+%d" % amount if amount >= 0 else str(amount)
+		_body("%s %s" % [signed, Copy.t(str(row.get("text", "")))])
+	_body(Copy.t("Success %d%%") % int(preview.get("chance", 0)))
+	if _check_roster().size() > 1:
+		card_body.add_child(_button("Someone else", _swap_check.bind(str(ev.id), str(choice.id))))
+
+
+func _check_roster() -> Array:
+	var ids: Array = []
+	for person in game.residents:
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		ids.append(str(person.id))
+	return ids
+
+
+func _swap_check(event_id: String, choice_id: String) -> void:
+	var roster := _check_roster()
+	if roster.size() < 2:
+		return
+	var key := _check_key(event_id, choice_id)
+	var current := str(check_picks.get(key, ""))
+	var idx := roster.find(current)
+	check_picks[key] = str(roster[(idx + 1) % roster.size()])
+	if deck.top_token() == "dawn":
+		_paint_dawn()
+	else:
+		_show_dawn()
+
+
+func _check_result_line() -> String:
+	var last: Dictionary = game.last_check
+	if last.is_empty():
+		return ""
+	if bool(last.get("bet", false)):
+		if bool(last.get("box", false)):
+			return Copy.t("Double 6. The bet wins.")
+		if bool(last.get("snake", false)):
+			return Copy.t("Double 1. The bet loses.")
+		if bool(last.get("success", false)):
+			return Copy.t("The bet wins.")
+		return Copy.t("The bet loses.")
+	if bool(last.get("box", false)):
+		return Copy.t("Double 6. Success.")
+	if bool(last.get("snake", false)):
+		return Copy.t("Double 1. Failure.")
+	var verdict := Copy.t("Success.") if bool(last.get("success", false)) else Copy.t("Failure.")
+	return "%s %d+%d. %s" % [Copy.skill(str(last.get("skill", ""))), int(last.get("d1", 0)), int(last.get("d2", 0)), verdict]
+
+
+func _show_pending() -> void:
+	if not _claim(ModalDeck.AMBIENT, "pending", _show_pending):
+		return
+	_open_card("Pending")
+	if game.white_pending.is_empty():
+		_body("Nothing is waiting on a retry.")
+		return
+	for ev in game.white_pending:
+		_body(str(ev.get("title", "")))
+		for choice in ev.get("choices", []):
+			if game.choice_locked(choice):
+				_body(str(choice.get("lock_reason", "")))
 
 
 func _dismiss_dawn() -> void:
@@ -2930,7 +3082,7 @@ func _advance_guide() -> void:
 		_skip_guide()
 		return
 	guide_step += 1
-	if guide_step >= 5:
+	if guide_step >= _guide_lines().size():
 		_skip_guide()
 		return
 	_fill_guide()
@@ -2940,6 +3092,7 @@ func _guide_lines() -> PackedStringArray:
 	return PackedStringArray([
 		"Stocks sit up here. Tap one to see where it comes from.",
 		"Dig a rock cell that touches an open floor.",
+		"Build Quarters on a dug floor.",
 		"Build a room on an open floor.",
 		"Assign people to a room. Open People, then tap a name.",
 		"End the turn. Dawn reports what the week changed.",
@@ -2955,10 +3108,13 @@ func _fill_guide() -> void:
 		guide_next.text = Copy.t("Done")
 		return
 	var lines := _guide_lines()
-	guide_copy.text = Copy.t(lines[guide_step])
+	if guide_step == 2:
+		guide_copy.text = "%s. %s" % [game.crowd_line(), Copy.t(lines[guide_step])]
+	else:
+		guide_copy.text = Copy.t(lines[guide_step])
 	guide_count.text = "%d / %d" % [guide_step + 1, lines.size()]
 	guide_next.text = Copy.t("Done") if guide_step >= lines.size() - 1 else Copy.t("Next")
-	if guide_step == 3:
+	if guide_step == 4:
 		drawer_open = true
 		people_filter = "free"
 		_fill_people()
@@ -3013,13 +3169,17 @@ func _guide_target() -> Rect2:
 			if dig_at.x >= 0 and yard != null:
 				return yard.cell_screen(dig_at.x, dig_at.y)
 		2:
+			var beds := _quarters_cell()
+			if yard != null:
+				return yard.cell_screen(beds.x, beds.y)
+		3:
 			var floor := _first_open_floor()
 			if yard != null:
 				return yard.cell_screen(floor.x, floor.y)
-		3:
+		4:
 			if people_button != null:
 				return _control_rect(people_button)
-		4:
+		5:
 			if end_button != null:
 				return _control_rect(end_button)
 	return Rect2()
@@ -3029,6 +3189,13 @@ func _control_rect(node: Control) -> Rect2:
 	var g := node.get_global_rect()
 	var origin := get_global_rect().position
 	return Rect2(g.position - origin, g.size)
+
+
+func _quarters_cell() -> Vector2i:
+	for room in game.rooms:
+		if str(room.type) == "quarters":
+			return Vector2i(int(room.level), int(room.cell))
+	return _first_open_floor()
 
 
 func _guide_cell(open_floor: bool) -> Vector2i:
@@ -3057,6 +3224,7 @@ func _show_person(person_id: String) -> void:
 	var text := VBoxContainer.new()
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text.add_child(_label(_skill_line(person), 14))
+	text.add_child(_label(_check_line(person), 14))
 	var traits := Copy.trait_list(person.get("traits", []))
 	if traits != "":
 		text.add_child(_label(traits, 14))
@@ -3082,6 +3250,7 @@ func _show_dossier(person_id: String) -> void:
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(who)
 	card_body.add_child(row)
+	card_body.add_child(_label(_check_line(person), 15))
 	_heading("Before the Silence")
 	_placeholder(str(person.get("before_silence", "")), "Not written yet.")
 	_heading("Keepsake")
@@ -3672,6 +3841,59 @@ func _finish_hide_modal() -> void:
 	if card != null:
 		card.scale = Vector2.ONE
 		card.modulate.a = 1.0
+
+
+func _check_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(Vector2i(1280, 720))
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	_offer_shot("queens_door")
+	await _frame()
+	await _frame()
+	_save("check_queens")
+	_swap_check("queens_door", "open")
+	await _frame()
+	await _frame()
+	_save("check_swap")
+	_close_card()
+	_show_person(str(game.residents[0].id))
+	await _frame()
+	await _frame()
+	_save("check_person")
+	_close_card()
+	var waiting: Dictionary = game._copy(game._event_by_id("vents"))
+	waiting.choices[0].locked = true
+	waiting.choices[0].lock_reason = "Retry after: build Meeting hall"
+	game.white_pending = [waiting]
+	_refresh()
+	_show_pending()
+	await _frame()
+	await _frame()
+	_save("check_pending")
+	_close_card()
+	game.last_check = {"skill": "wits", "d1": 6, "d2": 6, "box": true, "snake": false, "success": true}
+	check_flash = true
+	_offer_shot("mold")
+	await _frame()
+	await _frame()
+	_save("check_mold")
+	_close_card()
+	_offer_shot("showtime")
+	await _frame()
+	await _frame()
+	_save("check_showtime")
+	get_tree().quit(0)
+
+
+func _offer_shot(event_id: String) -> void:
+	game.pending.clear()
+	game.week_event_ids = {}
+	game._present_event(game._event_by_id(event_id))
+	_show_dawn()
 
 
 func _network_shots() -> void:

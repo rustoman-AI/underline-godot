@@ -717,5 +717,20 @@
   "Showtime on the platform": "Игра на платформе",
   "A game is going around the platform. The odds are not written down. The stake is 6 tokens.": "На платформе идёт игра. Шансы не записаны. Ставка 6 жетонов.",
   "Stake 6 tokens": "Поставить 6 жетонов",
-  "Walk away": "Отойти"
+  "Walk away": "Отойти",
+  "White check": "Белая проверка",
+  "Red check. One roll. It stands.": "Красная проверка. Один бросок. Он остаётся.",
+  "Success %d%%": "Успех %d%%",
+  "Someone else": "Другой житель",
+  "Pending": "Ожидание",
+  "Nothing is waiting on a retry.": "Повтор пока не открыт.",
+  "The odds are hidden.": "Шансы скрыты.",
+  "Double 6. Success.": "Две шестёрки. Успех.",
+  "Double 1. Failure.": "Две единицы. Провал.",
+  "Success.": "Успех.",
+  "Failure.": "Провал.",
+  "The bet wins.": "Ставка сыграла.",
+  "The bet loses.": "Ставка сгорела.",
+  "Double 6. The bet wins.": "Две шестёрки. Ставка сыграла.",
+  "Double 1. The bet loses.": "Две единицы. Ставка сгорела."
 }

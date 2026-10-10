@@ -3839,7 +3839,7 @@ func check_modifiers(skill: String) -> Array:
 	if skill == "wits" and _room_ready("workshop"):
 		rows.append({"text": "Workshop", "amount": 1})
 	if skill == "wits" and _law_on("engineers_charter"):
-		rows.append({"text": "Engineers' charter", "amount": 1})
+		rows.append({"text": "Engineers' Charter", "amount": 1})
 	if skill == "voice" and _room_ready("meeting_hall"):
 		rows.append({"text": "Meeting hall", "amount": 1})
 	if skill == "voice" and _law_on("sermons"):
