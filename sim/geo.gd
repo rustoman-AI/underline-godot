@@ -10,7 +10,9 @@ static func project(lat: float, lon: float, spec: Dictionary) -> Vector2:
 	var radius := sqrt(dx * dx + dy * dy)
 	if radius < 0.000001:
 		return Vector2.ZERO
-	var bowed := float(spec.scale) * log(1.0 + radius / float(spec.k_km))
+	# One third of the old log-fisheye. Far coasts stay near the frame edge.
+	var k := float(spec.k_km) * 3.0
+	var bowed := float(spec.scale) * log(1.0 + radius / k)
 	return Vector2(dx / radius * bowed, -dy / radius * bowed)
 
 
