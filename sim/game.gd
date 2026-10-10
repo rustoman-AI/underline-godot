@@ -46,6 +46,8 @@ var synod := 0
 var floor_met := false
 var orders_left := 0
 var seat_used := {}
+var queued_orders: Array = []
+var order_reports: Array = []
 var decisions := 0
 var hope_zero := 0
 var next_person := 0
@@ -620,6 +622,7 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
+	_resolve_queued()
 	orders_left = council.size()
 	seat_used = {}
 	pumped = false
@@ -2478,9 +2481,153 @@ func _take_seat(order_name: String) -> void:
 			return
 
 
+func order_councillor() -> Dictionary:
+	var busy := {}
+	for row in queued_orders:
+		busy[str(row.get("person", ""))] = true
+	for seat in council:
+		var role := str(seat.role)
+		var pid := str(seat.id)
+		if str(seat_used.get(role, "")) != "" or busy.has(pid):
+			continue
+		var person: Dictionary = people.get(pid, {})
+		return {"role": role, "id": pid, "name": str(person.get("name", role))}
+	return {}
+
+
+func order_cost(kind: String, _sid: String = "") -> Dictionary:
+	match kind:
+		"propaganda":
+			return {"influence": int(bal.propaganda_influence)}
+		"envoy":
+			return {"influence": 3}
+		"trade":
+			return {"influence": 4}
+		_:
+			return {}
+	return {}
+
+
+func queue_order(action: Dictionary) -> bool:
+	var kind := str(action.get("order", ""))
+	var sid := str(action.get("station", action.get("dest", "")))
+	if order_block(kind, sid) != "":
+		return false
+	var who := order_councillor()
+	if who.is_empty():
+		return false
+	var cost := order_cost(kind, sid)
+	for key in cost:
+		if int(stock.get(key, 0)) < int(cost[key]):
+			return false
+	for key in cost:
+		stock[key] = int(stock.get(key, 0)) - int(cost[key])
+	orders_left -= 1
+	seat_used[str(who.role)] = kind
+	var target := sid
+	if kind == "expedition" and stations.has("vault"):
+		target = "vault"
+	queued_orders.append({
+		"action": action.duplicate(true),
+		"role": str(who.role),
+		"person": str(who.id),
+		"name": str(who.name),
+		"cost": cost.duplicate(true),
+		"home": capital_id,
+		"target": target,
+		"kind": kind,
+	})
+	return true
+
+
+func cancel_queued(role: String) -> bool:
+	for i in queued_orders.size():
+		var row: Dictionary = queued_orders[i]
+		if str(row.role) != role:
+			continue
+		var cost: Dictionary = row.get("cost", {})
+		for key in cost:
+			stock[key] = int(stock.get(key, 0)) + int(cost[key])
+		seat_used.erase(role)
+		orders_left += 1
+		queued_orders.remove_at(i)
+		return true
+	return false
+
+
+func _resolve_queued() -> void:
+	var rows: Array = queued_orders.duplicate(true)
+	queued_orders.clear()
+	for row in rows:
+		var action: Dictionary = row.get("action", {})
+		var cost: Dictionary = row.get("cost", {})
+		for key in cost:
+			stock[key] = int(stock.get(key, 0)) + int(cost[key])
+		var kind := str(action.get("order", ""))
+		var sid := str(action.get("station", ""))
+		var ok := false
+		match kind:
+			"propaganda":
+				ok = _order_propaganda(sid)
+			"envoy":
+				ok = _order_envoy(sid)
+			"aid":
+				ok = _order_aid(sid)
+			"pay":
+				ok = _order_pay(str(action.get("demand", "")))
+			"gift":
+				ok = _order_gift(str(action.get("faction", "")))
+			"trade":
+				if sid != "":
+					ok = _order_deal(sid)
+				else:
+					ok = _order_trade()
+			"move":
+				ok = _order_move(str(action.get("dest", "")))
+			"focus":
+				ok = _order_focus(sid, str(action.get("focus", "")))
+			"expedition":
+				ok = _order_expedition()
+			"approach":
+				ok = _order_approach()
+			"address":
+				ok = _order_address()
+		var place := sid
+		if kind == "move" and stations.has(str(action.get("dest", ""))):
+			place = str(stations[str(action.dest)].get("community", action.dest))
+		elif stations.has(sid):
+			place = str(stations[sid].get("community", sid))
+		seat_used.erase(str(row.get("role", "")))
+		var title := Copy.t("Dawn report")
+		var text := "%s · %s" % [str(row.get("name", "")), place]
+		if ok:
+			title = Copy.t(_order_title(kind))
+		else:
+			text = "%s %s" % [Copy.t("The order failed."), text]
+		order_reports.append({"title": title, "text": text, "ok": ok})
+
+
+func _order_title(kind: String) -> String:
+	match kind:
+		"envoy":
+			return "Envoy returns"
+		"propaganda":
+			return "Propaganda returns"
+		"move":
+			return "The squad arrives"
+		"trade":
+			return "The deal is struck"
+		"expedition":
+			return "The expedition sets out"
+		_:
+			return "Dawn report"
+
+
 func order_block(kind: String, sid: String = "") -> String:
 	if orders_left <= 0:
 		return Copy.t("No council order left this week.")
+	if order_councillor().is_empty():
+		return Copy.t("No councillor is free.")
 	match kind:
 		"envoy":
 			return _envoy_block(sid)
@@ -4992,7 +5139,7 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory",
+	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports",
 	"check_schedule", "white_pending", "vent_cut",
 ]
 
