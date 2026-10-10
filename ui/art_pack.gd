@@ -6,6 +6,7 @@ class_name ArtPack
 static var missing := PackedStringArray()
 static var _textures: Dictionary = {}
 static var _fonts: Dictionary = {}
+static var _icons: Dictionary = {}
 
 static func note(path: String) -> void:
 	if path == "" or missing.has(path):
@@ -103,6 +104,61 @@ static func textures() -> Dictionary:
 		"res://assets/events/vote.webp": preload("res://assets/events/vote.webp"),
 	}
 	return _textures
+
+
+static func adopt_icons() -> void:
+	var src := "res://incoming-art/icons"
+	if DirAccess.open(src) == null:
+		return
+	_copy_tree(src, "res://assets/icons")
+
+
+static func icon_texture(kind: String) -> Texture2D:
+	if _icons.has(kind):
+		var cached = _icons[kind]
+		return cached if cached is Texture2D else null
+	var found: Texture2D = null
+	var folders := ["", "resources/", "actions/", "rooms/", "status/"]
+	for folder in folders:
+		if found != null:
+			break
+		for ext in ["webp", "png"]:
+			var path := "res://assets/icons/%s%s.%s" % [folder, kind, ext]
+			if not ResourceLoader.exists(path):
+				continue
+			var tex := load_texture(path)
+			if tex == null:
+				continue
+			found = _with_mipmaps(tex)
+			break
+	_icons[kind] = found if found != null else false
+	return found
+
+
+static func _with_mipmaps(tex: Texture2D) -> Texture2D:
+	var image := tex.get_image()
+	if image == null:
+		return tex
+	if image.get_width() > 1 and image.get_height() > 1:
+		image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
+
+
+static func _copy_tree(src: String, dst: String) -> void:
+	var dir := DirAccess.open(src)
+	if dir == null:
+		return
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dst))
+	for name in dir.get_directories():
+		if str(name).begins_with("."):
+			continue
+		_copy_tree(src.path_join(str(name)), dst.path_join(str(name)))
+	for name in dir.get_files():
+		if str(name).begins_with("."):
+			continue
+		var from := ProjectSettings.globalize_path(src.path_join(str(name)))
+		var to := ProjectSettings.globalize_path(dst.path_join(str(name)))
+		DirAccess.copy_absolute(from, to)
 
 
 static func fonts() -> Dictionary:

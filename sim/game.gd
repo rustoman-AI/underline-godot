@@ -3841,3 +3841,41 @@ func _invariants() -> void:
 
 func _log(text: String, important := false) -> void:
 	log.append({"week": week, "text": text, "important": important})
+
+
+const PERSIST := [
+	"seed", "week", "max_weeks", "over", "player", "player_lean", "capital_id",
+	"stock", "hope", "discontent", "residents", "people", "cells", "rooms",
+	"laws_on", "law_lock", "council", "stations", "tunnels", "squads",
+	"opinions", "ambition", "at_war", "trade_on", "telegraphed", "demands",
+	"pending", "dig", "build", "expedition", "active_season", "artifacts",
+	"pumped", "quarantine", "synod", "floor_met", "orders_left", "decisions",
+	"hope_zero", "next_person", "demand_seq", "log", "errors", "stats",
+	"food_buffers", "growth_bank", "hope_week", "hope_history", "hope_totals",
+	"dis_totals", "hope_samples", "last_net", "last_hope_delta", "last_dis_delta",
+	"dis_week", "audit", "rot_week", "crunch_week", "crunch_kind",
+	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
+	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
+	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
+	"power_zero_streak", "rally_lock",
+]
+
+
+func export_state() -> Dictionary:
+	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state}
+	for key in PERSIST:
+		data[key] = get(key)
+	return data
+
+
+func import_state(data: Dictionary) -> bool:
+	if not data.has("week"):
+		return false
+	for key in PERSIST:
+		if data.has(key):
+			set(key, data[key])
+	if data.has("rng_state"):
+		rng.state = int(data.rng_state)
+	if data.has("crunch_state"):
+		crunch_rng.state = int(data.crunch_state)
+	return true

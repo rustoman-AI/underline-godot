@@ -56,6 +56,17 @@ static func boot() -> void:
 		lang = "en"
 
 
+static func set_lang(code: String) -> void:
+	if code != "ru" and code != "en":
+		return
+	lang = code
+	ready = true
+	if code == "ru":
+		_load()
+	else:
+		map = {}
+
+
 static func ru() -> bool:
 	boot()
 	return lang == "ru"
@@ -160,10 +171,15 @@ static func plural(n: int, forms: Array) -> String:
 
 static func _detect() -> String:
 	var picked := _arg_lang()
-	if picked == "":
-		picked = OS.get_environment("UNDERLINE_LANG").strip_edges().to_lower()
-	if picked != "ru" and picked != "en":
-		picked = _file_lang(OS.get_executable_path().get_base_dir().path_join("lang.txt"))
+	if picked == "ru" or picked == "en":
+		return picked
+	picked = OS.get_environment("UNDERLINE_LANG").strip_edges().to_lower()
+	if picked == "ru" or picked == "en":
+		return picked
+	Settings.load_file()
+	if Settings.language == "ru" or Settings.language == "en":
+		return Settings.language
+	picked = _file_lang(OS.get_executable_path().get_base_dir().path_join("lang.txt"))
 	if picked != "ru" and picked != "en" and OS.has_feature("ru"):
 		return "ru"
 	if picked != "ru" and picked != "en":

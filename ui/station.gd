@@ -95,7 +95,7 @@ var source_key := ""
 var people_head: Label
 var people_expand: Control
 var people_tab: Button
-var people_tab_count: Label
+var people_rail: PeopleRail
 var people_filter := ""
 var guide_layer: Control
 var guide_card: PanelContainer
@@ -112,10 +112,27 @@ var hub_station_label: Label
 var hub_community_label: Label
 var hub_begin: Button
 var hub_back: Button
+var number_font: Font
+var at_menu := false
+var hold_dawn := false
+var menu_layer: Control
+var menu_root: Control
+var menu_settings: VBoxContainer
+var menu_credits: VBoxContainer
+var continue_button: Button
+var settings_from_game := false
+var filling_settings := false
+var stock_shown := {}
+var stock_week := 0
+var stock_tween: Tween
+var modal_tween: Tween
+var modal_open := false
 
 
 func _ready() -> void:
 	Copy.boot()
+	Settings.load_file()
+	ArtPack.adopt_icons()
 	ArtPack.textures()
 	ArtPack.fonts()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -129,6 +146,7 @@ func _ready() -> void:
 	theme.default_font_size = 16
 	self.theme = theme
 	_build()
+	Sound.boot(self)
 	_audit_art()
 	var catalog := Catalog.new()
 	if not catalog.load_all():
@@ -138,21 +156,37 @@ func _ready() -> void:
 	game = Game.new()
 	game.setup(catalog, 1, 40)
 	yard.station = self
+	hold_dawn = true
 	_refresh()
+	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish():
 		shot_mode = true
 	if hub_button != null:
 		hub_button.visible = _hub_texture() != null
+	if not shot_mode:
+		Settings.apply_display(get_window())
+		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub():
+		if not _want_hub() and not _want_polish():
 			_show_dawn()
-	elif _hub_texture() != null:
-		_show_start()
+	elif Settings.resume and game != null and SaveGame.load_latest(game):
+		Settings.resume = false
+		at_menu = false
+		Sound.bed("station")
+		_refresh()
+		if Settings.reopen == "settings":
+			Settings.reopen = ""
+			_open_settings(true)
 	else:
-		_show_dawn()
-	if _want_shots():
+		_show_main_menu()
+		if Settings.reopen == "settings":
+			Settings.reopen = ""
+			_open_settings(false)
+	if _want_polish():
+		await _polish_shots()
+	elif _want_shots():
 		await _shots()
 	elif _want_clarity():
 		await _clarity_shots()
@@ -178,6 +212,23 @@ func _want_hub() -> bool:
 	return OS.get_cmdline_user_args().has("--hub")
 
 
+func _want_polish() -> bool:
+	return OS.get_cmdline_user_args().has("--polish")
+
+
+func _tabular(base: Font) -> Font:
+	if base == null:
+		return null
+	var variation := FontVariation.new()
+	variation.base_font = base
+	variation.opentype_features = {"tnum": 1}
+	return variation
+
+
+func _motion_off() -> bool:
+	return shot_mode or Settings.reduced()
+
+
 func _load_fonts() -> void:
 	var courier := ArtPack.load_font("res://assets/fonts/CourierPrime-Regular.ttf")
 	var mono := ArtPack.load_font("res://assets/fonts/PTMono-Regular.ttf", true)
@@ -197,6 +248,7 @@ func _load_fonts() -> void:
 		return
 	body_font = courier if courier != null else ThemeDB.fallback_font
 	display_font = shoulders_face if shoulders_face != null else ThemeDB.fallback_font
+	number_font = _tabular(body_font)
 
 
 func _display_face(file: Font, weight: float) -> Font:
@@ -359,6 +411,9 @@ func _build() -> void:
 	end_button.add_theme_stylebox_override("hover", _brass_style(false))
 	end_button.add_theme_stylebox_override("pressed", _brass_style(true))
 	end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
+	end_button.set_meta("ui_sound", "")
+	end_button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	end_button.clip_text = true
 	end_button.mouse_entered.connect(_show_ahead.bind(true))
 	end_button.mouse_exited.connect(_show_ahead.bind(false))
 	add_child(end_button)
@@ -394,6 +449,9 @@ func _tool(kind: String, caption: String, cb: Callable) -> Button:
 	button.tooltip_text = Copy.t(caption)
 	if Copy.ru() and display_font != null:
 		button.set_meta("caption_font", display_font)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.mouse_entered.connect(_ui_hover)
+	button.pressed.connect(_ui_pressed.bind(button))
 	button.pressed.connect(cb)
 	_style_tool(button)
 	return button
@@ -402,8 +460,10 @@ func _tool(kind: String, caption: String, cb: Callable) -> Button:
 func _style_tool(button: Button) -> void:
 	var style := _steel_style()
 	style.set_content_margin_all(4)
+	var hover := style.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.16, 0.17, 0.2, 0.96)
 	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", style)
 	var dimmed := style.duplicate() as StyleBoxFlat
 	dimmed.bg_color = Color(0.07, 0.08, 0.09, 0.45)
@@ -435,8 +495,9 @@ func _top_bar() -> PanelContainer:
 	title_row.add_child(res_grid)
 	for key in STOCK_KEYS:
 		var chip := HBoxContainer.new()
-		chip.add_theme_constant_override("separation", 4)
+		chip.add_theme_constant_override("separation", 6)
 		chip.mouse_filter = Control.MOUSE_FILTER_STOP
+		chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.alignment = BoxContainer.ALIGNMENT_CENTER
 		var icon_col := VBoxContainer.new()
@@ -445,26 +506,37 @@ func _top_bar() -> PanelContainer:
 		icon_col.add_theme_constant_override("separation", 0)
 		var icon := Glyph.new()
 		icon.kind = str(key)
-		icon.custom_minimum_size = Vector2(18, 18)
+		var icon_px := 24 if ArtPack.icon_texture(str(key)) != null else 18
+		icon.custom_minimum_size = Vector2(icon_px, icon_px)
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		chip.tooltip_text = Copy.res(str(key))
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var name := _label(Copy.res(str(key)), 12)
+		var name := _label(Copy.res(str(key)), 11)
 		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		name.visible = false
 		icon_col.add_child(icon)
 		icon_col.add_child(name)
-		var value := _label("0", 16)
+		var value := _label("0", 22)
 		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		value.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		value.custom_minimum_size = Vector2(22, 18)
-		var delta := _label("", 16)
+		if number_font != null:
+			value.add_theme_font_override("font", number_font)
+		var digit := 12.0
+		if number_font != null:
+			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+		value.custom_minimum_size = Vector2(digit * 4.0 + 2.0, 26)
+		var delta := _label("", 12)
 		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		delta.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		delta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		delta.custom_minimum_size = Vector2(36, 18)
+		if number_font != null:
+			delta.add_theme_font_override("font", number_font)
+		var small := 8.0
+		if number_font != null:
+			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		delta.custom_minimum_size = Vector2(small * 4.0 + 4.0, 16)
+		chip.tooltip_text = Copy.res(str(key))
 		chip.add_child(icon_col)
 		chip.add_child(value)
 		chip.add_child(delta)
@@ -549,23 +621,16 @@ func _side_panel() -> PanelContainer:
 	people_tab = Button.new()
 	people_tab.focus_mode = Control.FOCUS_NONE
 	people_tab.pressed.connect(_toggle_drawer)
+	people_tab.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	people_tab.mouse_entered.connect(_ui_hover)
+	people_tab.pressed.connect(func(): Sound.play("click"))
 	_style_tool(people_tab)
-	people_tab.custom_minimum_size = Vector2(44, 72)
-	var tab_box := VBoxContainer.new()
-	tab_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tab_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	tab_box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	people_tab.add_child(tab_box)
-	var tab_mark := Glyph.new()
-	tab_mark.kind = "people"
-	tab_mark.custom_minimum_size = Vector2(22, 22)
-	tab_mark.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	tab_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tab_box.add_child(tab_mark)
-	people_tab_count = _label("0", 14)
-	people_tab_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	people_tab_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tab_box.add_child(people_tab_count)
+	people_tab.custom_minimum_size = Vector2(52, 72)
+	people_rail = PeopleRail.new()
+	people_rail.set_anchors_preset(Control.PRESET_FULL_RECT)
+	people_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	people_rail.face = display_font if display_font != null else body_font
+	people_tab.add_child(people_rail)
 	box.add_child(people_tab)
 	people_expand = VBoxContainer.new()
 	people_expand.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -642,7 +707,7 @@ func _place_chrome() -> void:
 	var end_w := 148.0 if short else 176.0
 	var end_h := maxf(48.0 if short else 58.0, 44.0)
 	end_button.add_theme_font_size_override("font_size", 20 if short else 26)
-	var hud_h := 78.0
+	var hud_h := 90.0 if _guide_names() else 72.0
 	if ticker != null and ticker.visible:
 		hud_h += 28.0
 	if hud != null:
@@ -775,7 +840,7 @@ func _place_drawer() -> void:
 		people_expand.visible = drawer_open
 	if people_tab != null:
 		people_tab.visible = not drawer_open
-	var w := 48.0
+	var w := 56.0
 	if drawer_open:
 		w = minf(360.0, size.x * 0.42)
 	side.offset_left = size.x - w
@@ -783,7 +848,7 @@ func _place_drawer() -> void:
 	side.offset_top = top
 	side.offset_bottom = size.y - chrome_bottom
 	if people_tab != null and not drawer_open:
-		people_tab.custom_minimum_size = Vector2(44, maxf(72.0, side.offset_bottom - side.offset_top - 8.0))
+		people_tab.custom_minimum_size = Vector2(52, maxf(72.0, side.offset_bottom - side.offset_top - 8.0))
 
 func _build_overlay() -> void:
 	ahead = PanelContainer.new()
@@ -907,19 +972,22 @@ func _refresh() -> void:
 	if not game.active_season.is_empty():
 		season = " · %s" % Copy.season(str(game.active_season.id))
 	week_label.text = Copy.t("Week %d%s") % [game.week, season]
+	var roll := stock_week > 0 and game.week != stock_week and not game.last_net.is_empty()
+	_paint_stocks(roll)
+	stock_week = game.week
+	_sync_resource_names()
 	for key in STOCK_KEYS:
-		chips[key].value.text = str(int(game.stock.get(key, 0)))
 		var delta_text := ""
 		var color := MUTED
 		if not game.last_net.is_empty():
 			var d := int(game.last_net.get(key, 0))
-			delta_text = "+%d" % d if d > 0 else str(d)
+			if d != 0:
+				delta_text = "+%d" % d if d > 0 else str(d)
 			if d > 0:
 				color = DELTA_UP
 			elif d < 0:
 				color = DELTA_DOWN
 		chips[key].delta.text = delta_text
-		chips[key].delta.custom_minimum_size = Vector2(0 if delta_text == "" else 28, 18)
 		chips[key].delta.add_theme_color_override("font_color", color)
 		var outlook: Dictionary = game.resource_outlook(str(key))
 		chips[key].box.tooltip_text = "%s. %s" % [Copy.res(str(key)), str(outlook.text)]
@@ -989,9 +1057,10 @@ func _fill_people() -> void:
 	var free_n := total - working
 	if people_head != null:
 		people_head.text = _people_counts(total, working, free_n)
-	if people_tab_count != null:
-		people_tab_count.text = str(free_n)
-		people_tab_count.add_theme_color_override("font_color", Color("e2a63a") if free_n > 0 else MUTED)
+	if people_rail != null:
+		people_rail.caption = _people_tab_caption(free_n)
+		people_rail.ink = Color("e2a63a") if free_n > 0 else MUTED
+		people_rail.queue_redraw()
 	if people_filter != "":
 		var clear := _button("All", _clear_people_filter)
 		clear.custom_minimum_size.y = 36
@@ -1051,6 +1120,13 @@ func _person_post(id: String) -> String:
 		if str(wid) == id:
 			return "crew"
 	return "free"
+
+
+func _people_tab_caption(free_n: int) -> String:
+	if Copy.ru():
+		var word := "свободен" if _ru_singular(free_n) else "свободны"
+		return "Люди %d %s" % [free_n, word]
+	return "People %d free" % free_n
 
 
 func _people_counts(total: int, working: int, free_n: int) -> String:
@@ -1179,7 +1255,43 @@ func _sync_waiting() -> void:
 		end_button.tooltip_text = Copy.t("End the week")
 
 
+func _guide_names() -> bool:
+	return game != null and int(game.week) == 1 and guide_step >= 0 and guide_layer != null and guide_layer.visible
+
+
+func _sync_resource_names() -> void:
+	var show_names := _guide_names()
+	for key in chips:
+		var name_label: Label = chips[key].name
+		name_label.visible = show_names
+	_place_chrome()
+
+
+func _paint_stocks(roll: bool) -> void:
+	if stock_tween != null:
+		stock_tween.kill()
+	var can_roll := roll and not _motion_off()
+	if can_roll:
+		stock_tween = create_tween()
+	for key in STOCK_KEYS:
+		var target := float(int(game.stock.get(key, 0)))
+		var start := float(stock_shown.get(key, target))
+		stock_shown[key] = target
+		if can_roll and not is_equal_approx(start, target):
+			stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), start, target, 0.45)
+		else:
+			_set_stock_text(target, str(key))
+
+
+func _set_stock_text(value: float, key: String) -> void:
+	if not chips.has(key):
+		return
+	chips[key].value.text = str(int(round(value)))
+
+
 func _offer_pending() -> void:
+	if hold_dawn or at_menu:
+		return
 	if game.over != "" or game.pending.is_empty():
 		return
 	if _choice_shelved():
@@ -1202,7 +1314,19 @@ func _end_turn() -> void:
 	if not game.pending.is_empty():
 		_show_dawn()
 		return
+	var before := {}
+	for room in game.rooms:
+		before[str(room.uid)] = true
+	Sound.play("whoosh")
 	game.end_week()
+	if game.over == "" and yard != null:
+		for room in game.rooms:
+			if before.has(str(room.uid)):
+				continue
+			yard.flash_at(int(room.level), int(room.cell))
+			Sound.play("built")
+	if game.over == "" and not shot_mode:
+		SaveGame.write_auto(game)
 	_refresh()
 	if game.over == "":
 		_show_dawn()
@@ -1793,6 +1917,7 @@ func _show_dawn() -> void:
 		_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
+	Sound.play("card")
 	var ev: Dictionary = game.front_event()
 	_open_card(str(ev.title), false)
 	var banner := _event_banner(str(ev.id))
@@ -2000,7 +2125,7 @@ func _style_choice(button: Button) -> void:
 
 
 func _choice_button(label: String, choice: Dictionary, cb: Callable) -> Button:
-	var button := _button(label, cb)
+	var button := _button(label, cb, "confirm")
 	_style_choice(button)
 	var marks := _marks(choice)
 	if marks.get_child_count() == 0:
@@ -2090,7 +2215,7 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 	for line in shown:
 		_body(Copy.gloss(line))
 	if ready:
-		card_body.add_child(_button(verb, _do_confirm.bind(action)))
+		card_body.add_child(_button(verb, _do_confirm.bind(action), ""))
 	else:
 		_blocked_pair(verb, why)
 	card_body.add_child(_button("Back", _close_card))
@@ -2098,11 +2223,17 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 
 func _do_confirm(action: Dictionary) -> void:
 	if action.is_empty() or not game.apply(action):
+		Sound.play("error")
 		footer.text = Copy.t("That did not happen.")
 		footer.visible = true
 		_close_card()
 		_refresh()
 		return
+	var kind := str(action.get("kind", ""))
+	if kind == "dig":
+		Sound.play("thud")
+	else:
+		Sound.play("confirm")
 	_close_card()
 	_refresh()
 
@@ -2132,6 +2263,7 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 	card_body.add_child(row)
 	_fit_card()
 	_fit_card.call_deferred()
+	_reveal_modal()
 
 
 func _close_card() -> void:
@@ -2144,7 +2276,7 @@ func _close_card() -> void:
 		_sync_waiting()
 		return
 	on_paper = false
-	dim.visible = false
+	_hide_modal()
 	_wipe(card_body)
 	_sync_waiting()
 
@@ -2175,7 +2307,7 @@ func _label(text: String, size: int, display: bool = false) -> Label:
 	return lab
 
 
-func _button(text: String, cb: Callable) -> Button:
+func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	var button := Button.new()
 	button.text = Copy.t(text)
 	button.custom_minimum_size = Vector2(0, 44)
@@ -2191,8 +2323,22 @@ func _button(text: String, cb: Callable) -> Button:
 	button.add_theme_stylebox_override("disabled", _button_face(false, false))
 	button.custom_minimum_size.y = 64 if Copy.ru() else 48
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.mouse_entered.connect(_ui_hover)
+	button.set_meta("ui_sound", sound)
+	button.pressed.connect(_ui_pressed.bind(button))
 	button.pressed.connect(cb)
 	return button
+
+
+func _ui_hover() -> void:
+	Sound.play("hover")
+
+
+func _ui_pressed(button: Button) -> void:
+	if button.disabled:
+		return
+	Sound.play(str(button.get_meta("ui_sound", "click")))
 
 
 func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
@@ -2208,6 +2354,16 @@ func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
 	style.set_content_margin_all(10)
 	style.set_corner_radius_all(3)
 	return style
+
+
+func _style_primary(button: Button) -> void:
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.add_theme_color_override("font_color", INK_DARK)
+	button.add_theme_color_override("font_disabled_color", Color("1a1008"))
+	button.add_theme_stylebox_override("normal", _brass_style(false))
+	button.add_theme_stylebox_override("hover", _brass_style(false))
+	button.add_theme_stylebox_override("pressed", _brass_style(true))
+	button.add_theme_stylebox_override("disabled", _brass_style(false, false))
 
 
 func _brass_style(pressed: bool, enabled: bool = true) -> StyleBoxFlat:
@@ -2657,7 +2813,15 @@ func _show_menu() -> void:
 	if not _claim(ModalDeck.AMBIENT, "menu", _show_menu):
 		return
 	_open_card("Menu")
+	card_body.add_child(_button("Save", _manual_save))
+	var load_button := _button("Load", _manual_load)
+	load_button.disabled = not SaveGame.has_manual()
+	if load_button.disabled:
+		load_button.tooltip_text = Copy.t("No saved game.")
+	card_body.add_child(load_button)
+	card_body.add_child(_button("Settings", _open_settings.bind(true)))
 	card_body.add_child(_button("Guide", _replay_guide))
+	card_body.add_child(_button("Main menu", _back_to_menu))
 	card_body.add_child(_button("Close", _close_card))
 
 
@@ -2682,6 +2846,7 @@ func _start_guide() -> void:
 		_build_guide()
 	guide_layer.visible = true
 	_fill_guide()
+	_sync_resource_names()
 
 
 func _skip_guide() -> void:
@@ -2689,6 +2854,7 @@ func _skip_guide() -> void:
 	guide_played = true
 	if guide_layer != null:
 		guide_layer.visible = false
+	_sync_resource_names()
 
 
 func _advance_guide() -> void:
@@ -2948,7 +3114,7 @@ func _ensure_hub_layer() -> void:
 	hub_begin = _button("Begin", _leave_start)
 	hub_back = _button("Back", _hide_hub)
 	for button in [hub_begin, hub_back]:
-		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_style_primary(button)
 		button.anchor_left = 1.0
 		button.anchor_right = 1.0
 		button.anchor_top = 1.0
@@ -2973,6 +3139,7 @@ func _fill_hub_names() -> void:
 
 func _show_start() -> void:
 	if _hub_texture() == null:
+		Sound.bed("station")
 		_show_dawn()
 		return
 	_ensure_hub_layer()
@@ -2980,11 +3147,13 @@ func _show_start() -> void:
 	hub_begin.visible = true
 	hub_back.visible = false
 	hub_layer.visible = true
+	Sound.bed("hub")
 
 
 func _leave_start() -> void:
 	if hub_layer != null:
 		hub_layer.visible = false
+	Sound.bed("station")
 	_show_dawn()
 
 
@@ -2996,11 +3165,14 @@ func _show_hub_view() -> void:
 	hub_begin.visible = false
 	hub_back.visible = true
 	hub_layer.visible = true
+	Sound.bed("hub")
 
 
 func _hide_hub() -> void:
 	if hub_layer != null:
 		hub_layer.visible = false
+	if not at_menu:
+		Sound.bed("station")
 
 
 func _hub_shots() -> void:
@@ -3344,6 +3516,7 @@ func _zoom_room(type: String) -> void:
 func _settle(window_size: Vector2i) -> void:
 	var win := get_window()
 	win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	win.content_scale_factor = 1.0
 	win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_IGNORE
 	win.content_scale_size = window_size
 	win.mode = Window.MODE_WINDOWED
@@ -3368,6 +3541,468 @@ func _save(shot_name: String) -> void:
 	var path := dir + "/%s.png" % shot_name
 	var err := img.save_png(path)
 	print("SHOT %s %dx%d ui %s win %s err %s" % [shot_name, img.get_width(), img.get_height(), size, get_window().size, err])
+
+
+	print("SHOT %s %dx%d ui %s win %s err %s" % [shot_name, img.get_width(), img.get_height(), size, get_window().size, err])
+
+
+func _reveal_modal() -> void:
+	modal_open = true
+	if modal_tween != null:
+		modal_tween.kill()
+	var was_open := dim.visible and dim.modulate.a > 0.85
+	dim.visible = true
+	card.pivot_offset = card.size * 0.5
+	if _motion_off() or was_open:
+		dim.modulate.a = 1.0
+		card.modulate.a = 1.0
+		card.scale = Vector2.ONE
+		return
+	dim.modulate.a = 0.0
+	card.modulate.a = 0.0
+	card.scale = Vector2(0.96, 0.96)
+	modal_tween = create_tween()
+	modal_tween.tween_property(dim, "modulate:a", 1.0, 0.15)
+	modal_tween.parallel().tween_property(card, "modulate:a", 1.0, 0.15)
+	modal_tween.parallel().tween_property(card, "scale", Vector2.ONE, 0.15)
+
+
+func _hide_modal() -> void:
+	modal_open = false
+	if modal_tween != null:
+		modal_tween.kill()
+	if _motion_off() or dim == null or not dim.visible:
+		if dim != null:
+			dim.visible = false
+			dim.modulate.a = 1.0
+		if card != null:
+			card.scale = Vector2.ONE
+			card.modulate.a = 1.0
+		return
+	modal_tween = create_tween()
+	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.15)
+	modal_tween.parallel().tween_property(card, "modulate:a", 0.0, 0.15)
+	modal_tween.parallel().tween_property(card, "scale", Vector2(0.96, 0.96), 0.15)
+	modal_tween.finished.connect(_finish_hide_modal)
+
+
+func _finish_hide_modal() -> void:
+	if modal_open or dim == null:
+		return
+	dim.visible = false
+	dim.modulate.a = 1.0
+	if card != null:
+		card.scale = Vector2.ONE
+		card.modulate.a = 1.0
+
+
+func _polish_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	await _settle(Vector2i(1280, 720))
+	_close_card()
+	guide_played = true
+	_show_main_menu()
+	await _frame()
+	await _frame()
+	_save("menu_main")
+	_open_settings(false)
+	await _frame()
+	await _frame()
+	_save("menu_settings")
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_sync_resource_names()
+	await _frame()
+	await _frame()
+	_save("station_week1")
+	get_tree().quit()
+
+
+func _show_main_menu() -> void:
+	at_menu = true
+	settings_from_game = false
+	_close_card()
+	_ensure_menu()
+	_fill_menu_root()
+	menu_root.visible = true
+	menu_settings.visible = false
+	menu_credits.visible = false
+	menu_layer.visible = true
+	Sound.bed("hub")
+
+
+func _begin_new_game(intro: bool) -> void:
+	at_menu = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	if game != null and game.catalog != null:
+		var cat: Catalog = game.catalog
+		game = Game.new()
+		game.setup(cat, 1, 40)
+	if yard != null:
+		yard.station = self
+	hold_dawn = false
+	stock_week = 0
+	stock_shown = {}
+	_refresh()
+	if not shot_mode:
+		SaveGame.write_auto(game)
+	if intro and _hub_texture() != null:
+		_show_start()
+		return
+	Sound.bed("station")
+	if not shot_mode:
+		_show_dawn()
+
+
+func _continue_game() -> void:
+	if game == null or not SaveGame.load_latest(game):
+		Sound.play("error")
+		return
+	at_menu = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	stock_week = 0
+	stock_shown = {}
+	hold_dawn = false
+	Sound.play("confirm")
+	Sound.bed("station")
+	_refresh()
+
+
+func _manual_save() -> void:
+	if SaveGame.write_manual(game):
+		Sound.play("confirm")
+		footer.text = Copy.t("Saved.")
+		footer.visible = true
+	else:
+		Sound.play("error")
+	_close_card()
+
+
+func _manual_load() -> void:
+	if game == null or not SaveGame.load_manual(game):
+		Sound.play("error")
+		return
+	stock_week = 0
+	stock_shown = {}
+	Sound.play("confirm")
+	_close_card()
+	_refresh()
+
+
+func _back_to_menu() -> void:
+	_close_card()
+	if not shot_mode:
+		SaveGame.write_auto(game)
+	_show_main_menu()
+
+
+func _open_settings(from_game: bool) -> void:
+	settings_from_game = from_game
+	if from_game:
+		_close_card()
+	_ensure_menu()
+	_fill_settings()
+	menu_root.visible = false
+	menu_credits.visible = false
+	menu_settings.visible = true
+	menu_layer.visible = true
+
+
+func _open_credits() -> void:
+	_ensure_menu()
+	menu_root.visible = false
+	menu_settings.visible = false
+	menu_credits.visible = true
+	menu_layer.visible = true
+
+
+func _menu_back() -> void:
+	if settings_from_game:
+		settings_from_game = false
+		if menu_layer != null:
+			menu_layer.visible = false
+		Sound.bed("station")
+		_offer_pending()
+		return
+	_show_main_menu()
+
+
+func _ensure_menu() -> void:
+	if menu_layer != null:
+		return
+	var layer := Control.new()
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.z_index = 60
+	var picture := TextureRect.new()
+	picture.set_anchors_preset(Control.PRESET_FULL_RECT)
+	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	picture.texture = _hub_texture()
+	picture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	layer.add_child(picture)
+	var wash := ColorRect.new()
+	wash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wash.color = Color(0.04, 0.03, 0.02, 0.28)
+	layer.add_child(wash)
+	menu_root = _menu_page()
+	menu_settings = _menu_page()
+	menu_credits = _menu_page()
+	layer.add_child(menu_root)
+	layer.add_child(menu_settings)
+	layer.add_child(menu_credits)
+	add_child(layer)
+	menu_layer = layer
+	_fill_credits()
+
+
+func _menu_page() -> VBoxContainer:
+	var page := VBoxContainer.new()
+	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.offset_left = 48.0
+	page.offset_top = 36.0
+	page.offset_right = -48.0
+	page.offset_bottom = -28.0
+	page.add_theme_constant_override("separation", 8)
+	page.visible = false
+	return page
+
+
+func _fill_menu_root() -> void:
+	if menu_root == null:
+		return
+	_wipe(menu_root)
+	var title := _label("Underline", 54, true)
+	title.add_theme_color_override("font_color", Color("f4efe4"))
+	menu_root.add_child(title)
+	var place := _label("%s  ·  %s" % [_capital_name(), _community_name()], 20)
+	place.add_theme_color_override("font_color", Color("e2a63a"))
+	menu_root.add_child(place)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 18)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_root.add_child(gap)
+	var can_continue := SaveGame.has_any()
+	continue_button = _menu_choice("Continue", _continue_game, can_continue)
+	continue_button.disabled = not can_continue
+	if continue_button.disabled:
+		continue_button.tooltip_text = Copy.t("No saved game.")
+	menu_root.add_child(continue_button)
+	menu_root.add_child(_menu_choice("New game", _begin_new_game.bind(true), true))
+	menu_root.add_child(_menu_choice("Settings", _open_settings.bind(false), false))
+	menu_root.add_child(_menu_choice("Credits", _open_credits, false))
+	menu_root.add_child(_menu_choice("Quit", func() -> void: get_tree().quit(), false))
+
+
+func _menu_choice(caption: String, cb: Callable, primary: bool) -> Button:
+	var button := _button(caption, cb, "confirm" if primary else "click")
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.custom_minimum_size = Vector2(280, 52)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	if primary:
+		_style_primary(button)
+	return button
+
+
+func _fill_settings() -> void:
+	if menu_settings == null:
+		return
+	filling_settings = true
+	_wipe(menu_settings)
+	on_paper = false
+	var title := _label("Settings", 40, true)
+	title.add_theme_color_override("font_color", Color("f4efe4"))
+	menu_settings.add_child(title)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _paper_style())
+	card.custom_minimum_size = Vector2(560, 0)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	card.add_child(box)
+	menu_settings.add_child(card)
+	on_paper = true
+	box.add_child(_label("Volume", 18, true))
+	box.add_child(_volume_row("Master", Settings.master, _set_master))
+	box.add_child(_volume_row("Music", Settings.music, _set_music))
+	box.add_child(_volume_row("SFX", Settings.sfx, _set_sfx))
+	box.add_child(_label("Language", 18, true))
+	var langs := HBoxContainer.new()
+	langs.add_theme_constant_override("separation", 8)
+	langs.add_child(_pick_button("RU", Copy.lang == "ru", _pick_lang.bind("ru")))
+	langs.add_child(_pick_button("EN", Copy.lang == "en", _pick_lang.bind("en")))
+	box.add_child(langs)
+	box.add_child(_label("Window", 18, true))
+	var windows := HBoxContainer.new()
+	windows.add_theme_constant_override("separation", 8)
+	windows.add_child(_pick_button("Fullscreen", Settings.fullscreen, _pick_window.bind(true), 210.0))
+	windows.add_child(_pick_button("Windowed", not Settings.fullscreen, _pick_window.bind(false), 160.0))
+	box.add_child(windows)
+	box.add_child(_label("UI scale", 18, true))
+	var scales := HBoxContainer.new()
+	scales.add_theme_constant_override("separation", 8)
+	for pair in [[0.75, "75%"], [1.0, "100%"], [1.25, "125%"], [1.5, "150%"]]:
+		var scale := float(pair[0])
+		scales.add_child(_pick_button(str(pair[1]), absf(Settings.ui_scale - scale) < 0.02, _pick_scale.bind(scale)))
+	box.add_child(scales)
+	var motion := Copy.t("Reduce motion") + ": " + Copy.t("On" if Settings.reduce_motion else "Off")
+	box.add_child(_pick_button(motion, Settings.reduce_motion, _toggle_motion, 420.0))
+	on_paper = false
+	var back := _menu_choice("Back", _menu_back, false)
+	menu_settings.add_child(back)
+	filling_settings = false
+
+
+func _fill_credits() -> void:
+	if menu_credits == null:
+		return
+	_wipe(menu_credits)
+	var title := _label("Credits", 40, true)
+	title.add_theme_color_override("font_color", Color("f4efe4"))
+	menu_credits.add_child(title)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _paper_style())
+	card.custom_minimum_size = Vector2(640, 0)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	card.add_child(box)
+	menu_credits.add_child(card)
+	on_paper = true
+	box.add_child(_label("Fonts", 20, true))
+	var fonts := _label("Courier Prime, Big Shoulders Display, Oswald, and PT Mono. SIL Open Font License 1.1.", 16)
+	fonts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	fonts.custom_minimum_size = Vector2(600, 0)
+	box.add_child(fonts)
+	box.add_child(_label("Sounds", 20, true))
+	var sounds := _label("Kenney Interface Sounds and Kenney RPG sounds (www.kenney.nl), CC0.", 16)
+	sounds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sounds.custom_minimum_size = Vector2(600, 0)
+	box.add_child(sounds)
+	for line in [
+		"click.ogg  Interface Sounds  click_001",
+		"hover.ogg  Interface Sounds  tick_001",
+		"confirm.ogg  Interface Sounds  confirmation_001",
+		"error.ogg  Interface Sounds  error_001",
+		"whoosh.ogg  Interface Sounds  minimize_001",
+		"built.ogg  Interface Sounds  confirmation_003",
+		"card.ogg  Interface Sounds  open_001",
+		"thud.ogg  RPG sounds  chop",
+	]:
+		var row := _label(line, 14)
+		row.add_theme_color_override("font_color", PAPER_MUTED)
+		box.add_child(row)
+	if not Sound.has_ambient() or not Sound.has_drone():
+		var missing := _label("Station ambience and the hub drone are not included yet.", 15)
+		missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		missing.custom_minimum_size = Vector2(600, 0)
+		box.add_child(missing)
+	on_paper = false
+	menu_credits.add_child(_menu_choice("Back", _menu_back, false))
+
+
+func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var lab := _label(caption, 16)
+	lab.custom_minimum_size = Vector2(110, 0)
+	row.add_child(lab)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 100.0
+	slider.step = 1.0
+	slider.value = value * 100.0
+	slider.custom_minimum_size = Vector2(260, 28)
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	slider.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	slider.value_changed.connect(cb)
+	row.add_child(slider)
+	var num := _label("%d" % int(round(value * 100.0)), 16)
+	num.custom_minimum_size = Vector2(42, 0)
+	slider.set_meta("readout", num)
+	row.add_child(num)
+	return row
+
+
+func _pick_button(caption: String, on: bool, cb: Callable, width: float = 112.0) -> Button:
+	var button := _button(caption, cb, "click")
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	button.clip_text = false
+	button.custom_minimum_size = Vector2(width, 44)
+	if on:
+		_style_primary(button)
+	return button
+
+
+func _set_master(value: float) -> void:
+	_set_volume("master", value)
+
+
+func _set_music(value: float) -> void:
+	_set_volume("music", value)
+
+
+func _set_sfx(value: float) -> void:
+	_set_volume("sfx", value)
+
+
+func _set_volume(which: String, value: float) -> void:
+	if filling_settings:
+		return
+	var linear := clampf(value / 100.0, 0.0, 1.0)
+	if which == "master":
+		Settings.master = linear
+	elif which == "music":
+		Settings.music = linear
+	else:
+		Settings.sfx = linear
+	Settings.save()
+	Sound.apply_buses()
+
+
+func _pick_lang(code: String) -> void:
+	if Copy.lang == code:
+		return
+	Settings.language = code
+	Settings.save()
+	if not at_menu and game != null:
+		SaveGame.write_auto(game)
+		Settings.resume = true
+	Settings.reopen = "settings"
+	Copy.set_lang(code)
+	get_tree().reload_current_scene()
+
+
+func _pick_window(full: bool) -> void:
+	Settings.fullscreen = full
+	Settings.save()
+	if not shot_mode:
+		Settings.apply_display(get_window())
+	_fill_settings()
+
+
+func _pick_scale(scale: float) -> void:
+	Settings.ui_scale = scale
+	Settings.save()
+	if not shot_mode:
+		Settings.apply_display(get_window())
+	_fill_settings()
+
+
+func _toggle_motion() -> void:
+	Settings.reduce_motion = not Settings.reduce_motion
+	Settings.save()
+	_fill_settings()
 
 
 class Backdrop extends Control:
@@ -3396,6 +4031,7 @@ class PersonRow extends PanelContainer:
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var style := StyleBoxFlat.new()
 		style.bg_color = Color(1, 1, 1, 0.06)
 		style.set_content_margin_all(3)
@@ -3460,9 +4096,10 @@ class Yard extends Control:
 	const BACKDROP_RAIL := 0.783
 	# Inner lip of each tunnel mouth, so the arches meet the station edges.
 	const BACKDROP_SIDE := 0.147
-	const OPEN_WIDTH := 0.875
+	const OPEN_WIDTH := 0.96
 	const PLATFORM_RAIL := 0.96
-	const SKY_FRAC := 0.268
+	const SKYLINE_FRAC := 0.164
+	const SOIL_LIP := 0.032
 	const ROCK_LIP := 0.0
 	var art := {}
 	var poses := {}
@@ -3492,6 +4129,7 @@ class Yard extends Control:
 	var pending_cell := -1
 	var pending_at := 0
 	var focused := Vector2i(-1, -1)
+	var pops: Array = []
 	const DOUBLE_MS := 320
 
 	func fit() -> void:
@@ -3526,7 +4164,7 @@ class Yard extends Control:
 		if station_rect.size.x < 1.0 or area.size.x < 1.0 or area.size.y < 1.0:
 			return 1.0
 		var by_width := area.size.x * OPEN_WIDTH / station_rect.size.x
-		var sky := station_rect.size.y * 0.12
+		var sky := station_rect.size.y * 0.03
 		var by_height := maxf(area.size.y - 8.0, 48.0) / (station_rect.size.y + sky)
 		return minf(by_width, by_height)
 
@@ -3536,6 +4174,7 @@ class Yard extends Control:
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		for type in ART:
 			var tex := ArtPack.load_texture(str(ART[type]))
 			if tex == null:
@@ -3664,7 +4303,33 @@ class Yard extends Control:
 					next = Vector2i(int(over.level), int(over.cell))
 				if next != hover:
 					hover = next
+					mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hover.x >= 0 else Control.CURSOR_ARROW
 			queue_redraw()
+
+	func flash_at(level: int, cell: int) -> void:
+		if station != null and station._motion_off():
+			return
+		pops.append({"at": Vector2i(level, cell), "born": Time.get_ticks_msec()})
+
+	func _draw_pops(geo: Dictionary) -> void:
+		if pops.is_empty():
+			return
+		var now := Time.get_ticks_msec()
+		var keep: Array = []
+		for pop in pops:
+			var age := float(now - int(pop.born)) / 1000.0
+			if age > 0.7:
+				continue
+			keep.append(pop)
+			var rect := _rect(geo, int(pop.at.x), int(pop.at.y))
+			var fade := 1.0 - age / 0.7
+			draw_rect(rect, Color(1.0, 0.96, 0.86, 0.34 * fade))
+			for i in 7:
+				var ang := float(i) / 7.0 * TAU
+				var dist := age * rect.size.y * 0.55
+				var puff := rect.get_center() + Vector2(cos(ang), sin(ang) * 0.45) * dist + Vector2(0, -age * 36.0)
+				draw_circle(puff, maxf(1.4, 4.5 * fade), Color(0.86, 0.78, 0.62, 0.55 * fade))
+		pops = keep
 
 	func cell_screen(level: int, cell: int) -> Rect2:
 		var world := _rect(_geo(), level, cell)
@@ -3804,6 +4469,7 @@ class Yard extends Control:
 			for cell in 6:
 				_draw_cell(_rect(geo, level, cell), level, cell)
 		_draw_job_worker(geo)
+		_draw_pops(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_hover_label(geo)
@@ -3822,7 +4488,7 @@ class Yard extends Control:
 			tex.x * scale,
 			tex.y * scale)
 
-	func _draw_backdrop(_geo: Dictionary) -> void:
+	func _draw_backdrop(_geo_now: Dictionary) -> void:
 		if backdrop_tex == null:
 			return
 		var dest := _backdrop_dest(_station_rect())
@@ -3834,9 +4500,25 @@ class Yard extends Control:
 		var lower_h := dest.size.y * src_h / tex.y
 		var lower_y := dest.position.y + dest.size.y * src_y / tex.y
 		draw_texture_rect_region(backdrop_tex, Rect2(dest.position.x, lower_y, dest.size.x, lower_h), Rect2(0, src_y, tex.x, src_h))
-		var sky_src_h := tex.y * SKY_FRAC
-		var sky_h := dest.size.y * SKY_FRAC
-		draw_texture_rect_region(backdrop_tex, Rect2(dest.position.x, lower_y - sky_h, dest.size.x, sky_h), Rect2(0, 0, tex.x, sky_src_h))
+		var soil_src := tex.y * SOIL_LIP
+		var soil_h := dest.size.y * SOIL_LIP
+		var soil_y := lower_y - soil_h
+		draw_texture_rect_region(
+			backdrop_tex,
+			Rect2(dest.position.x, soil_y, dest.size.x, soil_h),
+			Rect2(0, tex.y * SKYLINE_FRAC, tex.x, soil_src))
+		var hud_h := 72.0
+		if station != null and station.hud != null and station.hud.size.y > 8.0:
+			hud_h = station.hud.size.y
+		var visible_top := (hud_h - pan.y) / maxf(zoom, 0.001)
+		var sky_h := soil_y - visible_top
+		if sky_h < 8.0:
+			sky_h = dest.size.y * SKYLINE_FRAC
+			visible_top = soil_y - sky_h
+		draw_texture_rect_region(
+			backdrop_tex,
+			Rect2(dest.position.x, visible_top, dest.size.x, sky_h),
+			Rect2(0, 0, tex.x, tex.y * SKYLINE_FRAC))
 
 	func _draw_cell(rect: Rect2, level: int, cell: int) -> void:
 		var shift := 0.0
@@ -3862,7 +4544,10 @@ class Yard extends Control:
 		elif kind == "undug":
 			_blit_fill(cell_rock, rect)
 		elif kind == "dug":
-			_blit_fill(cell_dug, rect)
+			if cell_dug != null:
+				_blit_room(cell_dug, rect)
+			else:
+				_paint_rock(rect, level * 6 + cell)
 		else:
 			var fill: Color = ROOM_COLOR.get(room_type, Color(0.12, 0.12, 0.13))
 			draw_rect(rect, fill)
@@ -3893,6 +4578,9 @@ class Yard extends Control:
 			if bool(preview.ok):
 				draw_rect(rect, Color(0.95, 0.84, 0.55, 0.28))
 				draw_rect(rect.grow(-4.0), Color(0.95, 0.84, 0.55, 0.95), false, 4.0)
+		if hover == Vector2i(level, cell) and kind != "hidden":
+			draw_rect(rect, Color(0.93, 0.78, 0.45, 0.16))
+			draw_rect(rect.grow(-2.0), Color(0.93, 0.78, 0.45, 0.9), false, 2.0)
 		if shake_reason != "" and shake_cell == Vector2i(level, cell):
 			var reason_font: Font = ThemeDB.fallback_font
 			if station.body_font != null:
@@ -4271,7 +4959,7 @@ class Yard extends Control:
 		var defin: Dictionary = station.game.catalog.rooms[str(room.type)]
 		var spots: Array = defin.get("spots", [])
 		var floor := _art_rect(str(room.type), rect)
-		var shown := mini(crew.size(), spots.size())
+		var shown := mini(crew.size(), mini(spots.size(), 3))
 		for i in shown:
 			var spot: Dictionary = spots[i]
 			var x := floor.position.x + float(spot.get("x", 0.5)) * floor.size.x
@@ -4280,7 +4968,12 @@ class Yard extends Control:
 			if not poses.has(pose_name):
 				pose_name = "standing"
 			var foot_y := floor.position.y + floor.size.y - 2.0
-			_paint_pose(pose_name, x, foot_y, floor.size.y, str(crew[i]), face < 0)
+			var body_h := floor.size.y
+			var fitted := _pose_size(poses[pose_name], body_h)
+			var limit := floor.size.x * 0.34
+			if fitted.x > limit:
+				body_h *= limit / fitted.x
+			_paint_pose(pose_name, x, foot_y, body_h, str(crew[i]), face < 0)
 		if crew.size() > shown:
 			_draw_more(rect, crew.size() - shown, str(room.uid))
 
@@ -4361,6 +5054,10 @@ class Yard extends Control:
 			x += font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 8.0
 
 	func _paint_mini(origin: Vector2, glyph_kind: String, ink: Color) -> void:
+		var tex := ArtPack.icon_texture(glyph_kind)
+		if tex != null:
+			draw_texture_rect(tex, Rect2(origin, Vector2(16, 16)), false)
+			return
 		var c := origin + Vector2(7, 7)
 		match glyph_kind:
 			"food":
@@ -4548,11 +5245,46 @@ class GuideLayer extends Control:
 		return center + delta * minf(sx, sy)
 
 
+class PeopleRail extends Control:
+	var caption := ""
+	var ink := Color("efe6d2")
+	var face: Font
+
+	func _draw() -> void:
+		var font: Font = face if face != null else ThemeDB.fallback_font
+		var mid_x := size.x * 0.5
+		var mark := Color("e2a63a")
+		draw_line(Vector2(mid_x + 7.0, 8.0), Vector2(mid_x - 7.0, 18.0), mark, 3.0)
+		draw_line(Vector2(mid_x - 7.0, 18.0), Vector2(mid_x + 7.0, 28.0), mark, 3.0)
+		if caption == "":
+			return
+		var font_size := 15
+		var room := maxf(24.0, size.y - 44.0)
+		var text_w := font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		if text_w > room:
+			font_size = maxi(11, int(floor(float(font_size) * room / text_w)))
+		var origin := Vector2(mid_x + float(font_size) * 0.35, 40.0)
+		draw_set_transform(origin, PI * 0.5, Vector2.ONE)
+		draw_string(font, Vector2.ZERO, caption, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, ink)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 class Glyph extends Control:
 	var kind := "food"
 	var ink := Color("efe6d2")
 
 	func _draw() -> void:
+		var tex := ArtPack.icon_texture(kind)
+		if tex != null:
+			var side := minf(size.x, size.y)
+			var px := 24.0
+			if side >= 40.0:
+				px = 48.0
+			elif side >= 28.0:
+				px = 32.0
+			var origin := (size - Vector2(px, px)) * 0.5
+			draw_texture_rect(tex, Rect2(origin, Vector2(px, px)), false)
+			return
 		var rect := Rect2(Vector2.ZERO, size)
 		var c := rect.get_center()
 		var s := minf(rect.size.x, rect.size.y)
@@ -4664,7 +5396,8 @@ class ToolButton extends Button:
 		add_child(box)
 		var mark := Glyph.new()
 		mark.kind = glyph_name
-		mark.custom_minimum_size = Vector2(22, 22)
+		mark.custom_minimum_size = Vector2(32, 32) if ArtPack.icon_texture(glyph_name) != null else Vector2(22, 22)
+		mark.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		mark.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		box.add_child(mark)
