@@ -692,6 +692,7 @@ func _night() -> void:
 	for key in before:
 		last_net[key] = int(stock.get(key, 0)) - int(before[key])
 	_synod_preach()
+	_claim_swayed()
 	_tick_holdings()
 	_drift_opinion()
 	for fid in ambition:
@@ -2031,7 +2032,7 @@ func week_notes() -> PackedStringArray:
 		if int(entry.week) != week:
 			continue
 		var text := str(entry.text)
-		if text.begins_with("DAWN") or text.begins_with("INTENT") or text.begins_with("ULTIMATUM") or text.begins_with("SEASON") or text.begins_with("AGENT") or text.begins_with("SHORT") or text.begins_with("ROT") or text.begins_with("No warning"):
+		if text.begins_with("DAWN") or text.begins_with("INTENT") or text.begins_with("ULTIMATUM") or text.begins_with("SEASON") or text.begins_with("AGENT") or text.begins_with("SHORT") or text.begins_with("ROT") or text.begins_with("WARN") or text.begins_with("No warning"):
 			lines.append(text)
 	return lines
 
@@ -2669,10 +2670,31 @@ func _post_ultimatum(fid: String) -> Dictionary:
 	return {"faction": fid, "kind": "demand_posted"}
 
 
+func _rival_strength(fid: String) -> int:
+	var held := _owned_by(fid).size()
+	var body := 0
+	if squads.has(fid):
+		body = int(squads[fid].size)
+	var sympathy := 0
+	for sid in stations:
+		sympathy += int(stations[sid].rival_symp.get(fid, 0))
+	var push := 0
+	if squads.has(fid):
+		push = int(squads[fid].get("momentum", 0))
+	return held * 6 + int(ambition.get(fid, 0)) + body + int(sympathy / 10) + push
+
+
+func _ultimatum_threshold() -> int:
+	return 68 + owned_count() * 3 + int(stock.influence) / 6
+
+
 func _plan_one(fid: String) -> Dictionary:
-	var due: bool = week > 0 and week % int(bal.demand_every) == 0
-	var waiting: bool = int(stats.get("first_ultimatum", 0)) == 0 and week >= 8 and week <= 18
-	if (due or waiting) and not _demand_open(fid):
+	var opened: bool = int(stats.get("first_ultimatum", 0)) > 0
+	var due: bool = opened and week > 0 and week % int(bal.demand_every) == 0
+	if squads.has(fid) and not opened:
+		squads[fid].momentum = int(squads[fid].get("momentum", 0)) + net_rng.randi_range(0, 3)
+	var pressing: bool = not opened and week >= 6 and _rival_strength(fid) >= _ultimatum_threshold()
+	if (due or pressing) and not _demand_open(fid):
 		var posted := _post_ultimatum(fid)
 		if not posted.is_empty():
 			return posted
@@ -2720,7 +2742,8 @@ func _resolve_buy(fid: String, sid: String) -> void:
 	var st: Dictionary = stations[sid]
 	if str(st.owner) != "neutral":
 		return
-	st.rival_symp[fid] = int(st.rival_symp.get(fid, 0)) + 18
+	st.rival_symp[fid] = int(st.rival_symp.get(fid, 0)) + 8 + net_rng.randi_range(0, 10)
+	_press_loyalty(st)
 	_log("%s is buying %s (%d)" % [_fname(fid), st.name, int(st.rival_symp[fid])])
 	if int(st.rival_symp[fid]) >= 100:
 		_capture(sid, fid, false)
@@ -2782,11 +2805,14 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		return false
 	var win := _battle(sq, nxt)
 	if win:
-		_capture(nxt, str(sq.faction), true)
-		sq.station = nxt
-		stations[nxt].known = true
-		if not player_move:
-			sq.secure = int(bal.secure_turns)
+		_press_loyalty(stations[nxt])
+		if _capture(nxt, str(sq.faction), true):
+			sq.station = nxt
+			stations[nxt].known = true
+			if not player_move:
+				sq.secure = int(bal.secure_turns)
+		else:
+			_log("%s cannot hold %s yet" % [sq.name, stations[nxt].name])
 	else:
 		sq.secure = 1
 	return true
@@ -2817,13 +2843,18 @@ func _battle(sq: Dictionary, sid: String) -> bool:
 	return win
 
 
-func _capture(sid: String, fid: String, force: bool) -> void:
+func _capture(sid: String, fid: String, force: bool) -> bool:
+	if week < 4:
+		return false
 	var st: Dictionary = stations[sid]
+	var hostile := force or fid != player
+	if hostile and int(st.get("low_weeks", 0)) < 2:
+		return false
 	if str(st.get("bunker", "")) != "" or str(st.owner) == "bunker":
-		return
+		return false
 	var prev := str(st.owner)
 	if prev == fid:
-		return
+		return false
 	st.owner = fid
 	st.sympathy = 0
 	st.loyalty = 20 if force else 72
@@ -2831,7 +2862,8 @@ func _capture(sid: String, fid: String, force: bool) -> void:
 	st.known = true
 	st.held_weeks = 0
 	st.low_weeks = 0
-	_note_flip()
+	if fid != player or force:
+		_note_flip()
 	if str(st.focus) == "":
 		st.focus = "food"
 	for key in st.rival_symp:
@@ -2853,6 +2885,7 @@ func _capture(sid: String, fid: String, force: bool) -> void:
 	if sid == capital_id and fid != player and over == "":
 		over = "capital"
 		_log("The yard has fallen.", true)
+	return true
 
 
 func _campaign_target(fid: String) -> String:
@@ -2894,6 +2927,22 @@ func _deliver_outposts() -> void:
 				stock[key] = int(stock.get(key, 0)) + gain
 
 
+func _claim_swayed() -> void:
+	if week < 4:
+		return
+	for sid in stations.keys():
+		var st: Dictionary = stations[sid]
+		if str(st.owner) != "neutral" and str(st.owner) != "ruin":
+			continue
+		if int(st.sympathy) >= 100:
+			_capture(str(sid), player, false)
+			continue
+		for fid in ["exchange", "directorate", "synod"]:
+			if int(st.rival_symp.get(fid, 0)) >= 100:
+				_capture(str(sid), fid, false)
+				break
+
+
 func _tick_holdings() -> void:
 	for sid in stations.keys():
 		var st: Dictionary = stations[sid]
@@ -2911,18 +2960,40 @@ func _tick_holdings() -> void:
 		if not _connected(sid):
 			st.loyalty = int(st.loyalty) - 5
 		st.loyalty = clampi(int(st.loyalty), 0, 100)
-		if int(st.unrest) == 0 and int(st.loyalty) < 30 and net_rng.randf() < 0.4:
-			var suitor := _suitor(st)
-			if suitor != "":
-				_log("DEFECT %s leaves for %s" % [st.name, _fname(suitor)], true)
-				_capture(sid, suitor, false)
-			else:
-				_log("REVOLT %s throws the garrison out" % st.name, true)
-				st.owner = "neutral"
-				st.loyalty = 45
-				st.sympathy = 0
-				st.unrest = 0
-				_note_flip()
+		_mark_low(st)
+		if int(st.low_weeks) >= 2 and week >= 4:
+				var suitor := _suitor(st)
+				if suitor != "":
+					_log("DEFECT %s leaves for %s" % [st.name, _fname(suitor)], true)
+					_capture(sid, suitor, false)
+				else:
+					_log("REVOLT %s throws the garrison out" % st.name, true)
+					st.owner = "neutral"
+					st.loyalty = 45
+					st.sympathy = 0
+					st.unrest = 0
+					st.low_weeks = 0
+					_note_flip()
+
+
+func _press_loyalty(st: Dictionary) -> void:
+	st.loyalty = maxi(0, int(st.loyalty) - (4 + net_rng.randi_range(0, 7)))
+	_mark_low(st)
+
+
+func _mark_low(st: Dictionary) -> void:
+	if int(st.loyalty) >= 42:
+		st.low_weeks = 0
+		return
+	if int(st.get("marked_week", -1)) == week:
+		return
+	st.marked_week = week
+	st.low_weeks = int(st.get("low_weeks", 0)) + 1
+	if int(st.low_weeks) == 1:
+		var place := str(st.name)
+		if Copy.ru():
+			place = Copy.t(place)
+		_log("WARN %s is losing its loyalty" % place, true)
 
 
 func _drift_opinion() -> void:
@@ -4038,7 +4109,8 @@ func _synod_preach() -> void:
 	if best == "":
 		return
 	var st: Dictionary = stations[best]
-	st.rival_symp.synod = int(st.rival_symp.synod) + 14
+	st.rival_symp.synod = int(st.rival_symp.synod) + 6 + net_rng.randi_range(0, 8)
+	_press_loyalty(st)
 	st.known = true
 	_log("PREACH The Synod speaks at %s" % st.name, true)
 	if int(st.rival_symp.synod) >= 100:
@@ -4084,7 +4156,7 @@ func _init_map() -> void:
 			"bunker": "floor" if str(sid) == "archive" else "",
 			"ruin": str(sid) == "vault",
 			"sympathy": 0,
-			"loyalty": 70 if owner != "neutral" and owner != "ruin" else 40,
+			"loyalty": 78 if owner != "ruin" else 40,
 			"unrest": 0,
 			"focus": "",
 			"deals": 0,

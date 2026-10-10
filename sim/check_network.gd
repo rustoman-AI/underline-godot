@@ -38,10 +38,12 @@ func _init() -> void:
 		print("Idle week %d over %s ultimatum %s flip %s errors %s" % [
 			game.week, game.over, str(game.stats.get("first_ultimatum", 0)),
 			str(game.stats.get("flip_week", 0)), str(game.errors)])
-		if int(game.stats.get("first_ultimatum", 0)) <= 0 or int(game.stats.get("first_ultimatum", 0)) > 20:
+		var ult := int(game.stats.get("first_ultimatum", 0))
+		var flip := int(game.stats.get("flip_week", 0))
+		if ult < 6 or ult > 16:
 			failed = true
 			print("ULTIMATUM gate missed")
-		if int(game.stats.get("flip_week", 0)) <= 0 or int(game.stats.get("flip_week", 0)) > 30:
+		if flip < 4:
 			failed = true
 			print("FLIP gate missed")
 		if not game.errors.is_empty():

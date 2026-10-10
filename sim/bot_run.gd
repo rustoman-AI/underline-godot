@@ -103,19 +103,23 @@ func _print_net_row(profile: String, row: Dictionary) -> void:
 
 func _network_ok(careful: Array, expander: Array, follower: Array) -> bool:
 	var ok := true
-	var all: Array = []
-	all.append_array(careful)
-	all.append_array(expander)
-	all.append_array(follower)
-	for row in all:
-		var ult := int(row.get("first_ultimatum", 0))
-		if ult <= 0 or ult > 20:
+	for bundle in [["careful", careful], ["expander", expander], ["follower", follower]]:
+		var rows: Array = bundle[1]
+		if _one_week(rows, "first_ultimatum"):
 			ok = false
-			print("  ultimatum week %d on seed %d" % [ult, int(row.seed)])
-		var flip := int(row.get("flip_week", 0))
-		if flip <= 0 or flip > 30:
+			print("  %s ultimatum week is the same on every seed" % str(bundle[0]))
+		if _one_week(rows, "flip_week"):
 			ok = false
-			print("  no station lost or defected by week 30, seed %d (%s)" % [int(row.seed), str(row.get("profile", ""))])
+			print("  %s flip week is the same on every seed" % str(bundle[0]))
+		for row in rows:
+			var ult := int(row.get("first_ultimatum", 0))
+			if ult < 6 or ult > 16:
+				ok = false
+				print("  ultimatum week %d on %s seed %d" % [ult, str(bundle[0]), int(row.seed)])
+			var flip := int(row.get("flip_week", 0))
+			if flip < 4:
+				ok = false
+				print("  flip week %d on %s seed %d" % [flip, str(bundle[0]), int(row.seed)])
 	var careful_stations := 0
 	var expander_stations := 0
 	var careful_unrest := 0
@@ -140,6 +144,16 @@ func _network_ok(careful: Array, expander: Array, follower: Array) -> bool:
 		ok = false
 		print("  follower reached week 40 on %d of 5" % lived)
 	return ok
+
+
+func _one_week(rows: Array, key: String) -> bool:
+	if rows.is_empty():
+		return true
+	var first := int(rows[0].get(key, 0))
+	for row in rows:
+		if int(row.get(key, 0)) != first:
+			return false
+	return true
 
 
 func _print_follower(rows: Array) -> void:

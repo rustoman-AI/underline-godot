@@ -149,6 +149,7 @@ static func gloss(line: String) -> String:
 		["FIND ", "Находка. "],
 		["JOIN ", "К вам. "],
 		["BATTLE ", "Бой. "],
+		["WARN ", "Тревога. "],
 		["DEFECT ", "Уход. "],
 		["REVOLT ", "Бунт. "],
 		["DEAL ", "Сделка. "],
