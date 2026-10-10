@@ -3719,10 +3719,12 @@ func _network_shots() -> void:
 	hold_dawn = true
 	_close_card()
 	_refresh()
+	network_view._fit()
+	await _frame()
+	_save("network_week20")
 	network_view.focus_intent()
 	await _frame()
 	await _frame()
-	_save("network_week20")
 	_save("network_intents")
 	get_tree().quit()
 
