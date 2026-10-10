@@ -32,4 +32,4 @@ Interface Sounds: created by Kenney, 11 February 2020. https://creativecommons.o
 
 RPG sounds: Kenney Vleugels (www.kenney.nl). https://creativecommons.org/publicdomain/zero/1.0/
 
-Not in this build yet: a looping station bed (distant trains, dripping water, hum) and a soft low drone for the hub screen. Drop CC0 files at assets/audio/ambient.ogg and assets/audio/drone.ogg and the game will loop them.
+assets/audio/drone.ogg and assets/audio/ambient.ogg are original 60 second loops made for this game. The drone is a low hum near 50 Hz with a slow swell and filtered brown noise. The station bed is a noise floor with sparse drips. A later recording dropped on the same path replaces the generated file.
