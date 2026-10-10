@@ -772,6 +772,7 @@
   "The order failed.": "Приказ не вышел.",
   "Council order": "Приказ",
   "Only free": "Только свободные",
+  "%s is losing loyalty and may flip.": "%s теряет верность и может уйти.",
   "Morning news (%d) ▸": "Вести утра (%d) ▸",
   "Morning news (%d) ▾": "Вести утра (%d) ▾",
   "Undo": "Отменить",

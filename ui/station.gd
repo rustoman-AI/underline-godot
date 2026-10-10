@@ -26,6 +26,7 @@ const ROOM_COLOR := {
 	"meeting_hall": Color("7a6496"),
 	"radio": Color("3f74a0"),
 }
+const URGENT_WEEKS := 2
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
 const ModalDeck = preload("res://ui/modals.gd")
 const NetworkViewScript = preload("res://ui/network_view.gd")
@@ -1013,6 +1014,20 @@ func _shrink_card() -> void:
 			_shrink_card.call_deferred()
 		return
 	var h := content_h + 52.0
+	if h > max_h and card_body.get_child_count() > 0:
+		var top_child := card_body.get_child(0)
+		if top_child is TextureRect and top_child.has_meta("banner") and top_child.visible:
+			top_child.visible = false
+			if not card_fit_queued:
+				card_fit_queued = true
+				_shrink_card.call_deferred()
+			return
+		if card_body.get_theme_constant("separation") > 2:
+			card_body.add_theme_constant_override("separation", 2)
+			if not card_fit_queued:
+				card_fit_queued = true
+				_shrink_card.call_deferred()
+			return
 	if h < 96.0:
 		if not card_fit_queued:
 			card_fit_queued = true
@@ -2181,9 +2196,19 @@ func _paint_dawn() -> void:
 	if game.pending.is_empty():
 		_open_card(Copy.t("Dawn, week %d") % game.week)
 		_choice_tally()
-		_intent_row(lines)
-		_morning_notes(lines)
-		_dawn_alert()
+		var urgent: PackedStringArray = []
+		var rest: PackedStringArray = []
+		for line in lines:
+			if _urgent_line(line):
+				urgent.append(line)
+			else:
+				rest.append(line)
+		_alert_chips(urgent, 0)
+		_far_revolt()
+		_intent_row(rest)
+		if urgent.is_empty() or not rest.is_empty():
+			_morning_notes(rest)
+		_forecast_buttons(_forecast_rows(99, URGENT_WEEKS))
 		_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
@@ -2202,18 +2227,20 @@ func _paint_dawn() -> void:
 			_body(rolled)
 			check_flash = false
 	_choice_tally()
-	var news := _news_count(lines)
-	if news > 0:
-		var fold := _button(Copy.t("Morning news (%d) ▾") % news if news_open else Copy.t("Morning news (%d) ▸") % news, _toggle_news)
-		fold.custom_minimum_size = Vector2(0, 34)
-		fold.add_theme_font_size_override("font_size", 16)
-		card_body.add_child(fold)
+	var urgent: PackedStringArray = []
+	var folded: PackedStringArray = []
+	for line in lines:
+		if _urgent_line(line):
+			urgent.append(line)
+		else:
+			folded.append(line)
+	var news := _news_count(folded) + _forecast_rows(URGENT_WEEKS, 99).size() + _far_revolt_count()
+	_alert_chips(urgent, news)
 	if news_open:
-		_intent_row(lines)
-		_morning_notes(lines)
-		_dawn_alert()
-	else:
-		_dawn_alert(false)
+		_far_revolt()
+		_intent_row(folded)
+		_morning_notes(folded)
+		_forecast_buttons(_forecast_rows(URGENT_WEEKS, 99))
 	for choice in ev.choices:
 		if not game.choice_offered(choice):
 			continue
@@ -2263,38 +2290,134 @@ func _next_order_report() -> void:
 	_show_dawn()
 
 
-func _dawn_alert(forecasts: bool = true) -> void:
-	var warning: Dictionary = game.revolt_warning()
-	if not warning.is_empty():
-		var warn := _button(str(warning.text), _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell)))
-		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		card_body.add_child(warn)
-	if not forecasts:
-		return
-	var rows: Array = game.forecasts()
-	if rows.is_empty():
-		return
-	var shown := {}
-	var row: Dictionary = rows[0]
-	shown[str(row.get("key", ""))] = true
-	var forecast := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
-	forecast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	card_body.add_child(forecast)
-	for extra in rows:
-		var key := str(extra.get("key", ""))
-		if shown.has(key) or (key != "overcrowd" and key != "flood"):
-			continue
-		shown[key] = true
-		var more := _button(str(extra.text), _open_forecast_at.bind(str(extra.hint), int(extra.level), int(extra.cell)))
-		more.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		card_body.add_child(more)
-
-
 func _news_count(lines: PackedStringArray) -> int:
 	if news_week != game.week:
 		news_week = game.week
 		news_open = false
-	return lines.size() + mini(game.forecasts().size(), 1)
+	var n := 0
+	for line in lines:
+		if not line.begins_with("No warning"):
+			n += 1
+	return n
+
+
+func _urgent_line(line: String) -> bool:
+	if _starts(line, ["SEASON", "PRESSURE", "WARN"]):
+		return true
+	if line.begins_with("ULTIMATUM"):
+		for d in game.demands:
+			if not bool(d.paid) and int(d.deadline) <= URGENT_WEEKS:
+				return true
+	return false
+
+
+func _forecast_rows(within: int, beyond: int = -1) -> Array:
+	var out: Array = []
+	for row in game.forecasts():
+		var weeks := int(row.get("weeks", 0))
+		if weeks <= within and weeks > beyond:
+			out.append(row)
+	return out
+
+
+func _alert_chips(urgent: PackedStringArray, news: int) -> void:
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 4)
+	var warning: Dictionary = game.revolt_warning()
+	var revolt_near := not warning.is_empty() and int(warning.get("weeks", 99)) <= URGENT_WEEKS
+	if revolt_near:
+		flow.add_child(_chip(str(warning.text), true, _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell))))
+	for row in _forecast_rows(URGENT_WEEKS):
+		if revolt_near and str(row.get("key", "")) == "discontent":
+			continue
+		flow.add_child(_chip(str(row.text), true, _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell))))
+	for line in urgent:
+		var chip := _chip(_alert_text(line), true, Callable())
+		chip.tooltip_text = Copy.gloss(line)
+		flow.add_child(chip)
+	if news > 0:
+		var caption := Copy.t("Morning news (%d) ▾") % news if news_open else Copy.t("Morning news (%d) ▸") % news
+		flow.add_child(_chip(caption, false, _toggle_news))
+	if flow.get_child_count() > 0:
+		card_body.add_child(flow)
+
+
+func _alert_text(line: String) -> String:
+	if line.begins_with("WARN ") and line.ends_with(" is losing its loyalty"):
+		var place := line.substr(5, line.length() - 5 - " is losing its loyalty".length())
+		return Copy.t("%s is losing loyalty and may flip.") % place
+	var text := Copy.gloss(line)
+	if line.begins_with("PRESSURE "):
+		return text.replace(". ", ": ")
+	var stop := text.find(". ")
+	if stop > 0 and stop <= 12:
+		text = text.substr(stop + 2)
+	return text
+
+
+func _far_revolt() -> void:
+	var warning: Dictionary = game.revolt_warning()
+	if warning.is_empty() or int(warning.get("weeks", 99)) <= URGENT_WEEKS:
+		return
+	var warn := _button(str(warning.text), _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell)))
+	warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warn.custom_minimum_size.y = 40
+	warn.add_theme_font_size_override("font_size", 17)
+	card_body.add_child(warn)
+
+
+func _far_revolt_count() -> int:
+	var warning: Dictionary = game.revolt_warning()
+	return 1 if not warning.is_empty() and int(warning.get("weeks", 99)) > URGENT_WEEKS else 0
+
+
+func _chip(text: String, alert: bool, cb: Callable) -> Button:
+	var full := text.strip_edges()
+	var short := full
+	var stop := full.find(". ")
+	if stop > 0:
+		short = full.substr(0, stop + 1)
+	if short.length() > 46:
+		short = short.substr(0, 45).strip_edges() + "…"
+	var chip := Button.new()
+	chip.text = ("⚠ " + short) if alert else short
+	chip.tooltip_text = full
+	chip.focus_mode = Control.FOCUS_NONE
+	chip.custom_minimum_size = Vector2(0, 26)
+	chip.add_theme_font_size_override("font_size", 14)
+	if body_font != null:
+		chip.add_theme_font_override("font", body_font)
+	var ink := Color("8a2f22") if alert else PAPER_INK
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
+		chip.add_theme_color_override(state, ink)
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color(0.55, 0.18, 0.12, 0.10 if state != "hover" else 0.18) if alert else Color(0.24, 0.16, 0.08, 0.08 if state != "hover" else 0.16)
+		face.border_color = Color(0.55, 0.18, 0.12, 0.55) if alert else Color(0.24, 0.16, 0.08, 0.45)
+		face.set_border_width_all(1)
+		face.set_corner_radius_all(3)
+		face.content_margin_left = 8
+		face.content_margin_right = 8
+		face.content_margin_top = 2
+		face.content_margin_bottom = 2
+		chip.add_theme_stylebox_override(state, face)
+	if cb.is_valid():
+		chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		chip.pressed.connect(cb)
+	else:
+		chip.mouse_filter = Control.MOUSE_FILTER_PASS
+	return chip
+
+
+func _forecast_buttons(rows: Array) -> void:
+	for row in rows:
+		var button := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		button.custom_minimum_size.y = 40
+		button.add_theme_font_size_override("font_size", 17)
+		card_body.add_child(button)
 
 
 func _toggle_news() -> void:
@@ -2368,6 +2491,7 @@ func _event_banner(ev: Dictionary) -> TextureRect:
 	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.set_meta("banner", true)
 	return banner
 
 
@@ -2859,6 +2983,7 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 	_show_ahead(false)
 	on_paper = true
 	_wipe(card_body)
+	card_body.add_theme_constant_override("separation", 6)
 	dim.visible = true
 	var row := HBoxContainer.new()
 	var lab := _label(heading, 28, true)
@@ -4534,6 +4659,24 @@ func _ux_map_tips() -> void:
 
 
 func _ux_card_fit() -> void:
+	await _ux_fit_pass("calm")
+	game.discontent = 98
+	game.stock.food = 3
+	var st_name := ""
+	for sid in game.stations:
+		if str(game.stations[sid].owner) == game.player and sid != game.capital_id:
+			st_name = str(game.stations[sid].name)
+	if st_name == "":
+		st_name = "Coney Island"
+	game.demands.append({"faction": "exchange", "amount": 10, "deadline": 2, "paid": false})
+	game.log.append({"week": game.week, "text": "SEASON Скоро %s." % Copy.season("flood"), "important": true})
+	game.log.append({"week": game.week, "text": "ULTIMATUM %s хочет %s, осталось %s." % [Copy.t("Exchange"), Copy.stock(10, "tokens"), Words.count(2, "week")], "important": true})
+	game.log.append({"week": game.week, "text": "PRESSURE Еда, Воздух, Энергия", "important": true})
+	game.log.append({"week": game.week - 1, "text": "WARN %s is losing its loyalty" % Copy.t(st_name), "important": true})
+	await _ux_fit_pass("stressed")
+
+
+func _ux_fit_pass(tag: String) -> void:
 	var worst := ""
 	var worst_over := -99999.0
 	var over_n := 0
@@ -4546,26 +4689,29 @@ func _ux_card_fit() -> void:
 			continue
 		_show_dawn()
 		await _frame()
+		await _frame()
+		await _frame()
 		seen += 1
 		var over := card_body.size.y - card_scroll.size.y
 		if over > 1.0:
 			over_n += 1
-			print("FIT over %s %.0f" % [str(ev.id), over])
-		if over > worst_over:
-			worst_over = over
+			print("FIT %s over %s %.0f" % [tag, str(ev.id), over])
+		if card_body.size.y > worst_over:
+			worst_over = card_body.size.y
 			worst = str(ev.id)
 		_close_card()
 	game.pending.clear()
 	_show_dawn()
 	await _frame()
-	print("FIT plain dawn over %.0f" % (card_body.size.y - card_scroll.size.y))
+	print("FIT %s plain dawn over %.0f" % [tag, card_body.size.y - card_scroll.size.y])
 	_close_card()
-	print("FIT cards %d overflowing %d tallest %s (%.0f px)" % [seen, over_n, worst, worst_over])
+	print("FIT %s cards %d overflowing %d tallest %s (content %.0f px, view %.0f px)" % [tag, seen, over_n, worst, worst_over, card_scroll.size.y])
 	if worst != "":
 		_offer_shot(worst)
 		await _frame()
 		await _frame()
-		_save("card_tallest")
+		await _frame()
+		_save("card_tallest" if tag == "calm" else "card_tallest_%s" % tag)
 		_close_card()
 
 
