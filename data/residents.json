@@ -1,7 +1,7 @@
 [
-  {"id": "jonah", "name": "Jonah Peck", "skills": {"labor": 3, "tech": 1, "care": 1, "talk": 2, "fight": 5}, "traits": ["Veteran"], "council": "marshal"},
-  {"id": "inez", "name": "Inez Calder", "skills": {"labor": 1, "tech": 1, "care": 2, "talk": 5, "fight": 1}, "traits": [], "council": "envoy"},
-  {"id": "mara", "name": "Mara Quill", "skills": {"labor": 3, "tech": 5, "care": 1, "talk": 2, "fight": 1}, "traits": ["Ex-driver"], "council": "steward"},
+  {"id": "jonah", "name": "Jonah Peck", "skills": {"labor": 3, "tech": 1, "care": 1, "talk": 2, "fight": 5}, "traits": ["Veteran"], "council": "marshal", "core": true, "before_silence": "", "keepsake": "", "album": [], "memory": 0, "story_events": []},
+  {"id": "inez", "name": "Inez Calder", "skills": {"labor": 1, "tech": 1, "care": 2, "talk": 5, "fight": 1}, "traits": [], "council": "envoy", "core": true, "before_silence": "", "keepsake": "", "album": [], "memory": 0, "story_events": []},
+  {"id": "mara", "name": "Mara Quill", "skills": {"labor": 3, "tech": 5, "care": 1, "talk": 2, "fight": 1}, "traits": ["Ex-driver"], "council": "steward", "core": true, "before_silence": "", "keepsake": "", "album": [], "memory": 0, "story_events": []},
   {"id": "ruth", "name": "Ruth Adel", "skills": {"labor": 2, "tech": 1, "care": 4, "talk": 2, "fight": 1}, "traits": ["Insomniac"]},
   {"id": "benny", "name": "Benny Cho", "skills": {"labor": 4, "tech": 1, "care": 1, "talk": 3, "fight": 2}, "traits": ["Black marketeer"]},
   {"id": "ellis", "name": "Ellis Ward", "skills": {"labor": 2, "tech": 1, "care": 3, "talk": 3, "fight": 1}, "traits": ["Devout"]},

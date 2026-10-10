@@ -5,5 +5,7 @@ extends RefCounted
 
 
 static func count(n: int, one: String, many: String = "") -> String:
+	if Copy.ru():
+		return Copy.count_noun(n, one)
 	var word := one if n == 1 else (many if many != "" else "%ss" % one)
 	return "%d %s" % [n, word]
