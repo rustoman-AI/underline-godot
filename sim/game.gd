@@ -40,6 +40,7 @@ var expedition := {}
 var active_season := {}
 var artifacts := {"papers": 0, "iron": 0, "words": 0}
 var pumped := false
+var flood_guard := false
 var quarantine := false
 var synod := 0
 var floor_met := false
@@ -68,6 +69,11 @@ var rot_week := 0
 var crunch_week := 0
 var crunch_kind := 0
 var crunch_rng := RandomNumberGenerator.new()
+var check_rng := RandomNumberGenerator.new()
+var check_schedule: Array = []
+var white_pending: Array = []
+var vent_cut := 0
+var last_check := {}
 var crunch_power := false
 var belt_down := false
 var workshop_down := false
@@ -158,6 +164,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		_check_opening_stores()
 		rot_week = rng.randi_range(int(bal.rot_min_week), int(bal.rot_max_week))
 		crunch_rng.seed = seed * 1000 + 13
+		check_rng.seed = seed * 29 + 11
+		_schedule_checks()
 		crunch_week = crunch_rng.randi_range(int(bal.crunch_min_week), int(bal.crunch_max_week))
 		crunch_kind = crunch_rng.randi_range(0, 2)
 		_book_calendar()
@@ -293,6 +301,10 @@ func report() -> Dictionary:
 		"influence": int(stock.influence),
 		"first_ultimatum": int(stats.get("first_ultimatum", 0)),
 		"flip_week": int(stats.get("flip_week", 0)),
+		"flip_name": str(stats.get("flip_name", "")),
+		"flip_from": str(stats.get("flip_from", "")),
+		"flip_to": str(stats.get("flip_to", "")),
+		"shortage_causes": stats.get("shortage_causes", []),
 		"hope_end": hope,
 		"hope_avg": _hope_avg(),
 		"hope_sources": hope_totals.duplicate(),
@@ -304,6 +316,12 @@ func report() -> Dictionary:
 		"power_zero_max": int(stats.get("power_zero_max", 0)),
 		"unaffordable_dawn": int(stats.get("unaffordable_dawn", 0)),
 		"events_by_15": _events_by(15),
+		"check_white_rolls": int(stats.get("check_white_rolls", 0)),
+		"check_white_success": int(stats.get("check_white_success", 0)),
+		"check_red_rolls": int(stats.get("check_red_rolls", 0)),
+		"check_red_success": int(stats.get("check_red_success", 0)),
+		"check_retried": int(stats.get("check_retried", 0)),
+		"check_retry_passed": int(stats.get("check_retry_passed", 0)),
 	}
 
 
@@ -610,6 +628,8 @@ func _dawn() -> void:
 	_season_clock()
 	_queue_crunch()
 	_roll_events()
+	_release_white_checks()
+	_offer_checks()
 	_note_dawn_afford()
 	_log("DAWN food %d air %d power %d mat %d tok %d inf %d hope %d dis %d pop %d" % [
 		int(stock.food), int(stock.air), int(stock.power), int(stock.materials), int(stock.tokens), int(stock.influence), hope, discontent, residents.size()])
@@ -666,13 +686,19 @@ func _night() -> void:
 		before[key] = int(stock.get(key, 0))
 	for key in produced:
 		stock[key] = int(stock.get(key, 0)) + int(produced[key])
+	if vent_cut > 0:
+		stock.air = maxi(0, int(stock.air) - 2)
+		vent_cut -= 1
+	for room in rooms:
+		if int(room.get("mold", 0)) > 0:
+			room.mold = int(room.mold) - 1
 	if _law_on("engineers_charter"):
 		stock.power = int(stock.power) + int(catalog.laws.engineers_charter.get("power", 0))
 	_apply_weekly_laws()
 	if trade_on:
 		stock.tokens = int(stock.tokens) + int(bal.trade_tokens_week)
 	_deliver_outposts()
-	_spoil_flood_stores()
+	var flood_loss := _spoil_flood_stores()
 	_clamp_storage()
 	_spoil_food()
 	_rot_stores()
@@ -713,6 +739,16 @@ func _night() -> void:
 		stats.shortages = int(stats.shortage_weeks)
 		if int(stats.first_shortage) == 0:
 			stats.first_shortage = week
+		var cause := "growth"
+		if food_short > 0 and flood_loss > 0:
+			cause = "flood"
+		elif food_short <= 0 and air_short > 0:
+			cause = "air"
+		elif food_short <= 0 and power_short > 0:
+			cause = "power"
+		var causes: Array = stats.get("shortage_causes", [])
+		causes.append({"week": week, "cause": cause})
+		stats["shortage_causes"] = causes
 	var eaten := maxi(1, food_need())
 	food_buffers.append(float(stock.food) / float(eaten))
 	_decay_filters()
@@ -819,6 +855,8 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false) -> 
 				n = 0
 			if drop_gen and str(room.type) == "generator" and str(key) == "power":
 				n = int(n / 2.0)
+			if int(room.get("mold", 0)) > 0 and str(key) == "food":
+				n = 0
 			out[key] = int(out[key]) + n
 	if quarantine:
 		for key in ["food", "air", "power", "materials", "influence"]:
@@ -958,8 +996,62 @@ func forecasts() -> Array:
 			"level": -1,
 			"cell": -1,
 		})
+	var flood_text := flood_line()
+	if flood_text != "":
+		var eta := _flood_eta()
+		rows.append({
+			"key": "flood",
+			"weeks": eta,
+			"text": flood_text,
+			"hint": "pump" if can_pump() else "",
+			"level": -1,
+			"cell": -1,
+		})
 	rows.sort_custom(func(a, b): return int(a.weeks) < int(b.weeks))
+	if residents.size() > housing():
+		var beds := _supply_hint("quarters")
+		rows.append({
+			"key": "overcrowd",
+			"weeks": 0,
+			"text": crowd_line(),
+			"hint": str(beds.hint),
+			"level": int(beds.get("level", -1)),
+			"cell": int(beds.get("cell", -1)),
+		})
 	return rows
+
+
+func crowd_line() -> String:
+	var n := int(bal.get("overcrowd_discontent", 2))
+	if Copy.ru():
+		return "Теснота +%d/нед" % n
+	return "Overcrowding +%d/wk" % n
+
+
+func flood_line() -> String:
+	if flood_guard:
+		return ""
+	var eta := _flood_eta()
+	if eta > int(bal.get("season_warning", 2)):
+		return ""
+	var spoil := Copy.t("Food on the lower level will spoil.")
+	if eta <= 0:
+		return spoil
+	if Copy.ru():
+		return "Паводок через %s. %s" % [_week_span(eta), spoil]
+	return "Flood in %s. %s" % [_week_span(eta), spoil]
+
+
+func _flood_eta() -> int:
+	if _season_is("flood"):
+		return 0
+	for season in bal.seasons:
+		if str(season.id) != "flood":
+			continue
+		var left := int(season.week) - week
+		if left > 0:
+			return left
+	return 99
 
 
 func _ru_stock_when(key: String, left: int, thin: bool, meals: int) -> String:
@@ -1517,9 +1609,11 @@ func _spoil_food() -> void:
 		stock.food = maxi(0, int(stock.food) - loss)
 
 
-func _spoil_flood_stores() -> void:
+func _spoil_flood_stores() -> int:
 	if not _season_is("flood"):
-		return
+		return 0
+	if pumped or flood_guard:
+		return 0
 	var lvl := _lowest_open_level()
 	var stored := 0
 	for room in rooms:
@@ -1528,9 +1622,10 @@ func _spoil_flood_stores() -> void:
 		stored += _room_store(room, "food")
 	var loss := mini(int(stock.food), stored)
 	if loss <= 0:
-		return
+		return 0
 	stock.food = int(stock.food) - loss
 	_log("FLOOD spoils %d food on the lowest level" % loss, true)
+	return loss
 
 
 func _season_is(id: String) -> bool:
@@ -1637,11 +1732,12 @@ func _season_mood() -> void:
 func _rot_stores() -> void:
 	if week != rot_week:
 		return
-	var target := maxi(0, food_need() - int(bal.rot_gap))
-	if int(stock.food) <= target:
+	var need := food_need()
+	var surplus := int(stock.food) - need
+	if surplus <= 0:
 		return
-	var loss := int(stock.food) - target
-	stock.food = target
+	var loss := mini(surplus, maxi(1, int(round(float(surplus) * 0.5))))
+	stock.food = int(stock.food) - loss
 	_note("ROT %d food turns in the stores" % loss, "ROT В кладовых испортилось %d еды." % loss)
 
 
@@ -2098,6 +2194,7 @@ func _apply_pump() -> bool:
 	stock.materials = int(stock.materials) - int(bal.pump_materials)
 	stock.power = int(stock.power) - int(bal.pump_power)
 	pumped = true
+	flood_guard = true
 	for key in cells:
 		if cells[key].flooded:
 			cells[key].flooded = false
@@ -2253,8 +2350,8 @@ func _step_toward_find() -> Dictionary:
 func _apply_flood_if_needed() -> void:
 	if active_season.is_empty() or str(active_season.id) != "flood":
 		return
-	if week != int(active_season.start) or pumped:
-		if pumped and week == int(active_season.get("start", -1)):
+	if week != int(active_season.start) or pumped or flood_guard:
+		if (pumped or flood_guard) and week == int(active_season.get("start", -1)):
 			_log("The Flood hits the pumps and holds.")
 		return
 	var lowest := -1
@@ -2286,9 +2383,9 @@ func _needs_pump() -> bool:
 	for key in cells:
 		if cells[key].flooded:
 			return true
-	if active_season.is_empty() or str(active_season.id) != "flood" or pumped:
+	if flood_guard:
 		return false
-	return week == int(active_season.start)
+	return _flood_eta() <= int(bal.get("season_warning", 2))
 
 
 # --- council orders ---
@@ -2904,7 +3001,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	st.held_weeks = 0
 	st.low_weeks = 0
 	if fid != player or force:
-		_note_flip()
+		_note_flip(sid, prev, fid)
 	if str(st.focus) == "":
 		st.focus = "food"
 	for key in st.rival_symp:
@@ -2930,6 +3027,16 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 
 
 func _campaign_target(fid: String) -> String:
+	if int(stats.get("flip_week", 0)) == 0:
+		var locked := str(stats.get("flip_target", ""))
+		if locked != "" and stations.has(locked) and str(stations[locked].owner) == "neutral":
+			return locked
+		var border := _border_neutrals(fid)
+		if border.size() >= 2:
+			var picked := _weighted_border(border)
+			if picked != "":
+				stats.flip_target = picked
+				return picked
 	var best := ""
 	var best_hops := 999
 	for sid in _owned_by(fid):
@@ -3014,7 +3121,7 @@ func _tick_holdings() -> void:
 					st.sympathy = 0
 					st.unrest = 0
 					st.low_weeks = 0
-					_note_flip()
+					_note_flip(sid, player, "neutral")
 
 
 func _press_loyalty(st: Dictionary) -> void:
@@ -3194,6 +3301,7 @@ func _hire(n: int) -> void:
 			"sick": 0,
 			"absent": 0,
 		}
+		_stamp_checks(person)
 		residents.append(person)
 		people[id] = person
 
@@ -3662,7 +3770,7 @@ func _event_pool(major_only: bool) -> Array:
 
 func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
-	if bool(ev.get("chain_only", false)):
+	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
 		return false
 	if id == "lamps" and week == crunch_week:
 		return false
@@ -3687,13 +3795,348 @@ func _resolve_pending() -> void:
 	while not pending.is_empty() and guard < 6:
 		guard += 1
 		var ev: Dictionary = pending[0]
-		var choice: Dictionary = ev.choices[0]
+		var choice := {}
 		for c in ev.choices:
-			if _afford(c.get("cost", {})):
-				choice = c
-				break
-		if not _apply_event({"event_id": ev.id, "choice_id": choice.id}):
+			if choice_locked(c) or not _afford(c.get("cost", {})):
+				continue
+			choice = c
+			break
+		if choice.is_empty():
 			pending.pop_front()
+			continue
+		var person := ""
+		if choice.has("check"):
+			person = best_check_resident(str(choice.check.get("skill", "")))
+		if not _apply_event({"event_id": ev.id, "choice_id": choice.id, "person": person}):
+			pending.pop_front()
+
+
+func choice_locked(choice: Dictionary) -> bool:
+	return bool(choice.get("locked", false))
+
+
+func best_check_resident(skill: String) -> String:
+	var best := ""
+	var best_v := -1
+	for person in residents:
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		var value := check_value(person, skill)
+		if value > best_v:
+			best_v = value
+			best = str(person.id)
+	return best
+
+
+func check_value(person: Dictionary, skill: String) -> int:
+	if not person.has("checks"):
+		_stamp_checks(person)
+	return int(person.get("checks", {}).get(skill, 0))
+
+
+func check_modifiers(skill: String) -> Array:
+	var rows: Array = []
+	if skill == "wits" and _room_ready("workshop"):
+		rows.append({"text": "Workshop", "amount": 1})
+	if skill == "wits" and _law_on("engineers_charter"):
+		rows.append({"text": "Engineers' charter", "amount": 1})
+	if skill == "voice" and _room_ready("meeting_hall"):
+		rows.append({"text": "Meeting hall", "amount": 1})
+	if skill == "voice" and _law_on("sermons"):
+		rows.append({"text": "Sermons", "amount": 1})
+	if skill == "senses" and _room_ready("air_filter"):
+		rows.append({"text": "Air filter", "amount": 1})
+	if skill == "grit" and _room_ready("quarters"):
+		rows.append({"text": "Quarters", "amount": 1})
+	if skill == "grit" and _law_on("rationing"):
+		rows.append({"text": "Rationing", "amount": -1})
+	return rows
+
+
+func check_bonus(skill: String, person_id: String) -> int:
+	var bonus := 0
+	if people.has(person_id):
+		bonus += check_value(people[person_id], skill)
+	for row in check_modifiers(skill):
+		bonus += int(row.amount)
+	return bonus
+
+
+func check_chance(skill: String, difficulty: int, person_id: String) -> int:
+	var bonus := check_bonus(skill, person_id)
+	var ok := 0
+	for a in 6:
+		for b in 6:
+			var d1 := a + 1
+			var d2 := b + 1
+			if d1 == 6 and d2 == 6:
+				ok += 1
+			elif d1 == 1 and d2 == 1:
+				pass
+			elif d1 + d2 + bonus >= difficulty:
+				ok += 1
+	return int(round(float(ok) * 100.0 / 36.0))
+
+
+func check_preview(choice: Dictionary, person_id: String) -> Dictionary:
+	var check: Dictionary = choice.get("check", {})
+	var skill := str(check.get("skill", ""))
+	if person_id == "" or not people.has(person_id):
+		person_id = best_check_resident(skill)
+	var who := ""
+	if people.has(person_id):
+		who = str(people[person_id].name)
+	return {
+		"skill": skill,
+		"difficulty": int(check.get("difficulty", 10)),
+		"color": str(check.get("color", "white")),
+		"person": person_id,
+		"name": str(who),
+		"value": check_value(people[person_id], skill) if people.has(person_id) else 0,
+		"modifiers": check_modifiers(skill),
+		"chance": check_chance(skill, int(check.get("difficulty", 10)), person_id),
+		"locked": choice_locked(choice),
+		"reason": str(choice.get("lock_reason", "")),
+	}
+
+
+func _stamp_checks(person: Dictionary) -> void:
+	var skills: Dictionary = person.get("skills", {})
+	var traits: Array = person.get("traits", [])
+	var role := str(person.get("council", ""))
+	var grit := _check_band(maxi(int(skills.get("labor", 0)), int(skills.get("fight", 0))))
+	var wits := _check_band(int(skills.get("tech", 0)))
+	var voice := _check_band(int(skills.get("talk", 0)))
+	var senses := _check_band(maxi(int(skills.get("care", 0)), int(skills.get("fight", 0)) - 1))
+	if traits.has("Veteran"):
+		grit += 1
+	if traits.has("Ex-driver"):
+		wits += 1
+	if traits.has("Devout"):
+		voice += 1
+	if traits.has("Black marketeer") or traits.has("Insomniac"):
+		senses += 1
+	if traits.has("Claustrophobic"):
+		grit -= 1
+	if role == "marshal":
+		grit += 1
+	elif role == "steward":
+		wits += 1
+	elif role == "envoy":
+		voice += 1
+	person.checks = {
+		"grit": clampi(grit, 0, 3),
+		"wits": clampi(wits, 0, 3),
+		"voice": clampi(voice, 0, 3),
+		"senses": clampi(senses, 0, 3),
+	}
+
+
+func _check_band(value: int) -> int:
+	if value >= 5:
+		return 3
+	if value >= 4:
+		return 2
+	if value >= 2:
+		return 1
+	return 0
+
+
+func _schedule_checks() -> void:
+	check_schedule = []
+	var taken := {}
+	var specs := [
+		["queens_door", 3, 5],
+		["vents", 4, 7],
+		["sabotage", 6, 9],
+		["mold", 8, 12],
+		["showtime", 10, 14],
+	]
+	for spec in specs:
+		var at := check_rng.randi_range(int(spec[1]), int(spec[2]))
+		var guard := 0
+		while taken.has(at) and guard < 8:
+			at += 1
+			guard += 1
+		taken[at] = true
+		check_schedule.append({"id": str(spec[0]), "week": at, "done": false})
+
+
+func _offer_checks() -> void:
+	for item in check_schedule:
+		if bool(item.get("done", false)) or int(item.week) != week:
+			continue
+		var ev := _event_by_id(str(item.id))
+		if ev.is_empty():
+			item.done = true
+			continue
+		if str(ev.get("choices", [{}])[0].get("check", {}).get("color", "")) == "red" and week < 6:
+			item.week = 6
+			continue
+		if _present_event(ev):
+			item.done = true
+		else:
+			item.week = week + 1
+
+
+func _release_white_checks() -> void:
+	var keep: Array = []
+	for ev in white_pending:
+		var ready := false
+		for choice in ev.choices:
+			if not choice_locked(choice) or bool(choice.get("spent", false)):
+				continue
+			if _retry_met(choice):
+				choice.locked = false
+				choice.retry_open = true
+				choice.lock_reason = ""
+				ready = true
+		if ready and not _has_event(pending, str(ev.id)):
+			if str(ev.id) == "vents":
+				vent_cut = 0
+			pending.append(ev)
+		elif not ready:
+			keep.append(ev)
+	white_pending = keep
+
+
+func _retry_met(choice: Dictionary) -> bool:
+	var retry: Dictionary = choice.get("check", {}).get("retry", {})
+	if retry.has("room"):
+		return room_count(str(retry.room)) > 0
+	if retry.has("skill"):
+		var need := int(retry.get("at", 2))
+		for person in residents:
+			if check_value(person, str(retry.skill)) >= need:
+				return true
+		return false
+	return true
+
+
+func _retry_line(choice: Dictionary) -> String:
+	var retry: Dictionary = choice.get("check", {}).get("retry", {})
+	if retry.has("room"):
+		var name := str(catalog.rooms[str(retry.room)].name)
+		if Copy.ru():
+			return "Повтор, когда построите: %s" % Copy.t(name)
+		return "Retry after: build %s" % name
+	if retry.has("skill"):
+		var label := Copy.skill(str(retry.skill))
+		var need := int(retry.get("at", 2))
+		if Copy.ru():
+			return "Повтор, когда кто-то достигнет: %s %d" % [label, need]
+		return "Retry after: a resident reaches %s %d" % [label, need]
+	if Copy.ru():
+		return "Повтор на следующей неделе."
+	return "Retry after: next week"
+
+
+func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bool:
+	var check: Dictionary = choice.get("check", {})
+	var skill := str(check.get("skill", "wits"))
+	var color := str(check.get("color", "white"))
+	if color == "red" and week < 6:
+		return true
+	if person_id == "" or not people.has(person_id):
+		person_id = best_check_resident(skill)
+	var difficulty := int(check.get("difficulty", 10))
+	var bonus := check_bonus(skill, person_id)
+	var d1 := check_rng.randi_range(1, 6)
+	var d2 := check_rng.randi_range(1, 6)
+	var box := d1 == 6 and d2 == 6
+	var snake := d1 == 1 and d2 == 1
+	var success := box or (not snake and d1 + d2 + bonus >= difficulty)
+	var retried := bool(choice.get("retry_open", false))
+	last_check = {
+		"skill": skill, "color": color, "d1": d1, "d2": d2, "bonus": bonus,
+		"success": success, "box": box, "snake": snake, "name": str(people[person_id].name) if people.has(person_id) else "",
+	}
+	_note_check(color, success, retried)
+	var face := "double 6" if box else ("double 1" if snake else "%d+%d" % [d1, d2])
+	var verdict := "Success" if success else "Failure"
+	if Copy.ru():
+		face = "две шестёрки" if box else ("две единицы" if snake else "%d+%d" % [d1, d2])
+		verdict = "Успех" if success else "Провал"
+	var signed := "+%d" % bonus if bonus >= 0 else str(bonus)
+	var line := "CHECK %s %s %s vs %d. %s." % [Copy.skill(skill), face, signed, difficulty, verdict]
+	if Copy.ru():
+		line = "ПРОВЕРКА %s %s %s против %d. %s." % [Copy.skill(skill), face, signed, difficulty, verdict]
+	_log(line, true)
+	if success:
+		_apply_deltas(choice.get("success", {}))
+		if str(ev.id) == "vents":
+			vent_cut = 0
+		return true
+	if color == "red":
+		_apply_red_failure(choice.get("failure", {}))
+		return true
+	_apply_white_fallout(choice.get("failure", {}))
+	if retried:
+		choice.locked = true
+		choice.spent = true
+		choice.lock_reason = "The roll stands." if not Copy.ru() else "Бросок остаётся."
+		return false
+	choice.locked = true
+	choice.retry_open = false
+	choice.lock_reason = _retry_line(choice)
+	pending.pop_front()
+	white_pending.append(ev)
+	return false
+
+
+func _apply_white_fallout(failure: Dictionary) -> void:
+	if bool(failure.get("vents", false)):
+		vent_cut = 2
+	if bool(failure.get("gen_down", false)):
+		gen_down = true
+
+
+func _apply_red_failure(failure: Dictionary) -> void:
+	var copy: Dictionary = failure.duplicate()
+	if int(copy.get("people", 0)) < 0:
+		if int(stats.get("red_kills", 0)) >= 1:
+			copy.people = 0
+		else:
+			copy.people = maxi(int(copy.people), -1)
+			stats.red_kills = int(stats.get("red_kills", 0)) + 1
+	var mold := int(copy.get("mold", 0))
+	copy.erase("mold")
+	_apply_deltas(copy)
+	if mold > 0:
+		for room in rooms:
+			if str(room.type) == "hydroponics":
+				room.mold = mold
+				break
+
+
+func _resolve_bet(choice: Dictionary) -> void:
+	var bet: Dictionary = choice.get("bet", {})
+	var d1 := check_rng.randi_range(1, 6)
+	var d2 := check_rng.randi_range(1, 6)
+	var win := d1 + d2 >= int(bet.get("target", 7))
+	last_check = {"bet": true, "d1": d1, "d2": d2, "success": win, "box": d1 == 6 and d2 == 6, "snake": d1 == 1 and d2 == 1}
+	if win:
+		stock.tokens = int(stock.tokens) + int(bet.get("win", 0))
+		if Copy.ru():
+			_log("СТАВКА %d+%d. Выигрыш: %d жетонов." % [d1, d2, int(bet.get("win", 0))], true)
+		else:
+			_log("BET %d+%d wins %d tokens." % [d1, d2, int(bet.get("win", 0))], true)
+	elif Copy.ru():
+		_log("СТАВКА %d+%d. Ставка сгорела." % [d1, d2], true)
+	else:
+		_log("BET %d+%d loses the stake." % [d1, d2], true)
+
+
+func _note_check(color: String, success: bool, retried: bool) -> void:
+	var roll_key := "check_red_rolls" if color == "red" else "check_white_rolls"
+	var win_key := "check_red_success" if color == "red" else "check_white_success"
+	stats[roll_key] = int(stats.get(roll_key, 0)) + 1
+	if success:
+		stats[win_key] = int(stats.get(win_key, 0)) + 1
+	if retried:
+		stats.check_retried = int(stats.get("check_retried", 0)) + 1
+		if success:
+			stats.check_retry_passed = int(stats.get("check_retry_passed", 0)) + 1
 
 
 func _apply_event(action: Dictionary) -> bool:
@@ -3706,16 +4149,24 @@ func _apply_event(action: Dictionary) -> bool:
 	for c in ev.choices:
 		if str(c.id) == str(action.get("choice_id", "")):
 			choice = c
-	if choice.is_empty() or not _afford(choice.get("cost", {})):
+	if choice.is_empty() or choice_locked(choice) or not _afford(choice.get("cost", {})):
 		return false
 	_pay(choice.get("cost", {}))
-	_apply_deltas(choice)
+	var keep := true
+	if choice.has("check"):
+		keep = _resolve_check(ev, choice, str(action.get("person", "")))
+	elif choice.has("bet"):
+		_resolve_bet(choice)
+	else:
+		_apply_deltas(choice)
+	decisions += 1
+	if not keep:
+		return true
 	if bool(choice.get("crunch_suffer", false)):
 		var drops: Array = stats.get("crunch_drops", [])
 		drops.append(str(ev.title))
 		stats["crunch_drops"] = drops
 	pending.pop_front()
-	decisions += 1
 	_schedule_follow(ev, choice)
 	_log("EVENT %s: %s" % [ev.title, choice.label], bool(ev.get("major", false)))
 	return true
@@ -3913,6 +4364,8 @@ func _season_clock() -> void:
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):
 		active_season = {}
+	if flood_guard and _flood_eta() > int(bal.get("season_warning", 2)):
+		flood_guard = false
 
 
 func _avg_fill(st: Dictionary) -> float:
@@ -3969,6 +4422,7 @@ func _init_people() -> void:
 		var person: Dictionary = _copy(raw)
 		person.sick = 0
 		person.absent = 0
+		_stamp_checks(person)
 		residents.append(person)
 		people[str(person.id)] = person
 		if str(person.get("council", "")) != "":
@@ -4105,9 +4559,59 @@ func _supplies(sid: String) -> bool:
 	return false
 
 
-func _note_flip() -> void:
+func _border_neutrals(fid: String) -> Array:
+	var rows: Array = []
+	if squads.has(fid):
+		rows = _neutral_neighbors(str(squads[fid].station))
+	if rows.size() < 2:
+		rows = []
+		var seen := {}
+		for sid in _owned_by(fid):
+			for n in _neutral_neighbors(str(sid)):
+				if seen.has(n):
+					continue
+				seen[n] = true
+				rows.append(str(n))
+	rows.sort_custom(func(a, b):
+		var ha := _hops(str(a), capital_id)
+		var hb := _hops(str(b), capital_id)
+		if ha == hb:
+			return str(a) < str(b)
+		return ha < hb
+	)
+	if rows.size() > 3:
+		rows.resize(3)
+	return rows
+
+
+func _neutral_neighbors(sid: String) -> Array:
+	var rows: Array = []
+	for n in _neighbors(sid):
+		var st: Dictionary = stations[n]
+		if str(st.owner) != "neutral":
+			continue
+		if str(st.get("bunker", "")) != "":
+			continue
+		rows.append(str(n))
+	return rows
+
+
+func _weighted_border(rows: Array) -> String:
+	if rows.is_empty():
+		return ""
+	var roll := (seed * 5 + 3) % (rows.size() + 1)
+	if roll >= rows.size():
+		roll = 0
+	return str(rows[roll])
+
+
+func _note_flip(sid: String, prev: String, nxt: String) -> void:
 	if int(stats.get("flip_week", 0)) == 0:
 		stats.flip_week = week
+		stats.flip_sid = sid
+		stats.flip_name = str(stations[sid].name) if stations.has(sid) else sid
+		stats.flip_from = prev
+		stats.flip_to = nxt
 
 
 func _courting_rival() -> String:
@@ -4480,7 +4984,7 @@ const PERSIST := [
 	"laws_on", "law_lock", "council", "stations", "tunnels", "squads",
 	"opinions", "ambition", "at_war", "trade_on", "telegraphed", "demands",
 	"pending", "dig", "build", "expedition", "active_season", "artifacts",
-	"pumped", "quarantine", "synod", "floor_met", "orders_left", "decisions",
+	"pumped", "flood_guard", "quarantine", "synod", "floor_met", "orders_left", "decisions",
 	"hope_zero", "next_person", "demand_seq", "log", "errors", "stats",
 	"food_buffers", "growth_bank", "hope_week", "hope_history", "hope_totals",
 	"dis_totals", "hope_samples", "last_net", "last_hope_delta", "last_dis_delta",
@@ -4489,11 +4993,12 @@ const PERSIST := [
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory",
+	"check_schedule", "white_pending", "vent_cut",
 ]
 
 
 func export_state() -> Dictionary:
-	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state, "net_state": net_rng.state}
+	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state, "net_state": net_rng.state, "check_state": check_rng.state}
 	for key in PERSIST:
 		data[key] = get(key)
 	return data
@@ -4511,6 +5016,8 @@ func import_state(data: Dictionary) -> bool:
 		crunch_rng.state = int(data.crunch_state)
 	if data.has("net_state"):
 		net_rng.state = int(data.net_state)
+	if data.has("check_state"):
+		check_rng.state = int(data.check_state)
 	return true
 
 

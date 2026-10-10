@@ -40,7 +40,7 @@ func _act(game: Game) -> void:
 		var best: Dictionary = {}
 		var best_score := -99999
 		for choice in ev.choices:
-			if not game.afford_choice(choice):
+			if game.choice_locked(choice) or not game.afford_choice(choice):
 				continue
 			var score := _score_choice(game, choice)
 			if score > best_score:
@@ -48,7 +48,7 @@ func _act(game: Game) -> void:
 				best = choice
 		if best.is_empty():
 			break
-		if not game.apply({"kind": "event", "event_id": ev.id, "choice_id": best.id}):
+		if not game.apply(_event_action(game, ev, best)):
 			break
 	var project := _project(game)
 	if not project.is_empty():
@@ -81,15 +81,16 @@ func _follow(game: Game) -> void:
 		var choice := _visible_choice(game, ev, forecasts)
 		if choice.is_empty():
 			break
-		if not game.apply({"kind": "event", "event_id": ev.id, "choice_id": choice.id}):
+		if not game.apply(_event_action(game, ev, choice)):
 			break
 		forecasts = game.forecasts()
 		if not game.revolt_warning().is_empty():
 			forecasts.append({"key": "discontent"})
 	_do_soft(game)
-	var build := _urgent_build(game)
-	if not build.is_empty():
-		_do_row(game, build)
+	if not _build_crowd(game) and not _build_power(game) and not _ease_mood(game):
+		var build := _urgent_build(game)
+		if not build.is_empty():
+			_do_row(game, build)
 	_follow_network(game)
 
 
@@ -133,6 +134,70 @@ func _urgent_build(game: Game) -> Dictionary:
 	return best
 
 
+func _build_power(game: Game) -> bool:
+	if game.room_count("generator") >= 2:
+		return false
+	if game._weeks_until_empty("power") > 8 and not _cold_soon(game):
+		return false
+	_free_crew(game, int(game.bal.build_workers))
+	if game.build_possible("generator"):
+		return game.apply({"kind": "build", "type": "generator"})
+	if game.dig_possible(true):
+		return game.apply({"kind": "dig", "space": true})
+	if game.dig_possible(false):
+		return game.apply({"kind": "dig", "space": false})
+	return false
+
+
+func _free_crew(game: Game, need: int) -> void:
+	var short := need - game._free_count()
+	if short <= 0:
+		return
+	for room in game.rooms:
+		if str(room.type) in ["quarters", "platform", "generator"]:
+			continue
+		for id in room.staff.duplicate():
+			if short <= 0:
+				return
+			if game.apply({"kind": "unassign", "person": str(id)}):
+				short -= 1
+
+
+func _cold_soon(game: Game) -> bool:
+	if game._season_is("cold"):
+		return true
+	for season in game.bal.seasons:
+		if str(season.id) != "cold":
+			continue
+		var left := int(season.week) - game.week
+		return left > 0 and left <= int(game.bal.get("season_warning", 2))
+	return false
+
+
+func _build_crowd(game: Game) -> bool:
+	if game.housing() >= game.residents.size():
+		return false
+	for row in game.forecasts():
+		if str(row.get("key", "")) != "overcrowd":
+			continue
+		return _do_row(game, row)
+	return false
+
+
+func _ease_mood(game: Game) -> bool:
+	if game.discontent < 52 or game._weeks_until_empty("air") <= 1:
+		return false
+	if game.rally_reason() == "":
+		return game.apply({"kind": "rally"})
+	if game.room_count("meeting_hall") == 0 and game.build_possible("meeting_hall"):
+		return game.apply({"kind": "build", "type": "meeting_hall"})
+	if game.room_count("meeting_hall") > 0:
+		game.apply({"kind": "staff"})
+		if game.rally_reason() == "":
+			return game.apply({"kind": "rally"})
+	return false
+
+
 func _is_soft(row: Dictionary) -> bool:
 	var hint := str(row.get("hint", ""))
 	return hint != "" and hint != "dig" and hint != "burn" and not hint.begins_with("build:")
@@ -163,6 +228,8 @@ func _do_row(game: Game, row: Dictionary) -> bool:
 		return game.apply({"kind": "rally"})
 	elif hint == "quarantine":
 		return game.apply({"kind": "quarantine"})
+	elif hint == "pump":
+		return game.apply({"kind": "pump"})
 	elif hint.begins_with("law:"):
 		return game.apply({"kind": "law", "law": hint.trim_prefix("law:")})
 	elif hint.begins_with("repeal:"):
@@ -173,7 +240,7 @@ func _do_row(game: Game, row: Dictionary) -> bool:
 func _visible_choice(game: Game, ev: Dictionary, forecasts: Array) -> Dictionary:
 	var fallback := {}
 	for choice in ev.choices:
-		if not game.afford_choice(choice):
+		if game.choice_locked(choice) or choice.has("bet") or not game.afford_choice(choice):
 			continue
 		if fallback.is_empty():
 			fallback = choice
@@ -258,8 +325,12 @@ func _project(game: Game) -> Dictionary:
 
 
 func _project_expander(game: Game) -> Dictionary:
+	if game.can_quarantine():
+		return {"kind": "quarantine"}
 	if game.room_count("generator") == 0 and game.week >= 2 and game.build_possible("generator"):
 		return {"kind": "build", "type": "generator"}
+	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
+		return {"kind": "build", "type": "air_filter"}
 	if game.housing() < game.residents.size() and game.build_possible("quarters"):
 		return {"kind": "build", "type": "quarters"}
 	if game.food_buffer_weeks() < 1.4 and game.room_count("hydroponics") < 3 and game.build_possible("hydroponics"):
@@ -268,8 +339,6 @@ func _project_expander(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "meeting_hall"}
 	if game.output_of("food") < game.food_need() and game.build_possible("hydroponics"):
 		return {"kind": "build", "type": "hydroponics"}
-	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
-		return {"kind": "build", "type": "air_filter"}
 	if game.dig_possible(false):
 		return {"kind": "dig", "space": false}
 	if game.dig_possible(true):
@@ -398,7 +467,16 @@ func _focus_for(game: Game) -> String:
 	return "defense"
 
 
+func _event_action(game: Game, ev: Dictionary, choice: Dictionary) -> Dictionary:
+	var action := {"kind": "event", "event_id": str(ev.id), "choice_id": str(choice.id)}
+	if choice.has("check"):
+		action.person = game.best_check_resident(str(choice.check.get("skill", "")))
+	return action
+
+
 func _score_choice(game: Game, choice: Dictionary) -> int:
+	if choice.has("bet"):
+		return -40
 	var score := int(choice.get("hope", 0)) * 3
 	score -= int(choice.get("discontent", 0)) * 2
 	score += int(choice.get("food", 0))

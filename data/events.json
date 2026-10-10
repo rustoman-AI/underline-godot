@@ -134,5 +134,25 @@
   {"id": "leak_next", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "Pete's patch held for a while. The drip has found a new seam.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
     {"id": "patch", "label": "Patch the new seam", "cost": {"materials": 2}, "hope": 0},
     {"id": "move", "label": "Move the bunks", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "queens_door", "title": "A sealed door in Queens", "check_only": true, "weight": 0, "text": "The expedition finds a sealed door. Someone can smell a medical stash behind it.", "choices": [
+    {"id": "open", "label": "Work the seal", "check": {"skill": "senses", "difficulty": 12, "color": "white", "retry": {"room": "infirmary"}}, "success": {"hope": 0}, "failure": {"hope": 0}},
+    {"id": "leave", "label": "Leave the door sealed", "hope": 0}
+  ]},
+  {"id": "mold", "title": "Mold in the gardens", "check_only": true, "weight": 0, "text": "Gray mold is on one hydroponic bed. It will take the crop if nobody cuts it out.", "choices": [
+    {"id": "cut", "label": "Cut the mold out", "check": {"skill": "wits", "difficulty": 10, "color": "red"}, "success": {"hope": 0}, "failure": {"hope": -2, "mold": 2}},
+    {"id": "scrap", "label": "Scrap that bed", "food": -4, "hope": -1}
+  ]},
+  {"id": "vents", "title": "Moles in the vents", "check_only": true, "weight": 0, "text": "Something is nesting in the air vents. The draw is already weaker.", "choices": [
+    {"id": "climb", "label": "Climb in after them", "check": {"skill": "grit", "difficulty": 12, "color": "white", "retry": {"room": "meeting_hall"}}, "success": {"hope": 0}, "failure": {"vents": true}},
+    {"id": "seal", "label": "Seal the vent", "air": -4, "hope": -1}
+  ]},
+  {"id": "sabotage", "title": "A cut wire in the generator", "check_only": true, "weight": 0, "text": "The generator crew finds a wire cut clean. Someone did it on purpose.", "choices": [
+    {"id": "trace", "label": "Trace the cut", "check": {"skill": "wits", "difficulty": 12, "color": "white", "retry": {"room": "workshop"}}, "success": {"hope": 0}, "failure": {"gen_down": true}},
+    {"id": "bypass", "label": "Bypass it for the night", "hope": -1}
+  ]},
+  {"id": "showtime", "title": "Showtime on the platform", "check_only": true, "weight": 0, "text": "A game is going around the platform. The odds are not written down. The stake is 6 tokens.", "choices": [
+    {"id": "bet", "label": "Stake 6 tokens", "cost": {"tokens": 6}, "bet": {"target": 7, "win": 12}},
+    {"id": "walk", "label": "Walk away", "hope": 0}
   ]}
 ]

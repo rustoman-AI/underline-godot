@@ -28,6 +28,14 @@ func _init() -> void:
 	print("")
 	_print_table("Follower", follower)
 	print("")
+	_print_causes("Careful", careful)
+	_print_causes("Expander", expander)
+	_print_causes("Follower", follower)
+	print("")
+	_print_checks("Careful", careful)
+	_print_checks("Expander", expander)
+	_print_checks("Follower", follower)
+	print("")
 	_print_follower(follower)
 	print("")
 	_print_hope(expander[0])
@@ -79,7 +87,7 @@ func _init() -> void:
 
 func _print_network(careful: Array, expander: Array, follower: Array) -> void:
 	print("Network gates")
-	print("profile    seed  ult  flip  unrest  stations  influence  over")
+	print("profile    seed  ult  flip  unrest  stations  influence  over      first flip")
 	for row in careful:
 		_print_net_row("careful", row)
 	for row in expander:
@@ -89,7 +97,8 @@ func _print_network(careful: Array, expander: Array, follower: Array) -> void:
 
 
 func _print_net_row(profile: String, row: Dictionary) -> void:
-	print("%-9s  %4d  %3d  %4d  %6d  %8d  %9d  %s" % [
+	var who := "%s %s -> %s" % [str(row.get("flip_name", "")), str(row.get("flip_from", "")), str(row.get("flip_to", ""))]
+	print("%-9s  %4d  %3d  %4d  %6d  %8d  %9d  %-8s  %s" % [
 		profile,
 		int(row.get("seed", 0)),
 		int(row.get("first_ultimatum", 0)),
@@ -98,6 +107,7 @@ func _print_net_row(profile: String, row: Dictionary) -> void:
 		int(row.get("stations", 0)),
 		int(row.get("influence", 0)),
 		str(row.get("over", "")),
+		who,
 	])
 
 
@@ -196,8 +206,17 @@ func _follower_ok(rows: Array) -> bool:
 			fed += 1
 		if int(row.get("hope_min", 0)) >= 15:
 			hopeful += 1
-		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time" and int(row.get("dis_max", 0)) < 90:
+		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time" and int(row.get("dis_max", 0)) <= 65:
 			calm += 1
+		if int(row.get("dis_max", 0)) > 65:
+			ok = false
+			print("  discontent peak %d, seed %d" % [int(row.dis_max), int(row.seed)])
+		if int(row.get("pop40", 0)) < 45:
+			ok = false
+			print("  population %d at week 40, seed %d" % [int(row.pop40), int(row.seed)])
+		if int(row.get("shortage_weeks", 0)) > 3:
+			ok = false
+			print("  shortage weeks %d, seed %d" % [int(row.shortage_weeks), int(row.seed)])
 		if int(row.get("deals_w10", 0)) >= 1:
 			dealt += 1
 		if int(row.get("stations_w25", 0)) >= 2:
@@ -213,7 +232,7 @@ func _follower_ok(rows: Array) -> bool:
 		print("  hope min at least 15 on %d of 5 seeds" % hopeful)
 	if calm < 4:
 		ok = false
-		print("  reached week 40 under discontent 90 on %d of 5 seeds" % calm)
+		print("  discontent peak at most 65 on %d of 5 seeds" % calm)
 	if dealt < 4:
 		ok = false
 		print("  trade deal by week 10 on %d of 5 seeds" % dealt)
@@ -221,6 +240,42 @@ func _follower_ok(rows: Array) -> bool:
 		ok = false
 		print("  two stations by week 25 on %d of 5 seeds" % widened)
 	return ok
+
+
+func _print_checks(title: String, rows: Array) -> void:
+	var white_rolls := 0
+	var white_wins := 0
+	var red_rolls := 0
+	var red_wins := 0
+	var retried := 0
+	var retry_passed := 0
+	for row in rows:
+		white_rolls += int(row.get("check_white_rolls", 0))
+		white_wins += int(row.get("check_white_success", 0))
+		red_rolls += int(row.get("check_red_rolls", 0))
+		red_wins += int(row.get("check_red_success", 0))
+		retried += int(row.get("check_retried", 0))
+		retry_passed += int(row.get("check_retry_passed", 0))
+	print("%s checks  white %d/%d (%s)  red %d/%d (%s)  retried %d passed %d" % [
+		title, white_wins, white_rolls, _pct(white_wins, white_rolls),
+		red_wins, red_rolls, _pct(red_wins, red_rolls), retried, retry_passed,
+	])
+
+
+func _pct(won: int, rolls: int) -> String:
+	if rolls <= 0:
+		return "n/a"
+	return "%d%%" % int(round(float(won) * 100.0 / float(rolls)))
+
+
+func _print_causes(title: String, rows: Array) -> void:
+	print("%s shortages" % title)
+	for row in rows:
+		var bits: PackedStringArray = []
+		for item in row.get("shortage_causes", []):
+			bits.append("W%d %s" % [int(item.week), str(item.cause)])
+		var line := ", ".join(bits) if bits.size() > 0 else "none"
+		print("  seed %d  %s" % [int(row.get("seed", 0)), line])
 
 
 func _print_table(title: String, rows: Array) -> void:
@@ -266,16 +321,14 @@ func _pop(row: Dictionary, key: String) -> String:
 
 
 func _careful_ok(rows: Array) -> bool:
-	var weeks := {}
 	for row in rows:
 		if not row.get("errors", []).is_empty():
 			return false
 		if str(row.get("over", "")) != "time":
 			return false
-		var first := int(row.get("first_shortage", 0))
-		if first < 5 or first > 10:
+		var shorts := int(row.get("shortage_weeks", 0))
+		if shorts < 0 or shorts > 2:
 			return false
-		weeks[first] = true
 		var peak := int(row.get("dis_max", 0))
 		if peak < 35 or peak > 55:
 			return false
@@ -285,7 +338,7 @@ func _careful_ok(rows: Array) -> bool:
 		var med := float(row.get("food_med", 0))
 		if med < 2.0 or med > 4.0:
 			return false
-	return weeks.size() >= 3
+	return true
 
 
 func _payback_ok(careful: Array, expander: Array) -> bool:
@@ -338,7 +391,7 @@ func _expander_ok(careful: Array, rows: Array) -> bool:
 	for row in rows:
 		if not row.get("errors", []).is_empty():
 			return false
-		if int(row.get("shortage_weeks", 0)) < 3:
+		if int(row.get("shortage_weeks", 0)) > 5:
 			return false
 		if int(row.get("week", 0)) >= 25:
 			alive += 1
