@@ -4789,16 +4789,7 @@ class Yard extends Control:
 		return clampf(0.6 + wobble * 0.08, 0.5, 0.72)
 
 	func _draw_power_icon(rect: Rect2) -> void:
-		var origin := rect.position + Vector2(rect.size.x - 18, 8)
-		var bolt := PackedVector2Array([
-			origin + Vector2(8, 0),
-			origin + Vector2(3, 8),
-			origin + Vector2(7, 8),
-			origin + Vector2(2, 16),
-			origin + Vector2(10, 7),
-			origin + Vector2(6, 7),
-		])
-		draw_colored_polygon(bolt, Color("e07a6a"))
+		_draw_status(rect.position + Vector2(rect.size.x - 28, 6), "unpowered")
 
 	func _draw_water(rect: Rect2, level: int, cell: int) -> void:
 		var t := Time.get_ticks_msec() / 1000.0
@@ -4808,6 +4799,7 @@ class Yard extends Control:
 		var body := Rect2(rect.position.x, rect.position.y + rect.size.y - height, rect.size.x, height)
 		draw_rect(body, Color(0.04, 0.11, 0.16, 0.82))
 		draw_line(Vector2(body.position.x, body.position.y + 1.0), Vector2(body.position.x + body.size.x, body.position.y + 1.0), Color(0.55, 0.72, 0.8, 0.7), 2.0)
+		_draw_status(rect.position + Vector2(6, 6), "flooded")
 
 	func _short(type: String, width: float) -> String:
 		var full := str(station.game.catalog.rooms[type].name)
@@ -4860,6 +4852,7 @@ class Yard extends Control:
 		var ring := rect.grow(-4.0)
 		draw_rect(ring, Color(0.02, 0.015, 0.01, 0.9), false, 5.0)
 		draw_rect(ring, Color(0.95, 0.84, 0.55, alpha), false, 2.0)
+		_draw_status(rect.get_center() - Vector2(12, 12), "dig")
 
 	func _draw_lamp_glow(rect: Rect2, room_type: String) -> void:
 		var tint: Color = LAMP.get(room_type, Color(1.0, 0.82, 0.48, 0.08))
@@ -4991,25 +4984,10 @@ class Yard extends Control:
 		draw_rect(bar, Color(0.55, 0.38, 0.14, 0.96))
 		if done > 0.0:
 			draw_rect(Rect2(bar.position, Vector2(bar.size.x * done, bar.size.y)), Color(0.95, 0.82, 0.42, 1.0))
+		_draw_status(screen.get_center() - Vector2(12, 12), "building")
 
 	func _room_glyph(room_type: String) -> String:
-		match room_type:
-			"hydroponics":
-				return "food"
-			"air_filter":
-				return "air"
-			"generator":
-				return "power"
-			"workshop":
-				return "materials"
-			"meeting_hall":
-				return "influence"
-			"infirmary":
-				return "quarantine"
-			"radio":
-				return "air"
-			_:
-				return "people"
+		return room_type
 
 	func _draw_sign(screen: Rect2, room: Dictionary, font: Font) -> void:
 		var defin: Dictionary = station.game.catalog.rooms[str(room.type)]
@@ -5099,6 +5077,11 @@ class Yard extends Control:
 			_paint_pose(pose_name, x, foot_y, body_h, str(crew[i]), face < 0)
 		if crew.size() > shown:
 			_draw_more(rect, crew.size() - shown, str(room.uid))
+		for id in crew:
+			var person: Dictionary = station.game.people.get(str(id), {})
+			if int(person.get("sick", 0)) > 0:
+				_draw_status(rect.position + Vector2(6, 6), "sick")
+				break
 
 	func _draw_platform(rect: Rect2, _room: Dictionary) -> void:
 		if not poses.has("walking") and not poses.has("standing"):
@@ -5176,8 +5159,14 @@ class Yard extends Control:
 			draw_string(font, Vector2(x, y + 12.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ink)
 			x += font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 8.0
 
+	func _draw_status(origin: Vector2, glyph_kind: String) -> void:
+		var tex := ArtPack.icon_texture(glyph_kind, 24.0)
+		if tex == null:
+			return
+		draw_texture_rect(tex, Rect2(origin, Vector2(24, 24)), false)
+
 	func _paint_mini(origin: Vector2, glyph_kind: String, ink: Color) -> void:
-		var tex := ArtPack.icon_texture(glyph_kind)
+		var tex := ArtPack.icon_texture(glyph_kind, 16.0)
 		if tex != null:
 			draw_texture_rect(tex, Rect2(origin, Vector2(16, 16)), false)
 			return
@@ -5397,14 +5386,10 @@ class Glyph extends Control:
 	var ink := Color("efe6d2")
 
 	func _draw() -> void:
-		var tex := ArtPack.icon_texture(kind)
+		var side := minf(size.x, size.y)
+		var tex := ArtPack.icon_texture(kind, side)
 		if tex != null:
-			var side := minf(size.x, size.y)
-			var px := 24.0
-			if side >= 40.0:
-				px = 48.0
-			elif side >= 28.0:
-				px = 32.0
+			var px := side if side <= 32.0 else minf(side, 48.0)
 			var origin := (size - Vector2(px, px)) * 0.5
 			draw_texture_rect(tex, Rect2(origin, Vector2(px, px)), false)
 			return

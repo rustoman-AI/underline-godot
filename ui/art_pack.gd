@@ -113,26 +113,64 @@ static func adopt_icons() -> void:
 	_copy_tree(src, "res://assets/icons")
 
 
-static func icon_texture(kind: String) -> Texture2D:
-	if _icons.has(kind):
-		var cached = _icons[kind]
+static func icon_texture(kind: String, px: float = 64.0) -> Texture2D:
+	var small := px <= 32.0
+	var key := kind + ("#24" if small else "")
+	if _icons.has(key):
+		var cached = _icons[key]
 		return cached if cached is Texture2D else null
 	var found: Texture2D = null
+	var names := _icon_names(kind)
+	if small:
+		for name in names:
+			found = _load_icon(name + "_24")
+			if found != null:
+				break
+	if found == null:
+		for name in names:
+			found = _load_icon(name)
+			if found != null:
+				break
+	_icons[key] = found if found != null else false
+	return found
+
+
+static func _icon_names(kind: String) -> PackedStringArray:
+	match kind:
+		"lock":
+			return PackedStringArray(["locked", "lock"])
+		"burn":
+			return PackedStringArray(["burn_salvage", "burn"])
+		"clock":
+			return PackedStringArray(["week", "clock"])
+		"buy":
+			return PackedStringArray(["propaganda", "buy"])
+		"demand":
+			return PackedStringArray(["ultimatum", "demand"])
+		"secure", "move":
+			return PackedStringArray(["squad", kind])
+		"expedition":
+			return PackedStringArray(["artifact", "expedition"])
+		"dig":
+			return PackedStringArray(["workshop", "dig"])
+		"hold":
+			return PackedStringArray(["warning", "hold"])
+		_:
+			return PackedStringArray([kind])
+
+
+static func _load_icon(name: String) -> Texture2D:
 	var folders := ["", "resources/", "actions/", "rooms/", "status/", "map/", "factions/"]
 	for folder in folders:
-		if found != null:
-			break
 		for ext in ["webp", "png"]:
-			var path := "res://assets/icons/%s%s.%s" % [folder, kind, ext]
+			var path := "res://assets/icons/%s%s.%s" % [folder, name, ext]
 			if not ResourceLoader.exists(path):
 				continue
 			var tex := load_texture(path)
 			if tex == null:
 				continue
-			found = _with_mipmaps(tex)
-			break
-	_icons[kind] = found if found != null else false
-	return found
+			return _with_mipmaps(tex)
+	return null
 
 
 static func _with_mipmaps(tex: Texture2D) -> Texture2D:

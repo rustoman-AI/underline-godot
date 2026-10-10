@@ -312,6 +312,13 @@ func _draw_stations(game) -> void:
 			draw_arc(at, radius + 4.0, 0, TAU, 24, col, 2.5)
 		draw_circle(at, radius, Color("1c1814"))
 		draw_circle(at, radius - 2.0, col.lightened(0.15))
+		var mark := ArtPack.icon_texture(str(st.owner), 16.0)
+		if mark != null:
+			draw_texture_rect(mark, Rect2(at - Vector2(7, 7), Vector2(14, 14)), false)
+		if int(st.get("low_weeks", 0)) > 0:
+			var warn := ArtPack.icon_texture("warning", 16.0)
+			if warn != null:
+				draw_texture_rect(warn, Rect2(at + Vector2(6, -16), Vector2(16, 16)), false)
 		if str(sid) == _hover:
 			draw_arc(at, radius + 8.0, 0, TAU, 24, Color(0.93, 0.78, 0.45, 0.9), 2.0)
 		var name := str(st.get("community", st.name))
@@ -355,7 +362,7 @@ func _draw_squads(game) -> void:
 		var col := _faction_color(game, str(fid))
 		draw_circle(at, 9.0, col)
 		draw_circle(at, 9.0, Color("1c1814"), false, 1.5)
-		var icon := ArtPack.icon_texture("squad")
+		var icon := ArtPack.icon_texture("squad", 16.0)
 		if icon != null:
 			draw_texture_rect(icon, Rect2(at - Vector2(8, 8), Vector2(16, 16)), false)
 		else:
@@ -371,9 +378,9 @@ func _draw_intents(game) -> void:
 			continue
 		var at := _screen(_station_world(game.stations[sid])) + Vector2(-16, -18)
 		var kind := str(intent.get("kind", "hold"))
-		var icon := ArtPack.icon_texture(kind if kind != "buy" else "propaganda")
+		var icon := ArtPack.icon_texture(kind if kind != "buy" else "propaganda", 20.0)
 		if kind == "demand_posted":
-			icon = ArtPack.icon_texture("ultimatum")
+			icon = ArtPack.icon_texture("ultimatum", 20.0)
 		draw_circle(at, 11.0, Color("241c14"))
 		if icon != null:
 			draw_texture_rect(icon, Rect2(at - Vector2(10, 10), Vector2(20, 20)), false)
@@ -621,8 +628,36 @@ func _fill_sheet(sid: String) -> void:
 func _order_button(kind: String, label: String, sid: String) -> void:
 	var game = _game()
 	var button := Button.new()
-	button.text = Copy.t(label)
+	button.text = ""
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 8.0
+	row.offset_right = -8.0
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var icon_name := kind
+	if kind == "move":
+		icon_name = "squad"
+	elif kind == "expedition":
+		icon_name = "artifact"
+	var tex := ArtPack.icon_texture(icon_name, 24.0)
+	if tex != null:
+		var face := TextureRect.new()
+		face.texture = tex
+		face.custom_minimum_size = Vector2(24, 24)
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(face)
+	var caption := Label.new()
+	caption.text = Copy.t(label)
+	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	caption.add_theme_color_override("font_color", Color("efe6d2"))
+	row.add_child(caption)
+	button.custom_minimum_size = Vector2(0, 36)
+	button.add_child(row)
 	var why := ""
 	if game != null:
 		why = game.order_block(kind, sid)
