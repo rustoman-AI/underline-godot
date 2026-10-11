@@ -5,7 +5,7 @@ extends Control
 
 const ArtPack = preload("res://ui/art_pack.gd")
 const PINS_JSON := "res://data/map_pins.json"
-const MAP_FILE := "res://incoming-art/map/nyc_map.png"
+const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
 const INK := Color("f4efe4")
 const MUTED := Color("d9cbb4")
@@ -24,7 +24,8 @@ const LINE_COLOR := {
 }
 const LINE_ALPHA := 0.85
 const LINE_WIDTH := 5.0
-const LINE_GAP := 3.0
+const LINE_GAP := LINE_WIDTH + 1.0
+const FIT_PAD := 14.0
 const WASH_RADIUS := 70.0
 const PIN_CAPITAL := 52.0
 const PIN_OTHER := 38.0
@@ -76,6 +77,7 @@ var _weights: Array[Vector2] = []
 var _weight_radius := 34.0
 var _washes := {}
 var _dot: Texture2D
+var _back_layer: Control
 var _base_layer: Control
 var _wash_layer: Control
 var _ink_layer: Control
@@ -92,13 +94,19 @@ func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_ARROW
 	clip_contents = true
 	_load_desk()
+	_back_layer = _add_layer(_draw_backdrop)
+	var haze := Shader.new()
+	haze.code = "shader_type canvas_item;\nvoid fragment() {\n\tCOLOR = vec4(textureLod(TEXTURE, UV, 5.0).rgb * 0.3, 1.0);\n}\n"
+	var haze_mat := ShaderMaterial.new()
+	haze_mat.shader = haze
+	_back_layer.material = haze_mat
 	_base_layer = _add_layer(_draw_base)
 	_wash_layer = _add_layer(_draw_wash)
 	var mul := CanvasItemMaterial.new()
 	mul.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
 	_wash_layer.material = mul
 	_ink_layer = _add_layer(_draw_ink)
-	_paper = _map_tex("res://incoming-art/map/paper.png")
+	_paper = _map_tex("res://assets/map/paper.webp")
 	_build_sheet()
 	_build_council()
 	_build_visit()
@@ -126,7 +134,7 @@ func _load_desk() -> void:
 	_spots = cfg.get("stations", {})
 	var desk: Dictionary = cfg.get("desk", {})
 	_desk_size = _vec(desk.get("size", []), _desk_size)
-	_desk = _map_tex("res://" + str(desk.get("file", "incoming-art/map/desk_empty.png")))
+	_desk = _map_tex("res://" + str(desk.get("file", "assets/map/desk_empty.webp")))
 	_map = _map_tex(MAP_FILE)
 	var turn := deg_to_rad(float(desk.get("map_rotation_deg", 0.0)))
 	var k := float(desk.get("map_scale", 1.0))
@@ -136,7 +144,7 @@ func _load_desk() -> void:
 		_weights.append(_vec(spot, Vector2.ZERO))
 	_weight_radius = float(desk.get("weight_radius", 34.0))
 	var sheet_cfg: Dictionary = cfg.get("pins_sheet", {})
-	_pins = _map_tex("res://" + str(sheet_cfg.get("file", "incoming-art/map/pins.png")))
+	_pins = _map_tex("res://" + str(sheet_cfg.get("file", "assets/map/pins.webp")))
 	_head_anchor = _vec(sheet_cfg.get("head_anchor", []), _head_anchor)
 	var rects: Dictionary = sheet_cfg.get("rects", {})
 	for key in rects:
@@ -161,6 +169,8 @@ func bind(station) -> void:
 func refresh() -> void:
 	_track_hops()
 	_place_panels()
+	if _fitted:
+		_rezoom()
 	_fill_council()
 	if selected != "":
 		_fill_sheet(selected)
@@ -169,7 +179,7 @@ func refresh() -> void:
 
 func _redraw() -> void:
 	queue_redraw()
-	for layer in [_base_layer, _wash_layer, _ink_layer]:
+	for layer in [_back_layer, _base_layer, _wash_layer, _ink_layer]:
 		if layer != null:
 			layer.queue_redraw()
 
@@ -292,10 +302,17 @@ func _on_resize() -> void:
 	if not _fitted:
 		_fit()
 		return
-	_zoom_range()
-	zoom = clampf(zoom, _zoom_min, _zoom_max)
-	_clamp_view()
+	_rezoom()
 	_redraw()
+
+
+func _rezoom() -> void:
+	if size.x < 10.0 or size.y < 10.0:
+		return
+	var at_min := zoom <= _zoom_min * 1.001
+	_zoom_range()
+	zoom = _zoom_min if at_min else clampf(zoom, _zoom_min, _zoom_max)
+	_clamp_view()
 
 
 func _center() -> Vector2:
@@ -333,23 +350,36 @@ func _map_box() -> Rect2:
 	return box
 
 
+func _hud_top() -> float:
+	if host != null and host.get("hud") != null and host.hud.size.y > 8.0:
+		return host.hud.size.y
+	return 78.0
+
+
+func _open_area() -> Rect2:
+	var top := _hud_top() + FIT_PAD
+	return Rect2(FIT_PAD, top, maxf(size.x - FIT_PAD * 2.0, 1.0), maxf(size.y - top - FIT_PAD, 1.0))
+
+
 func _zoom_range() -> void:
-	_zoom_min = maxf(size.x / _desk_size.x, size.y / _desk_size.y)
+	var box := _map_box()
+	var area := _open_area()
+	_zoom_min = minf(area.size.x / box.size.x, area.size.y / box.size.y)
 	_zoom_max = _zoom_min * ZOOM_SPAN
 
 
 func _clamp_view() -> void:
 	var box := _map_box()
-	origin = origin.clamp(box.position, box.end)
-	var half := size / (2.0 * maxf(zoom, 0.001))
-	if half.x * 2.0 < _desk_size.x:
-		origin.x = clampf(origin.x, half.x, _desk_size.x - half.x)
-	else:
-		origin.x = _desk_size.x * 0.5
-	if half.y * 2.0 < _desk_size.y:
-		origin.y = clampf(origin.y, half.y, _desk_size.y - half.y)
-	else:
-		origin.y = _desk_size.y * 0.5
+	var area := _open_area()
+	var z := maxf(zoom, 0.001)
+	var mid := _center()
+	for axis in 2:
+		if box.size[axis] * z <= area.size[axis] + 0.5:
+			origin[axis] = box.get_center()[axis] - (area.get_center()[axis] - mid[axis]) / z
+		else:
+			var lo: float = box.position[axis] + (mid[axis] - area.position[axis]) / z
+			var hi: float = box.end[axis] - (area.end[axis] - mid[axis]) / z
+			origin[axis] = clampf(origin[axis], lo, hi)
 
 
 func _fit() -> void:
@@ -357,7 +387,7 @@ func _fit() -> void:
 		return
 	_zoom_range()
 	zoom = _zoom_min
-	origin = _desk_size * 0.5
+	origin = _map_box().get_center()
 	_clamp_view()
 	_fitted = true
 	_place_panels()
@@ -417,11 +447,13 @@ func _soft_rect(c: CanvasItem, rect: Rect2, spread: float, col: Color) -> void:
 func _draw_base(c: CanvasItem) -> void:
 	if not _fitted:
 		_fit()
-	c.draw_rect(Rect2(Vector2.ZERO, size), Color("120d09"))
+	if _desk == null:
+		c.draw_rect(Rect2(Vector2.ZERO, size), Color("120d09"))
 	var view := _view()
 	c.draw_set_transform_matrix(view)
 	if _desk != null:
 		c.draw_texture_rect(_desk, Rect2(Vector2.ZERO, _desk_size), false)
+		_shade_desk_edges(c)
 	c.draw_set_transform_matrix(view * _map_xf)
 	_soft_rect(c, Rect2(Vector2(16, 26), _map_size - Vector2(8, 8)), 46.0, Color(0, 0, 0, 0.55))
 	if _map != null:
@@ -431,6 +463,26 @@ func _draw_base(c: CanvasItem) -> void:
 	c.draw_set_transform_matrix(view)
 	_draw_weights(c)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+func _shade_desk_edges(c: CanvasItem) -> void:
+	var shade := Color(0.03, 0.02, 0.01, 0.82)
+	var clear := Color(shade, 0.0)
+	var d := Rect2(Vector2.ZERO, _desk_size)
+	var i_box := d.grow(-170.0)
+	var inner := [i_box.position, Vector2(i_box.end.x, i_box.position.y), i_box.end, Vector2(i_box.position.x, i_box.end.y)]
+	var outer := [d.position, Vector2(d.end.x, d.position.y), d.end, Vector2(d.position.x, d.end.y)]
+	for i in 4:
+		var j := (i + 1) % 4
+		c.draw_polygon(PackedVector2Array([inner[i], inner[j], outer[j], outer[i]]), PackedColorArray([clear, clear, shade, shade]))
+
+
+func _draw_backdrop(c: CanvasItem) -> void:
+	if _desk == null or size.x < 1.0:
+		return
+	var k := maxf(size.x / _desk_size.x, size.y / _desk_size.y) * 1.1
+	var span := _desk_size * k
+	c.draw_texture_rect(_desk, Rect2((size - span) * 0.5, span), false)
 
 
 func _draw_weights(c: CanvasItem) -> void:

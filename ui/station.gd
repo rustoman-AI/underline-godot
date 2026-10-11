@@ -5750,8 +5750,8 @@ class Yard extends Control:
 	var ghosts := {}
 	var room_figs := {}
 	var body_figs: Array = []
-	const FIG_DIR := "res://incoming-art/figures"
-	const SCAFFOLD := "res://incoming-art/construction/scaffold.png"
+	const FIG_DIR := "res://assets/figures/poses"
+	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
 	var more_hits: Array = []
 	var art_aspect := 1.6

@@ -1,5 +1,5 @@
 {
- "_note": "Station pin positions in pixels on incoming-art/map/nyc_map.png (1024x1536 source). Scale with the map texture. Placed by hand on the painted geography.",
+ "_note": "Station pin positions in pixels on assets/map/nyc_map.webp (1024x1536 source). Scale with the map texture. Placed by hand on the painted geography.",
  "map_size": [
   1024,
   1536
@@ -107,7 +107,7 @@
   ]
  },
  "desk": {
-  "file": "incoming-art/map/desk_empty.png",
+  "file": "assets/map/desk_empty.webp",
   "size": [
    1536,
    1024
@@ -139,7 +139,7 @@
   "weight_radius": 34
  },
  "pins_sheet": {
-  "file": "incoming-art/map/pins.png",
+  "file": "assets/map/pins.webp",
   "rects": {
    "depot": [
     77,
