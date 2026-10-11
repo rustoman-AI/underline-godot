@@ -3631,6 +3631,9 @@ func _show_audience() -> void:
 	who.add_child(stand)
 	top.add_child(who)
 	card_body.add_child(top)
+	var opening := _leader_text(row.get("opening", {}))
+	if opening != "":
+		_body(("«%s»" if Copy.ru() else "“%s”") % opening)
 	var memory: Array = game.standing_memory.get(fid, [])
 	if not memory.is_empty():
 		var head := _label("They remember", 15, true)
