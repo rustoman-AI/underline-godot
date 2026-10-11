@@ -5,6 +5,9 @@ var balance: Dictionary = {}
 var rooms: Dictionary = {}
 var laws: Dictionary = {}
 var factions: Dictionary = {}
+## Leaders who come to the station for an audience (rules in docs/FACTIONS.md). Separate from `factions`,
+## which describes the rival powers on the map.
+var leaders: Dictionary = {}
 var stations: Array = []
 var tunnels: Array = []
 var events: Array = []
@@ -23,6 +26,7 @@ func load_all() -> bool:
 	rooms = _index(_arr("rooms.json"), "id")
 	laws = _index(_arr("laws.json"), "id")
 	factions = _obj("factions.json")
+	leaders = _obj("faction_leaders.json")
 	stations = _arr("stations.json")
 	tunnels = _arr("tunnels.json")
 	events = _arr("events.json")

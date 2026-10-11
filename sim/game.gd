@@ -63,6 +63,15 @@ var radio_week := 0
 ## Each name appears once, so the list stays small when nothing drains it.
 var vo_cues: Array = []
 const VO_COOLDOWN := 6
+## Leader opinion of the station, -100..100 per leader faction, apart from the map's `opinions`.
+var standing := {}
+## The last few deeds each leader remembers, as {"week", "deed", ...}; the UI words them.
+var standing_memory := {}
+## The leader at the door this week: {"faction", "week", "target"}. Empty when nobody waits.
+var audience := {}
+var audience_last := {}
+var audience_due := {}
+var audience_deals := {}
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -166,6 +175,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	_init_grid()
 	_init_map()
 	_init_squads()
+	_init_standing()
 	laws_on[str(cat.factions[player].law)] = true
 	_auto_staff()
 	if residents.size() != int(bal.start_pop):
@@ -302,6 +312,8 @@ func apply(action: Dictionary) -> bool:
 			ok = _move_power(str(action.get("room", "")), bool(action.get("up", false)))
 		"order":
 			ok = _apply_order(action)
+		"audience":
+			ok = _apply_audience(bool(action.get("accept", false)))
 		_:
 			ok = false
 	if ok and not entry.is_empty():
@@ -747,6 +759,7 @@ func _dawn() -> void:
 		if Copy.ru():
 			ultimatum = "ULTIMATUM %s хочет %s, осталось %s." % [Copy.t(_fname(str(d.faction))), Copy.stock(int(d.amount), "tokens"), Words.count(int(d.deadline), "week")]
 		_log(ultimatum, true)
+	_audience_dawn()
 
 
 func _rival_phase() -> void:
@@ -2413,6 +2426,7 @@ func _finish_dig() -> void:
 		var tunnel := _tunnel_by_id("to_floor")
 		if not tunnel.is_empty():
 			tunnel.dug = true
+		flags["first_sealed_tunnel"] = flags.get("first_sealed_tunnel", week)
 		_note("FIND a sealed door. The stencil says FLOOR.", "FIND запечатанная дверь. На трафарете: ЭТАЖ.")
 	elif find == "cable":
 		stock.power = int(stock.power) + int(bal.find_cable_power)
@@ -2574,6 +2588,7 @@ func _apply_order(action: Dictionary) -> bool:
 		_take_seat(order)
 		if order == "trade":
 			_vo_cue("caravan_arrived")
+			flags["first_caravan"] = flags.get("first_caravan", week)
 	return ok
 
 
@@ -2755,6 +2770,7 @@ func _resolve_queued() -> void:
 		order_reports.append({"title": title, "text": text, "ok": ok})
 		if ok and kind == "trade":
 			_vo_cue("caravan_arrived")
+			flags["first_caravan"] = flags.get("first_caravan", week)
 		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
 
 
@@ -5673,6 +5689,206 @@ func _invariants() -> void:
 		over = "error"
 
 
+## Rooms a deal raises by one tier for free, and laws it puts in force; the deal text in faction_leaders.json names them.
+const DEAL_ROOM := {"burn_papers": "workshop", "the_list": "air_filter"}
+const DEAL_LAW := {"the_list": "curfew"}
+
+
+func leader(fid: String) -> Dictionary:
+	for row in catalog.leaders.get("factions", []):
+		if str(row.get("id", "")) == fid:
+			return row
+	return {}
+
+
+func _init_standing() -> void:
+	for row in catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if not standing.has(fid):
+			standing[fid] = clampi(int(row.get("start_opinion", 0)), -100, 100)
+		if not standing_memory.has(fid):
+			standing_memory[fid] = []
+
+
+func standing_band(fid: String) -> String:
+	var value := int(standing.get(fid, 0))
+	for band in catalog.leaders.get("opinion_bands", []):
+		if value >= int(band.min) and value <= int(band.max):
+			return str(band.id)
+	return ""
+
+
+func _add_standing(fid: String, amount: int, deed: Dictionary) -> void:
+	if not standing.has(fid) or amount == 0:
+		return
+	standing[fid] = clampi(int(standing[fid]) + amount, -100, 100)
+	_remember(fid, deed)
+
+
+func _remember(fid: String, deed: Dictionary) -> void:
+	var rows: Array = standing_memory.get(fid, [])
+	var row := deed.duplicate()
+	row["week"] = week
+	rows.append(row)
+	var slots := int(catalog.leaders.memory_slots)
+	if rows.size() > slots:
+		rows = rows.slice(rows.size() - slots)
+	standing_memory[fid] = rows
+
+
+## Arrival rules read "<a>_or_<b>"; "week_N" takes N from the data.
+func _arrived(rule: String) -> bool:
+	for part in rule.split("_or_"):
+		var key := str(part)
+		if key.begins_with("week_"):
+			if week >= key.trim_prefix("week_").to_int():
+				return true
+			continue
+		match key:
+			"radio_built":
+				if _has_radio():
+					return true
+			"directorate_intent":
+				for intent in telegraphed:
+					if str(intent.get("faction", "")) != "directorate" or str(intent.get("kind", "")) != "squad" or bool(intent.get("hidden", false)):
+						continue
+					var sid := str(intent.get("station", ""))
+					if stations.has(sid) and (str(stations[sid].owner) == player or borders_player(sid)):
+						return true
+			"food_critical":
+				if food_buffer_weeks() < 1.0:
+					return true
+			"first_season":
+				if not active_season.is_empty():
+					return true
+			"first_caravan", "first_sealed_tunnel":
+				if flags.has(key):
+					return true
+	return false
+
+
+## A leader left waiting a week counts as turned away. Then at most one leader comes per dawn: the one whose
+## arrival came first, unless their deal is done or they were seen within the cooldown.
+func _audience_dawn() -> void:
+	if catalog.leaders.is_empty():
+		return
+	_init_standing()
+	if not audience.is_empty():
+		_audience_refuse("silence")
+	for row in catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if not audience_due.has(fid) and _arrived(str(row.get("arrival", ""))):
+			audience_due[fid] = week
+	var cooldown := int(catalog.leaders.audience_cooldown_weeks)
+	var best := ""
+	for fid in audience_due:
+		if audience_deals.has(fid):
+			continue
+		if audience_last.has(fid) and week - int(audience_last[fid]) < cooldown:
+			continue
+		if best == "" or int(audience_due[fid]) < int(audience_due[best]):
+			best = str(fid)
+	if best == "":
+		return
+	var target := ""
+	if str(leader(best).get("dirty_deal", {}).get("id", "")) == "the_list":
+		target = list_target()
+	audience = {"faction": best, "week": week, "target": target}
+
+
+## Who the Directorate's list would name: the least skilled resident outside the council.
+func list_target() -> String:
+	var pick := ""
+	var low := 1 << 30
+	for person in residents:
+		var id := str(person.id)
+		if _is_council(id):
+			continue
+		var total := _skill_total(person)
+		if total < low:
+			low = total
+			pick = id
+	return pick
+
+
+func audience_reason() -> String:
+	if audience.is_empty():
+		return Copy.t("Nobody is waiting.")
+	var deal: Dictionary = leader(str(audience.faction)).get("dirty_deal", {})
+	if str(deal.get("id", "")) == "the_list" and not people.has(str(audience.get("target", ""))):
+		return Copy.t("There is nobody to hand over.")
+	var food := int(deal.get("food", 0))
+	if food < 0 and int(stock.food) < -food:
+		return Copy.t("Needs %s, the stores have %s.") % [Copy.stock(-food, "food"), Copy.stock(int(stock.food), "food")]
+	return ""
+
+
+func _audience_refuse(how: String) -> void:
+	var fid := str(audience.get("faction", ""))
+	audience_last[fid] = week
+	_remember(fid, {"deed": how})
+	_journal("audience", {"faction": fid, "result": how})
+	audience = {}
+
+
+func _apply_audience(accept: bool) -> bool:
+	if audience.is_empty():
+		return false
+	if not accept:
+		_audience_refuse("refused")
+		decisions += 1
+		return true
+	if audience_reason() != "":
+		return false
+	var fid := str(audience.faction)
+	var deal: Dictionary = leader(fid).get("dirty_deal", {})
+	var deal_id := str(deal.get("id", ""))
+	var deed := {"deed": deal_id}
+	var false_way := deal_id == "lantern_toll" and int(standing.get(fid, 0)) < 0
+	if deal_id == "the_list":
+		var person: Dictionary = people[str(audience.target)]
+		deed["name"] = str(person.get("name", ""))
+		deed["name_ru"] = str(person.get("name_ru", ""))
+		_remove_resident(str(audience.target))
+		_journal("handed_over", {"faction": fid, "name": deed.name, "name_ru": deed.name_ru})
+	elif deal_id == "burn_papers":
+		var had := int(artifacts.papers) > 0
+		if had:
+			artifacts.papers = int(artifacts.papers) - 1
+		_journal("papers_burned", {"faction": fid, "destroyed": had})
+	elif false_way:
+		_journal("false_way", {"faction": fid})
+	_add_hope(int(deal.get("hope", 0)), "audience")
+	_add_discontent(int(deal.get("discontent", 0)), "audience")
+	if deal.has("food"):
+		stock.food = maxi(0, int(stock.food) + int(deal.food))
+	var shifts: Dictionary = deal.get("opinion", {})
+	for other in shifts:
+		_add_standing(str(other), int(shifts[other]), deed)
+	if DEAL_ROOM.has(deal_id):
+		_free_tier(str(DEAL_ROOM[deal_id]))
+	if DEAL_LAW.has(deal_id):
+		laws_on[str(DEAL_LAW[deal_id])] = true
+	flags[str(deal.get("flag", deal_id))] = week
+	_journal("audience", {"faction": fid, "result": "deal", "deal": deal_id})
+	audience_deals[fid] = week
+	audience_last[fid] = week
+	audience = {}
+	decisions += 1
+	return true
+
+
+func _free_tier(type: String) -> void:
+	for room in rooms:
+		if str(room.type) != type:
+			continue
+		var steps: Array = catalog.rooms[type].get("upgrades", [])
+		if int(room.upgrade) < steps.size():
+			room.upgrade = int(room.upgrade) + 1
+			_log("UPGRADE %s to %s" % [catalog.rooms[type].name, str(steps[int(room.upgrade) - 1])])
+			return
+
+
 const PERSIST := [
 	"seed", "week", "max_weeks", "over", "player", "player_lean", "capital_id",
 	"stock", "hope", "discontent", "residents", "people", "cells", "rooms",
@@ -5689,7 +5905,8 @@ const PERSIST := [
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
-	"vo_heard", "radio_week",
+	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
+	"audience_due", "audience_deals",
 ]
 
 
@@ -5714,6 +5931,8 @@ func import_state(data: Dictionary) -> bool:
 		net_rng.state = int(data.net_state)
 	if data.has("check_state"):
 		check_rng.state = int(data.check_state)
+	if catalog != null:
+		_init_standing()
 	return true
 
 

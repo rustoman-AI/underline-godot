@@ -178,6 +178,8 @@ var vo_bars: Control
 var vo_sub: Label
 var vo_dossier := ""
 var vo_story_progress := 0.0
+var audience_key := ""
+var audience_heard := false
 var vo_queue: Array = []
 var vo_text := ""
 var vo_text_caption := ""
@@ -3200,6 +3202,25 @@ func _journal_line(row: Dictionary) -> String:
 			return news
 		"radio":
 			return Radio.text(Radio.by_id(str(row.get("id", ""))))
+		"audience":
+			var leader_name := _leader_text(game.leader(str(row.get("faction", ""))).get("leader", {}))
+			match str(row.get("result", "")):
+				"deal":
+					return Copy.t("%s: deal taken, %s.") % [leader_name, Copy.t(str(DEAL_NAMES.get(str(row.get("deal", "")), ""))).to_lower()]
+				"silence":
+					return Copy.t("%s was left waiting. They count it as a refusal.") % leader_name
+			return Copy.t("%s was turned away.") % leader_name
+		"handed_over":
+			var given := str(row.get("name_ru", "")) if Copy.ru() else ""
+			if given == "":
+				given = Copy.person(str(row.get("name", "")))
+			return Copy.t("Handed %s to the Directorate.") % given
+		"papers_burned":
+			if bool(row.get("destroyed", false)):
+				return Copy.t("Burned the papers. One Papers clue is gone.")
+			return Copy.t("Burned the papers before any clue was found.")
+		"false_way":
+			return Copy.t("Bird's way was false. She laughed on the radio.")
 	return kind
 
 
@@ -3207,7 +3228,7 @@ func _journal_group(kind: String) -> String:
 	match kind:
 		"build", "built", "dig", "upgrade", "demolish", "find", "tunnel", "dark":
 			return "builds"
-		"event", "law", "repeal", "pump", "quarantine", "burn", "rally":
+		"event", "law", "repeal", "pump", "quarantine", "burn", "rally", "audience", "handed_over", "papers_burned", "false_way":
 			return "decisions"
 		"order", "cancel", "order_done", "station", "war", "ultimatum":
 			return "map"
@@ -3271,7 +3292,7 @@ func _show_journal() -> void:
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if kind == "radio":
 			text.add_theme_color_override("font_color", PAPER_MUTED)
-		elif kind in ["flood", "deaths", "war", "ultimatum"] or (kind == "season" and not bool(row.get("soon", false))):
+		elif kind in ["flood", "deaths", "war", "ultimatum", "handed_over", "papers_burned", "false_way"] or (kind == "season" and not bool(row.get("soon", false))):
 			text.add_theme_color_override("font_color", Color("8a2f22"))
 		card_body.add_child(text)
 		shown += 1
@@ -3374,6 +3395,9 @@ func _show_dawn() -> void:
 	if game != null and not game.order_reports.is_empty():
 		_show_order_report()
 		return
+	if game != null and game.over == "" and not game.audience.is_empty():
+		_show_audience()
+		return
 	if not _claim(ModalDeck.NARRATIVE, "dawn", _show_dawn):
 		return
 	if footer.text == WAITING or footer.text == Copy.t(WAITING):
@@ -3473,6 +3497,226 @@ func _show_order_report() -> void:
 	_open_card(str(row.get("title", Copy.t("Dawn report"))))
 	_body(str(row.get("text", "")))
 	card_body.add_child(_button("Continue", _next_order_report))
+
+
+## Leader text from data/faction_leaders.json, which carries en and ru side by side.
+func _leader_text(pair) -> String:
+	if pair is Dictionary:
+		var out := str(pair.get("ru", "")) if Copy.ru() else ""
+		return out if out != "" else str(pair.get("en", ""))
+	return str(pair) if pair != null else ""
+
+
+## The faction sign from disk, or the first letter of the faction's name on its color.
+func _faction_mark(row: Dictionary, px: int) -> Control:
+	var path := str(row.get("symbol", ""))
+	if path != "" and ResourceLoader.exists(path):
+		var tex := ArtPack.load_texture(path)
+		if tex != null:
+			var sign := TextureRect.new()
+			sign.texture = tex
+			sign.custom_minimum_size = Vector2(px, px)
+			sign.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			sign.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			sign.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			return sign
+	var plate := PanelContainer.new()
+	plate.custom_minimum_size = Vector2(px, px)
+	plate.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(str(row.get("color", "#888888")))
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(px / 2)
+	plate.add_theme_stylebox_override("panel", style)
+	var letter := _label(_leader_text(row.get("name", {})).trim_prefix("The ").substr(0, 1).to_upper(), int(px * 0.55), true)
+	letter.add_theme_color_override("font_color", Color("1d1a16"))
+	letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	letter.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	letter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plate.add_child(letter)
+	return plate
+
+
+const BAND_NAMES := {"hostile": "Hostile", "cold": "Cold", "wary": "Wary", "useful": "Useful", "pact": "Pact"}
+const DEAL_NAMES := {
+	"burn_papers": "Burn the papers", "the_list": "The list", "stay_down": "Stay below",
+	"open_books": "Open books", "lantern_toll": "Lantern toll",
+}
+const MARK_NAMES := {
+	"collaborator": "collaborator", "buried_papers": "buried papers", "stayed_down": "stayed down",
+	"open_books": "open books", "lantern_toll": "lantern toll",
+}
+const DEED_LINES := {
+	"burn_papers": "You burned the papers.", "stay_down": "You agreed to stay below.",
+	"open_books": "You let the Exchange into your books.", "lantern_toll": "You paid the lantern toll.",
+	"refused": "You turned them away.", "silence": "You left them waiting.",
+}
+
+
+func _deed_line(row: Dictionary) -> String:
+	var deed := str(row.get("deed", ""))
+	if deed == "the_list":
+		var name := str(row.get("name_ru", "")) if Copy.ru() else ""
+		if name == "":
+			name = Copy.person(str(row.get("name", "")))
+		return Copy.t("You handed %s to the Directorate.") % name
+	return Copy.t(str(DEED_LINES.get(deed, deed)))
+
+
+func _show_audience() -> void:
+	if not _claim(ModalDeck.NARRATIVE, "audience", _show_audience):
+		return
+	var fid := str(game.audience.get("faction", ""))
+	var key := "%d:%s" % [int(game.audience.get("week", 0)), fid]
+	if audience_key != key:
+		audience_key = key
+		audience_heard = false
+		Sound.play("card")
+	var row: Dictionary = game.leader(fid)
+	_open_card(_leader_text(row.get("leader", {})), false)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 12)
+	top.add_child(_faction_mark(row, 84))
+	var who := VBoxContainer.new()
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var title := _label("%s, %s" % [_leader_text(row.get("title", {})), _leader_text(row.get("name", {}))], 18, true)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.add_child(title)
+	var stand := _label(Copy.t("Opinion %s · %s") % [_signed(int(game.standing.get(fid, 0))), Copy.t(str(BAND_NAMES.get(game.standing_band(fid), "")))], 15)
+	stand.add_theme_color_override("font_color", PAPER_MUTED)
+	who.add_child(stand)
+	top.add_child(who)
+	card_body.add_child(top)
+	_body(_leader_text(row.get("opening", {})))
+	var memory: Array = game.standing_memory.get(fid, [])
+	if not memory.is_empty():
+		var head := _label("They remember", 15, true)
+		card_body.add_child(head)
+		for i in range(memory.size() - 1, -1, -1):
+			var line := _label("%s  %s" % [Copy.t("Week %d") % int(memory[i].get("week", 0)), _deed_line(memory[i])], 14)
+			line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			line.add_theme_color_override("font_color", PAPER_MUTED)
+			card_body.add_child(line)
+	var remembers_list := memory.any(func(deed): return str(deed.get("deed", "")) == "the_list")
+	if game.flags.has("collaborator") and not remembers_list:
+		var stain := _label(Copy.t("Known to all: you handed a person to the Directorate (week %d).") % int(game.flags.collaborator), 15)
+		stain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		stain.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stain.add_theme_color_override("font_color", Color("8a2f22"))
+		card_body.add_child(stain)
+	_choice_divider()
+	if not audience_heard:
+		_audience_buttons("Hear them out", _hear_audience, "Not today")
+		return
+	_audience_terms(fid, row.get("dirty_deal", {}))
+	var why: String = game.audience_reason()
+	if why != "":
+		_body(why)
+	var take := _audience_buttons("Take the deal", _answer_audience.bind(true), "Refuse")
+	if why != "":
+		take.disabled = true
+		take.tooltip_text = why
+
+
+## Yes and no side by side; returns the yes button. No always turns the leader away.
+func _audience_buttons(yes_text: String, yes: Callable, no_text: String) -> Button:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var out: Button = null
+	for pair in [[yes_text, yes], [no_text, _answer_audience.bind(false)]]:
+		var button := _button(str(pair[0]), pair[1], "confirm")
+		_style_choice(button)
+		button.custom_minimum_size.y = 48
+		button.add_theme_font_size_override("font_size", 18)
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(button)
+		if out == null:
+			out = button
+	card_body.add_child(row)
+	return out
+
+
+## The dirty price with every number it moves, shown before the player can agree.
+func _audience_terms(fid: String, deal: Dictionary) -> void:
+	var deal_id := str(deal.get("id", ""))
+	_heading(Copy.t(str(DEAL_NAMES.get(deal_id, deal_id))))
+	_body(_leader_text(deal))
+	var lines: PackedStringArray = []
+	if int(deal.get("hope", 0)) != 0:
+		lines.append(Copy.t("Hope %s") % _signed(int(deal.hope)))
+	if int(deal.get("discontent", 0)) != 0:
+		lines.append(Copy.t("Discontent %s") % _signed(int(deal.discontent)))
+	if int(deal.get("food", 0)) != 0:
+		lines.append(Copy.t("Food %s") % _signed(int(deal.food)))
+	var shifts: Dictionary = deal.get("opinion", {})
+	var parts: PackedStringArray = []
+	for other in shifts:
+		parts.append("%s %s" % [_leader_text(game.leader(str(other)).get("name", {})), _signed(int(shifts[other]))])
+	if not parts.is_empty():
+		lines.append(Copy.t("Opinion: %s") % ", ".join(parts))
+	match deal_id:
+		"the_list":
+			var target := str(game.audience.get("target", ""))
+			if game.people.has(target):
+				lines.append(Copy.t("Handed over: %s.") % _resident_name(game.people[target]))
+			lines.append(Copy.t("Curfew comes into force."))
+		"burn_papers":
+			var papers := int(game.artifacts.get("papers", 0))
+			if papers > 0:
+				lines.append(Copy.t("Destroys one Papers clue (you hold %d).") % papers)
+			else:
+				lines.append(Copy.t("No Papers clue found yet: only the mark is set."))
+		"lantern_toll":
+			var now := int(game.standing.get(fid, 0))
+			if now < 0:
+				lines.append(Copy.t("Opinion is %s, below zero: the way she opens is a lie.") % _signed(now))
+			else:
+				lines.append(Copy.t("Opinion is %s: the way she opens is real.") % _signed(now))
+	if Game.DEAL_ROOM.has(deal_id):
+		var type := str(Game.DEAL_ROOM[deal_id])
+		if game.room_count(type) > 0:
+			lines.append(Copy.t("%s gains a tier, if it has one left.") % _room_type_name(type))
+		else:
+			lines.append(Copy.t("No %s yet, so no free tier.") % _room_type_name(type).to_lower())
+	var mark := str(deal.get("flag", ""))
+	if mark != "":
+		lines.append(Copy.t("Mark: %s.") % Copy.t(str(MARK_NAMES.get(mark, mark))))
+		if mark == "collaborator":
+			lines.append(Copy.t("This mark never comes off."))
+	for line in lines:
+		var lab := _label("· " + line, 16)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(lab)
+
+
+func _hear_audience() -> void:
+	audience_heard = true
+	_show_audience()
+
+
+func _answer_audience(accept: bool) -> void:
+	var snapshot := _tally_snapshot()
+	if not game.apply({"kind": "audience", "accept": accept}):
+		footer.text = Copy.t("That choice did not take.")
+		footer.visible = true
+		return
+	audience_heard = false
+	var changes := _tally_changes(snapshot)
+	_refresh()
+	note_change(changes)
+	if card != null and dim.visible:
+		_fly_changes(changes, card.get_global_rect().get_center())
+	_fill_people()
+	_close_card()
+	_show_dawn()
 
 
 func _next_order_report() -> void:

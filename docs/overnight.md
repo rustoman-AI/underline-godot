@@ -63,3 +63,35 @@ Commit: ebcd74e.
   - Event resolve: event_lamps_resolve plays.
 - Station with different whole bodies: `shots/figures_station.png`, `shots/figures_station_zoom.png`.
 - Screenshots (local only, `shots/` is ignored): `shots/counter/ru/` and `shots/counter/en/` (ada_playing, ada_unheard, ada_heard, counter_people_before/after, counter_system_cue).
+
+## 5. Faction leaders and audiences
+
+**Data.** `Downloads/factions.json` went in unchanged as `data/faction_leaders.json`, and `FACTIONS.md` as `docs/FACTIONS.md`. The old `data/factions.json` stays: it is the map's rival powers (capitals, squads, ambition, lean) and the sim reads it everywhere, so overwriting it would break the map.
+
+**Opinion.** Leader opinion (`standing`) is its own number per leader, -100..100, start from `start_opinion` (Depot +20, Black Flag -10, others 0). Bands come from `opinion_bands`. It is kept apart from the map's `opinions` (Exchange +10, Directorate -10 at start, driving trade, war and drift), so map balance is untouched. Each leader remembers the last `memory_slots` (3) deeds as text. The cooldown between audiences of the same leader is `audience_cooldown_weeks` (6).
+
+**Arrival** (at dawn, read from the `arrival` field; `week_N` takes N from the data):
+- Pike: radio room built, or week 6.
+- Halloran: a Directorate squad intent aimed at one of our stations or a station bordering ours, or food under one week. Any Directorate squad would bring him in week 1, during the guide, because their squad moves from the start.
+- Kato: first season, or week 10.
+- Pell: first caravan (first trade order).
+- Bird: first sealed tunnel (the sealed door find on the lower level).
+
+At most one leader per dawn, the earliest due. A leader left unanswered until the next dawn counts as a refusal (FACTIONS.md: silence is refusal). Bot runs, never answering: Exchange week 2, Pike 6, Halloran 4-10, Kato 10, Bird 20-29, then each again every 7 weeks.
+
+**Card.** Same NARRATIVE card as the dawn report, shown before it: sign, leader name, title and faction, opinion and band, the one opening line, what they remember, then "Hear them out" / "Not today". Hearing shows the dirty price with every number before the player can agree: hope, discontent, food, each opinion shift, the person to be handed over by name, the Papers clue count, Bird's opinion and whether her way is a lie, the free room tier, the mark. Refusing at either step is journaled and remembered.
+
+**Deals** (numbers from the json only): hope, discontent, food and opinion shifts apply as listed. Flags in the save: `collaborator`, `buried_papers`, `stayed_down`, `open_books`, `lantern_toll`; nothing clears them, and after `collaborator` every later audience says so.
+- The list: hands over the least skilled resident outside the council (named on the card), puts Curfew in force, air filter +1 tier.
+- Burn the papers: destroys one Papers clue if one was found; otherwise only the mark and the journal row. Workshop +1 tier.
+- Lantern toll: costs 8 food (disabled if the stores are short). Below zero opinion (where she starts) the way is false and the journal says so.
+
+**Not done, because the json has no numbers or the mechanics do not exist yet:** the Directorate squad for eight weeks, faster digging, the eight-week ban on surface expeditions, the Synod medic, a dearer Exodus, the Exchange price cut and rival-need race, the volunteer option of the lantern toll and the flooded way itself, Pike turning hostile on publication, the exceptions to the cooldown at hostile and pact. The deal texts on the card still mention them because they are the json text.
+
+**Sign.** `res://assets/factions/<id>_symbol.webp` if the file exists; none do yet, so the card shows the first letter of the faction name on the faction color. No portraits.
+
+**Journal in red:** person handed over, papers burned, Bird's false way. Strings en + ru.
+
+**Checks.** Bot OK, no missing banners. `.tools/audience_probe.gd --accept` (3 seeds, every deal taken): all five flags set, three red rows, no errors. `.tools/audience_shots.gd` RU and EN: Halloran deal takes Lila Voss (25 to 24 residents), Curfew on, Directorate +30, Depot -25 (Pike now -5 and remembers it); Pike turned away, journal lists both. Screenshots in `shots/audience/<lang>/` (aud_halloran, aud_halloran_terms, aud_pike, aud_journal), not committed.
+
+**Again:** something rewrote `assets/figures/` while I worked (broken work poses, png twins and the palettes back on disk). Not touched, not committed.
