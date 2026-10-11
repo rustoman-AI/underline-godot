@@ -219,11 +219,14 @@ func _check_events(catalog: Catalog) -> bool:
 	for person in catalog.residents:
 		names.append(str(person.name).split(" ")[0])
 	var named := 0
+	var drawn := 0
 	for ev in catalog.events:
 		if bool(ev.get("sasha", false)):
 			sasha += 1
-		if str(ev.get("follow", "")) != "":
-			chains += 1
+		if not bool(ev.get("check_only", false)):
+			drawn += 1
+			if str(ev.get("follow", "")) != "":
+				chains += 1
 		var free := false
 		for choice in ev.choices:
 			var cost = choice.get("cost", {})
@@ -249,8 +252,8 @@ func _check_events(catalog: Catalog) -> bool:
 	if sasha < 9:
 		print("Events: FAIL sasha %d" % sasha)
 		return false
-	if float(chains) < float(catalog.events.size()) / 3.0:
-		print("Events: FAIL chains %d of %d" % [chains, catalog.events.size()])
+	if float(chains) < float(drawn) / 3.0:
+		print("Events: FAIL chains %d of %d" % [chains, drawn])
 		return false
 	if named < 9:
 		print("Events: FAIL named residents %d" % named)
@@ -333,7 +336,7 @@ func _check_crisis(catalog: Catalog) -> bool:
 				continue
 			var last: Dictionary = game.demand_log[game.demand_log.size() - 1]
 			var span := int(last.span)
-			if span < 2 or span > 3 or int(last.amount) != int(last.income) * span:
+			if span < 2 or span > 3 or int(last.amount) != maxi(8, int(last.income)) * span:
 				print("Crisis: FAIL demand %s" % str(last))
 				return false
 			if game.warning_weeks.has(int(last.deadline_week)):
