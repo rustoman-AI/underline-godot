@@ -156,3 +156,32 @@ The free tiers and curfew were already real; they are now shown with the actual 
 **Cooldown:** the 6 week gap is skipped only for leaders in the hostile and pact bands. No Pike revenge: publishing clues does not exist.
 
 **Checks:** `.tools/audience_probe.gd --accept` takes every deal over three seeds (15 deals, all five kinds) and compares each shown value with the measured change: 0 mismatches. `.tools/audience_shots.gd --lang=ru` confirms Halloran's deal through the UI button and prints shown vs changed: Hope -8/-8, Discontent -6/-6, Food 0/0, Directorate +30/+30, Depot -25/-25, Synod -15/-15, Black Flag +5/+5, Exchange 0/0, residents 25 to 24 (Lila Voss), curfew off to on, air filter upgrade 0 to 1 (charcoal), collaborator set. Bot OK, no missing banners. Screenshot `shots/aud_halloran_terms.png` (RU), not committed. Section 5's "Not done" notes about Bird's false way and free tiers are superseded by this section.
+## 10. Faction symbols and leader portraits
+
+**Point 1 re-checked.** The audience card no longer prints the json deal text or the openings (section 9, commit 49e3fcc), so no squad, medic, way to a bunker or discount appears. The price lines come from `Game.audience_effects()` and are what `_apply_audience` applies. Cooldown skips only the hostile and pact bands. The RU run below confirms it again.
+
+**Symbols** (`incoming-art/factions/*_symbol.png`, 256 px, single colour each, viewed downscaled to 24 px):
+
+| Symbol | Result | Why |
+| --- | --- | --- |
+| depot (brake wheel) | committed | rim, hub and spokes read at 24 px |
+| directorate (dial, one hand) | committed | ring and hand read; tick marks merge into the rim |
+| exchange (scales, two tokens) | committed | beam, post and both rings read |
+| synod (ring of lanterns) | left | the thin ring vanishes at 24 px, leaves six separate spots with notches |
+| black_flag (flag and lantern) | left | the lantern under the flag turns into a blob next to the pole |
+
+**Portraits** (1024 px), compared with `assets/portraits/portrait_01.webp` (sepia photo, tiled tunnel):
+
+| Leader | Result | Why |
+| --- | --- | --- |
+| vess_halloran | committed | whole face, one person, clean coat and frame, same style |
+| ione_kato | committed | whole face, one person, clean, same style |
+| harlan_pike | left | semi-transparent grey shape pasted over the eyes and cheek; cap looks pasted on |
+| idris_pell | left | translucent vertical bars like a stamped letter across the chest |
+| nessa_bird | left | flat vector lantern stamped on the chest, a second style and colour |
+
+The passed files were copied byte for byte into `assets/factions/` as png (LFS) with mipmaps on. No conversion script was run (the attempt was refused by review as too close to a generator, so plain Copy-Item was used). The card takes the json `.webp` path or the same name as `.png`; missing file gives the letter plate, missing portrait gives no picture.
+
+**Card:** portrait 112 px left of the text when the file exists; symbol at 24 px before the title, letter plate on faction colour when it does not (synod, black flag). No build_factions_art.gd, generate_perfect_symbols.gd or pose generator was run.
+
+**Checks:** bot OK, no missing banners. RU `.tools/audience_shots.gd`: Halloran with face and dial, shown vs changed all match (Hope -8, Discontent -6, Directorate +30, Depot -25, Synod -15, Black Flag +5, Lila Voss handed over, curfew on, air filter charcoal, collaborator). Pike shows the wheel and no portrait. Screenshots in `shots/` (aud_halloran_terms, aud_pike, review_symbols, review_faces), not committed.

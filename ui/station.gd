@@ -3508,14 +3508,25 @@ func _leader_text(pair) -> String:
 
 
 ## The faction sign from disk, or the first letter of the faction's name on its color.
+## The path as given, or the same name as .png; "" when neither file is there.
+func _art_file(path: String) -> String:
+	if path == "":
+		return ""
+	for candidate in [path, path.get_basename() + ".png"]:
+		if ResourceLoader.exists(candidate):
+			return candidate
+	return ""
+
+
 func _faction_mark(row: Dictionary, px: int) -> Control:
-	var path := str(row.get("symbol", ""))
-	if path != "" and ResourceLoader.exists(path):
+	var path := _art_file(str(row.get("symbol", "")))
+	if path != "":
 		var tex := ArtPack.load_texture(path)
 		if tex != null:
 			var sign := TextureRect.new()
 			sign.texture = tex
 			sign.custom_minimum_size = Vector2(px, px)
+			sign.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 			sign.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			sign.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			sign.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -3538,6 +3549,25 @@ func _faction_mark(row: Dictionary, px: int) -> Control:
 	letter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	plate.add_child(letter)
 	return plate
+
+
+## Leader portrait from assets/factions/<leader_id>; null when the file is not there.
+func _leader_face(row: Dictionary, px: int) -> Control:
+	var path := _art_file("res://assets/factions/%s.webp" % str(row.get("leader_id", "")))
+	if path == "":
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null:
+		return null
+	var face := TextureRect.new()
+	face.texture = tex
+	face.custom_minimum_size = Vector2(px, px)
+	face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	face.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return face
 
 
 const BAND_NAMES := {"hostile": "Hostile", "cold": "Cold", "wary": "Wary", "useful": "Useful", "pact": "Pact"}
@@ -3579,14 +3609,20 @@ func _show_audience() -> void:
 	_open_card(_leader_text(row.get("leader", {})), false)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 12)
-	top.add_child(_faction_mark(row, 84))
+	var face := _leader_face(row, 112)
+	if face != null:
+		top.add_child(face)
 	var who := VBoxContainer.new()
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var named := HBoxContainer.new()
+	named.add_theme_constant_override("separation", 8)
+	named.add_child(_faction_mark(row, 24))
 	var title := _label("%s, %s" % [_leader_text(row.get("title", {})), _leader_text(row.get("name", {}))], 18, true)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	who.add_child(title)
+	named.add_child(title)
+	who.add_child(named)
 	var stand := _label(Copy.t("Opinion %s · %s") % [_signed(int(game.standing.get(fid, 0))), Copy.t(str(BAND_NAMES.get(game.standing_band(fid), "")))], 15)
 	stand.add_theme_color_override("font_color", PAPER_MUTED)
 	who.add_child(stand)
