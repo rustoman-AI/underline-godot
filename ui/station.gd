@@ -7006,6 +7006,7 @@ class Yard extends Control:
 	var ghosts := {}
 	var room_figs := {}
 	var body_figs: Array = []
+	var fig_variants := {}
 	const FIG_DIR := "res://assets/figures/poses"
 	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
@@ -7101,33 +7102,64 @@ class Yard extends Control:
 			scaffold = ArtPack.load_texture(SCAFFOLD)
 		_load_incoming_figures()
 
+	## body_figs and room_figs hold pose stems; fig_variants maps a stem to its base texture followed by every
+	## palette in FIG_DIR/palettes/<name>/ that has the same stem.
 	func _load_incoming_figures() -> void:
 		if not DirAccess.dir_exists_absolute(FIG_DIR):
 			return
-		var names := {}
-		for file in DirAccess.get_files_at(FIG_DIR):
-			var name := str(file).trim_suffix(".import").trim_suffix(".remap")
-			if name.get_extension().to_lower() in ["png", "webp"]:
-				names[name] = true
-		var sorted: Array = names.keys()
-		sorted.sort()
-		for name in sorted:
-			var path := FIG_DIR.path_join(str(name))
-			if not ResourceLoader.exists(path):
-				continue
-			var tex := ArtPack.load_texture(path)
-			if tex == null:
-				continue
-			var stem := str(name).get_basename()
-			if stem.begins_with("body_"):
-				body_figs.append(tex)
+		var base := _fig_textures(FIG_DIR)
+		var stems: Array = base.keys()
+		stems.sort()
+		var palette_dir := FIG_DIR.path_join("palettes")
+		var palettes: Array = []
+		if DirAccess.dir_exists_absolute(palette_dir):
+			var names := Array(DirAccess.get_directories_at(palette_dir))
+			names.sort()
+			for name in names:
+				palettes.append(_fig_textures(palette_dir.path_join(str(name))))
+		for stem in stems:
+			var variants: Array = [base[stem]]
+			for palette in palettes:
+				if palette.has(stem):
+					variants.append(palette[stem])
+			fig_variants[stem] = variants
+			if str(stem).begins_with("body_"):
+				body_figs.append(stem)
 				continue
 			for type in ART:
-				if stem.begins_with(str(type) + "_"):
+				if str(stem).begins_with(str(type) + "_"):
 					if not room_figs.has(type):
 						room_figs[type] = []
-					room_figs[type].append(tex)
+					room_figs[type].append(stem)
 					break
+
+	## Stem -> texture for one folder, one file per stem (webp over png when both are there).
+	func _fig_textures(dir: String) -> Dictionary:
+		var paths := {}
+		for file in DirAccess.get_files_at(dir):
+			var name := str(file).trim_suffix(".import").trim_suffix(".remap")
+			var ext := name.get_extension().to_lower()
+			if ext != "png" and ext != "webp":
+				continue
+			var stem := name.get_basename()
+			if not paths.has(stem) or ext == "webp":
+				paths[stem] = dir.path_join(name)
+		var out := {}
+		for stem in paths:
+			if not ResourceLoader.exists(str(paths[stem])):
+				continue
+			var tex := ArtPack.load_texture(str(paths[stem]))
+			if tex != null:
+				out[stem] = tex
+		return out
+
+	## A resident's pose from `stems`, and the palette of it, both fixed by the resident id.
+	func _fig_for(stems: Array, id: String) -> Texture2D:
+		var stem: String = stems[int(_id_hash(id)) % stems.size()]
+		var variants: Array = fig_variants.get(stem, [])
+		if variants.is_empty():
+			return null
+		return variants[int(_id_hash(id + "#palette")) % variants.size()]
 
 	func _erode_alpha(image: Image, radius: int) -> Image:
 		var src := image.duplicate()
@@ -8049,7 +8081,7 @@ class Yard extends Control:
 			var flip := int(spot.get("face", 1)) < 0
 			var sprite: Texture2D = null
 			if not own.is_empty():
-				sprite = own[int(_id_hash(id)) % own.size()]
+				sprite = _fig_for(own, id)
 				flip = int(_id_hash(id) / 7.0) % 2 == 0
 			else:
 				sprite = _pose_sprite(str(spot.get("pose", "standing")), id)
@@ -8217,7 +8249,7 @@ class Yard extends Control:
 			var id := str(ids[i])
 			var sprite: Texture2D = null
 			if not own.is_empty():
-				sprite = own[int(_id_hash(id)) % own.size()]
+				sprite = _fig_for(own, id)
 			else:
 				sprite = _pose_sprite("sitting", id)
 			if sprite == null:
@@ -8242,7 +8274,7 @@ class Yard extends Control:
 
 	func _pose_sprite(pose_name: String, id: String) -> Texture2D:
 		if not body_figs.is_empty() and (pose_name == "standing" or pose_name == "walking"):
-			return body_figs[int(_id_hash(id)) % body_figs.size()]
+			return _fig_for(body_figs, id)
 		if poses.has(pose_name):
 			return poses[pose_name]
 		return poses.get("standing", null)
