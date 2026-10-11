@@ -150,7 +150,6 @@ var modal_open := false
 func _ready() -> void:
 	Copy.boot()
 	Settings.load_file()
-	ArtPack.adopt_icons()
 	ArtPack.textures()
 	ArtPack.fonts()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
