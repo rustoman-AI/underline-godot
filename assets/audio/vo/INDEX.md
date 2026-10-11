@@ -26,7 +26,7 @@ Still text only: the hand-written bulletins in `data/vo/cable_radio.json`.
 
 ## Loudness
 
-Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Event and system lines were also normalized in a later pass, targeting -23 LUFS with a -2.5 dBTP limiter target to allow for Vorbis overshoot; untouched backups are in `_originals_short/`. Radio keeps its delivered mix (measured -22.3 to -20.7 LUFS). `.tools/measure_vo.ps1` prints min/median/max per group.
+Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Event and system lines were also normalized in a later pass, targeting -23 LUFS with a -2.5 dBTP limiter target to allow for Vorbis overshoot; untouched backups are in `_originals_short/`. Radio is normalized the same way to -23 LUFS with a -2.5 dBTP limiter target (radio_news_003_ru and 010_ru at -3.0 to stay under -2.5 after Vorbis); the delivered mix (-22.3 to -20.7 LUFS) is kept in `_originals_radio/`, ignored by git and Godot. Measured after: -23.1 to -22.6 LUFS, true peak at most -2.5 dBTP. `.tools/measure_vo.ps1` prints min/median/max per group.
 
 Event files may arrive as `event_<id>_resolve_resolve_<lang>.ogg` (the index spreadsheet's spelling); the game accepts that as well as `event_<id>_resolve_<lang>.ogg` from `underline_vo.json`.
 
