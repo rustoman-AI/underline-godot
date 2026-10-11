@@ -17,8 +17,8 @@
       },
       "voice_note": "58, grizzled beard under a flat cap, half-deaf from the yard, speaks too loud, calls people by their job, never says please",
       "first_contact": {
-        "en": "Bernie Shaw. Every switch from Stillwell to Twenty-fifth is mine. You're standing on my line. While it holds, we talk.",
-        "ru": "Берни Шоу. Все стрелки от Стиллвелла до Двадцать пятой мои. Ты стоишь на моей линии. Пока она держит, мы разговариваем."
+        "en": "Every switch from Stillwell to Twenty-fifth is mine. You're standing on my line. While it holds, we talk.",
+        "ru": "Все стрелки от Стиллвелла до Двадцать пятой мои. Ты стоишь на моей линии. Пока она держит, мы разговариваем."
       },
       "bands": {
         "hostile": {
@@ -79,8 +79,8 @@
       },
       "voice_note": "58, gaunt and pale, never raises his voice, writes while he talks, speaks in ledger terms, politeness as armor",
       "first_contact": {
-        "en": "Lionel Abelard, Comptroller of the Directorate. Your station is carried on our books. That is not a threat. That is accounting.",
-        "ru": "Лайонел Абелард, главный контролёр Дирекции. Ваша станция числится у нас в ведомости. Это не угроза. Это бухгалтерия."
+        "en": "Your station is carried on our books. That is not a threat. That is accounting.",
+        "ru": "Ваша станция числится у нас в ведомости. Это не угроза. Это бухгалтерия."
       },
       "bands": {
         "hostile": {
@@ -141,8 +141,8 @@
       },
       "voice_note": "55, soft and slow, speaks at your eye level, names everyone, uses silence on purpose, always washing her hands",
       "first_contact": {
-        "en": "Dorothy Chen. Don't stand, your hands are shaking. Drink some water. Then I'll tell you why I came.",
-        "ru": "Дороти Чен. Не вставайте, у вас дрожат руки. Выпейте воды. Потом я скажу, зачем пришла."
+        "en": "Don't stand, your hands are shaking. Drink some water. Then I'll tell you why I came.",
+        "ru": "Не вставайте, у вас дрожат руки. Выпейте воды. Потом я скажу, зачем пришла."
       },
       "bands": {
         "hostile": {
@@ -203,8 +203,8 @@
       },
       "voice_note": "48, warm and relentless, feeds you first, writes debts on his own forearm in marker, laughs at himself and never at the debtor",
       "first_contact": {
-        "en": "Marcel Toussaint. Eat first. Nobody bargains well hungry, and I don't like being overpaid.",
-        "ru": "Марсель Туссен. Сначала ешь. Голодный торгуется плохо, а я не люблю, когда мне переплачивают."
+        "en": "Eat first. Nobody bargains well hungry, and I don't like being overpaid.",
+        "ru": "Сначала ешь. Голодный торгуется плохо, а я не люблю, когда мне переплачивают."
       },
       "bands": {
         "hostile": {
@@ -265,8 +265,8 @@
       },
       "voice_note": "35, quiet, counts steps out loud, never sits with her back to the door, speaks of the dead in the first person plural",
       "first_contact": {
-        "en": "Niki. They call me Lamp. If you can see me, you already have a light. The question is whose.",
-        "ru": "Ники. Меня зовут Лампа. Если ты меня видишь, свет у тебя уже есть. Вопрос в том, чей."
+        "en": "If you can see me, you already have a light. The question is whose.",
+        "ru": "Если ты меня видишь, свет у тебя уже есть. Вопрос в том, чей."
       },
       "bands": {
         "hostile": {

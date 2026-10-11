@@ -22,6 +22,7 @@ static func run(cat: Catalog) -> Dictionary:
 	checks._deals()
 	checks._save_reload()
 	checks._leader_lines()
+	checks._leader_text_source()
 	checks._openings()
 	checks._flavour()
 	return {"ok": not checks.failed, "lines": checks.lines}
@@ -291,8 +292,64 @@ const LINE_KEYS := ["name", "leader", "title", "first_contact", "territory", "tr
 const BANDS := ["hostile", "cold", "wary", "useful", "pact"]
 
 
+## Keys that hold words a player reads; none may sit in faction_leaders.json, which is mechanics only.
+const LEADER_TEXT_KEYS := ["name", "leader", "title", "voice_note", "opening", "en", "ru", "first_contact",
+	"bands", "territory", "trade", "pitch", "accepted", "declined"]
+
+
+## data/leader_lines.json is the one source of leader text: faction_leaders.json carries no text fields
+## and no Cyrillic; every string in leader_lines.json is filled, has no em or en dash and no TODO_REWRITE;
+## no first_contact starts with the leader's name, which the card title already shows.
+func _leader_text_source() -> void:
+	var bad: PackedStringArray = []
+	_text_keys(catalog.leaders, "faction_leaders", bad)
+	if RegEx.create_from_string("[\\x{0400}-\\x{04FF}]").search(JSON.stringify(catalog.leaders)) != null:
+		bad.append("Cyrillic in faction_leaders.json")
+	_line_strings(catalog.lines, "leader_lines", bad)
+	var lines_by_id: Dictionary = catalog.lines.get("factions", {})
+	for fid in ALL:
+		var row: Dictionary = lines_by_id.get(fid, {})
+		for lang in ["en", "ru"]:
+			var opening := str(row.get("first_contact", {}).get(lang, "")).strip_edges()
+			var full := str(row.get("leader", {}).get(lang, "")).get_slice(",", 0).strip_edges()
+			for part in [full] + Array(full.split(" ", false)):
+				if str(part) != "" and opening.begins_with(str(part)):
+					bad.append("%s first_contact.%s starts with %s" % [fid, lang, part])
+					break
+	_expect(bad.is_empty(), "Leader text has one source; first contact does not repeat the name",
+		"leader text: " + ", ".join(bad))
+
+
+func _text_keys(value, path: String, bad: PackedStringArray) -> void:
+	if value is Dictionary:
+		for key in value:
+			if LEADER_TEXT_KEYS.has(str(key)):
+				bad.append("%s.%s is text in faction_leaders.json" % [path, key])
+			_text_keys(value[key], "%s.%s" % [path, key], bad)
+	elif value is Array:
+		for i in value.size():
+			_text_keys(value[i], "%s[%d]" % [path, i], bad)
+
+
+func _line_strings(value, path: String, bad: PackedStringArray) -> void:
+	if value is Dictionary:
+		for key in value:
+			_line_strings(value[key], "%s.%s" % [path, key], bad)
+	elif value is Array:
+		for i in value.size():
+			_line_strings(value[i], "%s[%d]" % [path, i], bad)
+	elif value is String:
+		var text := str(value)
+		if text.strip_edges() == "":
+			bad.append("%s is empty" % path)
+		if text.contains("\u2014") or text.contains("\u2013"):
+			bad.append("%s has a dash" % path)
+		if text.contains("TODO_REWRITE"):
+			bad.append("%s is TODO_REWRITE" % path)
+
+
 ## Every leader has every line in both languages, none empty or left as TODO_REWRITE, and the
-## names on the audience card match the lines file.
+## portrait id on the card matches the lines file.
 func _leader_lines() -> void:
 	var bad: PackedStringArray = []
 	var lines_by_id: Dictionary = catalog.lines.get("factions", {})
@@ -312,9 +369,6 @@ func _leader_lines() -> void:
 		for leader in catalog.leaders.get("factions", []):
 			if str(leader.get("id", "")) == fid:
 				card = leader
-		for key in ["name", "leader", "title"]:
-			if card.get(key, {}) != row.get(key, {}):
-				bad.append("%s %s differs from faction_leaders.json" % [fid, key])
 		if str(card.get("leader_id", "")) != str(row.get("leader_id", "")):
 			bad.append("%s leader_id differs" % fid)
 		if JSON.stringify(card).contains("TODO_REWRITE"):

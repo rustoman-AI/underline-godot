@@ -3217,7 +3217,7 @@ func _journal_line(row: Dictionary) -> String:
 		"radio":
 			return Radio.text(Radio.by_id(str(row.get("id", ""))))
 		"audience":
-			var leader_name := _leader_text(game.leader(str(row.get("faction", ""))).get("leader", {}))
+			var leader_name := _leader_text(game.leader_name(str(row.get("faction", "")), "leader"))
 			match str(row.get("result", "")):
 				"deal":
 					return Copy.t("%s: deal taken, %s.") % [leader_name, Copy.t(str(DEAL_NAMES.get(str(row.get("deal", "")), ""))).to_lower()]
@@ -3234,7 +3234,7 @@ func _journal_line(row: Dictionary) -> String:
 				return Copy.t("Burned the papers. One Papers clue is gone.")
 			return Copy.t("Burned the papers before any clue was found.")
 		"false_way":
-			return Copy.t("%s took the lantern toll and gave nothing back.") % _leader_text(game.leader("black_flag").get("leader", {}))
+			return Copy.t("%s took the lantern toll and gave nothing back.") % _leader_text(game.leader_name("black_flag", "leader"))
 	return kind
 
 
@@ -3564,7 +3564,7 @@ func _faction_mark(row: Dictionary, px: int) -> Control:
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(px / 2)
 	plate.add_theme_stylebox_override("panel", style)
-	var letter := _label(_leader_text(row.get("name", {})).trim_prefix("The ").substr(0, 1).to_upper(), int(px * 0.55), true)
+	var letter := _label(_leader_text(game.leader_name(str(row.get("id", "")), "name")).trim_prefix("The ").substr(0, 1).to_upper(), int(px * 0.55), true)
 	letter.add_theme_color_override("font_color", Color("1d1a16"))
 	letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	letter.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -3637,7 +3637,7 @@ func _show_audience() -> void:
 		audience_heard = false
 		Sound.play("card")
 	var row: Dictionary = game.leader(fid)
-	_open_card(_leader_text(row.get("leader", {})), false)
+	_open_card(_leader_text(game.leader_name(fid, "leader")), false)
 	card_roomy = true
 	_fit_card()
 	card_body.add_theme_constant_override("separation", 4)
@@ -3653,7 +3653,7 @@ func _show_audience() -> void:
 	named.add_theme_constant_override("separation", 8)
 	if face != null:
 		named.add_child(_faction_mark(row, 28))
-	var title := _label("%s, %s" % [_leader_text(row.get("title", {})), _leader_text(row.get("name", {}))], 18, true)
+	var title := _label("%s, %s" % [_leader_text(game.leader_name(fid, "title")), _leader_text(game.leader_name(fid, "name"))], 18, true)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	named.add_child(title)
@@ -3664,8 +3664,6 @@ func _show_audience() -> void:
 	top.add_child(who)
 	card_body.add_child(top)
 	var opening := _quoted(game.audience_opening(fid))
-	if opening == "":
-		opening = _quoted(row.get("opening", {}))
 	var pitch := _quoted(game.leader_line(fid, "pitch")) if audience_heard else ""
 	if pitch != "":
 		var said := _label(pitch, 16)
@@ -3740,7 +3738,7 @@ func _audience_terms(fid: String, deal: Dictionary) -> void:
 		lines.append(Copy.t("Food %s") % _signed(int(fx.food)))
 	var parts: PackedStringArray = []
 	for other in fx.standing:
-		parts.append("%s %s" % [_leader_text(game.leader(str(other)).get("name", {})), _signed(int(fx.standing[other]))])
+		parts.append("%s %s" % [_leader_text(game.leader_name(str(other), "name")), _signed(int(fx.standing[other]))])
 	if not parts.is_empty():
 		lines.append(Copy.t("Regard: %s") % ", ".join(parts))
 	if str(fx.hand_over) != "":
@@ -3801,7 +3799,7 @@ func _leader_said(fid: String, pair: Dictionary) -> String:
 	var line := _quoted(pair)
 	if line == "":
 		return ""
-	return "%s: %s" % [_leader_text(game.leader(fid).get("leader", {})), line]
+	return "%s: %s" % [_leader_text(game.leader_name(fid, "leader")), line]
 
 
 func _quoted(pair) -> String:

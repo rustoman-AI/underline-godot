@@ -5735,11 +5735,17 @@ const DEAL_ROOM := {"burn_papers": "workshop", "the_list": "air_filter"}
 const DEAL_LAW := {"the_list": "curfew"}
 
 
+## Mechanics only (data/faction_leaders.json); every word a leader shows comes from data/leader_lines.json.
 func leader(fid: String) -> Dictionary:
 	for row in catalog.leaders.get("factions", []):
 		if str(row.get("id", "")) == fid:
 			return row
 	return {}
+
+
+## The faction "name", the "leader" or their "title" as {en, ru}, from data/leader_lines.json.
+func leader_name(fid: String, key: String) -> Dictionary:
+	return catalog.lines.get("factions", {}).get(fid, {}).get(key, {})
 
 
 ## One {en, ru} line from data/leader_lines.json; "bands" takes the band name. A missing, empty or
