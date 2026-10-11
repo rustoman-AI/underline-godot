@@ -6,7 +6,7 @@ Lines are data, not code: every JSON file in `data/vo/` lists lines with `id`, `
 
 | Type | Extra field | When it plays | Bus |
 | --- | --- | --- | --- |
-| `story` | `cast`: resident id (`ruth`) or Coney cast id (`salty_maggie`) | First time that resident's dossier opens in a playthrough, then on "Replay story". Fades out when the dossier closes. The text is shown in the dossier. | Voice (follows SFX) |
+| `story` | `cast`: resident id (`ruth`) or Coney cast id (`salty_maggie`) | First time that resident's dossier opens in a playthrough, then on "Replay story". Fades out when the dossier closes. The story is marked heard and its text revealed after 90% playback; closing early leaves it unheard. Reopening after an interrupted first play offers manual playback. | Voice (follows SFX) |
 | `radio` | `mood`: `anxious`, `neutral`, `light`, `funny`, `positive` | One bulletin every 1-2 weeks (Settings) once a radio room is built. No repeats until all have played; anxious ones are likelier under high discontent, low food, low hope or a season. | Radio |
 | `event` | `event`: event id; optional `choice` | Right after that event's card resolves. A line with a matching `choice` wins over one without. | Voice (follows SFX) |
 | `system` | `condition` | When the sim raises that condition (below), once no card is open. Same condition stays quiet for 6 weeks. | Voice (follows SFX) |
@@ -20,14 +20,13 @@ Conditions the sim raises: `food_critical` (food under one week of meals), `powe
 | Pilot | `jonah_story`, `inez_story`, `mara_story`, `radio_news_001` |
 | Phase 1 | `old_man_coney_story`, `salty_maggie_story`, `bait_story`, `barnum_story`, `sylvia_story`, `radio_news_002` to `radio_news_010` |
 | Phase 2 | resident stories: `ruth`, `benny`, `ellis`, `samira`, `owen`, `lila`, `pete`, `june`, `hal`, `nora`, `vic`, `ada`, `chris`, `mina`, `rob`, `tess`, `paul`, `kim`, `drew`, `ann`, `leo`, `fran` (`<id>_story`) |
-
 | Phase 3 | event resolves `event_<id>_resolve` (lamps, refugees, quarrel, smuggler, rumble, static, desertion, cough) and system lines `sys_<condition>` (all 8) |
 
 Still text only: the hand-written bulletins in `data/vo/cable_radio.json`.
 
 ## Loudness
 
-Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Radio, event and system lines keep their delivered mix. `.tools/measure_vo.ps1` prints min/median/max per group.
+Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Event and system lines were also normalized in a later pass, targeting -23 LUFS with a -2.5 dBTP limiter target to allow for Vorbis overshoot; untouched backups are in `_originals_short/`. Radio keeps its delivered mix (measured -22.3 to -20.7 LUFS). `.tools/measure_vo.ps1` prints min/median/max per group.
 
 Event files may arrive as `event_<id>_resolve_resolve_<lang>.ogg` (the index spreadsheet's spelling); the game accepts that as well as `event_<id>_resolve_<lang>.ogg` from `underline_vo.json`.
 
