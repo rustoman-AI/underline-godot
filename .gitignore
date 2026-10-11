@@ -3,3 +3,5 @@
 export_presets.cfg
 *.translation
 .DS_Store
+build/
+shots/
