@@ -130,3 +130,9 @@ Rule: inside a group, more than 2 dB spread gets leveled to -23 LUFS, true peak 
 | event+system after | 32 | -23.0 | -22.9 | -22.5 | 0.5 dB | -2.3 dBTP | |
 
 Same two-pass loudnorm as the stories (`.tools/normalize_vo.ps1 -Pattern 'event_*.ogg'` and `'sys_*.ogg'`, `-Backup _originals_short -Target -23 -Peak -2.5`; the -2.5 loudnorm target leaves room for the Vorbis overshoot). Originals: `assets/audio/vo/_originals_short/` (32 files, `.gdignore`), in `.gitignore`. Godot reimport clean, VO check OK (56 voiced per language). Radio keeps its -0.9 dBTP peak because the group was not leveled.
+
+## 8. Factions, second request
+
+The attached factions.json and FACTIONS.md are byte-identical to what went in with a7b97d8 (`data/faction_leaders.json`, `docs/FACTIONS.md`), so section 5 already covers the request; no code change. That commit came before the poses and loudness commits because it was done in the previous pass.
+
+**Checks after all three:** bot OK, no missing banners. `.tools/audience_shots.gd` RU and EN unchanged (Halloran card, terms, deal, Pike turned away). Station with the committed poses: 25 residents on 11 distinct bodies, hydroponics crew on body poses. Screenshots in `shots/iter3/<lang>/` (aud_halloran, aud_halloran_terms, aud_pike, aud_journal, figures_station, figures_station_zoom), not committed.
