@@ -140,10 +140,12 @@ Rivals are led by characters with traits, an agenda and an opinion of you, and t
 
 | Faction | Capital | Leader | Agenda (what they push for) | Plays like |
 |---|---|---|---|---|
-| The Depot | Coney Island | The Senior Driver | Restore power and tunnels; reach the surface by engineering | Builder; best digging, workshops, squads gear |
-| Synod of the Tunnel | Cathedral Pkwy | The Preacher of the Last Train | Convert stations; keep people underground | Persuader; propaganda, Hope, faith needs |
-| Free Exchange | Wall St | The Rate Council (7 elders) | Control trade routes and prices | Economist; trade deals, buying loyalty, smuggling |
-| Iron Directorate | Grand Central | The Traffic Chief | Order, the schedule, control of the sealed archives | Conqueror; strongest squads, curfews, intrigue |
+| The Depot | Coney Island | Bernie Shaw, Head Switchman | Restore power and tunnels; reach the surface by engineering | Builder; best digging, workshops, squads gear |
+| Synod of the Tunnel | Cathedral Pkwy | Dorothy Chen, Keeper of the Quiet Room | Convert stations; keep people underground | Persuader; propaganda, Hope, faith needs |
+| Free Exchange | Wall St | Marcel Toussaint, Speaker of the Rate (seven-house Rate Council) | Control trade routes and prices | Economist; trade deals, buying loyalty, smuggling |
+| Iron Directorate | Grand Central | Lionel Abelard, Comptroller | Order, the schedule, control of the sealed archives | Conqueror; strongest squads, curfews, intrigue |
+
+The Lamplighters (internal id `black_flag`) are a fifth political force rather than a fifth territorial state: Niki Ortega, "Lamp", runs guides through dark tracks, sealed runs and flooded tunnels, paid in food, stories or names. Atlantic Avenue is a staging camp, not a capital. They fear becoming a legal tax. Current faction origins, emblem sketches and contradictions are in `docs/LEADERS.md`; leader lines live in `data/leader_lines.json`. The gameplay aspirations in this GDD are not all implemented.
 
 ### Leaders and opinion
 

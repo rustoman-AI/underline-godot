@@ -3223,7 +3223,7 @@ func _journal_line(row: Dictionary) -> String:
 				return Copy.t("Burned the papers. One Papers clue is gone.")
 			return Copy.t("Burned the papers before any clue was found.")
 		"false_way":
-			return Copy.t("Bird took the lantern toll and gave nothing back.")
+			return Copy.t("%s took the lantern toll and gave nothing back.") % _leader_text(game.leader("black_flag").get("leader", {}))
 	return kind
 
 
@@ -3504,6 +3504,9 @@ func _show_order_report() -> void:
 	var row: Dictionary = game.order_reports[0]
 	_open_card(str(row.get("title", Copy.t("Dawn report"))))
 	_body(str(row.get("text", "")))
+	var said := _leader_said(str(row.get("faction", "")), row.get("line", {}))
+	if said != "":
+		_body(said)
 	card_body.add_child(_button("Continue", _next_order_report))
 
 
@@ -3559,6 +3562,34 @@ func _faction_mark(row: Dictionary, px: int) -> Control:
 	return plate
 
 
+## Leader portrait from assets/factions/<leader_id>.png with rounded corners; null when the file is not there.
+func _leader_face(row: Dictionary, px: int) -> Control:
+	var path := _art_file("res://assets/factions/%s.png" % str(row.get("leader_id", "")))
+	if path == "":
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null:
+		return null
+	var frame := Panel.new()
+	frame.custom_minimum_size = Vector2(px, px)
+	frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color.WHITE
+	style.set_corner_radius_all(px / 8)
+	frame.add_theme_stylebox_override("panel", style)
+	var face := TextureRect.new()
+	face.texture = tex
+	face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	face.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(face)
+	return frame
+
+
 const BAND_NAMES := {"hostile": "Hostile", "cold": "Cold", "wary": "Wary", "useful": "Useful", "pact": "Pact"}
 const DEAL_NAMES := {
 	"burn_papers": "Burn the papers", "the_list": "The list", "stay_down": "Stay below",
@@ -3598,12 +3629,15 @@ func _show_audience() -> void:
 	_open_card(_leader_text(row.get("leader", {})), false)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 12)
-	top.add_child(_faction_mark(row, 112))
+	var face := _leader_face(row, 112)
+	top.add_child(face if face != null else _faction_mark(row, 112))
 	var who := VBoxContainer.new()
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var named := HBoxContainer.new()
 	named.add_theme_constant_override("separation", 8)
+	if face != null:
+		named.add_child(_faction_mark(row, 28))
 	var title := _label("%s, %s" % [_leader_text(row.get("title", {})), _leader_text(row.get("name", {}))], 18, true)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3614,9 +3648,17 @@ func _show_audience() -> void:
 	who.add_child(stand)
 	top.add_child(who)
 	card_body.add_child(top)
-	var opening := _leader_text(row.get("opening", {}))
-	if opening != "":
-		_body(("«%s»" if Copy.ru() else "“%s”") % opening)
+	var opening := _quoted(game.audience_opening(fid))
+	if opening == "":
+		opening = _quoted(row.get("opening", {}))
+	var pitch := _quoted(game.leader_line(fid, "pitch")) if audience_heard else ""
+	if pitch != "":
+		var said := _label(pitch, 16)
+		said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		said.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(said)
+	elif opening != "":
+		_body(opening)
 	var memory: Array = game.standing_memory.get(fid, [])
 	if not memory.is_empty():
 		var head := _label("They remember", 15, true)
@@ -3715,6 +3757,7 @@ func _hear_audience() -> void:
 
 func _answer_audience(accept: bool) -> void:
 	var snapshot := _tally_snapshot()
+	var fid := str(game.audience.get("faction", ""))
 	if not game.apply({"kind": "audience", "accept": accept}):
 		footer.text = Copy.t("That choice did not take.")
 		footer.visible = true
@@ -3728,6 +3771,24 @@ func _answer_audience(accept: bool) -> void:
 	_fill_people()
 	_close_card()
 	_show_dawn()
+	var reply := _leader_said(fid, game.leader_line(fid, "accepted" if accept else "declined"))
+	if reply != "":
+		_toast(reply, 4.5)
+
+
+## "Name: «line»" in Russian, "Name: “line”" in English; "" when there is no line.
+func _leader_said(fid: String, pair: Dictionary) -> String:
+	var line := _quoted(pair)
+	if line == "":
+		return ""
+	return "%s: %s" % [_leader_text(game.leader(fid).get("leader", {})), line]
+
+
+func _quoted(pair) -> String:
+	var text := _leader_text(pair).strip_edges()
+	if text == "" or text == "TODO_REWRITE":
+		return ""
+	return ("«%s»" if Copy.ru() else "“%s”") % text
 
 
 func _next_order_report() -> void:

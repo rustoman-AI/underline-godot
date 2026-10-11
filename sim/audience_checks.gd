@@ -21,6 +21,9 @@ static func run(cat: Catalog) -> Dictionary:
 	checks._list_target()
 	checks._deals()
 	checks._save_reload()
+	checks._leader_lines()
+	checks._openings()
+	checks._flavour()
 	return {"ok": not checks.failed, "lines": checks.lines}
 
 
@@ -282,6 +285,72 @@ func _save_reload() -> void:
 	seen.append_array(_dawns(game, 24, 32))
 	_expect(seen == expected and var_to_bytes(game.export_state()) == var_to_bytes(straight.export_state()),
 		"Save during a waiting audience and after a refusal keeps the schedule", "reload %s vs %s" % [" ".join(seen), " ".join(expected)])
+
+
+const LINE_KEYS := ["name", "leader", "title", "first_contact", "territory", "trade", "pitch", "accepted", "declined"]
+const BANDS := ["hostile", "cold", "wary", "useful", "pact"]
+
+
+## Every leader has every line in both languages, none empty or left as TODO_REWRITE, and the
+## names on the audience card match the lines file.
+func _leader_lines() -> void:
+	var bad: PackedStringArray = []
+	var lines_by_id: Dictionary = catalog.lines.get("factions", {})
+	for fid in ALL:
+		var row: Dictionary = lines_by_id.get(fid, {})
+		var pairs := {}
+		for key in LINE_KEYS:
+			pairs[key] = row.get(key, null)
+		for band in BANDS:
+			pairs["bands." + band] = row.get("bands", {}).get(band, null)
+		for key in pairs:
+			for lang in ["en", "ru"]:
+				var text := str(pairs[key].get(lang, "")) if pairs[key] is Dictionary else ""
+				if text.strip_edges() == "" or text.contains("TODO_REWRITE"):
+					bad.append("%s %s.%s" % [fid, key, lang])
+		var card: Dictionary = {}
+		for leader in catalog.leaders.get("factions", []):
+			if str(leader.get("id", "")) == fid:
+				card = leader
+		for key in ["name", "leader", "title"]:
+			if card.get(key, {}) != row.get(key, {}):
+				bad.append("%s %s differs from faction_leaders.json" % [fid, key])
+		if str(card.get("leader_id", "")) != str(row.get("leader_id", "")):
+			bad.append("%s leader_id differs" % fid)
+		if JSON.stringify(card).contains("TODO_REWRITE"):
+			bad.append("%s TODO_REWRITE left in faction_leaders.json" % fid)
+	if JSON.stringify(catalog.factions).contains("TODO_REWRITE"):
+		bad.append("TODO_REWRITE left in factions.json")
+	_expect(bad.is_empty(), "Every leader has every line in EN and RU", "leader lines: " + ", ".join(bad))
+
+
+## First meeting opens with first_contact, later ones with the band line; a missing line falls back.
+func _openings() -> void:
+	var game := _waiting({"synod": 80}, {"synod": 10})
+	var lines_by_id: Dictionary = catalog.lines.factions
+	var first := game.audience_opening("synod")
+	game.audience_last["synod"] = 3
+	var later := game.audience_opening("synod")
+	var missing := game.leader_line("synod", "bands", "no_such_band")
+	_expect(first == lines_by_id.synod.first_contact and later == lines_by_id.synod.bands.pact
+		and missing == lines_by_id.synod.first_contact,
+		"Opening is first_contact, then the band line, missing lines fall back", "openings %s / %s / %s" % [first, later, missing])
+
+
+## Territory and trade lines are flavour: at most once per faction every four weeks, nothing else moves.
+func _flavour() -> void:
+	var game := _waiting({}, {})
+	game.player = "depot"
+	var shown: PackedStringArray = []
+	var before := game.standing.duplicate()
+	for at in range(10, 19):
+		game.week = at
+		var a := game._leader_flavour("territory", "synod")
+		var b := game._leader_flavour("trade", "synod")
+		shown.append("%d%s%s" % [at, "t" if not a.is_empty() else "", "r" if not b.is_empty() else ""])
+	var own := game._leader_flavour("territory", "depot")
+	_expect(" ".join(shown) == "10t 11 12 13 14t 15 16 17 18t" and own.is_empty() and game.standing == before,
+		"Territory and trade lines show once per faction every four weeks", "flavour %s own=%s" % [" ".join(shown), own])
 
 
 func _reloaded(game: Game) -> Game:

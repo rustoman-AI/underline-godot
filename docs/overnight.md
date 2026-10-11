@@ -88,7 +88,7 @@ At most one leader per dawn, the earliest due. A leader left unanswered until th
 
 **Not done, because the json has no numbers or the mechanics do not exist yet:** the Directorate squad for eight weeks, faster digging, the eight-week ban on surface expeditions, the Synod medic, a dearer Exodus, the Exchange price cut and rival-need race, the volunteer option of the lantern toll and the flooded way itself, Pike turning hostile on publication, the exceptions to the cooldown at hostile and pact. The deal texts on the card still mention them because they are the json text.
 
-**Sign.** `res://assets/factions/<id>_symbol.webp` if the file exists; none do yet, so the card shows the first letter of the faction name on the faction color. No portraits.
+**Sign.** A per-faction symbol file if it exists (that folder is gone; the rejected files now live in `incoming-art/rejected/` and nothing loads them); none do yet, so the card shows the first letter of the faction name on the faction color. No portraits.
 
 **Journal in red:** person handed over, papers burned, Bird's false way. Strings en + ru.
 
@@ -180,7 +180,7 @@ The free tiers and curfew were already real; they are now shown with the actual 
 | idris_pell | left | translucent vertical bars like a stamped letter across the chest |
 | nessa_bird | left | flat vector lantern stamped on the chest, a second style and colour |
 
-The passed files were copied byte for byte into `assets/factions/` as png (LFS) with mipmaps on. No conversion script was run (the attempt was refused by review as too close to a generator, so plain Copy-Item was used). The card takes the json `.webp` path or the same name as `.png`; missing file gives the letter plate, missing portrait gives no picture.
+The passed files were copied byte for byte into what is now `incoming-art/rejected/` as png (LFS) with mipmaps on. No conversion script was run (the attempt was refused by review as too close to a generator, so plain Copy-Item was used). The card takes the json `.webp` path or the same name as `.png`; missing file gives the letter plate, missing portrait gives no picture.
 
 **Card:** portrait 112 px left of the text when the file exists; symbol at 24 px before the title, letter plate on faction colour when it does not (synod, black flag). No build_factions_art.gd, generate_perfect_symbols.gd or pose generator was run.
 
@@ -191,7 +191,7 @@ The passed files were copied byte for byte into `assets/factions/` as png (LFS) 
 
 `factions_v3.zip` unpacked to `incoming-art/factions_v3/` (not committed). All ten files are 1408 px; portraits are colour photos, symbols are single colour on transparency.
 
-**Portraits.** New rule: reject only for a broken face, a second head or text on the picture; smiling or looking past the camera is fine. All five pass and replace the files in `assets/factions/`: Pike (cap, smiling at camera, engine cab), Halloran (dark coat, looking aside, cold), Kato (grey hair, broad smile, arched tunnel), Pell (scarf, laughing, looking aside), Bird (dark background, faint smile, looking aside). They are colour, not sepia like the resident portraits; under the new rule that is not a reason to reject.
+**Portraits.** New rule: reject only for a broken face, a second head or text on the picture; smiling or looking past the camera is fine. All five pass and replace the files now in `incoming-art/rejected/`: Pike (cap, smiling at camera, engine cab), Halloran (dark coat, looking aside, cold), Kato (grey hair, broad smile, arched tunnel), Pell (scarf, laughing, looking aside), Bird (dark background, faint smile, looking aside). They are colour, not sepia like the resident portraits; under the new rule that is not a reason to reject.
 
 **Symbols.** The game still showed the old flat icons from the first pack (wheel, dial, scales; letters for Synod and Black Flag), so all five v3 symbols replace them: worn brake wheel, dial with one hand, open ring, bar over two tokens, torn pennant. The pennant and the bar-over-tokens are drawn small inside the canvas, so at 24 px they read but are smaller than the others.
 
@@ -203,7 +203,7 @@ Files copied byte for byte (LFS), mipmaps on in the imports. No generator run. G
 
 The leader portraits in this section were later rejected. Its monochrome symbol direction was superseded by section 13 at the user's request.
 
-Replaced all five leader portraits and all five faction symbols in `assets/factions/` using new built-in ImageGen outputs. No earlier smiling generation was installed. Source PNGs and the exact prompt set are in `incoming-art/factions_dark/` (`prompts.json`). Existing filenames, PNG fallback loading and mipmapped imports are retained.
+Replaced all five leader portraits and all five faction symbols (now in `incoming-art/rejected/`) using new built-in ImageGen outputs. No earlier smiling generation was installed. Source PNGs and the exact prompt set are in `incoming-art/factions_dark/` (`prompts.json`). Existing filenames, PNG fallback loading and mipmapped imports are retained.
 
 Current direction: people responsible for lives at the end of the world. No smiles, smirks, exposed teeth or cheerful expressions. Charisma comes from distinctive features, guarded eyes, exhaustion, conviction and restraint. Pike is a battered driver, Halloran a severe dispatcher, Kato a grave spiritual leader, Pell a calculating broker, Bird a watchful tunnel survivor. Dark charcoal clothing, muted colour, directional light and readable faces replace the pleasant posed photographs. `docs/FACTIONS.md` now states this direction and removes the instruction for Pell to smile.
 
@@ -217,7 +217,7 @@ SUPERSEDED — rejected
 
 The user kept the dark leaders for now but rejected the object icons and supplied a reference sheet of faction insignia, with permission to revise names and lore. Read `docs/GDD.md`, `docs/FACTIONS.md`, the map and audience faction catalogs, station communities, events, and relevant radio/story references before designing the replacements. The reference was used for visual language (political badges, distinct colour fields, symbolic identity), not as instructions or a source of copied emblems.
 
-All five symbols in `assets/factions/` are now new built-in ImageGen outputs: Depot Union's fist and rail spike on rust, Directorate's closed gate on oxblood/black, Synod's buried sun under a vault on night blue, Exchange's split contract token on green, and Black Flag's severed chain over a brick-red diagonal. Full source PNGs and generation/refinement prompts are in `incoming-art/faction_identities/`. Alpha is transparent outside the badges, opaque inside. A Depot field transparency defect was corrected with ImageGen before installation. The audience card uses 32 px insignia; the set was also inspected at 24 and 48 px. The five leader files were verified byte-identical to section 12's sources.
+All five symbols now in `incoming-art/rejected/` were new built-in ImageGen outputs: Depot Union's fist and rail spike on rust, Directorate's closed gate on oxblood/black, Synod's buried sun under a vault on night blue, Exchange's split contract token on green, and Black Flag's severed chain over a brick-red diagonal. Full source PNGs and generation/refinement prompts are in `incoming-art/faction_identities/`. Alpha is transparent outside the badges, opaque inside. A Depot field transparency defect was corrected with ImageGen before installation. The audience card uses 32 px insignia; the set was also inspected at 24 and 48 px. The five leader files were verified byte-identical to section 12's sources.
 
 `docs/FACTIONS.md` adds each faction's origin, source of legitimacy, internal conflict, emblem origin, use and motto. Depot Union / Союз Депо is the formal name; Depot remains its short form. The other names and all internal IDs remain. Map/catalog display leaders now agree with audiences (Pike, Halloran, Kato, Pell). Kato's contradictory unseen-preacher story is removed. Black Flag's radical cells and Bird's toll network are reconciled as one loose movement with an internal argument over free passage. Halloran's platform-absence claim is replaced by the ration-list conflict. EN/RU faction names, muted display colours and audience capital metadata are synchronized; PNG symbol paths now point directly to the installed files. Current GDD leader table is synchronized. No balance, faction IDs, saved-state schema or audience effects changed.
 

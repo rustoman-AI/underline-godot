@@ -2728,6 +2728,7 @@ func _resolve_queued() -> void:
 			stock[key] = int(stock.get(key, 0)) + int(cost[key])
 		var kind := str(action.get("order", ""))
 		var sid := str(action.get("station", ""))
+		var host := _order_host(kind, action)
 		var ok := false
 		match kind:
 			"propaganda":
@@ -2767,11 +2768,35 @@ func _resolve_queued() -> void:
 			title = Copy.t(_order_title(kind))
 		else:
 			text = "%s %s" % [Copy.t("The order failed."), text]
-		order_reports.append({"title": title, "text": text, "ok": ok})
+		var report := {"title": title, "text": text, "ok": ok}
+		if ok and host != "":
+			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
+		order_reports.append(report)
 		if ok and kind == "trade":
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
+
+
+## The faction whose ground the order enters or whose trade it opens, read before the order resolves
+## because a capture changes the owner; "" when no faction is involved.
+func _order_host(kind: String, action: Dictionary) -> String:
+	var sid := str(action.get("station", ""))
+	match kind:
+		"envoy", "propaganda":
+			pass
+		"trade":
+			if sid == "":
+				return "exchange"
+		"move":
+			var sq: Dictionary = squads.get(player, {})
+			var path: Array = []
+			if not sq.is_empty():
+				path = _path(str(sq.get("station", "")), str(action.get("dest", "")))
+			sid = str(path[1]) if path.size() >= 2 else ""
+		_:
+			return ""
+	return str(stations[sid].owner) if stations.has(sid) else ""
 
 
 func _order_title(kind: String) -> String:
@@ -5699,6 +5724,47 @@ func leader(fid: String) -> Dictionary:
 		if str(row.get("id", "")) == fid:
 			return row
 	return {}
+
+
+## One {en, ru} line from data/leader_lines.json; "bands" takes the band name. A missing, empty or
+## unwritten line falls back to first_contact, and to {} only when that is missing too.
+func leader_line(fid: String, key: String, band: String = "") -> Dictionary:
+	var row: Dictionary = catalog.lines.get("factions", {}).get(fid, {})
+	var pair = row.get("bands", {}).get(band, {}) if key == "bands" else row.get(key, {})
+	if not line_written(pair):
+		pair = row.get("first_contact", {})
+	return pair if line_written(pair) else {}
+
+
+static func line_written(pair) -> bool:
+	if not pair is Dictionary:
+		return false
+	var en := str(pair.get("en", "")).strip_edges()
+	return en != "" and en != "TODO_REWRITE"
+
+
+## First meeting gets first_contact; after that the line for the leader's current regard band.
+func audience_opening(fid: String) -> Dictionary:
+	if not audience_last.has(fid):
+		return leader_line(fid, "first_contact")
+	return leader_line(fid, "bands", standing_band(fid))
+
+
+## A territory or trade line for the order report, at most once per faction every LEADER_LINE_GAP weeks.
+## Flavour only: the week it was last shown sits in flags under "line_<faction>".
+const LEADER_LINE_GAP := 4
+
+func _leader_flavour(kind: String, fid: String) -> Dictionary:
+	if fid == "" or fid == player or leader(fid).is_empty():
+		return {}
+	var key := "line_" + fid
+	if flags.has(key) and week - int(flags[key]) < LEADER_LINE_GAP:
+		return {}
+	var pair := leader_line(fid, kind)
+	if pair.is_empty():
+		return {}
+	flags[key] = week
+	return {"faction": fid, "line": pair}
 
 
 func _init_standing() -> void:
