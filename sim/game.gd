@@ -5935,34 +5935,174 @@ const PERSIST := [
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
-	"audience_due", "audience_deals",
+	"audience_due", "audience_deals", "vo_cues",
 ]
 
 
+## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
+## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
+## Adding a PERSIST key needs a new schema number and its own migration list.
+const SAVE_SCHEMA := 2
+const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state"]
+## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
+## leader's start_opinion, never anything from the run being replaced.
+const V1_ADDED := [
+	"flood_guard", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
+	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal", "vo_heard", "radio_week",
+	"standing", "standing_memory", "audience", "audience_last", "audience_due", "audience_deals", "vo_cues",
+]
+## Version 1 saves predate these streams; they restart from the seed the same way setup() seeds them.
+const V1_RNG_ADDED := ["net_state", "check_state"]
+
+## Why the last import_state() refused its data; "" after a successful import.
+var load_error := ""
+
+
 func export_state() -> Dictionary:
-	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state, "net_state": net_rng.state, "check_state": check_rng.state}
+	var data := {
+		"rng_state": rng.state, "crunch_state": crunch_rng.state,
+		"net_state": net_rng.state, "check_state": check_rng.state,
+	}
 	for key in PERSIST:
-		data[key] = get(key)
+		var value = get(key)
+		data[key] = value.duplicate(true) if value is Array or value is Dictionary else value
 	return data
 
 
+## Replaces the whole run with the saved one, or leaves the game untouched and returns false.
 func import_state(data: Dictionary) -> bool:
-	if not data.has("week"):
+	var staged := stage_state(data, catalog)
+	load_error = str(staged.error)
+	if load_error != "":
 		return false
+	var state: Dictionary = staged.state
+	for key in PERSIST:
+		set(key, state[key])
+	rng.state = int(state.rng_state)
+	crunch_rng.state = int(state.crunch_state)
+	net_rng.state = int(state.net_state)
+	check_rng.state = int(state.check_state)
+	last_check = {}
+	_init_standing()
+	return true
+
+
+## Migrates and validates save data into a complete, detached state without touching any live game.
+## Returns {"error": String, "state": Dictionary}; state is only filled when error is "".
+static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
+	if cat == null:
+		return {"error": "no catalog", "state": {}}
+	var schema = data.get("schema", 1)
+	if typeof(schema) != TYPE_INT or (int(schema) != 1 and int(schema) != SAVE_SCHEMA):
+		return {"error": "unsupported schema %s" % str(schema), "state": {}}
+	var base := Game.new()
+	base.catalog = cat
+	base._init_standing()
+	var state := {}
 	for key in PERSIST:
 		if data.has(key):
-			set(key, data[key])
-	if data.has("rng_state"):
-		rng.state = int(data.rng_state)
-	if data.has("crunch_state"):
-		crunch_rng.state = int(data.crunch_state)
-	if data.has("net_state"):
-		net_rng.state = int(data.net_state)
-	if data.has("check_state"):
-		check_rng.state = int(data.check_state)
-	if catalog != null:
-		_init_standing()
-	return true
+			state[key] = data[key]
+		elif int(schema) == 1 and V1_ADDED.has(key):
+			state[key] = base.get(key)
+		else:
+			return {"error": "missing %s" % key, "state": {}}
+		var want := typeof(base.get(key))
+		var got := typeof(state[key])
+		if got != want and not (want == TYPE_FLOAT and got == TYPE_INT):
+			return {"error": "%s has type %s" % [key, type_string(got)], "state": {}}
+	for key in RNG_KEYS:
+		if data.has(key):
+			if typeof(data[key]) != TYPE_INT:
+				return {"error": "%s is not an int" % key, "state": {}}
+			state[key] = data[key]
+		elif int(schema) == 1 and V1_RNG_ADDED.has(key):
+			state[key] = _v1_stream(key, int(state.seed))
+		else:
+			return {"error": "missing %s" % key, "state": {}}
+	if int(schema) == 1 and not data.has("check_schedule"):
+		var rebuilt := _v1_checks(cat, int(state.seed))
+		state.check_schedule = rebuilt.schedule
+		if not data.has("check_state"):
+			state.check_state = rebuilt.state
+	state = state.duplicate(true)
+	var why := _state_problem(state, cat)
+	if why != "":
+		return {"error": why, "state": {}}
+	var linked: Array = []
+	for person in state.residents:
+		linked.append(state.people[str(person.id)])
+	state.residents = linked
+	return {"error": "", "state": state}
+
+
+## setup() draws the check weeks first from the freshly seeded check stream, so a version 1 save gets
+## the schedule and stream state a new run of the same seed starts with.
+static func _v1_checks(cat: Catalog, run_seed: int) -> Dictionary:
+	var game := Game.new()
+	game.catalog = cat
+	game._install_check_events()
+	game.check_rng.seed = run_seed * 29 + 11
+	game._schedule_checks()
+	return {"schedule": game.check_schedule, "state": game.check_rng.state}
+
+
+static func _v1_stream(key: String, run_seed: int) -> int:
+	var stream := RandomNumberGenerator.new()
+	stream.seed = run_seed * 17 + 3 if key == "net_state" else run_seed * 29 + 11
+	return stream.state
+
+
+## Structure and identity checks on a staged state; "" when it can be played.
+static func _state_problem(state: Dictionary, cat: Catalog) -> String:
+	if int(state.max_weeks) < 1 or int(state.week) < 1 or int(state.week) > int(state.max_weeks):
+		return "week %d of %d" % [int(state.week), int(state.max_weeks)]
+	if not cat.factions.has(str(state.player)):
+		return "unknown player %s" % state.player
+	if not state.stations.has(str(state.capital_id)):
+		return "unknown capital %s" % state.capital_id
+	for id in state.people:
+		var person = state.people[id]
+		if not (person is Dictionary) or str(person.get("id", "")) != str(id):
+			return "person %s malformed" % str(id)
+	var seen := {}
+	for person in state.residents:
+		if not (person is Dictionary) or not state.people.has(str(person.get("id", ""))):
+			return "resident outside people"
+		if seen.has(str(person.id)):
+			return "resident %s twice" % person.id
+		seen[str(person.id)] = true
+	if seen.size() != state.people.size():
+		return "people %d, residents %d" % [state.people.size(), seen.size()]
+	for seat in state.council:
+		if not (seat is Dictionary) or not seat.has("id") or not seat.has("role"):
+			return "council seat malformed"
+	var uids := {}
+	for room in state.rooms:
+		if not (room is Dictionary) or not cat.rooms.has(str(room.get("type", ""))) or not (room.get("staff") is Array):
+			return "room malformed"
+		if uids.has(str(room.get("uid", ""))):
+			return "room %s twice" % str(room.get("uid", ""))
+		uids[str(room.uid)] = true
+		for id in room.staff:
+			if not state.people.has(str(id)):
+				return "room %s staffed by unknown %s" % [room.uid, id]
+	for job in [state.dig, state.build]:
+		for id in job.get("workers", []):
+			if not state.people.has(str(id)):
+				return "worker %s unknown" % id
+	var leaders := {}
+	for row in cat.leaders.get("factions", []):
+		leaders[str(row.get("id", ""))] = true
+	for fid in state.standing:
+		if not leaders.has(str(fid)) or typeof(state.standing[fid]) != TYPE_INT:
+			return "standing %s malformed" % str(fid)
+	if not state.audience.is_empty():
+		if not leaders.has(str(state.audience.get("faction", ""))):
+			return "audience faction %s unknown" % str(state.audience.get("faction", ""))
+		var target := str(state.audience.get("target", ""))
+		if target != "" and not state.people.has(target):
+			return "audience target %s unknown" % target
+	return ""
 
 
 func _line_name(room_name: String, lower: bool) -> String:

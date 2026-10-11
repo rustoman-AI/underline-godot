@@ -239,6 +239,7 @@ func _ready() -> void:
 		at_menu = false
 		Sound.bed("station")
 		_refresh()
+		_note_save_recovery()
 		if Settings.reopen == "settings":
 			Settings.reopen = ""
 			_open_settings(true)
@@ -2802,18 +2803,20 @@ func _law_blurb(defin: Dictionary) -> String:
 	return " ".join(bits)
 
 
-func _toast(text: String) -> void:
+func _toast(text: String, hold: float = 1.8) -> void:
 	if toast_label == null:
 		toast_label = _label("", 16, true)
 		toast_label.z_index = 30
 		toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		toast_label.add_theme_constant_override("outline_size", 6)
+		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		add_child(toast_label)
 	toast_label.text = text
 	toast_label.position = Vector2(16.0, (hud.size.y if hud != null else 72.0) + 8.0)
 	toast_label.visible = true
 	toast_label.modulate.a = 1.0
 	var fade := create_tween()
-	fade.tween_interval(1.8)
+	fade.tween_interval(hold)
 	fade.tween_property(toast_label, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
 		if toast_label != null:
@@ -6768,6 +6771,13 @@ func _continue_game() -> void:
 	Sound.play("confirm")
 	Sound.bed("station")
 	_refresh()
+	_note_save_recovery()
+
+
+## SaveGame.last_error after a successful load names the newer files it had to skip.
+func _note_save_recovery() -> void:
+	if SaveGame.last_error != "":
+		_toast(Copy.t("The latest save was damaged. Loaded the last good copy."), 6.0)
 
 
 func _manual_save() -> void:
@@ -6789,6 +6799,7 @@ func _manual_load() -> void:
 	Sound.play("confirm")
 	_close_card()
 	_refresh()
+	_note_save_recovery()
 
 
 func _back_to_menu() -> void:
