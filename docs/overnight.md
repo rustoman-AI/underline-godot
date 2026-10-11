@@ -95,3 +95,25 @@ At most one leader per dawn, the earliest due. A leader left unanswered until th
 **Checks.** Bot OK, no missing banners. `.tools/audience_probe.gd --accept` (3 seeds, every deal taken): all five flags set, three red rows, no errors. `.tools/audience_shots.gd` RU and EN: Halloran deal takes Lila Voss (25 to 24 residents), Curfew on, Directorate +30, Depot -25 (Pike now -5 and remembers it); Pike turned away, journal lists both. Screenshots in `shots/audience/<lang>/` (aud_halloran, aud_halloran_terms, aud_pike, aud_journal), not committed.
 
 **Again:** something rewrote `assets/figures/` while I worked (broken work poses, png twins and the palettes back on disk). Not touched, not committed.
+
+## 6. poses_fix review: nothing committed
+
+Checked `incoming-art/poses_fix/` (lineup and every file) beside body_01 at full size and at room size (32 px tall). No pose generated, `build_fixed_poses.gd` not run.
+
+None pass. They are not redrawn work poses: each is one of the existing standing bodies, unchanged, with a flat vector prop pasted over it. Arms that "hold" things are plain grey tubes, props are flat untextured rectangles and lines, and the figure keeps the idle stance. That is the blueprint look the check rules out, and at 32 px it reads as a standing body next to a colored box. Legs and floor contact are fine in all of them.
+
+| File | Problem |
+| --- | --- |
+| hydroponics_01 (= work_hydro_01, byte-identical) | body_01 standing upright, not leaning; a flat tray on a wire stand drawn across her shin; the "secateurs" is a grey bar at the tray edge, not in her hand |
+| work_hydro_02 | side body with two grey tube arms; flat brown tray |
+| work_hydro_03 | grey tube arm; flat striped box as the canister |
+| workshop_01 (= work_shop_01) | hatched brown rectangle pasted as the apron, a single straight line as the cable, no torch in the hand, sparks floating beside the hip, the mask is a black blob at the neck |
+| generator_01 (= work_generator_01) | grey tube arm reaching to a flat pipe post; no valve wheel |
+| work_generator_02 | body_01 with a flat yellow box and red line pasted at the hip |
+| air_filter_01 (= work_filter_01) | radio body with a grey tube arm to a flat column of squares and a white disc |
+| work_infirmary_01 | body_01 with a flat clipboard pasted at the hip |
+| quarters_01 (= work_infirmary_02) | crouched body on a flat hatched box; box overlaps the legs |
+
+All stay in `incoming-art/poses_fix/`. Nothing was committed: no hydroponics pose, no duplicates, lineup or fixes.txt.
+
+`build_fixed_poses.gd` had already run at 09:25 and left its output in `assets/figures/`: those same poses as webp+png (generator, hydroponics, quarters, workshop, with palettes), and it overwrote air_filter_01.webp, all 52 palette files and four fig_*.webp. The station loader reads that folder, so the game was drawing them locally. All 94 files were copied unchanged to `incoming-art/poses_rejected/build_fixed_0925/` (hashes checked), then the untracked ones removed from assets and the tracked ones restored to HEAD. body_01 to body_12 were never modified. The station now draws what is committed: bodies everywhere, the air filter work pose, and the old whole fig_* for working/kneeling/sitting spots. So hydroponics has no work pose yet; its crew uses the room's spot poses.
