@@ -177,6 +177,7 @@ var vo_label: Label
 var vo_bars: Control
 var vo_sub: Label
 var vo_dossier := ""
+var vo_story_progress := 0.0
 var vo_queue: Array = []
 var vo_text := ""
 var vo_text_caption := ""
@@ -1535,6 +1536,19 @@ func _fill_people() -> void:
 		lore_row.add_child(lore_lab)
 		lore_row.add_child(_progress_bar(float(Lore.read_total()) / float(Lore.total()), 90.0))
 		people_box.add_child(lore_row)
+	var heard := _stories_heard()
+	if heard.y > 0:
+		var heard_row := HBoxContainer.new()
+		heard_row.add_theme_constant_override("separation", 8)
+		var heard_lab := _label(Copy.t("Stories heard %d/%d") % [heard.x, heard.y], 14)
+		heard_lab.add_theme_color_override("font_color", MUTED)
+		heard_row.add_child(heard_lab)
+		heard_row.add_child(_progress_bar(float(heard.x) / float(heard.y), 90.0))
+		if heard.x < heard.y:
+			var dot := _label("•", 14, true)
+			dot.add_theme_color_override("font_color", Color("e2a63a"))
+			heard_row.add_child(dot)
+		people_box.add_child(heard_row)
 	if bool(game.flags.get("medkits", false)) and game.medkit_targets() > 0:
 		var kits := _button("Use medkits", _use_medkits)
 		kits.custom_minimum_size.y = 36
@@ -1723,10 +1737,19 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var name_line := HBoxContainer.new()
+	name_line.add_theme_constant_override("separation", 6)
+	name_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var name_label := _label(Copy.person(str(person.name)), 15)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(name_label)
+	name_line.add_child(name_label)
+	if _story_state(id) == "new":
+		var dot := _label("•", 15, true)
+		dot.add_theme_color_override("font_color", Color("e2a63a"))
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_line.add_child(dot)
+		row.tooltip_text = Copy.t("Story not heard yet")
+	box.add_child(name_line)
 	var skill_label := _label(_main_skill_text(person, skill_name), 13)
 	skill_label.add_theme_color_override("font_color", MUTED)
 	skill_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2850,9 +2873,12 @@ func _dossier_open() -> bool:
 func _tick_voice() -> void:
 	if Voice.now_kind == "story" and Voice.playing() and not _dossier_open() and not shot_mode:
 		Voice.fade()
-	if vo_dossier != "" and not Voice.playing(_story_id(vo_dossier)):
+	if vo_dossier != "" and Voice.playing(_story_id(vo_dossier)):
+		vo_story_progress = Voice.progress()
+	elif vo_dossier != "":
 		var person_id := vo_dossier
 		vo_dossier = ""
+		_finish_story(person_id)
 		if _dossier_open():
 			_show_dossier(person_id)
 	_drain_cues()
@@ -5035,6 +5061,8 @@ func _show_person(person_id: String) -> void:
 		var caption := Copy.t("Dossier")
 		if Lore.has(lore_id):
 			caption = Copy.t("Dossier  ·  read %d/%d") % [Lore.read_count(lore_id), Lore.sections(lore_id).size()]
+		if _story_state(person_id) == "new":
+			caption += " •"
 		card_body.add_child(_button(caption, _open_dossier.bind(person_id)))
 	card_body.add_child(_button("Close", _close_card))
 
@@ -5044,7 +5072,7 @@ func _open_dossier(person_id: String) -> void:
 	var row := _story(person_id)
 	var id := str(row.get("id", ""))
 	if Voice.has_audio(row) and not game.vo_heard.has(id) and not shot_mode:
-		game.vo_heard[id] = true
+		game.vo_heard[id] = "started"
 		_play_story(person_id, false)
 	_show_dossier(person_id)
 
@@ -5059,17 +5087,51 @@ func _story_id(person_id: String) -> String:
 	return str(_story(person_id).get("id", ""))
 
 
+## "" when the resident has no recorded story, else "new" until it has played to the end, then "heard".
+## vo_heard holds "started" while the first listen is under way; true (also in older saves) means heard.
+func _story_state(person_id: String) -> String:
+	var row := _story(person_id)
+	if not Voice.has_audio(row):
+		return ""
+	var mark = game.vo_heard.get(str(row.id), null)
+	return "heard" if mark is bool and mark else "new"
+
+
+func _stories_heard() -> Vector2i:
+	var out := Vector2i.ZERO
+	for person in game.residents:
+		var state := _story_state(str(person.id))
+		if state == "":
+			continue
+		out.y += 1
+		if state == "heard":
+			out.x += 1
+	return out
+
+
+func _finish_story(person_id: String) -> void:
+	if vo_story_progress < 0.9:
+		return
+	var id := _story_id(person_id)
+	if id != "":
+		game.vo_heard[id] = true
+	_fill_people()
+
+
 func _play_story(person_id: String, redraw := true) -> void:
 	var caption := Copy.t("%s: story") % _resident_name(game.people[person_id])
 	if Voice.play(_story(person_id), caption) > 0.0:
 		vo_dossier = person_id
+		vo_story_progress = 0.0
 	if redraw:
 		_show_dossier(person_id)
 
 
 func _stop_story(person_id: String) -> void:
+	vo_story_progress = maxf(vo_story_progress, Voice.progress())
 	Voice.fade(0.3)
 	vo_dossier = ""
+	_finish_story(person_id)
 	_show_dossier(person_id)
 
 
@@ -5079,8 +5141,10 @@ func _story_buttons(person_id: String) -> void:
 		return
 	if Voice.playing(str(row.id)):
 		card_body.add_child(_button("Stop story", _stop_story.bind(person_id), "click"))
-	else:
+	elif _story_state(person_id) == "heard":
 		card_body.add_child(_button("Replay story", _play_story.bind(person_id), "click"))
+	else:
+		card_body.add_child(_button("Play story", _play_story.bind(person_id), "click"))
 
 
 func _story_text(person_id: String) -> void:
@@ -5088,6 +5152,12 @@ func _story_text(person_id: String) -> void:
 	if text == "":
 		return
 	_heading("In their words")
+	if _story_state(person_id) == "new":
+		if Voice.playing(_story_id(person_id)):
+			_placeholder("", "Listening. The words appear here once the story ends.")
+		else:
+			_placeholder("", "Listen to the story first. The words appear here once it ends.")
+		return
 	for para in text.split("\n\n"):
 		_body(para)
 
