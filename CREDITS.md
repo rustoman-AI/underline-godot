@@ -32,4 +32,8 @@ Interface Sounds: created by Kenney, 11 February 2020. https://creativecommons.o
 
 RPG sounds: Kenney Vleugels (www.kenney.nl). https://creativecommons.org/publicdomain/zero/1.0/
 
-assets/audio/drone.ogg and assets/audio/ambient.ogg are original 60 second loops made for this game. The drone is a low hum near 50 Hz with a slow swell and filtered brown noise. The station bed is a noise floor with sparse drips. A later recording dropped on the same path replaces the generated file.
+assets/audio/drone.ogg and assets/audio/ambient.ogg are original 60 second loops made for this game. The drone is a low hum near 50 Hz with a slow swell and filtered brown noise. The station bed is a plain noise floor. A later recording dropped on the same path replaces the generated file.
+
+assets/audio/drip.ogg (one water drop, played at random by the game), assets/audio/radio.ogg (static burst before a cable radio item) and the room loops in assets/audio/rooms/ (8 second loops for each room type) are original sounds made for this game with tools/synth_audio.gd.
+
+Cable radio voiceover: drop res://assets/voice/radio/<id>_en.ogg or <id>_ru.ogg (ids in data/radio.json) and the game plays it with the text. None are recorded yet.

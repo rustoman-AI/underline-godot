@@ -4,10 +4,17 @@ extends RefCounted
 ## Player preferences in user://settings.cfg. Window, audio, language, motion.
 
 const PATH := "user://settings.cfg"
+const DRIP_MODES := ["off", "rare", "often"]
 
 static var master := 0.85
 static var music := 0.55
 static var sfx := 0.8
+static var radio := 0.8
+static var drips := "rare"
+static var room_sounds := true
+static var radio_on := true
+static var radio_min := 45.0
+static var radio_max := 75.0
 static var language := ""
 static var fullscreen := false
 static var ui_scale := 1.0
@@ -28,6 +35,14 @@ static func load_file() -> void:
 	master = clampf(float(cfg.get_value("audio", "master", master)), 0.0, 1.0)
 	music = clampf(float(cfg.get_value("audio", "music", music)), 0.0, 1.0)
 	sfx = clampf(float(cfg.get_value("audio", "sfx", sfx)), 0.0, 1.0)
+	radio = clampf(float(cfg.get_value("audio", "radio", radio)), 0.0, 1.0)
+	drips = str(cfg.get_value("audio", "drips", drips))
+	if not DRIP_MODES.has(drips):
+		drips = "rare"
+	room_sounds = bool(cfg.get_value("audio", "room_sounds", room_sounds))
+	radio_on = bool(cfg.get_value("radio", "on", radio_on))
+	radio_min = clampf(float(cfg.get_value("radio", "min_seconds", radio_min)), 10.0, 900.0)
+	radio_max = clampf(float(cfg.get_value("radio", "max_seconds", radio_max)), radio_min, 900.0)
 	language = str(cfg.get_value("game", "language", ""))
 	fullscreen = bool(cfg.get_value("game", "fullscreen", false))
 	ui_scale = clampf(float(cfg.get_value("game", "ui_scale", 1.0)), 0.75, 1.5)
@@ -40,6 +55,12 @@ static func save() -> void:
 	cfg.set_value("audio", "master", master)
 	cfg.set_value("audio", "music", music)
 	cfg.set_value("audio", "sfx", sfx)
+	cfg.set_value("audio", "radio", radio)
+	cfg.set_value("audio", "drips", drips)
+	cfg.set_value("audio", "room_sounds", room_sounds)
+	cfg.set_value("radio", "on", radio_on)
+	cfg.set_value("radio", "min_seconds", radio_min)
+	cfg.set_value("radio", "max_seconds", radio_max)
 	cfg.set_value("game", "language", language)
 	cfg.set_value("game", "fullscreen", fullscreen)
 	cfg.set_value("game", "ui_scale", ui_scale)

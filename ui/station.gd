@@ -145,6 +145,14 @@ var stock_week := 0
 var stock_tween: Tween
 var modal_tween: Tween
 var modal_open := false
+var dossier_tab := "profile"
+var journal_filter := ""
+var room_open := ""
+var room_hover := ""
+var radio_wait := -1.0
+var radio_panel: PanelContainer
+var radio_text: Label
+var radio_tween: Tween
 
 
 func _ready() -> void:
@@ -179,15 +187,16 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore():
 		shot_mode = true
+		Lore.dry = true
 	if hub_button != null:
 		hub_button.visible = _hub_texture() != null
 	if not shot_mode:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -220,6 +229,76 @@ func _ready() -> void:
 		await _ux_shots()
 	elif _want_visual():
 		await _visual_shots()
+	elif _want_lore():
+		await _lore_shots()
+
+
+func _want_lore() -> bool:
+	return OS.get_cmdline_user_args().has("--lore")
+
+
+func _lore_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	var spot := _first_open_floor()
+	if spot.x >= 0:
+		game.apply({"kind": "build", "type": "workshop", "level": spot.x, "cell": spot.y})
+	game.end_week()
+	game.pending.clear()
+	_refresh()
+	_close_card()
+	var cast_id := ""
+	for person in game.residents:
+		if Lore.has(game.cast_id_of(person)):
+			cast_id = str(person.id)
+			break
+	_open_dossier(cast_id)
+	await _frame()
+	await _frame()
+	_save("lore_profile")
+	_pick_dossier_tab(cast_id, "nostalgia")
+	await _frame()
+	await _frame()
+	_save("lore_nostalgia")
+	_pick_dossier_tab(cast_id, "anecdote")
+	await _frame()
+	await _frame()
+	_save("lore_anecdote")
+	_close_card()
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save("lore_people")
+	drawer_open = false
+	_place_drawer()
+	_play_radio(Radio.next())
+	await _frame()
+	await _frame()
+	_save("radio_popup")
+	_hide_radio()
+	_show_journal()
+	await _frame()
+	await _frame()
+	_save("journal_all")
+	_pick_journal_filter("builds")
+	await _frame()
+	await _frame()
+	_save("journal_builds")
+	journal_filter = ""
+	_close_card()
+	_open_settings(true)
+	await _frame()
+	await _frame()
+	_save("settings_sound")
+	get_tree().quit()
 
 
 func _want_ux() -> bool:
@@ -399,7 +478,8 @@ func _who_row(who: String) -> void:
 	card_body.add_child(row)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_tick_radio(delta)
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -1169,6 +1249,14 @@ func _fill_people() -> void:
 		every.add_theme_font_size_override("font_size", 16)
 		toggle.add_child(every)
 		people_box.add_child(toggle)
+	if Lore.total() > 0:
+		var lore_row := HBoxContainer.new()
+		lore_row.add_theme_constant_override("separation", 8)
+		var lore_lab := _label(Copy.t("Backstories %d/%d") % [Lore.read_total(), Lore.total()], 14)
+		lore_lab.add_theme_color_override("font_color", MUTED)
+		lore_row.add_child(lore_lab)
+		lore_row.add_child(_progress_bar(float(Lore.read_total()) / float(Lore.total()), 90.0))
+		people_box.add_child(lore_row)
 	if bool(game.flags.get("medkits", false)) and game.medkit_targets() > 0:
 		var kits := _button("Use medkits", _use_medkits)
 		kits.custom_minimum_size.y = 36
@@ -1201,6 +1289,8 @@ func _toggle_network() -> void:
 		network_view.bind(self)
 	if yard != null:
 		yard.visible = not showing_network
+	room_hover = ""
+	_sync_room_sound()
 	_place_chrome()
 
 
@@ -1882,6 +1972,8 @@ func _show_room(uid: String) -> void:
 	if not _claim(ModalDeck.AMBIENT, "room", _show_room.bind(uid)):
 		return
 	_open_card(str(detail.name))
+	room_open = str(detail.type)
+	_sync_room_sound()
 	var title_row := card_body.get_child(0) as HBoxContainer
 	if title_row != null:
 		title_row.add_theme_constant_override("separation", 12)
@@ -2313,6 +2405,236 @@ func _toast(text: String) -> void:
 	fade.tween_callback(func() -> void:
 		if toast_label != null:
 			toast_label.visible = false)
+
+
+func _tick_radio(delta: float) -> void:
+	if shot_mode or at_menu or game == null or game.over != "" or not Settings.radio_on:
+		return
+	if hub_layer != null and hub_layer.visible:
+		return
+	if radio_wait < 0.0:
+		radio_wait = Radio.wait_seconds()
+		return
+	radio_wait -= delta
+	if radio_wait > 0.0:
+		return
+	radio_wait = Radio.wait_seconds()
+	_play_radio(Radio.next())
+
+
+func _play_radio(item: Dictionary) -> void:
+	if item.is_empty():
+		return
+	var voiced := Sound.radio(Radio.voice_path(item))
+	game.journal_note("radio", {"id": str(item.get("id", ""))})
+	var hold := 10.0
+	if voiced:
+		hold = maxf(hold, Sound.voice_seconds() + 1.5)
+	_show_radio(Radio.text(item), hold)
+
+
+func _show_radio(text: String, hold: float) -> void:
+	if radio_panel == null:
+		radio_panel = PanelContainer.new()
+		radio_panel.z_index = 25
+		radio_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		radio_panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		radio_panel.tooltip_text = Copy.t("Click to dismiss")
+		var plate := StyleBoxFlat.new()
+		plate.bg_color = Color(0.07, 0.06, 0.05, 0.94)
+		plate.border_color = Color("e2a63a")
+		plate.border_width_left = 4
+		plate.set_content_margin_all(12)
+		plate.content_margin_left = 16
+		plate.set_corner_radius_all(3)
+		radio_panel.add_theme_stylebox_override("panel", plate)
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 4)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var was := on_paper
+		on_paper = false
+		var head := _label("Cable radio", 15, true)
+		head.add_theme_color_override("font_color", Color("e2a63a"))
+		head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(head)
+		radio_text = _label("", 16)
+		radio_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		radio_text.custom_minimum_size = Vector2(380, 0)
+		radio_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(radio_text)
+		on_paper = was
+		radio_panel.add_child(box)
+		radio_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				_hide_radio())
+		add_child(radio_panel)
+	radio_text.text = text
+	radio_panel.visible = true
+	radio_panel.modulate.a = 1.0
+	radio_panel.reset_size()
+	var bottom := size.y - chrome_bottom - 8.0
+	radio_panel.position = Vector2(16.0, bottom - radio_panel.get_combined_minimum_size().y)
+	if radio_tween != null:
+		radio_tween.kill()
+	radio_tween = create_tween()
+	radio_tween.tween_interval(hold)
+	radio_tween.tween_property(radio_panel, "modulate:a", 0.0, 0.5)
+	radio_tween.tween_callback(func() -> void:
+		radio_panel.visible = false)
+
+
+func _hide_radio() -> void:
+	if radio_tween != null:
+		radio_tween.kill()
+	if radio_panel != null:
+		radio_panel.visible = false
+
+
+func _journal_line(row: Dictionary) -> String:
+	var kind := str(row.get("kind", ""))
+	match kind:
+		"week":
+			return Copy.t("Week %d began.") % int(row.get("week", 0))
+		"build":
+			return Copy.t("Built %s.") % _room_type_name(str(row.get("type", "")))
+		"dig":
+			return Copy.t("Dug a new cell.")
+		"upgrade":
+			return Copy.t("Upgraded %s.") % _room_type_name(str(row.get("type", "")))
+		"demolish":
+			return Copy.t("Demolished %s.") % _room_type_name(str(row.get("type", "")))
+		"event":
+			var title := game.line_of(row, "title")
+			var choice := game.line_of(row, "choice")
+			if title == "":
+				title = str(row.get("event_id", ""))
+			return "%s: %s" % [title, choice] if choice != "" else title
+		"law":
+			return Copy.t("Enacted %s.") % Copy.t(str(game.catalog.laws.get(str(row.get("law", "")), {}).get("name", row.get("law", ""))))
+		"repeal":
+			return Copy.t("Repealed %s.") % Copy.t(str(game.catalog.laws.get(str(row.get("law", "")), {}).get("name", row.get("law", ""))))
+		"pump", "quarantine", "burn", "rally":
+			return Copy.t({"pump": "Pumped the water out.", "quarantine": "Called a quarantine.", "burn": "Burned salvage for power.", "rally": "Held a rally."}[kind])
+		"order", "cancel":
+			var target := _station_name(str(row.get("station", "")))
+			var verb := Copy.t(network_view._order_title(str(row.get("order", ""))))
+			if kind == "cancel":
+				verb = Copy.t("Cancelled: %s") % verb
+			return "%s: %s" % [verb, target] if target != "" else verb
+		"news":
+			var news := _alert_text(str(row.get("text", "")))
+			var tag := news.get_slice(" ", 0)
+			if tag.length() >= 3 and tag == tag.to_upper() and tag != tag.to_lower():
+				news = news.substr(tag.length() + 1)
+			return news
+		"radio":
+			return Radio.text(Radio.by_id(str(row.get("id", ""))))
+	return kind
+
+
+func _journal_group(kind: String) -> String:
+	match kind:
+		"build", "dig", "upgrade", "demolish":
+			return "builds"
+		"event", "law", "repeal", "pump", "quarantine", "burn", "rally":
+			return "decisions"
+		"order", "cancel":
+			return "map"
+		"news", "radio":
+			return "news"
+	return ""
+
+
+func _room_type_name(type: String) -> String:
+	if game.catalog.rooms.has(type):
+		return Copy.t(str(game.catalog.rooms[type].name))
+	return type
+
+
+func _station_name(sid: String) -> String:
+	if sid == "" or not game.stations.has(sid):
+		return ""
+	return Copy.t(str(game.stations[sid].get("name", sid)))
+
+
+func _clock(unix: int) -> String:
+	if unix <= 0:
+		return ""
+	var bias := int(Time.get_time_zone_from_system().get("bias", 0)) * 60
+	var t := Time.get_datetime_dict_from_unix_time(unix + bias)
+	return "%02d:%02d" % [int(t.hour), int(t.minute)]
+
+
+func _show_journal() -> void:
+	if game == null:
+		return
+	if not _claim(ModalDeck.AMBIENT, "journal", _show_journal):
+		return
+	_open_card(Copy.t("Journal"))
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 6)
+	for pair in [["", "All"], ["builds", "Builds"], ["decisions", "Decisions"], ["map", "Map"], ["news", "News"]]:
+		var key := str(pair[0])
+		var button := _button(str(pair[1]), _pick_journal_filter.bind(key), "card")
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.autowrap_mode = TextServer.AUTOWRAP_OFF
+		button.custom_minimum_size = Vector2(0, 40)
+		button.add_theme_font_size_override("font_size", 17)
+		if key == journal_filter:
+			_style_primary(button)
+		flow.add_child(button)
+	card_body.add_child(flow)
+	var shown := 0
+	var week_seen := -1
+	for i in range(game.journal.size() - 1, -1, -1):
+		var row: Dictionary = game.journal[i]
+		var kind := str(row.get("kind", ""))
+		if kind == "week":
+			continue
+		if journal_filter != "" and _journal_group(kind) != journal_filter:
+			continue
+		var week_n := int(row.get("week", 0))
+		if week_n != week_seen:
+			week_seen = week_n
+			var head := _label(Copy.t("Week %d") % week_n, 18, true)
+			head.add_theme_color_override("font_color", Color("e2a63a"))
+			card_body.add_child(head)
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 10)
+		var stamp := _label(_clock(int(row.get("at", 0))), 14)
+		stamp.add_theme_color_override("font_color", PAPER_MUTED)
+		stamp.custom_minimum_size = Vector2(48, 0)
+		stamp.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		line.add_child(stamp)
+		var text := _label(_journal_line(row), 15)
+		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if kind == "radio":
+			text.add_theme_color_override("font_color", PAPER_MUTED)
+		line.add_child(text)
+		card_body.add_child(line)
+		shown += 1
+		if shown >= 150:
+			break
+	if shown == 0:
+		_placeholder("", "Nothing recorded yet.")
+
+
+func _pick_journal_filter(key: String) -> void:
+	journal_filter = key
+	_show_journal()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if (event as InputEventKey).keycode == KEY_J and not at_menu and game != null:
+		if deck.top_token() == "journal":
+			_close_card()
+		else:
+			_show_journal()
+		get_viewport().set_input_as_handled()
 
 
 func _tooltip_theme() -> Theme:
@@ -3206,6 +3528,9 @@ func _claim(priority: int, token: String, restore: Callable) -> bool:
 
 func _open_card(heading: String, with_close: bool = true) -> void:
 	_show_ahead(false)
+	if room_open != "":
+		room_open = ""
+		_sync_room_sound()
 	on_paper = true
 	_wipe(card_body)
 	card_body.add_theme_constant_override("separation", 6)
@@ -3239,6 +3564,30 @@ func _close_card() -> void:
 	_hide_modal()
 	_wipe(card_body)
 	_sync_waiting()
+	if room_open != "":
+		room_open = ""
+		_sync_room_sound()
+
+
+func _yard_hover(level: int, cell: int) -> void:
+	var type := ""
+	if game != null and level >= 0:
+		var spot: Dictionary = game.cells.get("%d:%d" % [level, cell], {})
+		var room = game._room(str(spot.get("room", "")))
+		if room != null:
+			type = str(room.type)
+	if type == room_hover:
+		return
+	room_hover = type
+	_sync_room_sound()
+
+
+func _sync_room_sound() -> void:
+	if at_menu or showing_network or shot_mode:
+		Sound.room("", false)
+		return
+	var type := room_hover if room_hover != "" else room_open
+	Sound.room(type, type == room_open)
 
 
 func _heading(text: String) -> void:
@@ -3781,6 +4130,7 @@ func _show_menu() -> void:
 		load_button.tooltip_text = Copy.t("No saved game.")
 	card_body.add_child(load_button)
 	card_body.add_child(_button("Settings", _open_settings.bind(true)))
+	card_body.add_child(_button("Journal  (J)", _show_journal))
 	card_body.add_child(_button("Guide", _replay_guide))
 	card_body.add_child(_button("Main menu", _back_to_menu))
 	card_body.add_child(_button("Close", _close_card))
@@ -4045,8 +4395,77 @@ func _show_person(person_id: String) -> void:
 	row.add_child(text)
 	card_body.add_child(row)
 	if bool(person.get("core", false)):
-		card_body.add_child(_button("Dossier", _show_dossier.bind(person_id)))
+		var lore_id := game.cast_id_of(person)
+		var caption := Copy.t("Dossier")
+		if Lore.has(lore_id):
+			caption = Copy.t("Dossier  ·  read %d/%d") % [Lore.read_count(lore_id), Lore.sections(lore_id).size()]
+		card_body.add_child(_button(caption, _open_dossier.bind(person_id)))
 	card_body.add_child(_button("Close", _close_card))
+
+
+func _open_dossier(person_id: String) -> void:
+	dossier_tab = "profile"
+	_show_dossier(person_id)
+
+
+func _pick_dossier_tab(person_id: String, tab: String) -> void:
+	dossier_tab = tab
+	_show_dossier(person_id)
+
+
+func _dossier_tabs(person_id: String, lore_id: String) -> void:
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 6)
+	var tabs: Array = ["profile"]
+	tabs.append_array(Lore.sections(lore_id))
+	for tab in tabs:
+		var caption := Copy.t("Profile") if tab == "profile" else Copy.t(str(Lore.TITLES[tab]))
+		if tab != "profile" and not Lore.is_read(lore_id, str(tab)):
+			caption += " •"
+		var button := _button(caption, _pick_dossier_tab.bind(person_id, str(tab)), "card")
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.autowrap_mode = TextServer.AUTOWRAP_OFF
+		button.custom_minimum_size = Vector2(0, 40)
+		button.add_theme_font_size_override("font_size", 17)
+		if tab == dossier_tab:
+			_style_primary(button)
+		flow.add_child(button)
+	card_body.add_child(flow)
+
+
+func _lore_progress(lore_id: String) -> void:
+	var done := Lore.read_count(lore_id)
+	var count := Lore.sections(lore_id).size()
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var lab := _label(Copy.t("Backstory read %d/%d") % [done, count], 15)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	row.add_child(lab)
+	row.add_child(_progress_bar(float(done) / float(maxi(count, 1)), 140.0))
+	var all_done := Lore.read_total()
+	var all_count := Lore.total()
+	var pct := int(round(100.0 * float(all_done) / float(maxi(all_count, 1))))
+	var whole := _label(Copy.t("All residents %d%%") % pct, 15)
+	whole.add_theme_color_override("font_color", Color("e2a63a") if pct >= 100 else PAPER_MUTED)
+	whole.tooltip_text = Copy.t("%d of %d backstory pages read") % [all_done, all_count]
+	whole.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.add_child(whole)
+	card_body.add_child(row)
+
+
+func _progress_bar(fraction: float, width: float) -> Control:
+	var track := ColorRect.new()
+	track.color = Color(1, 1, 1, 0.14)
+	track.custom_minimum_size = Vector2(width, 8)
+	track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var fill := ColorRect.new()
+	fill.color = Color("e2a63a")
+	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fill.anchor_right = clampf(fraction, 0.0, 1.0)
+	fill.offset_right = 0.0
+	track.add_child(fill)
+	return track
 
 
 func _show_dossier(person_id: String) -> void:
@@ -4067,7 +4486,19 @@ func _show_dossier(person_id: String) -> void:
 	if title != "":
 		card_body.add_child(_label(title, 16))
 	card_body.add_child(_label(_check_line(person), 15))
-	if person.has("dossier"):
+	var lore_id := game.cast_id_of(person)
+	var has_lore := Lore.has(lore_id)
+	if has_lore:
+		if dossier_tab != "profile" and not Lore.sections(lore_id).has(dossier_tab):
+			dossier_tab = "profile"
+		if dossier_tab != "profile":
+			Lore.mark(lore_id, dossier_tab)
+		_dossier_tabs(person_id, lore_id)
+		_lore_progress(lore_id)
+	if has_lore and dossier_tab != "profile":
+		_heading(str(Lore.TITLES[dossier_tab]))
+		_placeholder(Lore.text(lore_id, dossier_tab), "Not written yet.")
+	elif person.has("dossier"):
 		_heading("Look")
 		_placeholder(_dossier_line(person, "look"), "Not written yet.")
 		_heading("Bio")
@@ -5459,19 +5890,48 @@ func _fill_settings() -> void:
 	var title := _label("Settings", 40, true)
 	title.add_theme_color_override("font_color", Color("f4efe4"))
 	menu_settings.add_child(title)
+	var cards := HBoxContainer.new()
+	cards.add_theme_constant_override("separation", 16)
+	menu_settings.add_child(cards)
+	var sound_card := PanelContainer.new()
+	sound_card.add_theme_stylebox_override("panel", _paper_style())
+	sound_card.custom_minimum_size = Vector2(500, 0)
+	sound_card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var sound := VBoxContainer.new()
+	sound.add_theme_constant_override("separation", 8)
+	sound_card.add_child(sound)
+	cards.add_child(sound_card)
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", _paper_style())
-	card.custom_minimum_size = Vector2(560, 0)
-	card.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	card.custom_minimum_size = Vector2(500, 0)
+	card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	card.add_child(box)
-	menu_settings.add_child(card)
+	cards.add_child(card)
 	on_paper = true
-	box.add_child(_label("Volume", 18, true))
-	box.add_child(_volume_row("Master", Settings.master, _set_master))
-	box.add_child(_volume_row("Music", Settings.music, _set_music))
-	box.add_child(_volume_row("SFX", Settings.sfx, _set_sfx))
+	sound.add_child(_label("Volume", 18, true))
+	sound.add_child(_volume_row("Master", Settings.master, _set_master))
+	sound.add_child(_volume_row("Music", Settings.music, _set_music))
+	sound.add_child(_volume_row("SFX", Settings.sfx, _set_sfx))
+	sound.add_child(_volume_row("Radio", Settings.radio, _set_radio))
+	sound.add_child(_label("Water drips", 18, true))
+	var drips := HBoxContainer.new()
+	drips.add_theme_constant_override("separation", 8)
+	for pair in [["off", "Off"], ["rare", "Rare"], ["often", "Often"]]:
+		drips.add_child(_pick_button(str(pair[1]), Settings.drips == str(pair[0]), _pick_drips.bind(str(pair[0]))))
+	sound.add_child(drips)
+	var rooms := Copy.t("Room sounds") + ": " + Copy.t("On" if Settings.room_sounds else "Off")
+	sound.add_child(_pick_button(rooms, Settings.room_sounds, _toggle_room_sounds, 300.0))
+	sound.add_child(_label("Cable radio", 18, true))
+	var radios := HBoxContainer.new()
+	radios.add_theme_constant_override("separation", 8)
+	radios.add_child(_pick_button("Off", not Settings.radio_on, _pick_radio.bind(0.0, 0.0)))
+	for span in [[45.0, 75.0], [90.0, 150.0]]:
+		var on := Settings.radio_on and absf(Settings.radio_min - float(span[0])) < 0.5 and absf(Settings.radio_max - float(span[1])) < 0.5
+		var caption := Copy.t("%d-%d s") % [int(span[0]), int(span[1])]
+		radios.add_child(_pick_button(caption, on, _pick_radio.bind(float(span[0]), float(span[1])), 130.0))
+	sound.add_child(radios)
 	box.add_child(_label("Language", 18, true))
 	var langs := HBoxContainer.new()
 	langs.add_theme_constant_override("separation", 8)
@@ -5538,6 +5998,11 @@ func _fill_credits() -> void:
 		var row := _label(line, 14)
 		row.add_theme_color_override("font_color", PAPER_MUTED)
 		box.add_child(row)
+	var made := _label("Station bed, hub drone, water drips, room loops and the radio cue are original sounds made for this game.", 14)
+	made.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	made.custom_minimum_size = Vector2(600, 0)
+	made.add_theme_color_override("font_color", PAPER_MUTED)
+	box.add_child(made)
 	if not Sound.has_ambient() or not Sound.has_drone():
 		var missing := _label("Station ambience and the hub drone are not included yet.", 15)
 		missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -5601,10 +6066,42 @@ func _set_volume(which: String, value: float) -> void:
 		Settings.master = linear
 	elif which == "music":
 		Settings.music = linear
+	elif which == "radio":
+		Settings.radio = linear
 	else:
 		Settings.sfx = linear
 	Settings.save()
 	Sound.apply_buses()
+
+
+func _set_radio(value: float) -> void:
+	_set_volume("radio", value)
+
+
+func _pick_drips(mode: String) -> void:
+	Settings.drips = mode
+	Settings.save()
+	Sound.schedule_drip()
+	_fill_settings()
+
+
+func _toggle_room_sounds() -> void:
+	Settings.room_sounds = not Settings.room_sounds
+	Settings.save()
+	_sync_room_sound()
+	_fill_settings()
+
+
+func _pick_radio(low: float, high: float) -> void:
+	Settings.radio_on = high > 0.0
+	if Settings.radio_on:
+		Settings.radio_min = low
+		Settings.radio_max = high
+	Settings.save()
+	radio_wait = -1.0
+	if not Settings.radio_on:
+		_hide_radio()
+	_fill_settings()
 
 
 func _pick_lang(code: String) -> void:
@@ -5928,6 +6425,8 @@ class Yard extends Control:
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_MOUSE_EXIT and hover != Vector2i(-1, -1):
 			hover = Vector2i(-1, -1)
+			if station != null:
+				station._yard_hover(-1, -1)
 			queue_redraw()
 
 	func _gui_input(event: InputEvent) -> void:
@@ -5976,6 +6475,8 @@ class Yard extends Control:
 				if next != hover:
 					hover = next
 					mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hover.x >= 0 else Control.CURSOR_ARROW
+					if station != null:
+						station._yard_hover(hover.x, hover.y)
 			queue_redraw()
 
 	func flash_at(level: int, cell: int) -> void:

@@ -54,6 +54,7 @@ var hope_zero := 0
 var next_person := 0
 var demand_seq := 1
 var log: Array = []
+var journal: Array = []
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -211,6 +212,7 @@ func apply(action: Dictionary) -> bool:
 	if over != "":
 		return false
 	var kind := str(action.get("kind", ""))
+	var entry := _journal_context(kind, action)
 	var ok := false
 	match kind:
 		"event":
@@ -254,7 +256,53 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_order(action)
 		_:
 			ok = false
+	if ok and not entry.is_empty():
+		_journal(kind, entry)
 	return ok
+
+
+## What the journal keeps about an action, read before the action changes state. Empty means not journaled.
+func _journal_context(kind: String, action: Dictionary) -> Dictionary:
+	match kind:
+		"event":
+			for ev in pending:
+				if str(ev.get("id", "")) != str(action.get("event_id", "")):
+					continue
+				var row := {"event_id": str(ev.id), "title": ev.get("title", "")}
+				for choice in ev.get("choices", []):
+					if str(choice.get("id", "")) == str(action.get("choice_id", "")):
+						row["choice"] = choice.get("label", "")
+				return row
+			return {"event_id": str(action.get("event_id", ""))}
+		"build":
+			return {"type": str(action.get("type", ""))}
+		"dig":
+			return {"level": int(action.get("level", -1)), "cell": int(action.get("cell", -1))}
+		"upgrade", "demolish":
+			var room = _room(str(action.get("room", "")))
+			if room != null:
+				return {"type": str(room.type)}
+			return {}
+		"law", "repeal":
+			return {"law": str(action.get("law", ""))}
+		"order":
+			return {"order": str(action.get("order", "")), "station": str(action.get("station", action.get("dest", "")))}
+		"pump", "quarantine", "burn", "rally":
+			return {"done": true}
+	return {}
+
+
+func _journal(kind: String, data: Dictionary) -> void:
+	var row := data.duplicate(true)
+	row["kind"] = kind
+	row["week"] = week
+	row["at"] = int(Time.get_unix_time_from_system())
+	journal.append(row)
+
+
+## Notes a player action that happens outside apply(), such as a radio item heard.
+func journal_note(kind: String, data: Dictionary) -> void:
+	_journal(kind, data)
 
 
 func report() -> Dictionary:
@@ -630,6 +678,7 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
+	_journal("week", {})
 	_resolve_queued()
 	orders_left = council.size()
 	seat_used = {}
@@ -2582,6 +2631,7 @@ func queue_order(action: Dictionary) -> bool:
 		"target": target,
 		"kind": kind,
 	})
+	_journal("order", {"order": kind, "station": target, "name": str(who.name)})
 	return true
 
 
@@ -2596,6 +2646,7 @@ func cancel_queued(role: String) -> bool:
 		seat_used.erase(role)
 		orders_left += 1
 		queued_orders.remove_at(i)
+		_journal("cancel", {"order": str(row.get("kind", "")), "station": str(row.get("target", ""))})
 		return true
 	return false
 
@@ -4969,6 +5020,7 @@ func _apply_coney_cast() -> void:
 		var name: Dictionary = row.get("name", {})
 		person.name = str(name.get("en", person.name))
 		person.name_ru = str(name.get("ru", ""))
+		person.cast_id = str(row.get("id", ""))
 		person.core = true
 		var skills: Dictionary = row.get("skills", {})
 		person.checks = {
@@ -4983,6 +5035,17 @@ func _apply_coney_cast() -> void:
 			"bio": row.get("bio", {}),
 			"hook": row.get("hook", {}),
 		}
+
+
+## Backstory key for a resident. Saves from before cast_id fall back to the Coney slot order.
+func cast_id_of(person: Dictionary) -> String:
+	if str(person.get("cast_id", "")) != "":
+		return str(person.cast_id)
+	var slot := CONEY_SLOTS.find(str(person.get("id", "")))
+	var rows: Array = catalog.coney.get("characters", [])
+	if person.has("dossier") and slot >= 0 and slot < rows.size():
+		return str(rows[slot].get("id", ""))
+	return str(person.get("id", ""))
 
 
 func _init_grid() -> void:
@@ -5550,7 +5613,7 @@ const PERSIST := [
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
-	"check_schedule", "white_pending", "vent_cut", "relations", "flags",
+	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 ]
 
 
@@ -5590,3 +5653,5 @@ func _note(en: String, ru_line: String) -> void:
 
 func _log(text: String, important := false) -> void:
 	log.append({"week": week, "text": text, "important": important})
+	if important:
+		_journal("news", {"text": text})

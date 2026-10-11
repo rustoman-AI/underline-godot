@@ -1,0 +1,115 @@
+{
+  "_note": "Resident backstories keyed by cast id (characters_coney.json) or resident id. Sections: nostalgia, regret, pride, other, anecdote. Each is {en, ru}.",
+  "people": {
+    "old_man_coney": {
+      "nostalgia": {
+        "en": "He remembers the Wonder Wheel at dusk in July, every car lit, the boardwalk smelling of fried clams and sunscreen. He ran it for thirty-one summers. He can still tell the swinging cars from the sliding ones by the squeak alone.",
+        "ru": "Он помнит Чёртово колесо в июльских сумерках: горят все кабинки, на дощатом настиле пахнет жареными моллюсками и кремом от загара. Тридцать одно лето он им управлял. Он до сих пор отличает качающиеся кабинки от скользящих по одному скрипу."
+      },
+      "regret": {
+        "en": "On the night the lights went out, a family was stuck in the top car. He cranked the wheel down by hand for six hours, one car at a time. They walked off thanking him, toward the station and the trains that never came. Some nights he thinks he should have kept them on the wheel.",
+        "ru": "В ночь, когда погас свет, в верхней кабинке застряла семья. Шесть часов он крутил колесо вручную, по одной кабинке. Они ушли, благодаря его, к станции и к поездам, которые так и не пришли. Иногда по ночам он думает, что лучше было оставить их на колесе."
+      },
+      "pride": {
+        "en": "In 1987 he kept the Cyclone running through a heat wave that buckled the boardwalk, splicing a brake cable with a bootlace and electrical tape. The inspector wrote him up and then rode it four times. The citation is still folded into a square inside his coat lining.",
+        "ru": "В 1987 году он не дал «Циклону» встать в жару, от которой выгибался настил: срастил тормозной трос шнурком и изолентой. Инспектор выписал ему штраф, а потом прокатился четыре раза. Квитанция до сих пор лежит квадратиком за подкладкой его бушлата."
+      },
+      "other": {
+        "en": "He calls the tiger head Rajah and swears it was won at a ring toss in 1964 by a girl who later married him. Nobody has ever seen a photo of her. When his cough runs long, he takes the head off and apologizes to it.",
+        "ru": "Тигриную голову он зовёт Раджой и клянётся, что в 1964 году её выиграла в кольцеброс девушка, которая потом вышла за него замуж. Её фотографии никто никогда не видел. Когда кашель затягивается, он снимает голову и просит у неё прощения."
+      },
+      "anecdote": {
+        "en": "Asked once why he collects old movie tickets, he said: 'Every one is a promise somebody kept. They said they'd go, and they went.' Then he sold a tunnel trader a ticket stub for two jars of pickles.",
+        "ru": "Однажды его спросили, зачем он собирает старые билеты в кино. Он ответил: «В каждом билете обещание, которое кто-то сдержал. Сказали, что пойдут, и пошли». Потом он продал торговцу из туннеля корешок билета за две банки солёных огурцов."
+      }
+    },
+    "salty_maggie": {
+      "nostalgia": {
+        "en": "Before the Silence she ran a pierogi stand on Brighton Beach Avenue with her sister. On Saturday mornings the line went round the corner past the fish market. She still salts the dough the way her mother did, a pinch from the left hand only.",
+        "ru": "До Тишины она с сестрой держала ларёк с варениками на Брайтон-Бич-авеню. По субботам очередь заворачивала за угол, мимо рыбного рынка. Тесто она до сих пор солит, как мать: щепоткой и только левой рукой."
+      },
+      "regret": {
+        "en": "In the first hungry winter she sold her sister's share of the stand for a crate of canned peaches. Her sister left for Manhattan the next week. The peaches went bad. Nothing has spoiled on her watch since.",
+        "ru": "В первую голодную зиму она продала долю сестры в ларьке за ящик консервированных персиков. Через неделю сестра ушла на Манхэттен. Персики испортились. С тех пор у неё ничего не пропадает."
+      },
+      "pride": {
+        "en": "She built the salt pans from the roofs of flooded subway cars and rendered the tar for the seams herself. The first harvest filled three buckets. She wept over them, and she will deny it to anyone who asks.",
+        "ru": "Солеварни она собрала из крыш затопленных вагонов и сама вытопила смолу для швов. Первая соль заняла три ведра. Она над ними плакала и будет отрицать это перед кем угодно."
+      },
+      "other": {
+        "en": "The ladle was her grandmother's, carried from Odessa. She has hit three men with it and fed perhaps three thousand. She keeps count of both, and only one number embarrasses her.",
+        "ru": "Половник достался ей от бабушки, его привезли из Одессы. Им она огрела троих мужчин и накормила, пожалуй, тысячи три. Она ведёт счёт обоим числам, и стыдно ей только за одно."
+      },
+      "anecdote": {
+        "en": "A trader once tried to pay her in counterfeit tokens. She salted him. Not his food: him. He stood in the brine pan until sundown, and then she sold him a bowl of soup at full price.",
+        "ru": "Один торговец попытался расплатиться с ней фальшивыми жетонами. Она его засолила. Не еду, а его самого. Он простоял в рассоле до заката, а потом она продала ему миску супа по полной цене."
+      }
+    },
+    "bait": {
+      "nostalgia": {
+        "en": "He grew up on a party boat out of Sheepshead Bay, gutting fluke for tourists at nine years old. What he misses most is the gulls fighting over the scraps. Nothing in the tunnels fights that loudly, and the quiet keeps him awake.",
+        "ru": "Он вырос на прогулочном рыболовном катере в Шипсхед-Бей и в девять лет уже потрошил камбалу для туристов. Больше всего он скучает по чайкам, которые дерутся за потроха. В туннелях никто не дерётся так громко, и от тишины он не может уснуть."
+      },
+      "regret": {
+        "en": "The storm came in from the south the week after the Silence. He was the one who said the sky looked fine. Four men went out on the Miss Brooklyn with him. He swam back alone, with a gaff hook through his arm.",
+        "ru": "Шторм пришёл с юга через неделю после Тишины. Это он сказал, что небо в порядке. С ним на «Мисс Бруклин» вышли четверо. Назад он приплыл один, с багром, пробившим руку."
+      },
+      "pride": {
+        "en": "He built the harpoon arm himself in a week, one-handed, from a garage door spring and a mop handle. It throws a line forty feet. He has used it twice on people and many times on rats, and he cleans it every night.",
+        "ru": "Гарпун вместо руки он собрал сам за неделю, одной рукой, из пружины гаражных ворот и черенка швабры. Он бросает линь на двенадцать метров. На людях он применял его дважды, на крысах много раз и чистит его каждый вечер."
+      },
+      "other": {
+        "en": "The tattoos are a ledger. Every gull is a fish over twenty pounds. Every anchor is a man he pulled out of the water. There are eleven anchors and no room left for more.",
+        "ru": "Татуировки служат ему бухгалтерской книгой. Каждая чайка означает рыбу тяжелее девяти килограммов. Каждый якорь означает человека, которого он вытащил из воды. Якорей одиннадцать, и места для новых не осталось."
+      },
+      "anecdote": {
+        "en": "A new recruit asked him how he lost the eye. He said a gull took it. The recruit laughed. He did not, and for a week afterwards every gull on the pier seemed to follow the recruit around.",
+        "ru": "Новичок спросил его, как он потерял глаз. Он ответил, что глаз забрала чайка. Новичок засмеялся. Он не засмеялся, и всю следующую неделю за новичком по пирсу будто ходили все чайки."
+      }
+    },
+    "barnum": {
+      "nostalgia": {
+        "en": "He worked nights at the Coney Island sideshow museum, dusting the two-headed calf and the jar of mermaid hair. He loved the hour after closing, when the exhibits had the building to themselves and he could talk to them.",
+        "ru": "Он работал ночным смотрителем в музее диковин на Кони-Айленд: смахивал пыль с двухголового телёнка и банки с волосами русалки. Больше всего он любил час после закрытия, когда здание принадлежало экспонатам и с ними можно было поговорить."
+      },
+      "regret": {
+        "en": "When the looters came he saved the specimen jars and left the museum records to burn. Every label, every provenance, every name. He has a hundred jars now and does not know what half of them are.",
+        "ru": "Когда пришли мародёры, он спас банки с образцами, а архив музея бросил гореть. Все этикетки, всю историю, все имена. Теперь у него сотня банок, и про половину из них он не знает, что внутри."
+      },
+      "pride": {
+        "en": "He identified the purple mold before anyone else on the line and worked out that vinegar slows it. He chalked it on the tunnel wall at every station he passed. Somebody, somewhere, is alive because of that chalk.",
+        "ru": "Он первым на линии распознал фиолетовую плесень и понял, что уксус её замедляет. Он писал это мелом на стене туннеля на каждой станции, мимо которой проходил. Кто-то где-то жив благодаря этому мелу."
+      },
+      "other": {
+        "en": "The taped-up glasses were broken by a rat he was trying to name. He named it anyway: Professor. Professor lives in a jar on his shelf, and he consults him on difficult cases.",
+        "ru": "Склеенные очки ему разбила крыса, которой он пытался дать имя. Имя он всё равно дал: Профессор. Профессор живёт в банке на полке, и в трудных случаях он с ним советуется."
+      },
+      "anecdote": {
+        "en": "He once traded a jar of pickled eyes for a working flashlight, then traded the flashlight back for the jar the next day because he missed it. The trader still tells the story. He considers it the best deal of his life.",
+        "ru": "Однажды он обменял банку маринованных глаз на рабочий фонарик, а на следующий день выменял банку обратно, потому что соскучился. Торговец до сих пор рассказывает эту историю. Сам он считает её лучшей сделкой в жизни."
+      }
+    },
+    "sylvia": {
+      "nostalgia": {
+        "en": "She marched in the Mermaid Parade every June from the age of six, the year her mother sewed her a tail from a shower curtain. She remembers glitter in the gutters for days afterwards and the whole boardwalk singing off-key.",
+        "ru": "Каждый июнь с шести лет она шла в Параде русалок: в тот год мать сшила ей хвост из шторки для душа. Она помнит блёстки в водостоках ещё много дней после парада и весь настил, который фальшиво пел хором."
+      },
+      "regret": {
+        "en": "She told her younger brother the tide would carry them both to safety and sent him swimming toward Manhattan Beach. She believed it then. She believes it now. She does not know where he is, and that is why she preaches.",
+        "ru": "Она сказала младшему брату, что прилив унесёт их обоих в безопасное место, и отправила его вплавь к Манхэттен-Бич. Тогда она в это верила. Верит и сейчас. Где он, она не знает, и потому проповедует."
+      },
+      "pride": {
+        "en": "With nothing but the megaphone she talked a crowd of forty out of storming the Stillwell food store. Nobody was shot that night. Half of the forty followed her to the Surf, and the other half still argue about her.",
+        "ru": "Одним мегафоном она уговорила толпу из сорока человек не штурмовать продовольственный склад на Стилуэлл. В ту ночь никого не застрелили. Половина из тех сорока ушла за ней к морю, а другая половина до сих пор о ней спорит."
+      },
+      "other": {
+        "en": "The blue paint is crushed mussel shell and lamp oil. It burns a little. She says that is how you know the ocean is listening.",
+        "ru": "Синяя краска на лице сделана из толчёных ракушек мидий и лампового масла. Она немного жжёт. Она говорит, что так и понимаешь: океан слушает."
+      },
+      "anecdote": {
+        "en": "Her megaphone died mid-sermon once, batteries flat. She finished the sermon in sign language, and the crowd stayed. Afterwards someone gave her two fresh batteries, the most expensive gift on the line that year.",
+        "ru": "Однажды посреди проповеди у неё сели батарейки в мегафоне. Она закончила проповедь жестами, и толпа не разошлась. Потом кто-то подарил ей две новые батарейки, самый дорогой подарок на линии в тот год."
+      }
+    }
+  }
+}
