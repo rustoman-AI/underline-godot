@@ -59,6 +59,10 @@ var journal: Array = []
 ## Voice lines already heard this playthrough, keyed by line id.
 var vo_heard := {}
 var radio_week := 0
+## Conditions waiting to be voiced, matched to "system" lines in data/vo by the UI, which clears them.
+## Each name appears once, so the list stays small when nothing drains it.
+var vo_cues: Array = []
+const VO_COOLDOWN := 6
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -210,6 +214,46 @@ func end_week() -> void:
 	week += 1
 	decisions = 0
 	_dawn()
+	_vo_watch()
+
+
+## Seasons always speak; anything else stays quiet for VO_COOLDOWN weeks after it last spoke.
+func _vo_cue(name: String) -> void:
+	if vo_cues.has(name):
+		return
+	var key := "@" + name
+	if not name.begins_with("season_") and vo_heard.has(key) and week - int(vo_heard[key]) < VO_COOLDOWN:
+		return
+	vo_heard[key] = week
+	vo_cues.append(name)
+
+
+## Raises a cue when a watched state turns on. The first look only records where things stand, and each state
+## needs to clear by a margin before it can fire again, so a value hovering at the line does not repeat.
+func _vo_watch() -> void:
+	var sick := 0
+	for person in residents:
+		if int(person.get("sick", 0)) > 0:
+			sick += 1
+	var food_low := bool(vo_heard.get("~food_critical", false))
+	var cheerful := bool(vo_heard.get("~morale_high", false))
+	var now := {
+		"food_critical": food_buffer_weeks() < (2.0 if food_low else 1.0),
+		"power_restored": power_zero_streak == 0 and not gen_down,
+		"disease_contained": sick == 0,
+		"morale_high": hope >= (65 if cheerful else 75),
+	}
+	for name in now:
+		var key := "~" + str(name)
+		var was = vo_heard.get(key, null)
+		vo_heard[key] = now[name]
+		if was != null and not bool(was) and bool(now[name]):
+			_vo_cue(str(name))
+	var pop := residents.size()
+	var last := int(vo_heard.get("~pop", pop))
+	vo_heard["~pop"] = pop
+	if pop > last:
+		_vo_cue("resident_joined")
 
 
 func apply(action: Dictionary) -> bool:
@@ -2528,6 +2572,8 @@ func _apply_order(action: Dictionary) -> bool:
 		orders_left -= 1
 		decisions += 1
 		_take_seat(order)
+		if order == "trade":
+			_vo_cue("caravan_arrived")
 	return ok
 
 
@@ -2707,6 +2753,8 @@ func _resolve_queued() -> void:
 		else:
 			text = "%s %s" % [Copy.t("The order failed."), text]
 		order_reports.append({"title": title, "text": text, "ok": ok})
+		if ok and kind == "trade":
+			_vo_cue("caravan_arrived")
 		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
 
 
@@ -3604,6 +3652,7 @@ func _kill(n: int, why: String) -> void:
 	if n > 0:
 		_log("%s. %d dead." % [why, n], true)
 		_journal("deaths", {"n": n})
+		_vo_cue("resident_lost")
 
 
 func _shed(n: int) -> void:
@@ -4941,6 +4990,9 @@ func _season_clock() -> void:
 				soon = "SEASON Скоро %s." % Copy.season(str(season.id))
 			_log(soon, true)
 			_journal("season", {"id": str(season.id), "soon": true})
+			_vo_cue("season_%s_soon" % str(season.id))
+			if str(season.id) == "flood":
+				_vo_cue("tunnel_warning")
 		if week == at:
 			active_season = {"id": str(season.id), "start": at, "until": at + int(season.weeks) - 1}
 			var begun := "SEASON %s" % str(season.id)
@@ -4948,6 +5000,7 @@ func _season_clock() -> void:
 				begun = "SEASON Начался %s." % Copy.season(str(season.id))
 			_log(begun, true)
 			_journal("season", {"id": str(season.id)})
+			_vo_cue("season_%s" % str(season.id))
 			if str(season.id) == "cough":
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):

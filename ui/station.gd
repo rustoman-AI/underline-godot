@@ -175,7 +175,14 @@ var radio_tween: Tween
 var vo_pill: PanelContainer
 var vo_label: Label
 var vo_bars: Control
+var vo_sub: Label
 var vo_dossier := ""
+var vo_queue: Array = []
+var vo_text := ""
+var vo_text_caption := ""
+var vo_text_until := 0
+var radio_bars: Control
+var sentence_re := RegEx.create_from_string("[^.!?\u2026]+[.!?\u2026]+[\"'\u00bb\u201d]?")
 
 
 func _ready() -> void:
@@ -331,11 +338,28 @@ func _vo_shots() -> void:
 	await _frame()
 	_save("vo_dossier_replay")
 	_close_card()
-	_play_story("mara", false)
-	await get_tree().create_timer(0.4).timeout
+	for person in game.residents:
+		var pid := str(person.get("id", ""))
+		var row := _story(pid)
+		if not bool(person.get("core", false)) and not row.is_empty() and not Voice.has_audio(row):
+			_show_person(pid)
+			await _frame()
+			_save("vo_person_story")
+			_open_dossier(pid)
+			await _frame()
+			await _frame()
+			_save("vo_dossier_text")
+			_close_card()
+			break
+	_open_dossier("mara")
+	await get_tree().create_timer(4.0).timeout
 	_tick_voice()
 	await _frame()
 	_save("vo_pill")
+	print("VO first open plays story: %s" % str(Voice.playing("mara_story")))
+	_close_card()
+	await _frame()
+	print("VO closing the dossier fades it: %s" % str(not Voice.playing()))
 	_play_radio(Radio.by_id("news_001"))
 	await get_tree().create_timer(0.4).timeout
 	_tick_voice()
@@ -343,6 +367,18 @@ func _vo_shots() -> void:
 	_save("vo_radio")
 	_hide_radio()
 	Voice.stop()
+	game.vo_cues.append("food_critical")
+	_tick_voice()
+	await _frame()
+	_tick_voice()
+	await _frame()
+	_save("vo_system_text")
+	vo_text_until = 0
+	_say(Voice.event_line("lamps", ""), Copy.t("Station"))
+	_tick_voice()
+	await _frame()
+	_save("vo_event_text")
+	vo_text_until = 0
 	_open_settings(true)
 	await _frame()
 	await _frame()
@@ -2675,7 +2711,7 @@ func _enact(law_id: String) -> void:
 		return
 	_refresh()
 	_show_laws()
-	_resolve_voice(Voice.system_base("law", law_id), Copy.t("Station"))
+	_action_voice("law", law_id)
 
 
 func _law_blurb(defin: Dictionary) -> String:
@@ -2744,14 +2780,26 @@ func _tick_radio() -> void:
 	if (dim != null and dim.visible) or guide_step >= 0 or Voice.playing():
 		return
 	game.radio_week = game.week
-	_play_radio(Radio.next())
+	_play_radio(Radio.next(_threat()))
+
+
+## 0..1 for how much trouble the station is in, to tilt the radio toward anxious news.
+func _threat() -> float:
+	var t := float(game.discontent) / 100.0
+	if game.food_buffer_weeks() < 2.0:
+		t += 0.3
+	if not game.active_season.is_empty():
+		t += 0.2
+	if game.hope < 40:
+		t += 0.2
+	return clampf(t, 0.0, 1.0)
 
 
 func _play_radio(item: Dictionary) -> void:
 	if item.is_empty():
 		return
 	var lead := Sound.radio_static()
-	var length := Voice.play(Radio.voice_base(item), "radio", Copy.t("Cable radio"), lead * 0.6)
+	var length := Voice.play(item, Copy.t("Cable radio"), lead * 0.6)
 	game.journal_note("radio", {"id": str(item.get("id", ""))})
 	var hold := 10.0
 	if length > 0.0:
@@ -2759,21 +2807,44 @@ func _play_radio(item: Dictionary) -> void:
 	_show_radio(Radio.text(item), hold)
 
 
+func _dossier_open() -> bool:
+	return deck.top_token() == "dossier" and dim != null and dim.visible
+
+
 func _tick_voice() -> void:
-	var on := Voice.playing() and Voice.now_kind != "radio"
-	if vo_dossier != "" and not Voice.playing(Voice.story_base(vo_dossier)):
+	if Voice.now_kind == "story" and Voice.playing() and not _dossier_open() and not shot_mode:
+		Voice.fade()
+	if vo_dossier != "" and not Voice.playing(_story_id(vo_dossier)):
 		var person_id := vo_dossier
 		vo_dossier = ""
-		if deck.top_token() == "dossier" and dim != null and dim.visible:
+		if _dossier_open():
 			_show_dossier(person_id)
+	_drain_cues()
+	if radio_bars != null:
+		radio_bars.get_parent().visible = Voice.playing() and Voice.now_kind == "radio"
+		radio_bars.queue_redraw()
+	var spoken := Voice.playing() and Voice.now_kind != "radio"
+	var shown := not spoken and Time.get_ticks_msec() < vo_text_until
 	if vo_pill == null:
-		if not on:
+		if not spoken and not shown:
 			return
 		_build_vo_pill()
-	if not on:
+	if not spoken and not shown:
 		vo_pill.visible = false
 		return
-	vo_label.text = Voice.now_caption
+	var sub := vo_text
+	if spoken:
+		vo_label.text = Voice.now_caption
+		sub = _subtitle(Voice.now_text, Voice.progress())
+	else:
+		vo_label.text = vo_text_caption
+	vo_bars.visible = spoken
+	vo_sub.text = sub
+	vo_sub.visible = sub != ""
+	var width := 480.0
+	if card != null and dim != null and dim.visible:
+		width = clampf(card.get_global_rect().position.x - 48.0, 240.0, 480.0)
+	vo_sub.custom_minimum_size.x = width
 	vo_pill.visible = true
 	vo_pill.reset_size()
 	var bottom := size.y - chrome_bottom - 8.0
@@ -2781,6 +2852,43 @@ func _tick_voice() -> void:
 		bottom = radio_panel.position.y - 8.0
 	vo_pill.position = Vector2(16.0, bottom - vo_pill.get_combined_minimum_size().y)
 	vo_bars.queue_redraw()
+
+
+## The sentence being spoken, guessed from how far through the line playback is, weighted by sentence length.
+func _subtitle(text: String, progress: float) -> String:
+	var flat := text.replace("\n\n", " ")
+	var sentences: Array = []
+	for m in sentence_re.search_all(flat):
+		var s := m.get_string().strip_edges()
+		if s != "":
+			sentences.append(s)
+	if sentences.is_empty():
+		return flat
+	var total := 0
+	for s in sentences:
+		total += str(s).length()
+	var at := progress * float(total)
+	for s in sentences:
+		at -= float(str(s).length())
+		if at <= 0.0:
+			return str(s)
+	return str(sentences.back())
+
+
+## Plays queued sim conditions one at a time, once no card, guide, or other line is in the way.
+func _drain_cues() -> void:
+	if game == null or at_menu:
+		return
+	for cue in game.vo_cues:
+		var row := Voice.condition(str(cue))
+		if not row.is_empty() and vo_queue.size() < 3:
+			vo_queue.append(row)
+	game.vo_cues.clear()
+	if vo_queue.is_empty() or Voice.playing() or Time.get_ticks_msec() < vo_text_until:
+		return
+	if (dim != null and dim.visible) or guide_step >= 0 or (hub_layer != null and hub_layer.visible):
+		return
+	_say(vo_queue.pop_front(), Copy.t("Station"))
 
 
 func _build_vo_pill() -> void:
@@ -2817,21 +2925,47 @@ func _build_vo_pill() -> void:
 	on_paper = false
 	vo_label = _label("", 15)
 	vo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vo_sub = _label("", 15)
+	vo_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vo_sub.add_theme_color_override("font_color", Color(0.93, 0.9, 0.84, 0.92))
+	vo_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	on_paper = was
+	vo_label.add_theme_color_override("font_color", Color("e2a63a"))
 	row.add_child(vo_label)
-	vo_pill.add_child(row)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(row)
+	box.add_child(vo_sub)
+	vo_pill.add_child(box)
 	vo_pill.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
-			Voice.stop()
+			Voice.fade(0.3)
+			vo_text_until = 0
 			vo_pill.visible = false)
 	add_child(vo_pill)
 
 
-## Plays the line for a resolved card right after it lands, when the file exists.
-func _resolve_voice(base: String, caption: String) -> void:
-	if base == "":
+## Speaks a line now, or shows its text in the voice pill for a while when its audio is missing.
+func _say(row: Dictionary, caption: String) -> void:
+	if row.is_empty():
 		return
-	Voice.play(base, "event", caption)
+	if Voice.play(row, caption) > 0.0:
+		vo_text_until = 0
+		return
+	vo_text = Voice.text(row)
+	vo_text_caption = caption
+	if vo_text == "":
+		return
+	vo_text_until = Time.get_ticks_msec() + int(clampf(vo_text.length() * 60.0, 5000.0, 14000.0))
+
+
+## A confirmed action can have a system line named "<kind>_<id>" (law_rationing) or just "<kind>" (rally).
+func _action_voice(kind: String, id: String) -> void:
+	var row := Voice.condition("%s_%s" % [kind, id]) if id != "" else {}
+	if row.is_empty():
+		row = Voice.condition(kind)
+	_say(row, Copy.t("Station"))
 
 
 func _show_radio(text: String, hold: float) -> void:
@@ -2854,10 +2988,35 @@ func _show_radio(text: String, hold: float) -> void:
 		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var was := on_paper
 		on_paper = false
+		var head_row := HBoxContainer.new()
+		head_row.add_theme_constant_override("separation", 12)
+		head_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var head := _label("Cable radio", 15, true)
 		head.add_theme_color_override("font_color", Color("e2a63a"))
 		head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		box.add_child(head)
+		head_row.add_child(head)
+		var air := HBoxContainer.new()
+		air.add_theme_constant_override("separation", 6)
+		air.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		radio_bars = Control.new()
+		radio_bars.custom_minimum_size = Vector2(22, 16)
+		radio_bars.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		radio_bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		radio_bars.draw.connect(func() -> void:
+			var t := Time.get_ticks_msec() / 1000.0
+			for i in 4:
+				var h := 3.0 + 13.0 * (0.5 + 0.5 * sin(t * (4.0 + i * 1.9) + i * 0.9))
+				if Settings.reduced():
+					h = 9.0
+				radio_bars.draw_rect(Rect2(i * 6.0, 16.0 - h, 4.0, h), Color("d9534f")))
+		air.add_child(radio_bars)
+		var on_air := _label("On air", 13, true)
+		on_air.add_theme_color_override("font_color", Color("d9534f"))
+		on_air.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		air.add_child(on_air)
+		air.visible = false
+		head_row.add_child(air)
+		box.add_child(head_row)
 		radio_text = _label("", 16)
 		radio_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		radio_text.custom_minimum_size = Vector2(380, 0)
@@ -3523,7 +3682,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if check_flash:
 		footer.text = _check_result_line()
 		footer.visible = footer.text != ""
-	_resolve_voice(Voice.event_base(event_id, choice_id), title)
+	_say(Voice.event_line(event_id, choice_id), title)
 	_advance_dawn(before)
 
 
@@ -3957,7 +4116,7 @@ func _do_confirm(action: Dictionary) -> void:
 		Sound.play("confirm")
 	_close_card()
 	_refresh()
-	_resolve_voice(Voice.system_base(kind, str(action.get("law", ""))), Copy.t("Station"))
+	_action_voice(kind, str(action.get("law", "")))
 
 
 func _claim(priority: int, token: String, restore: Callable) -> bool:
@@ -4835,7 +4994,7 @@ func _show_person(person_id: String) -> void:
 	text.add_child(_label(_where(person_id), 14))
 	row.add_child(text)
 	card_body.add_child(row)
-	if bool(person.get("core", false)):
+	if bool(person.get("core", false)) or not _story(person_id).is_empty():
 		var lore_id := game.cast_id_of(person)
 		var caption := Copy.t("Dossier")
 		if Lore.has(lore_id):
@@ -4846,41 +5005,55 @@ func _show_person(person_id: String) -> void:
 
 func _open_dossier(person_id: String) -> void:
 	dossier_tab = "profile"
-	var base := _story_base(person_id)
-	if Voice.has(base) and not game.vo_heard.has(base) and not shot_mode:
-		game.vo_heard[base] = true
+	var row := _story(person_id)
+	var id := str(row.get("id", ""))
+	if Voice.has_audio(row) and not game.vo_heard.has(id) and not shot_mode:
+		game.vo_heard[id] = true
 		_play_story(person_id, false)
 	_show_dossier(person_id)
 
 
-func _story_base(person_id: String) -> String:
+func _story(person_id: String) -> Dictionary:
 	if not game.people.has(person_id):
-		return ""
-	return Voice.story_base(game.cast_id_of(game.people[person_id]))
+		return {}
+	return Voice.story(game.cast_id_of(game.people[person_id]))
+
+
+func _story_id(person_id: String) -> String:
+	return str(_story(person_id).get("id", ""))
 
 
 func _play_story(person_id: String, redraw := true) -> void:
 	var caption := Copy.t("%s: story") % _resident_name(game.people[person_id])
-	if Voice.play(_story_base(person_id), "story", caption) > 0.0:
+	if Voice.play(_story(person_id), caption) > 0.0:
 		vo_dossier = person_id
 	if redraw:
 		_show_dossier(person_id)
 
 
 func _stop_story(person_id: String) -> void:
-	Voice.stop()
+	Voice.fade(0.3)
 	vo_dossier = ""
 	_show_dossier(person_id)
 
 
 func _story_buttons(person_id: String) -> void:
-	var base := _story_base(person_id)
-	if not Voice.has(base):
+	var row := _story(person_id)
+	if not Voice.has_audio(row):
 		return
-	if Voice.playing(base):
+	if Voice.playing(str(row.id)):
 		card_body.add_child(_button("Stop story", _stop_story.bind(person_id), "click"))
 	else:
 		card_body.add_child(_button("Replay story", _play_story.bind(person_id), "click"))
+
+
+func _story_text(person_id: String) -> void:
+	var text := Voice.text(_story(person_id))
+	if text == "":
+		return
+	_heading("In their words")
+	for para in text.split("\n\n"):
+		_body(para)
 
 
 func _pick_dossier_tab(person_id: String, tab: String) -> void:
@@ -4964,6 +5137,8 @@ func _show_dossier(person_id: String) -> void:
 	_story_buttons(person_id)
 	var lore_id := game.cast_id_of(person)
 	var has_lore := Lore.has(lore_id)
+	if not has_lore:
+		_story_text(person_id)
 	if has_lore:
 		if dossier_tab != "profile" and not Lore.sections(lore_id).has(dossier_tab):
 			dossier_tab = "profile"
@@ -5011,6 +5186,8 @@ func _show_dossier(person_id: String) -> void:
 		else:
 			for event_id in events:
 				_body(Copy.t(str(event_id)))
+	if has_lore and dossier_tab == "profile":
+		_story_text(person_id)
 	card_body.add_child(_button("Back", _show_person.bind(person_id)))
 
 

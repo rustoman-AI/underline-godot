@@ -38,6 +38,8 @@ static var room_streams := {}
 static var radio_cue: AudioStreamPlayer
 static var voice: AudioStreamPlayer
 static var voice_timer: Timer
+static var voice_tail: AudioStreamPlayer
+static var voice_tween: Tween
 static var last_ms := {}
 static var rng := RandomNumberGenerator.new()
 
@@ -85,6 +87,9 @@ static func boot(tree_host: Node) -> void:
 		if voice.stream != null:
 			voice.play())
 	host.add_child(voice_timer)
+	voice_tail = AudioStreamPlayer.new()
+	voice_tail.name = "VoiceTail"
+	host.add_child(voice_tail)
 	drip_timer = Timer.new()
 	drip_timer.one_shot = true
 	drip_timer.name = "DripTimer"
@@ -213,7 +218,7 @@ static func voice_play(voice_path: String, bus: String, delay := 0.0) -> float:
 	var stream := ResourceLoader.load(voice_path) as AudioStream
 	if stream == null:
 		return 0.0
-	voice_stop()
+	voice_fade(0.25)
 	voice.stream = stream
 	voice.bus = bus
 	if delay > 0.0:
@@ -229,6 +234,29 @@ static func voice_stop() -> void:
 	voice_timer.stop()
 	voice.stop()
 	voice.stream = null
+
+
+## Lets the current line die away over `seconds` on a tail player, so the main voice is free at once.
+static func voice_fade(seconds: float) -> void:
+	if voice == null:
+		return
+	if voice.playing and voice_tail != null:
+		if voice_tween != null and voice_tween.is_valid():
+			voice_tween.kill()
+		voice_tail.stream = voice.stream
+		voice_tail.bus = voice.bus
+		voice_tail.volume_db = 0.0
+		voice_tail.play(voice.get_playback_position())
+		voice_tween = host.create_tween()
+		voice_tween.tween_property(voice_tail, "volume_db", SILENT_DB, seconds)
+		voice_tween.tween_callback(_tail_done)
+	voice_stop()
+
+
+static func _tail_done() -> void:
+	voice_tail.stop()
+	voice_tail.stream = null
+	voice_tween = null
 
 
 static func voice_busy() -> bool:
