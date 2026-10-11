@@ -18,7 +18,7 @@
       "voice_note": "58, grizzled beard under a flat cap, half-deaf from the yard, speaks too loud, calls people by their job, never says please",
       "first_contact": {
         "en": "Bernie Shaw. Every switch from Stillwell to Twenty-fifth is mine. You're standing on my line. While it holds, we talk.",
-        "ru": "Берни Шоу. Все стрелки от Стиллвелла до Двадцать пятой — мои. Ты стоишь на моей линии. Пока она держит, мы разговариваем."
+        "ru": "Берни Шоу. Все стрелки от Стиллвелла до Двадцать пятой мои. Ты стоишь на моей линии. Пока она держит, мы разговариваем."
       },
       "bands": {
         "hostile": {
@@ -44,7 +44,7 @@
       },
       "territory": {
         "en": "Those are my switches. Want to cross them, ask. Nobody asks, I throw them to a dead end.",
-        "ru": "Это мои стрелки. Хочешь проехать — спроси. Не спросил — переведу в тупик."
+        "ru": "Это мои стрелки. Хочешь проехать, спроси. Не спросил, переведу в тупик."
       },
       "trade": {
         "en": "Bread and kerosene from you, metal and repairs from me. We count in shifts, not words.",
@@ -52,7 +52,7 @@
       },
       "pitch": {
         "en": "One of your papers is a copy of the order we burned at Stillwell. The original went into the stove so my crew wouldn't tear itself apart. Burn the copy too. I'm not asking you to forget. I'm asking you not to print it. My workshop will give yours a step up.",
-        "ru": "Одна из твоих бумаг — копия приказа, который мы сожгли на Стиллвелле. Оригинал ушёл в печь, чтобы моя бригада не перегрызла сама себя. Сожги и копию. Я не прошу забыть. Я прошу не печатать. Моя мастерская подтянет твою на ступень."
+        "ru": "Одна из твоих бумаг: копия приказа, который мы сожгли на Стиллвелле. Оригинал ушёл в печь, чтобы моя бригада не перегрызла сама себя. Сожги и копию. Я не прошу забыть. Я прошу не печатать. Моя мастерская подтянет твою на ступень."
       },
       "accepted": {
         "en": "Stove's hot. You saw nothing, I asked for nothing.",
@@ -106,15 +106,15 @@
       },
       "territory": {
         "en": "These runs are on our timetable. Cross them without clearance and you go on my timetable. You will not enjoy it.",
-        "ru": "Эти перегоны стоят в нашем расписании. Пройдёте без допуска — встанете в моё расписание. Вам не понравится."
+        "ru": "Эти перегоны стоят в нашем расписании. Пройдёте без допуска, и встанете в моё расписание. Вам не понравится."
       },
       "trade": {
         "en": "Filters and order for grain and quiet. I will draw it up on two pages.",
-        "ru": "Фильтры и порядок — за зерно и тишину. Я оформлю на двух страницах."
+        "ru": "Фильтры и порядок за зерно и тишину. Я оформлю на двух страницах."
       },
       "pitch": {
         "en": "I need one line. Someone from your roll, not your council, not someone who will be looked for. The name is already chosen from your own figures. In return: a curfew, and a step up for your air filter. You will breathe easier. Not calmer.",
-        "ru": "Мне нужна одна строка. Человек из вашего списка, не из совета, не тот, кого станут искать. Имя уже выбрано по вашим же данным. Взамен — комендантский час и ступень вашему воздушному фильтру. Дышать станет легче. Спокойнее — нет."
+        "ru": "Мне нужна одна строка. Человек из вашего списка, не из совета, не тот, кого станут искать. Имя уже выбрано по вашим же данным. Взамен комендантский час и ступень вашему воздушному фильтру. Дышать станет легче. Спокойнее нет."
       },
       "accepted": {
         "en": "Thank you. Sign here. Nothing needs to be said.",
@@ -225,7 +225,7 @@
         },
         "pact": {
           "en": "For you, no entry. People have been killed over that compliment. Don't abuse it.",
-          "ru": "Для тебя — без записи. Из-за такого комплимента у нас убивали. Не злоупотребляй."
+          "ru": "Для тебя без записи. Из-за такого комплимента у нас убивали. Не злоупотребляй."
         }
       },
       "territory": {
@@ -238,7 +238,7 @@
       },
       "pitch": {
         "en": "Forty sacks of grain today, from my own store. In return, your books. Who eats how much, what's hidden where, what you've found. I read them and give them back. I won't sell them to the Directorate. I won't promise I won't sell them to anyone.",
-        "ru": "Сорок мешков зерна сегодня, из моего склада. Взамен — твои тетради. Кто сколько ест, что где припрятано, что вы нашли. Я прочту и верну. Дирекции не продам. Что не продам никому — не обещаю."
+        "ru": "Сорок мешков зерна сегодня, из моего склада. Взамен твои тетради. Кто сколько ест, что где припрятано, что вы нашли. Я прочту и верну. Дирекции не продам. Что не продам никому, не обещаю."
       },
       "accepted": {
         "en": "Good. The sacks are at your gate. Don't count them in front of me. It hurts my feelings.",
@@ -266,7 +266,7 @@
       "voice_note": "35, quiet, counts steps out loud, never sits with her back to the door, speaks of the dead in the first person plural",
       "first_contact": {
         "en": "Niki. They call me Lamp. If you can see me, you already have a light. The question is whose.",
-        "ru": "Ники. Меня зовут Лампа. Если ты меня видишь, свет у тебя уже есть. Вопрос — чей."
+        "ru": "Ники. Меня зовут Лампа. Если ты меня видишь, свет у тебя уже есть. Вопрос в том, чей."
       },
       "bands": {
         "hostile": {
@@ -287,7 +287,7 @@
         },
         "pact": {
           "en": "For you, a path without a toll. Once. Don't tell anyone where it is.",
-          "ru": "Для тебя — тропа без платы. Один раз. Не говори никому, где она."
+          "ru": "Для тебя тропа без платы. Один раз. Не говори никому, где она."
         }
       },
       "territory": {
