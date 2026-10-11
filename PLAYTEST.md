@@ -31,6 +31,13 @@ Pump is only there during a flood, and it spends materials and power. Quarantine
 - Pulling down a room that makes something you are about to run out of asks you to confirm, and names what stops.
 - Some week between 11 and 16, three bills arrive at once. Materials can cover two of them. The third one lands.
 
+## What's new
+
+- Network. The Network button opens the tunnel map. From a neighbor you can trade, and the Directorate moves squads, sends demands, and can take a station. The first station they take is one of the two neutral stops beside their squad, and it is not the same every game.
+- Checks. Some dawn cards are a roll: two dice plus a resident's skill. A white check can be tried again once the card's requirement is met. A red check is a single roll. You pick who goes. When the skill is tied, a named Coney resident is offered first.
+- The Coney cast. Five residents have names, skills, and a dossier: Old Man Coney, Salty Maggie, Bait, Barnum, and Sylvia the Mermaid. Open a person from the People panel.
+- Menu and saves. The game opens on Continue, New game, Settings, and Credits. Settings cover the master, music, and effect volumes, fullscreen or a window, the interface scale, and reduced motion. During a game, Menu has Save and Load. Each week also saves on its own.
+
 ## What this build is not
 
-No network map, no bunker scene, and no ending beyond the week-40 clock, a revolt, or the yard emptying. Pinch or scroll to look closer. The station is drawn for a wide landscape frame.
+No bunker scene, and no ending beyond the week-40 clock, a revolt, or the yard emptying. Pinch or scroll to look closer. The station is drawn for a wide landscape frame.
