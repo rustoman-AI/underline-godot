@@ -840,6 +840,8 @@
   "Rare": "Редко",
   "Often": "Часто",
   "Room sounds": "Звуки комнат",
+  "Fewer audio cues": "Меньше звуковых сигналов",
+  "No hover ticks or drips. Room sounds only while a room is open.": "Без щелчков при наведении и капель. Звуки комнат только при открытой комнате.",
   "Every week": "Каждую неделю",
   "Every 2 weeks": "Раз в 2 недели",
   "Plays once a radio room is built.": "Включается, когда построена радиорубка.",

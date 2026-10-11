@@ -19,9 +19,10 @@ const DRIP := "res://assets/audio/drip.ogg"
 const RADIO_CUE := "res://assets/audio/radio.ogg"
 const ROOM_DIR := "res://assets/audio/rooms"
 # Seconds between drips for each Settings.drips mode.
-const DRIP_GAPS := {"rare": Vector2(14.0, 34.0), "often": Vector2(3.0, 9.0)}
-const ROOM_DB_HOVER := -20.0
-const ROOM_DB_OPEN := -13.0
+const DRIP_GAPS := {"rare": Vector2(45.0, 100.0), "often": Vector2(12.0, 30.0)}
+const ROOM_DB_HOVER := -16.0
+const ROOM_DB_OPEN := -6.0
+const HOVER_DB := -9.0
 const SILENT_DB := -60.0
 
 static var host: Node
@@ -60,6 +61,8 @@ static func boot(tree_host: Node) -> void:
 		player.stream = stream
 		player.bus = "SFX"
 		player.name = "Sfx" + str(cue)
+		if cue == "hover":
+			player.volume_db = HOVER_DB
 		host.add_child(player)
 		players[cue] = player
 	ambient = _loop_player(AMBIENT, "Ambient")
@@ -92,8 +95,10 @@ static func boot(tree_host: Node) -> void:
 static func play(cue: String) -> void:
 	if cue == "" or not players.has(cue):
 		return
+	if cue == "hover" and Settings.quiet_cues:
+		return
 	var now := Time.get_ticks_msec()
-	var gap := 80 if cue == "hover" else 35
+	var gap := 160 if cue == "hover" else 35
 	if now - int(last_ms.get(cue, 0)) < gap:
 		return
 	last_ms[cue] = now
@@ -126,7 +131,7 @@ static func schedule_drip() -> void:
 		return
 	drip_timer.stop()
 	Settings.load_file()
-	if not DRIP_GAPS.has(Settings.drips) or ambient == null or not ambient.playing:
+	if Settings.quiet_cues or not DRIP_GAPS.has(Settings.drips) or ambient == null or not ambient.playing:
 		return
 	var gap: Vector2 = DRIP_GAPS[Settings.drips]
 	drip_timer.start(rng.randf_range(gap.x, gap.y))
@@ -136,7 +141,7 @@ static func _drip_due() -> void:
 	if ambient == null or not ambient.playing:
 		return
 	drip.pitch_scale = rng.randf_range(0.75, 1.3)
-	drip.volume_db = rng.randf_range(-22.0, -14.0)
+	drip.volume_db = rng.randf_range(-24.0, -16.0)
 	drip.play()
 	schedule_drip()
 
@@ -146,7 +151,7 @@ static func room(type: String, open: bool) -> void:
 	if room_player == null:
 		return
 	Settings.load_file()
-	if not Settings.room_sounds:
+	if not Settings.room_sounds or (Settings.quiet_cues and not open):
 		type = ""
 	var stream := _room_stream(type)
 	if stream == null:
@@ -161,7 +166,8 @@ static func room(type: String, open: bool) -> void:
 	room_tween = host.create_tween()
 	if type != room_now:
 		if room_player.playing:
-			room_tween.tween_property(room_player, "volume_db", SILENT_DB, 0.18)
+			var out := 0.7 if type == "" else 0.3
+			room_tween.tween_property(room_player, "volume_db", SILENT_DB, out).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
 		room_tween.tween_callback(_swap_room.bind(type, stream))
 	room_now = type
 	if type != "":

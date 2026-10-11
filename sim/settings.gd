@@ -12,6 +12,8 @@ static var sfx := 0.8
 static var radio := 0.8
 static var drips := "rare"
 static var room_sounds := true
+## No hover ticks or drips, and room loops only while a room panel is open.
+static var quiet_cues := false
 static var radio_on := true
 ## Weeks between cable radio items once the station has a radio room.
 static var radio_every := 1
@@ -40,6 +42,7 @@ static func load_file() -> void:
 	if not DRIP_MODES.has(drips):
 		drips = "rare"
 	room_sounds = bool(cfg.get_value("audio", "room_sounds", room_sounds))
+	quiet_cues = bool(cfg.get_value("audio", "quiet_cues", quiet_cues))
 	radio_on = bool(cfg.get_value("radio", "on", radio_on))
 	radio_every = clampi(int(cfg.get_value("radio", "every_weeks", radio_every)), 1, 4)
 	language = str(cfg.get_value("game", "language", ""))
@@ -57,6 +60,7 @@ static func save() -> void:
 	cfg.set_value("audio", "radio", radio)
 	cfg.set_value("audio", "drips", drips)
 	cfg.set_value("audio", "room_sounds", room_sounds)
+	cfg.set_value("audio", "quiet_cues", quiet_cues)
 	cfg.set_value("radio", "on", radio_on)
 	cfg.set_value("radio", "every_weeks", radio_every)
 	cfg.set_value("game", "language", language)

@@ -30,7 +30,7 @@ func _init() -> void:
 	for key in rooms:
 		rng.seed = hash(key)
 		var cb: Callable = rooms[key]
-		_write("room_" + str(key), _loop(cb.call(8), 0.7))
+		_write("room_" + str(key), _loop(cb.call(12), 0.7))
 	quit()
 
 
@@ -45,18 +45,21 @@ func _ambient(seconds: int) -> PackedFloat32Array:
 	return src
 
 
+## A soft drop into a puddle: mostly splash noise with a short low plink, so it never reads as a beep.
 func _drip() -> PackedFloat32Array:
-	var n := int(RATE * 0.35)
+	var n := int(RATE * 0.4)
 	var out := _silence(n)
 	var phase := 0.0
 	var splash := 0.0
+	var tail := 0.0
 	for k in n:
 		var t := float(k) / float(RATE)
-		var freq := 640.0 + 760.0 * (1.0 - exp(-t / 0.03))
+		var freq := 380.0 + 320.0 * (1.0 - exp(-t / 0.02))
 		phase += TAU * freq / float(RATE)
-		var env := exp(-t / 0.028) * minf(1.0, t / 0.002)
-		splash += (rng.randf_range(-1.0, 1.0) - splash) * 0.3
-		out[k] = sin(phase) * env * 0.8 + splash * exp(-t / 0.012) * 0.25
+		var env := exp(-t / 0.014) * minf(1.0, t / 0.004)
+		splash += (rng.randf_range(-1.0, 1.0) - splash) * 0.22
+		tail += (splash - tail) * 0.08
+		out[k] = sin(phase) * env * 0.35 + splash * exp(-t / 0.02) * 0.5 + tail * exp(-t / 0.12) * 0.6
 	return out
 
 
@@ -79,6 +82,7 @@ func _radio_cue() -> PackedFloat32Array:
 	return out
 
 
+## Grow room: AC compressor and fan under a steady trickle, a hose spraying now and then, bubbling trays.
 func _hydroponics(seconds: int) -> PackedFloat32Array:
 	var src := _silence(RATE * seconds + FADE)
 	var fan := 0.0
@@ -92,13 +96,30 @@ func _hydroponics(seconds: int) -> PackedFloat32Array:
 		fan += (white - fan) * 0.05
 		hp_lp += (white - hp_lp) * 0.08
 		band += ((white - hp_lp) - band) * 0.45
-		if i % 441 == 0:
-			gate_to = rng.randf_range(0.2, 1.0)
-		gate += (gate_to - gate) * 0.004
-		src[i] = fan * 0.9 + band * gate * 0.35 + sin(TAU * 120.0 * t) * 0.02
+		if i % 220 == 0:
+			gate_to = rng.randf_range(0.35, 1.0)
+		gate += (gate_to - gate) * 0.01
+		var compressor := sin(TAU * 60.0 * t) * 0.05 + sin(TAU * 120.4 * t) * 0.035 + sin(TAU * 180.0 * t) * 0.012
+		src[i] = fan * 0.7 + band * gate * 0.3 + compressor
+	var at := rng.randi_range(0, RATE)
+	while at < src.size() - RATE * 2:
+		_hose(src, at, rng.randf_range(1.2, 2.2), rng.randf_range(0.18, 0.28))
+		at += rng.randi_range(RATE * 3, RATE * 6)
 	for _b in seconds * 3:
 		_bubble(src, rng.randi_range(0, src.size() - RATE), rng.randf_range(260.0, 520.0), rng.randf_range(0.04, 0.1))
 	return src
+
+
+func _hose(src: PackedFloat32Array, at: int, seconds: float, gain: float) -> void:
+	var length := int(RATE * seconds)
+	var lp := 0.0
+	for k in length:
+		var t := float(k) / float(RATE)
+		var white := rng.randf_range(-1.0, 1.0)
+		lp += (white - lp) * 0.5
+		var env := minf(1.0, t / 0.12) * minf(1.0, (seconds - t) / 0.3)
+		var flutter := 0.8 + 0.2 * sin(TAU * 9.0 * t + rng.randf() * 0.3)
+		src[at + k] += (white - lp * 0.6) * env * flutter * gain
 
 
 func _bubble(src: PackedFloat32Array, at: int, base: float, gain: float) -> void:
@@ -110,54 +131,93 @@ func _bubble(src: PackedFloat32Array, at: int, base: float, gain: float) -> void
 		src[at + k] += sin(phase) * exp(-t / 0.025) * gain
 
 
+## Machine shop: a lathe motor that spins up and down, a belt thumping unevenly, filing, a dull clank now and then.
 func _workshop(seconds: int) -> PackedFloat32Array:
 	var src := _silence(RATE * seconds + FADE)
 	var rumble := 0.0
+	var phase := 0.0
 	for i in src.size():
 		var t := float(i) / float(RATE)
 		rumble += (rng.randf_range(-1.0, 1.0) - rumble) * 0.03
-		var wobble := 1.0 + 0.02 * sin(TAU * 0.7 * t)
-		var whine := sin(TAU * 182.0 * wobble * t) * 0.06 + sin(TAU * 364.0 * wobble * t) * 0.03
-		src[i] = rumble * 0.8 + whine * (0.6 + 0.4 * sin(TAU * 0.25 * t))
-	var at := rng.randi_range(RATE / 4, RATE)
+		var spin := 0.5 - 0.5 * cos(TAU * t / float(seconds))
+		phase += TAU * (140.0 + 60.0 * spin) / float(RATE)
+		var whine := sin(phase) * 0.05 + sin(phase * 2.0) * 0.03 + sin(phase * 3.0) * 0.012
+		src[i] = rumble * 0.8 + whine * (0.4 + 0.6 * spin)
+	var at := rng.randi_range(0, RATE / 2)
 	while at < src.size() - RATE:
-		_clank(src, at, rng.randf_range(0.25, 0.55))
-		at += rng.randi_range(int(RATE * 0.9), int(RATE * 2.6))
+		_thump(src, at, rng.randf_range(0.25, 0.4))
+		at += rng.randi_range(int(RATE * 0.38), int(RATE * 0.62))
+	at = rng.randi_range(RATE, RATE * 2)
+	while at < src.size() - RATE * 2:
+		_file(src, at, rng.randi_range(4, 8))
+		at += rng.randi_range(RATE * 3, RATE * 5)
+	at = rng.randi_range(RATE * 2, RATE * 3)
+	while at < src.size() - RATE:
+		_clank(src, at, rng.randf_range(0.15, 0.3))
+		at += rng.randi_range(RATE * 2, RATE * 4)
 	return src
 
 
+func _thump(src: PackedFloat32Array, at: int, gain: float) -> void:
+	var length := int(RATE * 0.12)
+	var lp := 0.0
+	for k in length:
+		var t := float(k) / float(RATE)
+		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.06
+		src[at + k] += (lp * 2.5 + sin(TAU * 70.0 * t) * 0.4) * exp(-t / 0.03) * gain
+
+
+func _file(src: PackedFloat32Array, at: int, strokes: int) -> void:
+	var stroke := int(RATE * 0.22)
+	var hp_lp := 0.0
+	for s in strokes:
+		for k in stroke:
+			var t := float(k) / float(stroke)
+			var white := rng.randf_range(-1.0, 1.0)
+			hp_lp += (white - hp_lp) * 0.3
+			src[at + s * stroke + k] += (white - hp_lp) * sin(PI * t) * 0.12
+
+
 func _clank(src: PackedFloat32Array, at: int, gain: float) -> void:
-	var partials := [820.0, 1340.0, 2210.0, 3170.0]
-	var length := int(RATE * 0.35)
+	var partials := [410.0, 690.0, 1150.0]
+	var length := int(RATE * 0.25)
 	var shift := rng.randf_range(0.85, 1.15)
 	for k in length:
 		var t := float(k) / float(RATE)
 		var v := 0.0
 		for j in partials.size():
-			v += sin(TAU * float(partials[j]) * shift * t) * exp(-t / (0.09 / float(j + 1)))
+			v += sin(TAU * float(partials[j]) * shift * t) * exp(-t / (0.05 / float(j + 1)))
 		src[at + k] += v * gain * 0.3
 
 
 func _generator(seconds: int) -> PackedFloat32Array:
 	var src := _silence(RATE * seconds + FADE)
 	var low := 0.0
+	var rattle := 0.0
 	for i in src.size():
 		var t := float(i) / float(RATE)
 		low += (rng.randf_range(-1.0, 1.0) - low) * 0.06
-		var chug := 0.55 + 0.45 * pow(0.5 + 0.5 * sin(TAU * 7.5 * t), 3.0)
-		var hum := sin(TAU * 55.0 * t) * 0.3 + sin(TAU * 110.0 * t) * 0.14 + sin(TAU * 165.0 * t) * 0.06
-		src[i] = hum + low * chug * 1.2
+		var chug := 0.55 + 0.45 * pow(0.5 + 0.5 * sin(TAU * 7.5 * t + 0.4 * sin(TAU * 0.5 * t)), 3.0)
+		var hum := sin(TAU * 50.0 * t) * 0.3 + sin(TAU * 100.0 * t) * 0.16 + sin(TAU * 150.0 * t) * 0.07 + sin(TAU * 200.0 * t) * 0.03
+		rattle += (rng.randf_range(-1.0, 1.0) - rattle) * 0.4
+		src[i] = hum * (0.9 + 0.1 * chug) + low * chug * 1.1 + rattle * chug * 0.04
 	return src
 
 
+## Two big extractor fans a little out of step, with blade beat and air rushing through the ducts.
 func _air_filter(seconds: int) -> PackedFloat32Array:
 	var src := _silence(RATE * seconds + FADE)
 	var lp := 0.0
+	var duct := 0.0
 	for i in src.size():
 		var t := float(i) / float(RATE)
-		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.22
-		var blade := 0.85 + 0.15 * sin(TAU * 22.0 * t)
-		src[i] = lp * blade + sin(TAU * 70.0 * t) * 0.05
+		var white := rng.randf_range(-1.0, 1.0)
+		lp += (white - lp) * 0.22
+		duct += (white - duct) * 0.04
+		var blade_a := 0.8 + 0.2 * sin(TAU * 22.0 * t)
+		var blade_b := 0.85 + 0.15 * sin(TAU * 23.5 * t)
+		var tone := sin(TAU * 88.0 * t) * 0.04 + sin(TAU * 94.0 * t) * 0.035 + sin(TAU * 176.0 * t) * 0.015
+		src[i] = lp * blade_a * 0.6 + duct * blade_b * 1.2 + tone
 	return src
 
 

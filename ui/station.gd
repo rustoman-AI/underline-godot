@@ -3921,7 +3921,7 @@ func _sync_room_sound() -> void:
 	if at_menu or showing_network or shot_mode:
 		Sound.room("", false)
 		return
-	var type := room_hover if room_hover != "" else room_open
+	var type := room_open if room_open != "" else room_hover
 	Sound.room(type, type == room_open)
 
 
@@ -6341,6 +6341,13 @@ func _fill_settings() -> void:
 	box.add_child(scales)
 	var motion := Copy.t("Reduce motion") + ": " + Copy.t("On" if Settings.reduce_motion else "Off")
 	box.add_child(_pick_button(motion, Settings.reduce_motion, _toggle_motion, 420.0))
+	var quiet := Copy.t("Fewer audio cues") + ": " + Copy.t("On" if Settings.quiet_cues else "Off")
+	box.add_child(_pick_button(quiet, Settings.quiet_cues, _toggle_quiet_cues, 420.0))
+	var quiet_hint := _label("No hover ticks or drips. Room sounds only while a room is open.", 14)
+	quiet_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quiet_hint.custom_minimum_size = Vector2(460, 0)
+	quiet_hint.add_theme_color_override("font_color", PAPER_MUTED)
+	box.add_child(quiet_hint)
 	on_paper = false
 	var back := _menu_choice("Back", _menu_back, false)
 	menu_settings.add_child(back)
@@ -6481,6 +6488,14 @@ func _pick_drips(mode: String) -> void:
 func _toggle_room_sounds() -> void:
 	Settings.room_sounds = not Settings.room_sounds
 	Settings.save()
+	_sync_room_sound()
+	_fill_settings()
+
+
+func _toggle_quiet_cues() -> void:
+	Settings.quiet_cues = not Settings.quiet_cues
+	Settings.save()
+	Sound.schedule_drip()
 	_sync_room_sound()
 	_fill_settings()
 
