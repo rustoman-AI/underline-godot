@@ -3554,25 +3554,6 @@ func _faction_mark(row: Dictionary, px: int) -> Control:
 	return plate
 
 
-## Leader portrait from assets/factions/<leader_id>; null when the file is not there.
-func _leader_face(row: Dictionary, px: int) -> Control:
-	var path := _art_file("res://assets/factions/%s.webp" % str(row.get("leader_id", "")))
-	if path == "":
-		return null
-	var tex := ArtPack.load_texture(path)
-	if tex == null:
-		return null
-	var face := TextureRect.new()
-	face.texture = tex
-	face.custom_minimum_size = Vector2(px, px)
-	face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	face.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return face
-
-
 const BAND_NAMES := {"hostile": "Hostile", "cold": "Cold", "wary": "Wary", "useful": "Useful", "pact": "Pact"}
 const DEAL_NAMES := {
 	"burn_papers": "Burn the papers", "the_list": "The list", "stay_down": "Stay below",
@@ -3612,15 +3593,12 @@ func _show_audience() -> void:
 	_open_card(_leader_text(row.get("leader", {})), false)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 12)
-	var face := _leader_face(row, 112)
-	if face != null:
-		top.add_child(face)
+	top.add_child(_faction_mark(row, 112))
 	var who := VBoxContainer.new()
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var named := HBoxContainer.new()
 	named.add_theme_constant_override("separation", 8)
-	named.add_child(_faction_mark(row, 24))
 	var title := _label("%s, %s" % [_leader_text(row.get("title", {})), _leader_text(row.get("name", {}))], 18, true)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL

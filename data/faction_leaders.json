@@ -13,136 +13,136 @@
       "id": "depot",
       "leader_id": "harlan_pike",
       "name": {"en": "The Depot", "ru": "Депо"},
-      "leader": {"en": "Harlan Pike", "ru": "Харлан Пайк"},
-      "title": {"en": "Senior Driver", "ru": "Старший машинист"},
-      "capital": "coney_yards",
+      "leader": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "title": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "capital": "southdepot",
       "start_opinion": 20,
-      "symbol": "res://assets/factions/depot_symbol.webp",
-      "color": "#B08D57",
-      "voice_note": "older yard boss, tired, not grand",
+      "symbol": "",
+      "color": "#B46B4D",
+      "voice_note": "TODO_REWRITE",
       "arrival": "radio_built_or_week_6",
       "holds": "burned_order_at_stillwell",
       "fear": "people_abandon_tunnels",
       "dirty_deal": {
         "id": "burn_papers",
         "flag": "buried_papers",
-        "en": "Burn one Papers clue. The workshop gains a tier. Digging goes faster. The truth shifts toward burial.",
-        "ru": "Сжечь одну улику из бумаг. Мастерская получает ярус. Копка быстрее. Правда смещается к «закопать».",
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE",
         "hope": -4,
         "opinion": {"depot": 25, "synod": -5, "exchange": -10}
       },
       "opening": {
-        "en": "Pike does not threaten you. He asks if Stillwell's boiler is still hot. He already knows the answer.",
-        "ru": "Пайк не угрожает. Он спрашивает, горяч ли ещё котёл в Стилвелле. Ответ он знает."
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE"
       }
     },
     {
       "id": "directorate",
       "leader_id": "vess_halloran",
       "name": {"en": "Iron Directorate", "ru": "Железная Дирекция"},
-      "leader": {"en": "Vess Halloran", "ru": "Весс Хэллоран"},
-      "title": {"en": "Traffic Chief", "ru": "Начальник движения"},
-      "capital": "grand_central",
+      "leader": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "title": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "capital": "northgate",
       "start_opinion": 0,
-      "symbol": "res://assets/factions/directorate_symbol.webp",
-      "color": "#D9D3C5",
-      "voice_note": "calm dispatcher, no rant, schedules as morality",
+      "symbol": "",
+      "color": "#B86972",
+      "voice_note": "TODO_REWRITE",
       "arrival": "directorate_intent_or_food_critical",
       "holds": "bunker_admission_lists",
       "fear": "the_schedule_stops_being_feared",
       "dirty_deal": {
         "id": "the_list",
         "flag": "collaborator",
-        "en": "Enact curfew and hand over one named person. A filter tier and a Directorate squad for eight weeks. This stain does not wash off.",
-        "ru": "Ввести комендантский час и выдать одного человека по имени. Ярус фильтра и отряд Дирекции на восемь недель. Это пятно не смывается.",
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE",
         "hope": -8,
         "discontent": -6,
         "opinion": {"directorate": 30, "depot": -25, "synod": -15, "black_flag": 5}
       },
       "opening": {
-        "en": "Halloran is early. He says your food will fail on a week he can already name. The squad is free if the list is not.",
-        "ru": "Хэллоран пришёл раньше срока. Он называет неделю, когда кончится еда. Отряд бесплатный, если список — нет."
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE"
       }
     },
     {
       "id": "synod",
       "leader_id": "ione_kato",
       "name": {"en": "Synod of the Tunnel", "ru": "Синод тоннеля"},
-      "leader": {"en": "Mother Ione Kato", "ru": "Мать Айона Като"},
-      "title": {"en": "Preacher of the Last Train", "ru": "Проповедница последнего поезда"},
-      "capital": "cathedral_pkwy",
+      "leader": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "title": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "capital": "chapel",
       "start_opinion": 0,
-      "symbol": "res://assets/factions/synod_symbol.webp",
-      "color": "#C4A15A",
-      "voice_note": "warm, certain, never shrill",
+      "symbol": "",
+      "color": "#8CA2CF",
+      "voice_note": "TODO_REWRITE",
       "arrival": "first_season_or_week_10",
       "holds": "surface_recording_of_wind",
       "fear": "the_surface_is_empty_not_damned",
       "dirty_deal": {
         "id": "stay_down",
         "flag": "stayed_down",
-        "en": "No surface expeditions for eight weeks. Hope rises. Her medic stays. Exodus gets more expensive.",
-        "ru": "Восемь недель без выходов на поверхность. Надежда растёт. Её санитар остаётся. Исход становится дороже.",
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE",
         "hope": 12,
         "opinion": {"synod": 30, "depot": -10, "directorate": 5}
       },
       "opening": {
-        "en": "Kato brings soup and a rule. She says the next person you send up is a person you have already buried.",
-        "ru": "Като приносит суп и правило. Она говорит: следующий, кого вы пошлёте наверх, уже похоронен."
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE"
       }
     },
     {
       "id": "exchange",
       "leader_id": "idris_pell",
       "name": {"en": "Free Exchange", "ru": "Свободная Биржа"},
-      "leader": {"en": "Idris Pell", "ru": "Идрис Пелл"},
-      "title": {"en": "Voice of the Rate Council", "ru": "Голос совета ставки"},
-      "capital": "wall_st",
+      "leader": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "title": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "capital": "trampark",
       "start_opinion": 0,
-      "symbol": "res://assets/factions/exchange_symbol.webp",
-      "color": "#8C6A4A",
-      "voice_note": "charming, never the one who decides",
+      "symbol": "",
+      "color": "#77A993",
+      "voice_note": "TODO_REWRITE",
       "arrival": "first_caravan",
       "holds": "papers_bought_twice",
       "fear": "the_truth_becomes_free",
       "dirty_deal": {
         "id": "open_books",
         "flag": "open_books",
-        "en": "They see your stores. You gain a large food shipment and a price cut. They can feed a station's need before you do.",
-        "ru": "Они видят ваши склады. Большая поставка еды и скидка. Они смогут закрыть нужду чужой станции раньше вас.",
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE",
         "food": 40,
         "opinion": {"exchange": 25, "directorate": -5, "black_flag": -10}
       },
       "opening": {
-        "en": "Pell apologizes for the seven who did not come. He is only passing on a price. The price is your books.",
-        "ru": "Пелл извиняется за семерых, которые не приехали. Он всего лишь передаёт цену. Цена — ваши книги."
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE"
       }
     },
     {
       "id": "black_flag",
       "leader_id": "nessa_bird",
       "name": {"en": "Black Flag", "ru": "Чёрный флаг"},
-      "leader": {"en": "Nessa Bird", "ru": "Несса Бёрд"},
-      "title": {"en": "Toll captain", "ru": "Хозяйка пошлины"},
+      "leader": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
+      "title": {"en": "TODO_REWRITE", "ru": "TODO_REWRITE"},
       "capital": null,
       "start_opinion": -10,
-      "symbol": "res://assets/factions/black_flag_symbol.webp",
-      "color": "#C7B15A",
-      "voice_note": "dry, close to the mic, not a pirate",
+      "symbol": "",
+      "color": "#B5ABA0",
+      "voice_note": "TODO_REWRITE",
       "arrival": "first_sealed_tunnel",
       "holds": "path_to_quarantine_bunker",
       "fear": "becoming_a_legal_tax",
       "dirty_deal": {
         "id": "lantern_toll",
         "flag": "lantern_toll",
-        "en": "Eight food now, or one volunteer for four weeks. She opens the flooded way toward the military bunker once. Below zero opinion, the way is a lie.",
-        "ru": "Восемь еды сейчас или один доброволец на четыре недели. Один раз открывает затопленный ход к военному бункеру. При вражде ход — ложь.",
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE",
         "food": -8,
         "opinion": {"black_flag": 20, "directorate": -10, "depot": -5}
       },
       "opening": {
-        "en": "Bird does not ask to come in. She says the sealed tunnel already has her lantern in it, and your scouts will find it the expensive way.",
-        "ru": "Бёрд не просится внутрь. Она говорит: в запечатанном тоннеле уже висит её фонарь, и разведчики найдут его дорогой ценой."
+        "en": "TODO_REWRITE",
+        "ru": "TODO_REWRITE"
       }
     }
   ]
