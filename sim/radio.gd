@@ -2,9 +2,10 @@ class_name Radio
 extends RefCounted
 
 ## Underground cable radio. Items come from data/radio.json in a shuffled bag, so none repeats until all have played.
+## An item is voiced when assets/audio/vo/radio_<id>_<lang>.ogg exists.
 
 const DATA := "res://data/radio.json"
-const VOICE_DIR := "res://assets/voice/radio"
+const NO_TRANSCRIPT := "A bulletin crackles down the cable."
 
 static var items: Array = []
 static var bag: Array = []
@@ -49,23 +50,16 @@ static func by_id(id: String) -> Dictionary:
 
 static func text(item: Dictionary) -> String:
 	var pack = item.get("text", "")
+	var out := str(pack)
 	if pack is Dictionary:
 		var lang := "ru" if Copy.ru() else "en"
-		if str(pack.get(lang, "")) != "":
-			return str(pack[lang])
-		return str(pack.get("en", ""))
-	return str(pack)
+		out = str(pack.get(lang, ""))
+		if out == "":
+			out = str(pack.get("en", ""))
+	if out == "":
+		return Copy.t(NO_TRANSCRIPT)
+	return out
 
 
-static func voice_path(item: Dictionary) -> String:
-	var lang := "ru" if Copy.ru() else "en"
-	var pack = item.get("voice", {})
-	if pack is Dictionary and str(pack.get(lang, "")) != "":
-		return str(pack[lang])
-	return "%s/%s_%s.ogg" % [VOICE_DIR, str(item.get("id", "")), lang]
-
-
-static func wait_seconds() -> float:
-	Settings.load_file()
-	load_all()
-	return rng.randf_range(Settings.radio_min, maxf(Settings.radio_min, Settings.radio_max))
+static func voice_base(item: Dictionary) -> String:
+	return Voice.radio_base(str(item.get("id", "")))

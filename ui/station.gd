@@ -150,10 +150,13 @@ var dossier_tab := "profile"
 var journal_filter := ""
 var room_open := ""
 var room_hover := ""
-var radio_wait := -1.0
 var radio_panel: PanelContainer
 var radio_text: Label
 var radio_tween: Tween
+var vo_pill: PanelContainer
+var vo_label: Label
+var vo_bars: Control
+var vo_dossier := ""
 
 
 func _ready() -> void:
@@ -234,6 +237,52 @@ func _ready() -> void:
 		await _lore_shots()
 	elif _want_drawer():
 		await _drawer_shots()
+	elif _want_vo():
+		await _vo_shots()
+
+
+func _want_vo() -> bool:
+	return OS.get_cmdline_user_args().has("--vo")
+
+
+func _vo_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_refresh()
+	_open_dossier("inez")
+	_play_story("inez")
+	await get_tree().create_timer(0.4).timeout
+	_tick_voice()
+	await _frame()
+	_save("vo_dossier_playing")
+	_stop_story("inez")
+	await _frame()
+	await _frame()
+	_save("vo_dossier_replay")
+	_close_card()
+	_play_story("mara", false)
+	await get_tree().create_timer(0.4).timeout
+	_tick_voice()
+	await _frame()
+	_save("vo_pill")
+	_play_radio(Radio.by_id("news_001"))
+	await get_tree().create_timer(0.4).timeout
+	_tick_voice()
+	await _frame()
+	_save("vo_radio")
+	_hide_radio()
+	Voice.stop()
+	_open_settings(true)
+	await _frame()
+	await _frame()
+	_save("vo_settings")
+	get_tree().quit()
 
 
 func _want_lore() -> bool:
@@ -564,8 +613,9 @@ func _who_row(who: String) -> void:
 	card_body.add_child(row)
 
 
-func _process(delta: float) -> void:
-	_tick_radio(delta)
+func _process(_delta: float) -> void:
+	_tick_radio()
+	_tick_voice()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -2555,6 +2605,7 @@ func _enact(law_id: String) -> void:
 		return
 	_refresh()
 	_show_laws()
+	_resolve_voice(Voice.system_base("law", law_id), Copy.t("Station"))
 
 
 func _law_blurb(defin: Dictionary) -> String:
@@ -2612,30 +2663,105 @@ func _toast(text: String) -> void:
 			toast_label.visible = false)
 
 
-func _tick_radio(delta: float) -> void:
+## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.
+func _tick_radio() -> void:
 	if shot_mode or at_menu or game == null or game.over != "" or not Settings.radio_on:
+		return
+	if game.week - game.radio_week < Settings.radio_every or not game.has_radio_room():
 		return
 	if hub_layer != null and hub_layer.visible:
 		return
-	if radio_wait < 0.0:
-		radio_wait = Radio.wait_seconds()
+	if (dim != null and dim.visible) or guide_step >= 0 or Voice.playing():
 		return
-	radio_wait -= delta
-	if radio_wait > 0.0:
-		return
-	radio_wait = Radio.wait_seconds()
+	game.radio_week = game.week
 	_play_radio(Radio.next())
 
 
 func _play_radio(item: Dictionary) -> void:
 	if item.is_empty():
 		return
-	var voiced := Sound.radio(Radio.voice_path(item))
+	var lead := Sound.radio_static()
+	var length := Voice.play(Radio.voice_base(item), "radio", Copy.t("Cable radio"), lead * 0.6)
 	game.journal_note("radio", {"id": str(item.get("id", ""))})
 	var hold := 10.0
-	if voiced:
-		hold = maxf(hold, Sound.voice_seconds() + 1.5)
+	if length > 0.0:
+		hold = maxf(hold, lead * 0.6 + length + 1.5)
 	_show_radio(Radio.text(item), hold)
+
+
+func _tick_voice() -> void:
+	var on := Voice.playing() and Voice.now_kind != "radio"
+	if vo_dossier != "" and not Voice.playing(Voice.story_base(vo_dossier)):
+		var person_id := vo_dossier
+		vo_dossier = ""
+		if deck.top_token() == "dossier" and dim != null and dim.visible:
+			_show_dossier(person_id)
+	if vo_pill == null:
+		if not on:
+			return
+		_build_vo_pill()
+	if not on:
+		vo_pill.visible = false
+		return
+	vo_label.text = Voice.now_caption
+	vo_pill.visible = true
+	vo_pill.reset_size()
+	var bottom := size.y - chrome_bottom - 8.0
+	if radio_panel != null and radio_panel.visible:
+		bottom = radio_panel.position.y - 8.0
+	vo_pill.position = Vector2(16.0, bottom - vo_pill.get_combined_minimum_size().y)
+	vo_bars.queue_redraw()
+
+
+func _build_vo_pill() -> void:
+	vo_pill = PanelContainer.new()
+	vo_pill.z_index = 25
+	vo_pill.mouse_filter = Control.MOUSE_FILTER_STOP
+	vo_pill.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	vo_pill.tooltip_text = Copy.t("Click to stop the voice")
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.07, 0.06, 0.05, 0.94)
+	plate.border_color = Color("e2a63a")
+	plate.set_border_width_all(1)
+	plate.set_content_margin_all(8)
+	plate.content_margin_left = 12
+	plate.content_margin_right = 14
+	plate.set_corner_radius_all(14)
+	vo_pill.add_theme_stylebox_override("panel", plate)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vo_bars = Control.new()
+	vo_bars.custom_minimum_size = Vector2(22, 18)
+	vo_bars.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	vo_bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vo_bars.draw.connect(func() -> void:
+		var t := Time.get_ticks_msec() / 1000.0
+		for i in 4:
+			var h := 4.0 + 14.0 * (0.5 + 0.5 * sin(t * (5.0 + i * 1.7) + i * 1.3))
+			if Settings.reduced():
+				h = 10.0
+			vo_bars.draw_rect(Rect2(i * 6.0, 18.0 - h, 4.0, h), Color("e2a63a")))
+	row.add_child(vo_bars)
+	var was := on_paper
+	on_paper = false
+	vo_label = _label("", 15)
+	vo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	on_paper = was
+	row.add_child(vo_label)
+	vo_pill.add_child(row)
+	vo_pill.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			Voice.stop()
+			vo_pill.visible = false)
+	add_child(vo_pill)
+
+
+## Plays the line for a resolved card right after it lands, when the file exists.
+func _resolve_voice(base: String, caption: String) -> void:
+	if base == "":
+		return
+	Voice.play(base, "event", caption)
 
 
 func _show_radio(text: String, hold: float) -> void:
@@ -2689,6 +2815,8 @@ func _show_radio(text: String, hold: float) -> void:
 
 
 func _hide_radio() -> void:
+	if Voice.playing() and Voice.now_kind == "radio":
+		Voice.stop()
 	if radio_tween != null:
 		radio_tween.kill()
 	if radio_panel != null:
@@ -3289,6 +3417,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if check_flash:
 		footer.text = _check_result_line()
 		footer.visible = footer.text != ""
+	_resolve_voice(Voice.event_base(event_id, choice_id), title)
 	_advance_dawn(before)
 
 
@@ -3722,6 +3851,7 @@ func _do_confirm(action: Dictionary) -> void:
 		Sound.play("confirm")
 	_close_card()
 	_refresh()
+	_resolve_voice(Voice.system_base(kind, str(action.get("law", ""))), Copy.t("Station"))
 
 
 func _claim(priority: int, token: String, restore: Callable) -> bool:
@@ -4610,7 +4740,41 @@ func _show_person(person_id: String) -> void:
 
 func _open_dossier(person_id: String) -> void:
 	dossier_tab = "profile"
+	var base := _story_base(person_id)
+	if Voice.has(base) and not game.vo_heard.has(base) and not shot_mode:
+		game.vo_heard[base] = true
+		_play_story(person_id, false)
 	_show_dossier(person_id)
+
+
+func _story_base(person_id: String) -> String:
+	if not game.people.has(person_id):
+		return ""
+	return Voice.story_base(game.cast_id_of(game.people[person_id]))
+
+
+func _play_story(person_id: String, redraw := true) -> void:
+	var caption := Copy.t("%s: story") % _resident_name(game.people[person_id])
+	if Voice.play(_story_base(person_id), "story", caption) > 0.0:
+		vo_dossier = person_id
+	if redraw:
+		_show_dossier(person_id)
+
+
+func _stop_story(person_id: String) -> void:
+	Voice.stop()
+	vo_dossier = ""
+	_show_dossier(person_id)
+
+
+func _story_buttons(person_id: String) -> void:
+	var base := _story_base(person_id)
+	if not Voice.has(base):
+		return
+	if Voice.playing(base):
+		card_body.add_child(_button("Stop story", _stop_story.bind(person_id), "click"))
+	else:
+		card_body.add_child(_button("Replay story", _play_story.bind(person_id), "click"))
 
 
 func _pick_dossier_tab(person_id: String, tab: String) -> void:
@@ -4691,6 +4855,7 @@ func _show_dossier(person_id: String) -> void:
 	if title != "":
 		card_body.add_child(_label(title, 16))
 	card_body.add_child(_label(_check_line(person), 15))
+	_story_buttons(person_id)
 	var lore_id := game.cast_id_of(person)
 	var has_lore := Lore.has(lore_id)
 	if has_lore:
@@ -5899,6 +6064,8 @@ func _polish_shots() -> void:
 func _show_main_menu() -> void:
 	at_menu = true
 	settings_from_game = false
+	Voice.stop()
+	_hide_radio()
 	_close_card()
 	_ensure_menu()
 	_fill_menu_root()
@@ -6145,12 +6312,14 @@ func _fill_settings() -> void:
 	sound.add_child(_label("Cable radio", 18, true))
 	var radios := HBoxContainer.new()
 	radios.add_theme_constant_override("separation", 8)
-	radios.add_child(_pick_button("Off", not Settings.radio_on, _pick_radio.bind(0.0, 0.0)))
-	for span in [[45.0, 75.0], [90.0, 150.0]]:
-		var on := Settings.radio_on and absf(Settings.radio_min - float(span[0])) < 0.5 and absf(Settings.radio_max - float(span[1])) < 0.5
-		var caption := Copy.t("%d-%d s") % [int(span[0]), int(span[1])]
-		radios.add_child(_pick_button(caption, on, _pick_radio.bind(float(span[0]), float(span[1])), 130.0))
+	radios.add_child(_pick_button("Off", not Settings.radio_on, _pick_radio.bind(0)))
+	for pair in [[1, "Every week"], [2, "Every 2 weeks"]]:
+		var on := Settings.radio_on and Settings.radio_every == int(pair[0])
+		radios.add_child(_pick_button(str(pair[1]), on, _pick_radio.bind(int(pair[0])), 170.0))
 	sound.add_child(radios)
+	var radio_hint := _label("Plays once a radio room is built.", 14)
+	radio_hint.add_theme_color_override("font_color", PAPER_MUTED)
+	sound.add_child(radio_hint)
 	box.add_child(_label("Language", 18, true))
 	var langs := HBoxContainer.new()
 	langs.add_theme_constant_override("separation", 8)
@@ -6316,13 +6485,11 @@ func _toggle_room_sounds() -> void:
 	_fill_settings()
 
 
-func _pick_radio(low: float, high: float) -> void:
-	Settings.radio_on = high > 0.0
+func _pick_radio(weeks: int) -> void:
+	Settings.radio_on = weeks > 0
 	if Settings.radio_on:
-		Settings.radio_min = low
-		Settings.radio_max = high
+		Settings.radio_every = weeks
 	Settings.save()
-	radio_wait = -1.0
 	if not Settings.radio_on:
 		_hide_radio()
 	_fill_settings()

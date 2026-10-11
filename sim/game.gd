@@ -55,6 +55,9 @@ var next_person := 0
 var demand_seq := 1
 var log: Array = []
 var journal: Array = []
+## Voice lines already heard this playthrough, keyed by line id.
+var vo_heard := {}
+var radio_week := 0
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -4975,6 +4978,13 @@ func _demand_open(fid: String) -> bool:
 	return false
 
 
+func has_radio_room() -> bool:
+	for room in rooms:
+		if room.type == "radio":
+			return true
+	return false
+
+
 func _has_radio() -> bool:
 	for room in rooms:
 		if room.type == "radio" and not room.offline and room.staff.size() >= 1:
@@ -5615,6 +5625,7 @@ const PERSIST := [
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
+	"vo_heard", "radio_week",
 ]
 
 

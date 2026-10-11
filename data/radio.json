@@ -1,5 +1,5 @@
 {
-  "_note": "Underground cable radio. Random pool, no repeats until the pool runs dry. Optional 'voice': {en, ru} paths; otherwise res://assets/voice/radio/<id>_<lang>.ogg is used when present. 'priority' is reserved for a later pass.",
+  "_note": "Underground cable radio, one item per week once a radio room is built. Random pool, no repeats until the pool runs dry. An item is voiced when res://assets/audio/vo/radio_<id>_<lang>.ogg exists; an empty text shows a generic caption. 'priority' is reserved for a later pass.",
   "items": [
     {"id": "flood_watch", "text": {"en": "Cable news, Stillwell relay. Water is up two rungs on the Culver ladder. Keep your pumps greased and your boots on.", "ru": "Кабельные новости, ретранслятор Стилуэлл. На лестнице у Калвер вода поднялась на две ступеньки. Смажьте насосы и не снимайте сапог."}},
     {"id": "trader_route", "text": {"en": "Traders report the Sea Beach tunnel clear as far as Eighth Avenue. Bring your own light. Bring someone else's too.", "ru": "Торговцы сообщают: туннель Си-Бич чист до Восьмой авеню. Берите свой фонарь. И чей-нибудь ещё."}},
@@ -16,6 +16,7 @@
     {"id": "mechanic", "text": {"en": "Mechanic's minute. A generator that coughs is hungry. A generator that sings is about to blow. Learn the difference.", "ru": "Минутка механика. Генератор, который кашляет, голоден. Генератор, который поёт, сейчас взорвётся. Научитесь различать."}},
     {"id": "poem", "text": {"en": "A listener sends a poem: 'The sun is a rumor. The rain is a rumor. The tunnel is true.' Thank you, listener. Please stop sending poems.", "ru": "Слушатель прислал стихи: «Солнце только слух. Дождь только слух. Правда одна: туннель». Спасибо, слушатель. Пожалуйста, больше не присылайте стихов."}},
     {"id": "knock_twice", "text": {"en": "Neutral stations remind all travelers: knock twice, show your hands, say your name. In that order.", "ru": "Нейтральные станции напоминают путникам: постучите дважды, покажите руки, назовите себя. Именно в таком порядке."}},
-    {"id": "gulls", "text": {"en": "The lookout at Coney reports gulls back on the pier. Bird keepers say that means fish. Pessimists say something died. Both may be right.", "ru": "Смотровая на Кони сообщает: чайки вернулись на пирс. Птичники говорят, что это к рыбе. Пессимисты говорят, что кто-то умер. Правы могут быть и те, и другие."}}
+    {"id": "gulls", "text": {"en": "The lookout at Coney reports gulls back on the pier. Bird keepers say that means fish. Pessimists say something died. Both may be right.", "ru": "Смотровая на Кони сообщает: чайки вернулись на пирс. Птичники говорят, что это к рыбе. Пессимисты говорят, что кто-то умер. Правы могут быть и те, и другие."}},
+    {"id": "news_001", "text": {"en": "", "ru": ""}}
   ]
 }

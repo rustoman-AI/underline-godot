@@ -36,6 +36,7 @@ static var room_now := ""
 static var room_streams := {}
 static var radio_cue: AudioStreamPlayer
 static var voice: AudioStreamPlayer
+static var voice_timer: Timer
 static var last_ms := {}
 static var rng := RandomNumberGenerator.new()
 
@@ -49,6 +50,7 @@ static func boot(tree_host: Node) -> void:
 	_ensure_bus("Music")
 	_ensure_bus("SFX")
 	_ensure_bus("Radio")
+	_ensure_bus("Voice", "SFX")
 	apply_buses()
 	for cue in CUES:
 		var stream := _stream(str(CUES[cue]))
@@ -73,6 +75,13 @@ static func boot(tree_host: Node) -> void:
 	voice.bus = "Radio"
 	voice.name = "Voice"
 	host.add_child(voice)
+	voice_timer = Timer.new()
+	voice_timer.one_shot = true
+	voice_timer.name = "VoiceTimer"
+	voice_timer.timeout.connect(func() -> void:
+		if voice.stream != null:
+			voice.play())
+	host.add_child(voice_timer)
 	drip_timer = Timer.new()
 	drip_timer.one_shot = true
 	drip_timer.name = "DripTimer"
@@ -183,25 +192,43 @@ static func _room_stream(type: String) -> AudioStream:
 	return stream
 
 
-## Static burst before a radio item. Returns true when a voice file started.
-static func radio(voice_path: String) -> bool:
-	if radio_cue != null:
-		radio_cue.play()
+## Static burst that opens a radio item. Returns its length so a voice can start under its tail.
+static func radio_static() -> float:
+	if radio_cue == null:
+		return 0.0
+	radio_cue.play()
+	return radio_cue.stream.get_length()
+
+
+## Plays a voice file on `bus` after `delay` seconds. Returns the line length, or 0 when nothing plays.
+static func voice_play(voice_path: String, bus: String, delay := 0.0) -> float:
 	if voice == null or voice_path == "" or not ResourceLoader.exists(voice_path):
-		return false
+		return 0.0
 	var stream := ResourceLoader.load(voice_path) as AudioStream
 	if stream == null:
-		return false
-	voice.stop()
-	voice.stream = stream
-	voice.play()
-	return true
-
-
-static func voice_seconds() -> float:
-	if voice == null or voice.stream == null or not voice.playing:
 		return 0.0
-	return voice.stream.get_length() - voice.get_playback_position()
+	voice_stop()
+	voice.stream = stream
+	voice.bus = bus
+	if delay > 0.0:
+		voice_timer.start(delay)
+	else:
+		voice.play()
+	return stream.get_length()
+
+
+static func voice_stop() -> void:
+	if voice == null:
+		return
+	voice_timer.stop()
+	voice.stop()
+	voice.stream = null
+
+
+static func voice_busy() -> bool:
+	if voice == null or voice.stream == null:
+		return false
+	return voice.playing or not voice_timer.is_stopped()
 
 
 static func apply_buses() -> void:
@@ -209,6 +236,7 @@ static func apply_buses() -> void:
 	_ensure_bus("Music")
 	_ensure_bus("SFX")
 	_ensure_bus("Radio")
+	_ensure_bus("Voice", "SFX")
 	_bus_db("Master", Settings.master)
 	_bus_db("Music", Settings.music)
 	_bus_db("SFX", Settings.sfx)
@@ -267,13 +295,13 @@ static func _stream(path: String) -> AudioStream:
 	return res as AudioStream
 
 
-static func _ensure_bus(bus_name: String) -> void:
+static func _ensure_bus(bus_name: String, send := "Master") -> void:
 	if AudioServer.get_bus_index(bus_name) >= 0:
 		return
 	AudioServer.add_bus()
 	var idx := AudioServer.bus_count - 1
 	AudioServer.set_bus_name(idx, bus_name)
-	AudioServer.set_bus_send(idx, "Master")
+	AudioServer.set_bus_send(idx, send)
 
 
 static func _bus_db(bus_name: String, linear: float) -> void:

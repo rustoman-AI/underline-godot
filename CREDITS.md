@@ -36,4 +36,4 @@ assets/audio/drone.ogg and assets/audio/ambient.ogg are original 60 second loops
 
 assets/audio/drip.ogg (one water drop, played at random by the game), assets/audio/radio.ogg (static burst before a cable radio item) and the room loops in assets/audio/rooms/ (8 second loops for each room type) are original sounds made for this game with tools/synth_audio.gd.
 
-Cable radio voiceover: drop res://assets/voice/radio/<id>_en.ogg or <id>_ru.ogg (ids in data/radio.json) and the game plays it with the text. None are recorded yet.
+Voiceover lives in assets/audio/vo/ (resident stories, cable radio, event and action lines), named as listed in assets/audio/vo/INDEX.md. The first pack covers the stories of Inez, Jonah and Mara and one radio bulletin, in English and Russian.

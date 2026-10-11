@@ -13,8 +13,8 @@ static var radio := 0.8
 static var drips := "rare"
 static var room_sounds := true
 static var radio_on := true
-static var radio_min := 45.0
-static var radio_max := 75.0
+## Weeks between cable radio items once the station has a radio room.
+static var radio_every := 1
 static var language := ""
 static var fullscreen := false
 static var ui_scale := 1.0
@@ -41,8 +41,7 @@ static func load_file() -> void:
 		drips = "rare"
 	room_sounds = bool(cfg.get_value("audio", "room_sounds", room_sounds))
 	radio_on = bool(cfg.get_value("radio", "on", radio_on))
-	radio_min = clampf(float(cfg.get_value("radio", "min_seconds", radio_min)), 10.0, 900.0)
-	radio_max = clampf(float(cfg.get_value("radio", "max_seconds", radio_max)), radio_min, 900.0)
+	radio_every = clampi(int(cfg.get_value("radio", "every_weeks", radio_every)), 1, 4)
 	language = str(cfg.get_value("game", "language", ""))
 	fullscreen = bool(cfg.get_value("game", "fullscreen", false))
 	ui_scale = clampf(float(cfg.get_value("game", "ui_scale", 1.0)), 0.75, 1.5)
@@ -59,8 +58,7 @@ static func save() -> void:
 	cfg.set_value("audio", "drips", drips)
 	cfg.set_value("audio", "room_sounds", room_sounds)
 	cfg.set_value("radio", "on", radio_on)
-	cfg.set_value("radio", "min_seconds", radio_min)
-	cfg.set_value("radio", "max_seconds", radio_max)
+	cfg.set_value("radio", "every_weeks", radio_every)
 	cfg.set_value("game", "language", language)
 	cfg.set_value("game", "fullscreen", fullscreen)
 	cfg.set_value("game", "ui_scale", ui_scale)
