@@ -3246,6 +3246,11 @@ func _room_type_name(type: String) -> String:
 	return type
 
 
+## rooms.json names upgrades by id ("drill_heads"); ru.json keys them by the spaced words.
+func _upgrade_name(id: String) -> String:
+	return Copy.t(id.replace("_", " "))
+
+
 func _station_name(sid: String) -> String:
 	if sid == "" or not game.stations.has(sid):
 		return ""
@@ -3604,7 +3609,7 @@ func _show_audience() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	named.add_child(title)
 	who.add_child(named)
-	var stand := _label(Copy.t("Opinion %s · %s") % [_signed(int(game.standing.get(fid, 0))), Copy.t(str(BAND_NAMES.get(game.standing_band(fid), "")))], 15)
+	var stand := _label(Copy.t("Regard %s · %s") % [_signed(int(game.standing.get(fid, 0))), Copy.t(str(BAND_NAMES.get(game.standing_band(fid), "")))], 15)
 	stand.add_theme_color_override("font_color", PAPER_MUTED)
 	who.add_child(stand)
 	top.add_child(who)
@@ -3678,20 +3683,20 @@ func _audience_terms(fid: String, deal: Dictionary) -> void:
 	for other in fx.standing:
 		parts.append("%s %s" % [_leader_text(game.leader(str(other)).get("name", {})), _signed(int(fx.standing[other]))])
 	if not parts.is_empty():
-		lines.append(Copy.t("Opinion: %s") % ", ".join(parts))
+		lines.append(Copy.t("Regard: %s") % ", ".join(parts))
 	if str(fx.hand_over) != "":
 		lines.append(Copy.t("Handed over: %s.") % _resident_name(game.people[str(fx.hand_over)]))
 	if str(fx.law) != "":
 		lines.append(Copy.t("Enacted %s.") % Copy.t(str(game.catalog.laws[str(fx.law)].name)))
 	if not fx.tier.is_empty():
-		lines.append(Copy.t("%s: %s, free.") % [_room_type_name(str(fx.tier.type)), Copy.t(str(fx.tier.name))])
+		lines.append(Copy.t("%s: %s, free.") % [_room_type_name(str(fx.tier.type)), _upgrade_name(str(fx.tier.name))])
 	if deal_id == "burn_papers":
 		if bool(fx.papers):
 			lines.append(Copy.t("One Papers clue destroyed (you hold %d).") % int(game.artifacts.get("papers", 0)))
 		else:
 			lines.append(Copy.t("No Papers clue found yet: only the mark is set."))
 	if bool(fx.toll_lost):
-		lines.append(Copy.t("Her opinion is %s, below zero: she takes the toll and gives nothing back.") % _signed(int(game.standing.get(fid, 0))))
+		lines.append(Copy.t("Her regard is %s, below zero: she takes the toll and gives nothing back.") % _signed(int(game.standing.get(fid, 0))))
 	if str(fx.flag) != "":
 		lines.append(Copy.t("Mark: %s.") % Copy.t(str(MARK_NAMES.get(str(fx.flag), fx.flag))))
 		if str(fx.flag) == "collaborator":
@@ -4880,7 +4885,7 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text.add_theme_constant_override("separation", 4)
-	var uname := str(info.get("name", "")).replace("_", " ")
+	var uname := _upgrade_name(str(info.get("name", "")))
 	if uname != "":
 		var title := _label(uname, 18, true)
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE

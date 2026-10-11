@@ -1726,7 +1726,7 @@ func _fill_visit(sid: String) -> void:
 	var relation := int(st.get("sympathy", 0))
 	if game.opinions.has(str(st.owner)):
 		relation = int(game.opinions[str(st.owner)])
-	_visit_body.add_child(_lab("%s: %d    %s: %d" % [Copy.t("Relation"), relation, Copy.t("Loyalty"), int(st.loyalty)], 15, false))
+	_visit_body.add_child(_lab("%s: %d    %s: %d" % [Copy.t("Opinion"), relation, Copy.t("Loyalty"), int(st.loyalty)], 15, false))
 	var trade := _trade_line(st)
 	if trade != "":
 		_visit_body.add_child(_lab(trade, 15, false))
