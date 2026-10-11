@@ -185,3 +185,14 @@ The passed files were copied byte for byte into `assets/factions/` as png (LFS) 
 **Card:** portrait 112 px left of the text when the file exists; symbol at 24 px before the title, letter plate on faction colour when it does not (synod, black flag). No build_factions_art.gd, generate_perfect_symbols.gd or pose generator was run.
 
 **Checks:** bot OK, no missing banners. RU `.tools/audience_shots.gd`: Halloran with face and dial, shown vs changed all match (Hope -8, Discontent -6, Directorate +30, Depot -25, Synod -15, Black Flag +5, Lila Voss handed over, curfew on, air filter charcoal, collaborator). Pike shows the wheel and no portrait. Screenshots in `shots/` (aud_halloran_terms, aud_pike, review_symbols, review_faces), not committed.
+## 11. factions_v3 portraits and symbols
+
+`factions_v3.zip` unpacked to `incoming-art/factions_v3/` (not committed). All ten files are 1408 px; portraits are colour photos, symbols are single colour on transparency.
+
+**Portraits.** New rule: reject only for a broken face, a second head or text on the picture; smiling or looking past the camera is fine. All five pass and replace the files in `assets/factions/`: Pike (cap, smiling at camera, engine cab), Halloran (dark coat, looking aside, cold), Kato (grey hair, broad smile, arched tunnel), Pell (scarf, laughing, looking aside), Bird (dark background, faint smile, looking aside). They are colour, not sepia like the resident portraits; under the new rule that is not a reason to reject.
+
+**Symbols.** The game still showed the old flat icons from the first pack (wheel, dial, scales; letters for Synod and Black Flag), so all five v3 symbols replace them: worn brake wheel, dial with one hand, open ring, bar over two tokens, torn pennant. The pennant and the bar-over-tokens are drawn small inside the canvas, so at 24 px they read but are smaller than the others.
+
+Files copied byte for byte (LFS), mipmaps on in the imports. No generator run. Godot was run only for import, the bot and the screenshot script (approved).
+
+**Checks:** bot OK, no missing banners. RU `.tools/audience_shots.gd`: Pike, Bird and Halloran cards with faces and symbols (`shots/aud_pike.png`, `aud_bird.png`, `aud_halloran.png`); Halloran's terms vs change still all match.
