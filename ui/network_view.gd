@@ -34,6 +34,10 @@ const ZOOM_SPAN := 3.5
 const PIN_SPRITE := {"depot": "depot", "directorate": "dir", "exchange": "exch", "synod": "synod"}
 const FLAG_ANCHOR := Vector2(0.176, 0.35)
 const FLAG_CLOTH := Vector2(0.62, 0.42)
+const PANORAMA_HUBS := ["northgate", "chapel", "trampark", "brickworks"]
+const HUB_MAX_H := 400.0
+## Where the crop window centres on the panorama, as a share of its height from the top.
+const HUB_FOCUS_Y := 0.55
 
 
 class Layer extends Control:
@@ -1657,7 +1661,7 @@ func _build_visit() -> void:
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_visit_body = VBoxContainer.new()
 	_visit_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_visit_body.add_theme_constant_override("separation", 8)
+	_visit_body.add_theme_constant_override("separation", 6)
 	scroll.add_child(_visit_body)
 	visit.add_child(scroll)
 	add_child(visit)
@@ -1708,22 +1712,29 @@ func _fill_visit(sid: String) -> void:
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		face.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if sid in ["northgate", "chapel", "trampark", "brickworks"]:
-			# Preserve the full narrative composition of the faction hub panoramas.
-			var ratio := float(hub.get_height()) / float(hub.get_width())
-			face.resized.connect(func(): face.custom_minimum_size.y = face.size.x * ratio)
+		if sid in PANORAMA_HUBS:
+			face.stretch_mode = TextureRect.STRETCH_SCALE
+			face.resized.connect(_crop_hub.bind(face, hub))
 		_visit_body.add_child(face)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
 	if host != null and host.has_method("_portrait_box"):
-		head.add_child(host._portrait_box(str(sid), 96))
+		head.add_child(host._portrait_box(str(sid), 64))
 	var quote := str(st.conflict) if str(st.conflict) != "" else str(st.who)
 	var words := _lab(quote, 18, true)
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(words)
 	_visit_body.add_child(head)
-	_visit_body.add_child(_lab(str(st.community), 22, true))
-	_visit_body.add_child(_lab(str(st.name), 15, false))
+	var named := HBoxContainer.new()
+	named.add_theme_constant_override("separation", 12)
+	var community := _lab(str(st.community), 22, true)
+	community.autowrap_mode = TextServer.AUTOWRAP_OFF
+	named.add_child(community)
+	var place := _lab(str(st.name), 15, false)
+	place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	place.size_flags_vertical = Control.SIZE_SHRINK_END
+	named.add_child(place)
+	_visit_body.add_child(named)
 	if str(st.who) != "":
 		_visit_body.add_child(_lab(str(st.who), 15, false))
 	_add_needs(st, _visit_body)
@@ -1741,6 +1752,24 @@ func _fill_visit(sid: String) -> void:
 	back.text = Copy.t("Back to map")
 	back.pressed.connect(close_visit)
 	_visit_body.add_child(back)
+
+
+## Cover-fit at full width, no taller than HUB_MAX_H; the cut is shared around HUB_FOCUS_Y.
+func _crop_hub(face: TextureRect, hub: Texture2D) -> void:
+	if face.size.x <= 0.0:
+		return
+	var w := float(hub.get_width())
+	var h := float(hub.get_height())
+	var shown := minf(face.size.x * h / w, HUB_MAX_H)
+	var region_h := minf(h, w * shown / face.size.x)
+	var top := clampf(h * HUB_FOCUS_Y - region_h * 0.5, 0.0, h - region_h)
+	var atlas := face.texture as AtlasTexture
+	if atlas == null:
+		atlas = AtlasTexture.new()
+		atlas.atlas = hub
+	atlas.region = Rect2(0.0, roundf(top), w, roundf(region_h))
+	face.texture = atlas
+	face.custom_minimum_size.y = shown
 
 
 func _hub_tex(game, st: Dictionary) -> Texture2D:
