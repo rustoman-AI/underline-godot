@@ -23,6 +23,7 @@ static func run(cat: Catalog) -> Dictionary:
 	checks._save_reload()
 	checks._leader_lines()
 	checks._leader_text_source()
+	checks._leader_voice_files()
 	checks._openings()
 	checks._flavour()
 	return {"ok": not checks.failed, "lines": checks.lines}
@@ -346,6 +347,42 @@ func _line_strings(value, path: String, bad: PackedStringArray) -> void:
 			bad.append("%s has a dash" % path)
 		if text.contains("TODO_REWRITE"):
 			bad.append("%s is TODO_REWRITE" % path)
+
+
+## Leader voice: every leader and key names lead_<faction>_<key>_<lang>.ogg in assets/audio/vo, each key
+## has a written line, and a missing file resolves to "" (play nothing) without an error. The opening key
+## is first_contact at the first meeting and the band after it.
+func _leader_voice_files() -> void:
+	var bad: PackedStringArray = []
+	var present: PackedStringArray = []
+	var was := Copy.lang
+	var lines_by_id: Dictionary = catalog.lines.get("factions", {})
+	for fid in ALL:
+		for key in Voice.LEADER_KEYS:
+			var row: Dictionary = lines_by_id.get(fid, {})
+			var pair = row.get("bands", {}).get(str(key).trim_prefix("band_"), {}) if str(key).begins_with("band_") else row.get(key, {})
+			if not Game.line_written(pair):
+				bad.append("%s %s has no line" % [fid, key])
+			var voice := Voice.leader_row(fid, key)
+			for lang in ["en", "ru"]:
+				var want := "res://assets/audio/vo/lead_%s_%s_%s.ogg" % [fid, key, lang]
+				if Voice.leader_file(fid, key, lang) != want or str(voice.get("audio_" + lang, "")) != want:
+					bad.append("%s %s %s names %s" % [fid, key, lang, Voice.leader_file(fid, key, lang)])
+				Copy.set_lang(lang)
+				var found := Voice.audio(voice)
+				if found != (want if ResourceLoader.exists(want) else ""):
+					bad.append("%s resolves to '%s'" % [want.get_file(), found])
+				if found != "":
+					present.append(want.get_file())
+	Copy.set_lang(was)
+	var game := _waiting({"synod": 80}, {"synod": 10})
+	var first := game.audience_opening_key("synod")
+	game.audience_last["synod"] = 3
+	var later := game.audience_opening_key("synod")
+	if first != "first_contact" or later != "band_pact":
+		bad.append("opening keys %s / %s" % [first, later])
+	_expect(bad.is_empty(), "Leader voice: %d file names, %d present, missing ones stay silent" % [
+		ALL.size() * Voice.LEADER_KEYS.size() * 2, present.size()], "leader voice: " + ", ".join(bad))
 
 
 ## Every leader has every line in both languages, none empty or left as TODO_REWRITE, and the

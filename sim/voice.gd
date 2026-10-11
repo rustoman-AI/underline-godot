@@ -91,6 +91,25 @@ static func audio(row: Dictionary) -> String:
 	return ""
 
 
+const LEADER_KEYS := ["first_contact", "band_hostile", "band_cold", "band_wary", "band_useful", "band_pact",
+	"territory", "trade", "pitch", "accepted", "declined"]
+
+
+## A leader's recorded line: assets/audio/vo/lead_<faction>_<key>_<lang>.ogg (key from LEADER_KEYS).
+static func leader_file(faction: String, key: String, lang: String) -> String:
+	return "res://assets/audio/vo/lead_%s_%s_%s.ogg" % [faction, key, lang]
+
+
+## The same line as a row for play(); the text is already on the card, so the row carries none.
+static func leader_row(faction: String, key: String) -> Dictionary:
+	return {
+		"id": "lead_%s_%s" % [faction, key],
+		"type": "leader",
+		"audio_en": leader_file(faction, key, "en"),
+		"audio_ru": leader_file(faction, key, "ru"),
+	}
+
+
 static func has_audio(row: Dictionary) -> bool:
 	return audio(row) != ""
 

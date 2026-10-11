@@ -183,6 +183,8 @@ var vo_dossier := ""
 var vo_story_progress := 0.0
 var audience_key := ""
 var audience_heard := false
+## The leader line last voiced; a redraw that shows the same line again stays silent.
+var leader_voiced := ""
 var vo_queue: Array = []
 var vo_text := ""
 var vo_text_caption := ""
@@ -2901,7 +2903,7 @@ func _tick_voice() -> void:
 	if radio_bars != null:
 		radio_bars.get_parent().visible = Voice.playing() and Voice.now_kind == "radio"
 		radio_bars.queue_redraw()
-	var spoken := Voice.playing() and Voice.now_kind != "radio"
+	var spoken := Voice.playing() and Voice.now_kind != "radio" and Voice.now_kind != "leader"
 	var shown := not spoken and Time.get_ticks_msec() < vo_text_until
 	if vo_pill == null:
 		if not spoken and not shown:
@@ -3518,6 +3520,9 @@ func _show_order_report() -> void:
 	var said := _leader_said(str(row.get("faction", "")), row.get("line", {}))
 	if said != "":
 		_body(said)
+		var line_key := str(row.get("line_key", ""))
+		if line_key != "":
+			_leader_voice(str(row.faction), line_key, "report:%d:%s:%s" % [game.week, str(row.faction), str(row.get("text", ""))])
 	card_body.add_child(_button("Continue", _next_order_report))
 
 
@@ -3670,8 +3675,11 @@ func _show_audience() -> void:
 		said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		said.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_body.add_child(said)
+		_leader_voice(fid, "pitch", "%s:pitch" % audience_key)
 	elif opening != "":
 		_body(opening)
+		var opening_key: String = game.audience_opening_key(fid)
+		_leader_voice(fid, opening_key, "%s:%s" % [audience_key, opening_key])
 	var memory: Array = game.standing_memory.get(fid, [])
 	if not memory.is_empty():
 		var remembered := VBoxContainer.new()
@@ -3792,6 +3800,18 @@ func _answer_audience(accept: bool) -> void:
 	var reply := _leader_said(fid, game.leader_line(fid, "accepted" if accept else "declined"))
 	if reply != "":
 		_toast(reply, 4.5)
+		_leader_voice(fid, "accepted" if accept else "declined", "%s:reply" % audience_key)
+
+
+## Plays lead_<faction>_<key>_<lang>.ogg for a line that has just appeared, once per `token`. A new line
+## stops the previous leader line even when it has no file of its own; a missing file plays nothing.
+func _leader_voice(fid: String, key: String, token: String) -> void:
+	if token == leader_voiced:
+		return
+	leader_voiced = token
+	if Voice.now_kind == "leader":
+		Voice.stop()
+	Voice.play(Voice.leader_row(fid, key), "")
 
 
 ## "Name: «line»" in Russian, "Name: “line”" in English; "" when there is no line.
@@ -4549,6 +4569,8 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 
 
 func _close_card() -> void:
+	if Voice.now_kind == "leader":
+		Voice.stop()
 	var token := deck.top_token()
 	if token == "dawn" and game != null and not game.pending.is_empty():
 		shelved_event = str(game.front_event().get("id", ""))

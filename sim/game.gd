@@ -5772,6 +5772,15 @@ func audience_opening(fid: String) -> Dictionary:
 	return leader_line(fid, "bands", standing_band(fid))
 
 
+## Which line audience_opening shows, as a voice key: "first_contact" or "band_<band>".
+func audience_opening_key(fid: String) -> String:
+	if audience_last.has(fid):
+		var band := standing_band(fid)
+		if line_written(catalog.lines.get("factions", {}).get(fid, {}).get("bands", {}).get(band, {})):
+			return "band_" + band
+	return "first_contact"
+
+
 ## A territory or trade line for the order report, at most once per faction every LEADER_LINE_GAP weeks.
 ## Flavour only: the week it was last shown sits in flags under "line_<faction>".
 const LEADER_LINE_GAP := 4
@@ -5786,7 +5795,7 @@ func _leader_flavour(kind: String, fid: String) -> Dictionary:
 	if pair.is_empty():
 		return {}
 	flags[key] = week
-	return {"faction": fid, "line": pair}
+	return {"faction": fid, "line": pair, "line_key": kind}
 
 
 func _init_standing() -> void:
