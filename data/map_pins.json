@@ -1,0 +1,186 @@
+{
+ "_note": "Station pin positions in pixels on incoming-art/map/nyc_map.png (1024x1536 source). Scale with the map texture. Placed by hand on the painted geography.",
+ "map_size": [
+  1024,
+  1536
+ ],
+ "stations": {
+  "chapel": [
+   340,
+   125
+  ],
+  "central": [
+   300,
+   470
+  ],
+  "northgate": [
+   372,
+   482
+  ],
+  "foundry": [
+   282,
+   528
+  ],
+  "plaza": [
+   322,
+   612
+  ],
+  "stadium": [
+   352,
+   650
+  ],
+  "market": [
+   292,
+   680
+  ],
+  "harbor": [
+   372,
+   690
+  ],
+  "clocktower": [
+   318,
+   710
+  ],
+  "dockyard": [
+   245,
+   735
+  ],
+  "archive": [
+   290,
+   736
+  ],
+  "quarry": [
+   286,
+   760
+  ],
+  "trampark": [
+   250,
+   778
+  ],
+  "eastwater": [
+   222,
+   794
+  ],
+  "vault": [
+   212,
+   808
+  ],
+  "observatory": [
+   362,
+   806
+  ],
+  "library": [
+   398,
+   832
+  ],
+  "oldcommand": [
+   368,
+   840
+  ],
+  "brickworks": [
+   405,
+   885
+  ],
+  "signal": [
+   505,
+   825
+  ],
+  "mill": [
+   482,
+   600
+  ],
+  "garden": [
+   935,
+   420
+  ],
+  "westfield": [
+   880,
+   985
+  ],
+  "riverside": [
+   500,
+   975
+  ],
+  "southdepot": [
+   470,
+   1378
+  ]
+ },
+ "desk": {
+  "file": "incoming-art/map/desk_empty.png",
+  "size": [
+   1536,
+   1024
+  ],
+  "map_center": [
+   762,
+   505
+  ],
+  "map_scale": 0.655,
+  "map_rotation_deg": -3.3,
+  "weights": [
+   [
+    493,
+    33
+   ],
+   [
+    1130,
+    95
+   ],
+   [
+    388,
+    868
+   ],
+   [
+    1075,
+    945
+   ]
+  ],
+  "weight_radius": 34
+ },
+ "pins_sheet": {
+  "file": "incoming-art/map/pins.png",
+  "rects": {
+   "depot": [
+    77,
+    238,
+    302,
+    485
+   ],
+   "dir": [
+    395,
+    238,
+    623,
+    487
+   ],
+   "exch": [
+    714,
+    237,
+    948,
+    486
+   ],
+   "synod": [
+    1032,
+    237,
+    1261,
+    485
+   ],
+   "neutral": [
+    1370,
+    237,
+    1605,
+    489
+   ],
+   "flag": [
+    1690,
+    244,
+    2111,
+    445
+   ]
+  },
+  "head_anchor": [
+   0.4,
+   0.36
+  ]
+ }
+}

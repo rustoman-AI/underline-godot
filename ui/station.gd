@@ -5114,6 +5114,7 @@ func _network_shots() -> void:
 	_place_chrome()
 	await _frame()
 	_save("network_week1")
+	await _desk_zoom_shots("desk_w1")
 	var sid: String = network_view.first_known_neighbor()
 	if sid != "":
 		network_view.open_sheet(sid)
@@ -5144,6 +5145,8 @@ func _network_shots() -> void:
 	network_view._fit()
 	await _frame()
 	_save("network_week20")
+	await _desk_zoom_shots("desk_w20")
+	network_view._fit()
 	network_view.focus_intent()
 	await _frame()
 	await _frame()
@@ -5192,6 +5195,15 @@ func _network_shots() -> void:
 		await _frame()
 		_save("station_visit")
 	get_tree().quit()
+
+
+func _desk_zoom_shots(prefix: String) -> void:
+	for step in [["min", 1.0, ""], ["mid", 2.0, "plaza"], ["max", 3.5, "quarry"]]:
+		network_view.show_zoom(float(step[1]), str(step[2]))
+		await _frame()
+		await _frame()
+		_save("%s_%s" % [prefix, step[0]])
+	network_view._fit()
 
 
 func _shot_logged(prefix: String, week_n: int) -> bool:
