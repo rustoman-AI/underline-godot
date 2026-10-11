@@ -187,6 +187,8 @@ The passed files were copied byte for byte into `assets/factions/` as png (LFS) 
 **Checks:** bot OK, no missing banners. RU `.tools/audience_shots.gd`: Halloran with face and dial, shown vs changed all match (Hope -8, Discontent -6, Directorate +30, Depot -25, Synod -15, Black Flag +5, Lila Voss handed over, curfew on, air filter charcoal, collaborator). Pike shows the wheel and no portrait. Screenshots in `shots/` (aud_halloran_terms, aud_pike, review_symbols, review_faces), not committed.
 ## 11. factions_v3 portraits and symbols
 
+**Superseded by section 12.** The user rejected the smiling portraits and this art direction. The acceptance rule below is historical, not current guidance.
+
 `factions_v3.zip` unpacked to `incoming-art/factions_v3/` (not committed). All ten files are 1408 px; portraits are colour photos, symbols are single colour on transparency.
 
 **Portraits.** New rule: reject only for a broken face, a second head or text on the picture; smiling or looking past the camera is fine. All five pass and replace the files in `assets/factions/`: Pike (cap, smiling at camera, engine cab), Halloran (dark coat, looking aside, cold), Kato (grey hair, broad smile, arched tunnel), Pell (scarf, laughing, looking aside), Bird (dark background, faint smile, looking aside). They are colour, not sepia like the resident portraits; under the new rule that is not a reason to reject.
@@ -196,3 +198,67 @@ The passed files were copied byte for byte into `assets/factions/` as png (LFS) 
 Files copied byte for byte (LFS), mipmaps on in the imports. No generator run. Godot was run only for import, the bot and the screenshot script (approved).
 
 **Checks:** bot OK, no missing banners. RU `.tools/audience_shots.gd`: Pike, Bird and Halloran cards with faces and symbols (`shots/aud_pike.png`, `aud_bird.png`, `aud_halloran.png`); Halloran's terms vs change still all match.
+
+## 12. Dark faction art — no smiling
+
+The leader portraits in this section were later rejected. Its monochrome symbol direction was superseded by section 13 at the user's request.
+
+Replaced all five leader portraits and all five faction symbols in `assets/factions/` using new built-in ImageGen outputs. No earlier smiling generation was installed. Source PNGs and the exact prompt set are in `incoming-art/factions_dark/` (`prompts.json`). Existing filenames, PNG fallback loading and mipmapped imports are retained.
+
+Current direction: people responsible for lives at the end of the world. No smiles, smirks, exposed teeth or cheerful expressions. Charisma comes from distinctive features, guarded eyes, exhaustion, conviction and restraint. Pike is a battered driver, Halloran a severe dispatcher, Kato a grave spiritual leader, Pell a calculating broker, Bird a watchful tunnel survivor. Dark charcoal clothing, muted colour, directional light and readable faces replace the pleasant posed photographs. `docs/FACTIONS.md` now states this direction and removes the instruction for Pell to smile.
+
+Symbols: damaged three-spoke brake wheel; octagonal clock seal; broken vigil ring with a joined flame; heavy token scales; broad torn pennant. All five have alpha transparency and were inspected on a dark background at 24 px. The flag now fills its canvas; the Exchange tokens and central support remain distinct. No black background squares or letter fallbacks.
+
+Validation: Godot imported all ten PNGs; `sim/bot_run.gd` returned `BOT RUN OK`, missing banners none. `.tools/dark_faction_cards.gd` checked that all five portraits load and all five symbols return TextureRects, captured every RU audience card, and confirmed Halloran's displayed terms match actual changes. All five screenshots were visually inspected. Review sheet and cards: `shots/factions_dark/`. The sandbox prevented user-data log/cache writes and editor-settings saving; the runtime and screenshot checks completed with exit code 0. Godot also reported resource leaks on screenshot-run shutdown. No gameplay or card layout code changed.
+
+## 13. Faction identities grounded in lore
+
+SUPERSEDED — rejected
+
+The user kept the dark leaders for now but rejected the object icons and supplied a reference sheet of faction insignia, with permission to revise names and lore. Read `docs/GDD.md`, `docs/FACTIONS.md`, the map and audience faction catalogs, station communities, events, and relevant radio/story references before designing the replacements. The reference was used for visual language (political badges, distinct colour fields, symbolic identity), not as instructions or a source of copied emblems.
+
+All five symbols in `assets/factions/` are now new built-in ImageGen outputs: Depot Union's fist and rail spike on rust, Directorate's closed gate on oxblood/black, Synod's buried sun under a vault on night blue, Exchange's split contract token on green, and Black Flag's severed chain over a brick-red diagonal. Full source PNGs and generation/refinement prompts are in `incoming-art/faction_identities/`. Alpha is transparent outside the badges, opaque inside. A Depot field transparency defect was corrected with ImageGen before installation. The audience card uses 32 px insignia; the set was also inspected at 24 and 48 px. The five leader files were verified byte-identical to section 12's sources.
+
+`docs/FACTIONS.md` adds each faction's origin, source of legitimacy, internal conflict, emblem origin, use and motto. Depot Union / Союз Депо is the formal name; Depot remains its short form. The other names and all internal IDs remain. Map/catalog display leaders now agree with audiences (Pike, Halloran, Kato, Pell). Kato's contradictory unseen-preacher story is removed. Black Flag's radical cells and Bird's toll network are reconciled as one loose movement with an internal argument over free passage. Halloran's platform-absence claim is replaced by the ration-list conflict. EN/RU faction names, muted display colours and audience capital metadata are synchronized; PNG symbol paths now point directly to the installed files. Current GDD leader table is synchronized. No balance, faction IDs, saved-state schema or audience effects changed.
+
+The lore explicitly labels unimplemented deal promises as design history rather than current rewards. No borrowed squad, medic, trade discount or bunker route was added by this art pass.
+
+Checks: `BOT RUN OK`, missing banners none; installed asset hashes match the new sources; portraits unchanged; all five catalog identities/capitals/translations agree; badge alpha checks pass. All five EN and RU audience cards captured, all RU cards and the longest EN heading visually inspected; Halloran terms match actual changes in both languages. Review: `shots/faction_identities/identity_review.png`; cards in its `en/` and `ru/` subfolders. Godot returned 0 with the same sandbox user-data/cache warnings and screenshot-run shutdown resource warnings noted in section 12. `.tools` checks and screenshots are local review artifacts.
+
+
+## 14. Delegated review and next handoffs
+
+SUPERSEDED — rejected
+
+Three parallel reviews covered gameplay/save integrity, UI/art, and lore/audio. Cursor owns implementation, this review owns art and acceptance, and Muse owns ElevenLabs production. Briefs are prepared locally; no external worker has been contacted and no new audio generated.
+
+The working tree contains the dark leaders and coloured faction badges; commit 6270c4b and existing packaged builds predate these changes. Preserve the local work. Existing content includes 112 active EN/RU VO files; the 16 extra cable bulletins remain unvoiced.
+
+Priority findings: an isolated in-memory probe reproduced legacy save import retaining live audience/standing/deal state, and an oldest hostile Exchange audience occupying eight consecutive dawns. See `.tools/review_save_audience_20261011.gd`. Save writes also directly truncate the destination and newest-slot loading has no fallback, confirmed by source inspection. The probe did not read or write player saves. A successful probe exit confirms the reproduction, not a passing regression test. No fresh full bot run was needed for these documentation-only edits.
+
+Cursor handoffs, in order:
+
+1. `docs/briefs/cursor_save_hardening.txt`: staged import, migration defaults, atomic writes and recovery.
+2. `docs/briefs/cursor_audience_regressions.txt`: fair audience scheduling and durable regression coverage. Run after the save work because both touch the simulation.
+3. `docs/briefs/cursor_worker_visibility.txt`: compare sprite tint in actual gameplay before requesting more poses.
+4. `docs/briefs/cursor_leader_dialogue.txt`: reviewed truthful EN/RU openings, then screenshot acceptance. Run UI edits sequentially because both touch station.gd.
+
+Muse can work independently from `docs/briefs/muse_radio_pilot.txt`: four existing scripts, eight EN/RU files, preserving the established announcer. Recover voice/model/settings from Muse history first; these are absent from the repository. Audition before installation or expanding the batch. Leader VO waits for implemented text review.
+
+Next art candidate: the Directorate Grand Central hub (`northgate`). The hub resolver already supports station-specific assets; inspect existing incoming hub art before commissioning anything else. No new hub was generated during this audit. Rejected pose experiments remain excluded from acceptance; export filtering needs its own packaging check.
+
+Review corrected the faction response deadline, VO credits/counts and index loudness/history. Dialogue editorial review removed Pike's premature secret disclosure and Bird's unsupported accusation against the player's guards.
+
+## 15. Faction hub environment art
+
+SUPERSEDED — rejected
+
+Generated with built-in image_gen and visually reviewed: Directorate Grand Central (northgate), Synod Cathedral Parkway (chapel), Free Exchange Wall Street (trampark), and Black Flag Atlantic Avenue transfer camp (brickworks). The Black Flag camp is not a new territorial capital. Existing Coney artwork remains intact.
+
+Runtime WebP files live in assets/hubs/<station-id>.webp. Original PNGs and exact prompts are retained in incoming-art/hubs/. Faction portraits and badges were checked against the pre-hub SHA256 baseline: zero changes.
+
+The visit panel now preserves the full panorama proportions for these four stations instead of cropping to a 220-pixel strip. Remaining content stays accessible through the existing scroll container. No gameplay, faction ownership, audio or leader data changed.
+
+Verification: .tools/faction_hubs_review.gd rendered all three new hubs at 1280x720, asserted texture load and display aspect ratio, and captured visit, scrolled-bottom and station-sheet views. All assertions passed, exit 0. Runtime retains user-directory/cache permission warnings and existing shutdown resource warnings. Screenshots: shots/{chapel,trampark,brickworks}_{visit,visit_bottom,sheet}.png. These are art/layout checks, not a claim of full localization coverage: existing station lore still appears in Russian within the English UI.
+
+Art direction: Synod kitchen and infirmary beneath a blocked exit; Exchange provisions controlled through debt and secured stores; Black Flag mobile camp, assistance and tolls. No new audio or mechanical promises. Nothing committed or pushed.
