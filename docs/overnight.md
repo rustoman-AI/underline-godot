@@ -117,3 +117,16 @@ None pass. They are not redrawn work poses: each is one of the existing standing
 All stay in `incoming-art/poses_fix/`. Nothing was committed: no hydroponics pose, no duplicates, lineup or fixes.txt.
 
 `build_fixed_poses.gd` had already run at 09:25 and left its output in `assets/figures/`: those same poses as webp+png (generator, hydroponics, quarters, workshop, with palettes), and it overwrote air_filter_01.webp, all 52 palette files and four fig_*.webp. The station loader reads that folder, so the game was drawing them locally. All 94 files were copied unchanged to `incoming-art/poses_rejected/build_fixed_0925/` (hashes checked), then the untracked ones removed from assets and the tracked ones restored to HEAD. body_01 to body_12 were never modified. The station now draws what is committed: bodies everywhere, the air filter work pose, and the old whole fig_* for working/kneeling/sitting spots. So hydroponics has no work pose yet; its crew uses the room's spot poses.
+
+## 7. Short lines loudness
+
+Rule: inside a group, more than 2 dB spread gets leveled to -23 LUFS, true peak at or under -1.7 dBTP. Stories untouched.
+
+| Group | n | min | median | max | spread | max true peak | action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| story | 60 | -23.0 | -22.9 | -22.8 | 0.2 dB | -1.7 dBTP | none |
+| radio | 20 | -22.3 | -21.7 | -20.7 | 1.6 dB | -0.9 dBTP | none, inside 2 dB |
+| event+system before | 32 | -23.3 | -21.8 | -19.0 | 4.3 dB | -0.8 dBTP | leveled |
+| event+system after | 32 | -23.0 | -22.9 | -22.5 | 0.5 dB | -2.3 dBTP | |
+
+Same two-pass loudnorm as the stories (`.tools/normalize_vo.ps1 -Pattern 'event_*.ogg'` and `'sys_*.ogg'`, `-Backup _originals_short -Target -23 -Peak -2.5`; the -2.5 loudnorm target leaves room for the Vorbis overshoot). Originals: `assets/audio/vo/_originals_short/` (32 files, `.gdignore`), in `.gitignore`. Godot reimport clean, VO check OK (56 voiced per language). Radio keeps its -0.9 dBTP peak because the group was not leveled.
