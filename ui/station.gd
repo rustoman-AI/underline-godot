@@ -33,6 +33,7 @@ const NetworkViewScript = preload("res://ui/network_view.gd")
 const ArtPack = preload("res://ui/art_pack.gd")
 const Brief = preload("res://sim/brief.gd")
 const WAITING := "Someone is still waiting. Choose before the week ends."
+const DISCLAIMER := "Underline is a work of fiction. Its people, communities and events are invented. Real New York places are used fictitiously, and any resemblance to real persons is coincidental. Not affiliated with or endorsed by the MTA or the City of New York."
 
 var game: Game
 var yard: Yard
@@ -187,7 +188,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -196,7 +197,7 @@ func _ready() -> void:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -231,10 +232,95 @@ func _ready() -> void:
 		await _visual_shots()
 	elif _want_lore():
 		await _lore_shots()
+	elif _want_drawer():
+		await _drawer_shots()
 
 
 func _want_lore() -> bool:
 	return OS.get_cmdline_user_args().has("--lore")
+
+
+func _want_drawer() -> bool:
+	return OS.get_cmdline_user_args().has("--drawer")
+
+
+func _drawer_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_show_main_menu()
+	await _frame()
+	await _frame()
+	_save("menu_disclaimer")
+	_open_credits()
+	await _frame()
+	await _frame()
+	_save("credits_disclaimer")
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_refresh()
+	await _frame()
+	await _frame()
+	_save("drawer_closed")
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save("drawer_open")
+	var free_id := ""
+	for person in game.residents:
+		if _person_post(str(person.id)) == "free" and int(person.get("sick", 0)) == 0:
+			free_id = str(person.id)
+			break
+	var full_cell := Vector2i(-1, -1)
+	var open_cell := Vector2i(-1, -1)
+	var shut_cell := Vector2i(-1, -1)
+	for room in game.rooms:
+		var at := Vector2i(int(room.level), int(room.cell))
+		var preview: Dictionary = game.assign_preview(free_id, str(room.uid))
+		if bool(preview.get("full", false)) and full_cell.x < 0:
+			full_cell = at
+		elif bool(preview.ok) and open_cell.x < 0:
+			open_cell = at
+		elif not bool(preview.ok) and not bool(preview.get("full", false)) and shut_cell.x < 0:
+			shut_cell = at
+	yard.drag_lock = true
+	yard.drag_id = free_id
+	for pair in [["drag_swap", full_cell], ["drag_open", open_cell], ["drag_blocked", shut_cell]]:
+		yard.drop_cell = pair[1]
+		yard.queue_redraw()
+		await _frame()
+		await _frame()
+		_save(str(pair[0]))
+	yard.drag_id = ""
+	yard.drop_cell = Vector2i(-1, -1)
+	yard.drag_lock = false
+	if full_cell.x >= 0:
+		var uid := str(game.cells["%d:%d" % [full_cell.x, full_cell.y]].room)
+		_drop_person(free_id, uid)
+		_fill_people()
+		await _frame()
+		await _frame()
+		_save("drawer_swapped")
+	_hide_undo_toast()
+	drawer_open = false
+	_place_drawer()
+	_toggle_network()
+	network_view.open_sheet(str(game.capital_id))
+	await _frame()
+	await _frame()
+	_save("net_sheet_home")
+	var foreign: String = network_view.first_known_neighbor()
+	if foreign != "":
+		network_view.open_sheet(foreign)
+		await _frame()
+		await _frame()
+		_save("net_sheet_neighbor")
+	get_tree().quit()
 
 
 func _lore_shots() -> void:
@@ -746,7 +832,15 @@ func _side_panel() -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.visible = false
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel.add_theme_stylebox_override("panel", _steel_style())
+	var drawer_face := _steel_style()
+	drawer_face.bg_color = Color(0.055, 0.05, 0.045, 0.97)
+	drawer_face.border_color = Color(0.89, 0.65, 0.23, 0.7)
+	drawer_face.set_border_width_all(0)
+	drawer_face.border_width_left = 3
+	drawer_face.shadow_color = Color(0, 0, 0, 0.55)
+	drawer_face.shadow_size = 14
+	drawer_face.shadow_offset = Vector2(-6, 0)
+	panel.add_theme_stylebox_override("panel", drawer_face)
 	var box := VBoxContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 4)
@@ -763,6 +857,7 @@ func _side_panel() -> PanelContainer:
 	people_rail.set_anchors_preset(Control.PRESET_FULL_RECT)
 	people_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	people_rail.face = display_font if display_font != null else body_font
+	people_rail.still = _motion_off()
 	people_tab.add_child(people_rail)
 	box.add_child(people_tab)
 	people_expand = VBoxContainer.new()
@@ -780,7 +875,7 @@ func _side_panel() -> PanelContainer:
 	shut.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head.add_child(shut)
 	people_expand.add_child(head)
-	hint = _label("Drag a name onto a room, or tap a room and pick.", 13)
+	hint = _label("Drag a name onto a room or a group here. Drop on a full room to swap. Drop on Free to take someone off work.", 13)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hint.add_theme_color_override("font_color", MUTED)
@@ -987,9 +1082,9 @@ func _place_drawer() -> void:
 		people_expand.visible = drawer_open
 	if people_tab != null:
 		people_tab.visible = not drawer_open
-	var w := 56.0
+	var w := 60.0
 	if drawer_open:
-		w = minf(360.0, size.x * 0.42)
+		w = minf(380.0, size.x * 0.42)
 	side.offset_left = size.x - w
 	side.offset_right = size.x
 	side.offset_top = top
@@ -1229,6 +1324,7 @@ func _fill_people() -> void:
 		people_head.text = _people_counts(total, working, free_n)
 	if people_rail != null:
 		people_rail.caption = _people_tab_caption(free_n)
+		people_rail.badge = free_n
 		people_rail.ink = Color("e2a63a") if free_n > 0 else MUTED
 		people_rail.queue_redraw()
 	if people_filter != "":
@@ -1265,7 +1361,7 @@ func _fill_people() -> void:
 	if view == "" and Settings.people_free_only:
 		view = "free"
 	if view == "" or view == "free":
-		_people_group(Copy.t("Free"), grouped["free"], "", true)
+		_people_group(Copy.t("Free"), grouped["free"], "", true, "")
 	if view != "free":
 		for uid in room_order:
 			if people_filter != "" and people_filter != uid:
@@ -1275,7 +1371,7 @@ func _fill_people() -> void:
 				continue
 			var room_name := Copy.t(str(game.catalog.rooms[room.type].name))
 			var skill := str(game.catalog.rooms[room.type].get("skill", ""))
-			_people_group(room_name, grouped[uid], skill, false)
+			_people_group(room_name, grouped[uid], skill, false, str(uid))
 		if (people_filter == "" or people_filter == "crew") and not grouped["crew"].is_empty():
 			_people_group(Copy.t("Crew"), grouped["crew"], "labor", false)
 	if showing_network and network_view != null:
@@ -1391,12 +1487,14 @@ func _open_people_for(filter_id: String) -> void:
 	_place_drawer()
 
 
-func _people_group(title: String, members: Array, skill_name: String, highlight: bool) -> void:
+func _people_group(title: String, members: Array, skill_name: String, highlight: bool, drop_uid: String = "-") -> void:
 	if members.is_empty() and not highlight:
 		return
 	var wrap := VBoxContainer.new()
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wrap.add_theme_constant_override("separation", 2)
+	wrap.add_theme_constant_override("separation", 3)
+	if drop_uid != "-":
+		_drop_target(wrap, drop_uid)
 	if highlight:
 		var plate := PanelContainer.new()
 		plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1415,23 +1513,31 @@ func _people_group(title: String, members: Array, skill_name: String, highlight:
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	wrap.add_child(heading)
 	if members.is_empty():
+		var empty := _label("Drop here to take off work", 13)
+		empty.add_theme_color_override("font_color", MUTED)
+		wrap.add_child(empty)
 		return
 	for person in members:
-		wrap.add_child(_people_row(person, skill_name))
+		var row := _people_row(person, skill_name)
+		if drop_uid != "-":
+			row.can_drop = _drawer_can_drop.bind(drop_uid)
+			row.on_drop = _drawer_drop.bind(drop_uid)
+		wrap.add_child(row)
 
 
 func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	var id := str(person.id)
 	var row := PersonRow.new()
 	row.person_id = id
-	row.person_name = Copy.person(str(person.name))
+	row.person_name = _resident_name(person)
+	row.drag_card = _drag_card
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.picked.connect(_show_person)
 	var line := HBoxContainer.new()
 	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	line.add_theme_constant_override("separation", 8)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	line.add_child(_portrait_box(id, 28))
+	line.add_child(_portrait_box(id, 36))
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1917,6 +2023,9 @@ func _tap_cell(level: int, cell: int) -> void:
 func _drop_person(person_id: String, uid: String) -> void:
 	var info := game.assign_preview(person_id, uid)
 	drawer_open = true
+	if bool(info.get("full", false)) and _swap_partner(person_id, uid) != "":
+		_swap_into(person_id, uid)
+		return
 	if not bool(info.ok):
 		var room = game._room(uid)
 		if room != null and yard != null:
@@ -1933,6 +2042,102 @@ func _drop_person(person_id: String, uid: String) -> void:
 		yard.shake_px = 0.0
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
+
+
+## Who leaves a full room when `person_id` is dropped on it. Empty when no swap makes sense.
+func _swap_partner(person_id: String, uid: String) -> String:
+	if _staff_room(person_id) == uid:
+		return ""
+	var out := _weakest_staff(uid)
+	return "" if out == person_id else out
+
+
+func _swap_into(person_id: String, uid: String) -> void:
+	var out := _swap_partner(person_id, uid)
+	if out == "":
+		return
+	var from := _staff_room(person_id)
+	game.apply({"kind": "unassign", "person": out})
+	if not game.apply({"kind": "assign", "person": person_id, "room": uid}):
+		game.apply({"kind": "assign", "person": out, "room": uid})
+		_refresh()
+		return
+	if from != "" and bool(game.assign_preview(out, from).ok):
+		game.apply({"kind": "assign", "person": out, "room": from})
+	if yard != null:
+		yard.shake_reason = ""
+		yard.flash_at(int(game._room(uid).level), int(game._room(uid).cell))
+	Sound.play("confirm")
+	_refresh()
+	var a := _resident_name(game.people[person_id])
+	var b := _resident_name(game.people[out])
+	_undo_toast(Copy.t("Swapped %s and %s.") % [a, b], _undo_swap.bind(person_id, out, uid, from))
+
+
+func _undo_swap(person_id: String, out: String, uid: String, from: String) -> void:
+	game.apply({"kind": "unassign", "person": person_id})
+	game.apply({"kind": "unassign", "person": out})
+	game.apply({"kind": "assign", "person": out, "room": uid})
+	if from != "":
+		game.apply({"kind": "assign", "person": person_id, "room": from})
+	_hide_undo_toast()
+	_refresh()
+
+
+## Drawer groups take drops too: a room group assigns there, the Free group takes the resident off work.
+func _drawer_can_drop(_at: Vector2, data, uid: String) -> bool:
+	if typeof(data) != TYPE_DICTIONARY or not data.has("person"):
+		return false
+	var id := str(data.person)
+	if uid == "":
+		return _person_post(id) == "room"
+	return _staff_room(id) != uid
+
+
+func _drawer_drop(_at: Vector2, data, uid: String) -> void:
+	var id := str(data.person)
+	if uid == "":
+		game.apply({"kind": "unassign", "person": id})
+		Sound.play("click")
+		_refresh()
+		return
+	_drop_person(id, uid)
+
+
+func _drop_target(node: Control, uid: String) -> void:
+	node.mouse_filter = Control.MOUSE_FILTER_PASS
+	node.set_drag_forwarding(Callable(), _drawer_can_drop.bind(uid), _drawer_drop.bind(uid))
+
+
+func _drag_card(person_id: String) -> Control:
+	var person: Dictionary = game.people.get(person_id, {})
+	var plate := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.09, 0.08, 0.07, 0.95)
+	style.border_color = Color("e2a63a")
+	style.set_border_width_all(2)
+	style.set_content_margin_all(6)
+	style.set_corner_radius_all(4)
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 8
+	plate.add_theme_stylebox_override("panel", style)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(_portrait_box(person_id, 36))
+	var was := on_paper
+	on_paper = false
+	var text := VBoxContainer.new()
+	text.add_child(_label(_resident_name(person), 16, true))
+	var tip := _label("Drop on a room", 12)
+	tip.add_theme_color_override("font_color", MUTED)
+	text.add_child(tip)
+	on_paper = was
+	row.add_child(text)
+	plate.add_child(row)
+	plate.position = Vector2(-24, -24)
+	var holder := Control.new()
+	holder.add_child(plate)
+	return holder
 
 
 func _show_build(level: int, cell: int) -> void:
@@ -5869,6 +6074,20 @@ func _fill_menu_root() -> void:
 	menu_root.add_child(_menu_choice("Settings", _open_settings.bind(false), false))
 	menu_root.add_child(_menu_choice("Credits", _open_credits, false))
 	menu_root.add_child(_menu_choice("Quit", func() -> void: get_tree().quit(), false))
+	var push := Control.new()
+	push.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	push.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_root.add_child(push)
+	var plate := PanelContainer.new()
+	plate.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_theme_stylebox_override("panel", _panel_style(Color(0.04, 0.035, 0.03, 0.82)))
+	var note := _label(DISCLAIMER, 13)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(minf(720.0, size.x - 120.0), 0)
+	note.add_theme_color_override("font_color", Color(0.94, 0.9, 0.82, 0.85))
+	plate.add_child(note)
+	menu_root.add_child(plate)
 
 
 func _menu_choice(caption: String, cb: Callable, primary: bool) -> Button:
@@ -6003,6 +6222,11 @@ func _fill_credits() -> void:
 	made.custom_minimum_size = Vector2(600, 0)
 	made.add_theme_color_override("font_color", PAPER_MUTED)
 	box.add_child(made)
+	box.add_child(_label("Disclaimer", 20, true))
+	var fiction := _label(DISCLAIMER, 15)
+	fiction.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	fiction.custom_minimum_size = Vector2(600, 0)
+	box.add_child(fiction)
 	if not Sound.has_ambient() or not Sound.has_drone():
 		var missing := _label("Station ambience and the hub drone are not included yet.", 15)
 		missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -6160,17 +6384,44 @@ class PersonRow extends PanelContainer:
 	signal picked(id: String)
 	var person_id := ""
 	var person_name := ""
+	var drag_card: Callable
+	var can_drop: Callable
+	var on_drop: Callable
 	var _armed := false
 	var _dragged := false
+	var _calm: StyleBoxFlat
+	var _lit: StyleBoxFlat
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(1, 1, 1, 0.06)
-		style.set_content_margin_all(3)
-		style.set_corner_radius_all(4)
-		add_theme_stylebox_override("panel", style)
+		mouse_default_cursor_shape = Control.CURSOR_DRAG
+		tooltip_text = Copy.t("Click for details. Drag onto a room to assign.")
+		_calm = StyleBoxFlat.new()
+		_calm.bg_color = Color(1, 1, 1, 0.07)
+		_calm.set_content_margin_all(4)
+		_calm.content_margin_right = 20
+		_calm.set_corner_radius_all(4)
+		_lit = _calm.duplicate()
+		_lit.bg_color = Color(0.89, 0.65, 0.23, 0.22)
+		_lit.border_color = Color(0.89, 0.65, 0.23, 0.8)
+		_lit.set_border_width_all(1)
+		add_theme_stylebox_override("panel", _calm)
+		mouse_entered.connect(func() -> void: add_theme_stylebox_override("panel", _lit))
+		mouse_exited.connect(func() -> void: add_theme_stylebox_override("panel", _calm))
+
+	func _draw() -> void:
+		var x := size.x - 12.0
+		var y := size.y * 0.5 - 6.0
+		for i in 3:
+			for j in 2:
+				draw_circle(Vector2(x + float(j) * 5.0, y + float(i) * 6.0), 1.4, Color(1, 1, 1, 0.35))
+
+	func _can_drop_data(at_position: Vector2, data) -> bool:
+		return can_drop.is_valid() and bool(can_drop.call(at_position, data))
+
+	func _drop_data(at_position: Vector2, data) -> void:
+		if on_drop.is_valid():
+			on_drop.call(at_position, data)
 
 	func _gui_input(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -6184,13 +6435,19 @@ class PersonRow extends PanelContainer:
 
 	func _get_drag_data(_at_position: Vector2):
 		_dragged = true
-		var preview := Label.new()
-		preview.text = person_name
-		preview.add_theme_color_override("font_color", Color("efe6d2"))
-		if Copy.ru():
-			preview.add_theme_font_override("font", get_theme_default_font())
-		set_drag_preview(preview)
+		if drag_card.is_valid():
+			set_drag_preview(drag_card.call(person_id))
+		else:
+			var preview := Label.new()
+			preview.text = person_name
+			preview.add_theme_color_override("font_color", Color("efe6d2"))
+			set_drag_preview(preview)
+		modulate.a = 0.45
 		return {"person": person_id}
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_DRAG_END:
+			modulate.a = 1.0
 
 
 class Yard extends Control:
@@ -6253,6 +6510,7 @@ class Yard extends Control:
 	var art_aspect := 1.6
 	var hover := Vector2i(-1, -1)
 	var drag_id := ""
+	var drop_cell := Vector2i(-1, -1)
 	var drag_lock := false
 	var shake_cell := Vector2i(-1, -1)
 	var shake_until := 0
@@ -6421,6 +6679,7 @@ class Yard extends Control:
 				return
 		if drag_id != "":
 			drag_id = ""
+		drop_cell = Vector2i(-1, -1)
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_MOUSE_EXIT and hover != Vector2i(-1, -1):
@@ -6594,7 +6853,13 @@ class Yard extends Control:
 		if typeof(data) != TYPE_DICTIONARY or not data.has("person"):
 			return false
 		var hit: Dictionary = _hit(at_position)
-		return not hit.is_empty() and str(hit.room) != ""
+		var cell := Vector2i(-1, -1)
+		if not hit.is_empty() and str(hit.room) != "":
+			cell = Vector2i(int(hit.level), int(hit.cell))
+		if cell != drop_cell:
+			drop_cell = cell
+			queue_redraw()
+		return cell.x >= 0
 
 	func _drop_data(at_position: Vector2, data) -> void:
 		var hit: Dictionary = _hit(at_position)
@@ -6764,23 +7029,37 @@ class Yard extends Control:
 		if kind == "undug":
 			_draw_dig_outline(rect, level, cell)
 		if drag_id != "" and kind == "room" and room != null:
-			var preview: Dictionary = station.game.assign_preview(drag_id, str(room.uid))
+			var uid := str(room.uid)
+			var preview: Dictionary = station.game.assign_preview(drag_id, uid)
+			var here := drop_cell == Vector2i(level, cell)
 			if bool(preview.ok):
-				draw_rect(rect, Color(0.95, 0.84, 0.55, 0.28))
-				draw_rect(rect.grow(-4.0), Color(0.95, 0.84, 0.55, 0.95), false, 4.0)
+				draw_rect(rect, Color(0.95, 0.84, 0.55, 0.4 if here else 0.24))
+				draw_rect(rect.grow(-4.0), Color(0.95, 0.84, 0.55, 0.95), false, 5.0 if here else 3.0)
+			elif bool(preview.get("full", false)) and station._swap_partner(drag_id, uid) != "":
+				draw_rect(rect, Color(0.55, 0.78, 1.0, 0.3 if here else 0.12))
+				draw_rect(rect.grow(-4.0), Color(0.62, 0.82, 1.0, 0.9), false, 4.0 if here else 2.0)
+				if here:
+					var out: Dictionary = station.game.people.get(station._swap_partner(drag_id, uid), {})
+					_note_bar(rect, Copy.t("Swap with %s") % station._resident_name(out), Color(0.07, 0.14, 0.24, 0.94), Color(0.62, 0.82, 1.0))
+			elif here:
+				draw_rect(rect.grow(-4.0), Color(0.9, 0.35, 0.28, 0.9), false, 3.0)
+				_note_bar(rect, str(preview.reason), Color(0.28, 0.08, 0.06, 0.94), Color(0.9, 0.35, 0.28, 0.95))
 		if hover == Vector2i(level, cell) and kind != "hidden":
 			draw_rect(rect, Color(0.93, 0.78, 0.45, 0.16))
 			draw_rect(rect.grow(-2.0), Color(0.93, 0.78, 0.45, 0.9), false, 2.0)
 		if shake_reason != "" and shake_cell == Vector2i(level, cell):
-			var reason_font: Font = ThemeDB.fallback_font
-			if station.body_font != null:
-				reason_font = station.body_font
-			var reason_size: Vector2 = reason_font.get_string_size(shake_reason, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
-			var reason_w := maxf(rect.size.x, reason_size.x + 16.0)
-			var reason_bar := Rect2(rect.get_center().x - reason_w * 0.5, rect.position.y + rect.size.y - 26, reason_w, 26)
-			draw_rect(reason_bar, Color(0.28, 0.08, 0.06, 0.94))
-			draw_rect(Rect2(reason_bar.position, Vector2(reason_bar.size.x, 2)), Color(0.9, 0.35, 0.28, 0.95))
-			draw_string(reason_font, reason_bar.position + Vector2(8, 18), shake_reason, HORIZONTAL_ALIGNMENT_LEFT, reason_bar.size.x - 12, 15, Color("f4efe4"))
+			_note_bar(rect, shake_reason, Color(0.28, 0.08, 0.06, 0.94), Color(0.9, 0.35, 0.28, 0.95))
+
+	func _note_bar(rect: Rect2, text: String, back: Color, edge: Color) -> void:
+		var bar_font: Font = ThemeDB.fallback_font
+		if station.body_font != null:
+			bar_font = station.body_font
+		var text_size: Vector2 = bar_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+		var bar_w := maxf(rect.size.x, text_size.x + 16.0)
+		var bar := Rect2(rect.get_center().x - bar_w * 0.5, rect.position.y + rect.size.y - 26, bar_w, 26)
+		draw_rect(bar, back)
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x, 2)), edge)
+		draw_string(bar_font, bar.position + Vector2(8, 18), text, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 12, 15, Color("f4efe4"))
 
 	func _paint_rock(rect: Rect2, salt: int) -> void:
 		draw_rect(rect, Color(0.16, 0.13, 0.1))
@@ -7576,6 +7855,12 @@ class PeopleRail extends Control:
 	var caption := ""
 	var ink := Color("efe6d2")
 	var face: Font
+	var badge := 0
+	var still := false
+
+	func _process(_delta: float) -> void:
+		if badge > 0 and not still and is_visible_in_tree():
+			queue_redraw()
 
 	func _draw() -> void:
 		var font: Font = face if face != null else ThemeDB.fallback_font
@@ -7583,10 +7868,20 @@ class PeopleRail extends Control:
 		var mark := Color("e2a63a")
 		draw_line(Vector2(mid_x + 7.0, 8.0), Vector2(mid_x - 7.0, 18.0), mark, 3.0)
 		draw_line(Vector2(mid_x - 7.0, 18.0), Vector2(mid_x + 7.0, 28.0), mark, 3.0)
+		var reserve := 0.0
+		if badge > 0:
+			reserve = 40.0
+			var at := Vector2(mid_x, size.y - 22.0)
+			var beat := 0.0 if still else 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
+			draw_circle(at, 17.0 + 3.0 * beat, Color(0.89, 0.65, 0.23, 0.18 * beat))
+			draw_circle(at, 14.0, mark)
+			var digits := str(badge)
+			var dw := font.get_string_size(digits, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			draw_string(font, at + Vector2(-dw * 0.5, 6.0), digits, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("1a1008"))
 		if caption == "":
 			return
 		var font_size := 15
-		var room := maxf(24.0, size.y - 44.0)
+		var room := maxf(24.0, size.y - 44.0 - reserve)
 		var text_w := font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		if text_w > room:
 			font_size = maxi(11, int(floor(float(font_size) * room / text_w)))

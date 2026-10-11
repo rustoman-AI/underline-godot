@@ -1339,6 +1339,7 @@ func _fill_sheet_body(sid: String) -> void:
 		return
 	var st: Dictionary = game.stations[sid]
 	var own := str(st.owner) == str(game.player)
+	_sheet_body.add_child(_station_photo(game, st))
 	_sheet_body.add_child(_lab(str(st.community), 20, true))
 	_sheet_body.add_child(_lab(str(st.name), 14, false))
 	if own:
@@ -1761,6 +1762,81 @@ func _hub_tex(game, st: Dictionary) -> Texture2D:
 		if tex != null:
 			return tex
 	return null
+
+
+## Small snapshot for the station sheet. Stations without their own art borrow a room picture.
+func _station_photo(game, st: Dictionary) -> Control:
+	var frame := PanelContainer.new()
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("efe8d6")
+	face.border_color = Color("c9bea4")
+	face.set_border_width_all(1)
+	face.set_content_margin_all(6)
+	face.content_margin_bottom = 4
+	face.shadow_color = Color(0, 0, 0, 0.35)
+	face.shadow_size = 6
+	face.shadow_offset = Vector2(2, 3)
+	frame.add_theme_stylebox_override("panel", face)
+	frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	frame.rotation_degrees = -1.6
+	frame.resized.connect(func(): frame.pivot_offset = frame.size * 0.5)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	frame.add_child(box)
+	var shot := TextureRect.new()
+	shot.custom_minimum_size = Vector2(220, 110)
+	shot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	shot.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	shot.clip_contents = true
+	var caption := ""
+	if _secret(st):
+		var blank := ColorRect.new()
+		blank.color = Color(0.18, 0.16, 0.14)
+		blank.custom_minimum_size = shot.custom_minimum_size
+		var mark := Label.new()
+		mark.text = "?"
+		mark.add_theme_font_size_override("font_size", 48)
+		mark.add_theme_color_override("font_color", Color(1, 1, 1, 0.35))
+		mark.set_anchors_preset(Control.PRESET_FULL_RECT)
+		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		blank.add_child(mark)
+		box.add_child(blank)
+		caption = Copy.t("No photo yet")
+	else:
+		shot.texture = _thumb_tex(game, st)
+		shot.modulate = Color(1.0, 0.94, 0.84)
+		box.add_child(shot)
+		caption = str(st.get("name", ""))
+	var tag := Label.new()
+	tag.text = caption
+	tag.add_theme_font_size_override("font_size", 12)
+	tag.add_theme_color_override("font_color", CARD_MUTED)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.clip_text = true
+	tag.custom_minimum_size = Vector2(220, 0)
+	box.add_child(tag)
+	return frame
+
+
+func _thumb_tex(game, st: Dictionary) -> Texture2D:
+	var sid := str(st.get("id", ""))
+	for path in ["res://assets/hubs/%s.webp" % sid, "res://assets/hubs/hub_%s.webp" % sid]:
+		if ResourceLoader.exists(path):
+			return ArtPack.load_texture(path)
+	if sid == str(game.capital_id):
+		return _hub_tex(game, st)
+	var pool: Array = ["hydroponics", "quarters", "platform", "workshop"]
+	match str(st.get("lean", "")):
+		"order", "faith":
+			pool = ["meeting_hall", "quarters", "infirmary"]
+		"trade":
+			pool = ["radio", "platform", "workshop"]
+		"craft", "depot":
+			pool = ["workshop", "generator", "air_filter"]
+	var room := str(pool[_hash(sid) % pool.size()])
+	return ArtPack.load_texture("res://assets/rooms/room_%s.webp" % room)
 
 
 func _lean_name(lean: String) -> String:

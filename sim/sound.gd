@@ -142,6 +142,8 @@ static func room(type: String, open: bool) -> void:
 	var stream := _room_stream(type)
 	if stream == null:
 		type = ""
+	if type == "" and room_now == "" and not room_player.playing:
+		return
 	var target := SILENT_DB
 	if type != "":
 		target = ROOM_DB_OPEN if open else ROOM_DB_HOVER

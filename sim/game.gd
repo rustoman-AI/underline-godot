@@ -2165,6 +2165,7 @@ func assign_preview(person_id: String, uid: String) -> Dictionary:
 			already = true
 	if not already and room.staff.size() >= int(defin.staff_max):
 		info.reason = Copy.t("The room is fully staffed.")
+		info["full"] = true
 		return info
 	info.ok = true
 	return info
