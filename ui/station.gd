@@ -3220,7 +3220,7 @@ func _journal_line(row: Dictionary) -> String:
 				return Copy.t("Burned the papers. One Papers clue is gone.")
 			return Copy.t("Burned the papers before any clue was found.")
 		"false_way":
-			return Copy.t("Bird's way was false. She laughed on the radio.")
+			return Copy.t("Bird took the lantern toll and gave nothing back.")
 	return kind
 
 
@@ -3592,7 +3592,6 @@ func _show_audience() -> void:
 	who.add_child(stand)
 	top.add_child(who)
 	card_body.add_child(top)
-	_body(_leader_text(row.get("opening", {})))
 	var memory: Array = game.standing_memory.get(fid, [])
 	if not memory.is_empty():
 		var head := _label("They remember", 15, true)
@@ -3647,48 +3646,35 @@ func _audience_buttons(yes_text: String, yes: Callable, no_text: String) -> Butt
 func _audience_terms(fid: String, deal: Dictionary) -> void:
 	var deal_id := str(deal.get("id", ""))
 	_heading(Copy.t(str(DEAL_NAMES.get(deal_id, deal_id))))
-	_body(_leader_text(deal))
+	var fx: Dictionary = game.audience_effects()
 	var lines: PackedStringArray = []
-	if int(deal.get("hope", 0)) != 0:
-		lines.append(Copy.t("Hope %s") % _signed(int(deal.hope)))
-	if int(deal.get("discontent", 0)) != 0:
-		lines.append(Copy.t("Discontent %s") % _signed(int(deal.discontent)))
-	if int(deal.get("food", 0)) != 0:
-		lines.append(Copy.t("Food %s") % _signed(int(deal.food)))
-	var shifts: Dictionary = deal.get("opinion", {})
+	if int(fx.hope) != 0:
+		lines.append(Copy.t("Hope %s") % _signed(int(fx.hope)))
+	if int(fx.discontent) != 0:
+		lines.append(Copy.t("Discontent %s") % _signed(int(fx.discontent)))
+	if int(fx.food) != 0:
+		lines.append(Copy.t("Food %s") % _signed(int(fx.food)))
 	var parts: PackedStringArray = []
-	for other in shifts:
-		parts.append("%s %s" % [_leader_text(game.leader(str(other)).get("name", {})), _signed(int(shifts[other]))])
+	for other in fx.standing:
+		parts.append("%s %s" % [_leader_text(game.leader(str(other)).get("name", {})), _signed(int(fx.standing[other]))])
 	if not parts.is_empty():
 		lines.append(Copy.t("Opinion: %s") % ", ".join(parts))
-	match deal_id:
-		"the_list":
-			var target := str(game.audience.get("target", ""))
-			if game.people.has(target):
-				lines.append(Copy.t("Handed over: %s.") % _resident_name(game.people[target]))
-			lines.append(Copy.t("Curfew comes into force."))
-		"burn_papers":
-			var papers := int(game.artifacts.get("papers", 0))
-			if papers > 0:
-				lines.append(Copy.t("Destroys one Papers clue (you hold %d).") % papers)
-			else:
-				lines.append(Copy.t("No Papers clue found yet: only the mark is set."))
-		"lantern_toll":
-			var now := int(game.standing.get(fid, 0))
-			if now < 0:
-				lines.append(Copy.t("Opinion is %s, below zero: the way she opens is a lie.") % _signed(now))
-			else:
-				lines.append(Copy.t("Opinion is %s: the way she opens is real.") % _signed(now))
-	if Game.DEAL_ROOM.has(deal_id):
-		var type := str(Game.DEAL_ROOM[deal_id])
-		if game.room_count(type) > 0:
-			lines.append(Copy.t("%s gains a tier, if it has one left.") % _room_type_name(type))
+	if str(fx.hand_over) != "":
+		lines.append(Copy.t("Handed over: %s.") % _resident_name(game.people[str(fx.hand_over)]))
+	if str(fx.law) != "":
+		lines.append(Copy.t("Enacted %s.") % Copy.t(str(game.catalog.laws[str(fx.law)].name)))
+	if not fx.tier.is_empty():
+		lines.append(Copy.t("%s: %s, free.") % [_room_type_name(str(fx.tier.type)), Copy.t(str(fx.tier.name))])
+	if deal_id == "burn_papers":
+		if bool(fx.papers):
+			lines.append(Copy.t("One Papers clue destroyed (you hold %d).") % int(game.artifacts.get("papers", 0)))
 		else:
-			lines.append(Copy.t("No %s yet, so no free tier.") % _room_type_name(type).to_lower())
-	var mark := str(deal.get("flag", ""))
-	if mark != "":
-		lines.append(Copy.t("Mark: %s.") % Copy.t(str(MARK_NAMES.get(mark, mark))))
-		if mark == "collaborator":
+			lines.append(Copy.t("No Papers clue found yet: only the mark is set."))
+	if bool(fx.toll_lost):
+		lines.append(Copy.t("Her opinion is %s, below zero: she takes the toll and gives nothing back.") % _signed(int(game.standing.get(fid, 0))))
+	if str(fx.flag) != "":
+		lines.append(Copy.t("Mark: %s.") % Copy.t(str(MARK_NAMES.get(str(fx.flag), fx.flag))))
+		if str(fx.flag) == "collaborator":
 			lines.append(Copy.t("This mark never comes off."))
 	for line in lines:
 		var lab := _label("· " + line, 16)

@@ -136,3 +136,23 @@ Same two-pass loudnorm as the stories (`.tools/normalize_vo.ps1 -Pattern 'event_
 The attached factions.json and FACTIONS.md are byte-identical to what went in with a7b97d8 (`data/faction_leaders.json`, `docs/FACTIONS.md`), so section 5 already covers the request; no code change. That commit came before the poses and loudness commits because it was done in the previous pass.
 
 **Checks after all three:** bot OK, no missing banners. `.tools/audience_shots.gd` RU and EN unchanged (Halloran card, terms, deal, Pike turned away). Station with the committed poses: 25 residents on 11 distinct bodies, hydroponics crew on body poses. Screenshots in `shots/iter3/<lang>/` (aud_halloran, aud_halloran_terms, aud_pike, aud_journal, figures_station, figures_station_zoom), not committed.
+
+## 9. Audience card shows only what the turn applies
+
+The terms card promised things the sim never did. Now `Game.audience_effects()` computes the deal's consequences once, `_apply_audience` applies exactly that dictionary, and the card prints only its lines: Hope, Discontent, Food (after clamping to 0..100 and food at 0 or more), opinion shifts (after clamping to -100..100, zero shifts dropped), who is handed over, the law if it is not already on, the free tier with its name, the Papers clue, the mark. The deal text from json and the leader's opening are no longer on the card: three of the five openings promise things the game does not do (Halloran's free squad, Kato's "next person you send up", Bird's "the expensive way").
+
+What each deal was supposed to connect to, and what was found:
+
+| Deal | Card now | Not shown, why |
+| --- | --- | --- |
+| the_list | Hope -8, Discontent -6, opinions, hand over the least skilled non-council resident, curfew, free air filter tier | Directorate squad for 8 weeks: map squads are one per faction (`squads[player]`, `squads["directorate"]`); a lent squad would need a second player squad, new orders and combat. Line dropped. |
+| burn_papers | Hope -4, opinions, one Papers clue destroyed if you hold one, free workshop tier | Faster digging: dig time is computed in code (`_dig_cost`, 1 + level turns), no number in faction_leaders.json. Line dropped. |
+| stay_down | Hope +12 (one time, applied now), opinions | Surface exits ban: there are no surface exits, the only expedition is the South Ferry tunnel. Medic and Exodus cost not promised. |
+| open_books | Food +40, opinions | Caravan discount: the trade order is one time (`trade_on` stays on, there is no next visit) and json has no discount number. Loyalty monopoly not built. |
+| lantern_toll | Food -8, opinions; below 0 opinion one extra line "she takes the toll and gives nothing back" | Volunteer option and flooded way: neither exists. Below 0 the only extra is a red journal row "Bird took the lantern toll and gave nothing back." No bunker. |
+
+The free tiers and curfew were already real; they are now shown with the actual room and step name ("Air filter: charcoal, free."), or not at all if the room is missing or fully upgraded, or curfew is already on.
+
+**Cooldown:** the 6 week gap is skipped only for leaders in the hostile and pact bands. No Pike revenge: publishing clues does not exist.
+
+**Checks:** `.tools/audience_probe.gd --accept` takes every deal over three seeds (15 deals, all five kinds) and compares each shown value with the measured change: 0 mismatches. `.tools/audience_shots.gd --lang=ru` confirms Halloran's deal through the UI button and prints shown vs changed: Hope -8/-8, Discontent -6/-6, Food 0/0, Directorate +30/+30, Depot -25/-25, Synod -15/-15, Black Flag +5/+5, Exchange 0/0, residents 25 to 24 (Lila Voss), curfew off to on, air filter upgrade 0 to 1 (charcoal), collaborator set. Bot OK, no missing banners. Screenshot `shots/aud_halloran_terms.png` (RU), not committed. Section 5's "Not done" notes about Bird's false way and free tiers are superseded by this section.

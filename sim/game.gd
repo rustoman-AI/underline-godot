@@ -5784,7 +5784,8 @@ func _audience_dawn() -> void:
 	for fid in audience_due:
 		if audience_deals.has(fid):
 			continue
-		if audience_last.has(fid) and week - int(audience_last[fid]) < cooldown:
+		var band := standing_band(str(fid))
+		if band != "hostile" and band != "pact" and audience_last.has(fid) and week - int(audience_last[fid]) < cooldown:
 			continue
 		if best == "" or int(audience_due[fid]) < int(audience_due[best]):
 			best = str(fid)
@@ -5843,33 +5844,32 @@ func _apply_audience(accept: bool) -> bool:
 	var fid := str(audience.faction)
 	var deal: Dictionary = leader(fid).get("dirty_deal", {})
 	var deal_id := str(deal.get("id", ""))
+	var fx := audience_effects()
 	var deed := {"deed": deal_id}
-	var false_way := deal_id == "lantern_toll" and int(standing.get(fid, 0)) < 0
-	if deal_id == "the_list":
-		var person: Dictionary = people[str(audience.target)]
+	if str(fx.hand_over) != "":
+		var person: Dictionary = people[str(fx.hand_over)]
 		deed["name"] = str(person.get("name", ""))
 		deed["name_ru"] = str(person.get("name_ru", ""))
-		_remove_resident(str(audience.target))
+		_remove_resident(str(fx.hand_over))
 		_journal("handed_over", {"faction": fid, "name": deed.name, "name_ru": deed.name_ru})
-	elif deal_id == "burn_papers":
-		var had := int(artifacts.papers) > 0
-		if had:
+	if deal_id == "burn_papers":
+		if bool(fx.papers):
 			artifacts.papers = int(artifacts.papers) - 1
-		_journal("papers_burned", {"faction": fid, "destroyed": had})
-	elif false_way:
+		_journal("papers_burned", {"faction": fid, "destroyed": bool(fx.papers)})
+	if bool(fx.toll_lost):
 		_journal("false_way", {"faction": fid})
-	_add_hope(int(deal.get("hope", 0)), "audience")
-	_add_discontent(int(deal.get("discontent", 0)), "audience")
-	if deal.has("food"):
-		stock.food = maxi(0, int(stock.food) + int(deal.food))
-	var shifts: Dictionary = deal.get("opinion", {})
-	for other in shifts:
-		_add_standing(str(other), int(shifts[other]), deed)
-	if DEAL_ROOM.has(deal_id):
-		_free_tier(str(DEAL_ROOM[deal_id]))
-	if DEAL_LAW.has(deal_id):
-		laws_on[str(DEAL_LAW[deal_id])] = true
-	flags[str(deal.get("flag", deal_id))] = week
+	_add_hope(int(fx.hope), "audience")
+	_add_discontent(int(fx.discontent), "audience")
+	stock.food = int(stock.food) + int(fx.food)
+	for other in fx.standing:
+		_add_standing(str(other), int(fx.standing[other]), deed)
+	if not fx.tier.is_empty():
+		var room = _room(str(fx.tier.uid))
+		room.upgrade = int(room.upgrade) + 1
+		_log("UPGRADE %s to %s" % [catalog.rooms[room.type].name, str(fx.tier.name)])
+	if str(fx.law) != "":
+		laws_on[str(fx.law)] = true
+	flags[str(fx.flag)] = week
 	_journal("audience", {"faction": fid, "result": "deal", "deal": deal_id})
 	audience_deals[fid] = week
 	audience_last[fid] = week
@@ -5878,15 +5878,44 @@ func _apply_audience(accept: bool) -> bool:
 	return true
 
 
-func _free_tier(type: String) -> void:
-	for room in rooms:
-		if str(room.type) != type:
+## Everything taking the deal at the door changes this turn, already clamped to the meters, so the card can show
+## exactly what will move. Promises in the deal text with no mechanic behind them are not here.
+func audience_effects() -> Dictionary:
+	var fx := {
+		"hope": 0, "discontent": 0, "food": 0, "standing": {}, "hand_over": "", "law": "",
+		"tier": {}, "papers": false, "toll_lost": false, "flag": "",
+	}
+	if audience.is_empty():
+		return fx
+	var fid := str(audience.faction)
+	var deal: Dictionary = leader(fid).get("dirty_deal", {})
+	var deal_id := str(deal.get("id", ""))
+	fx.flag = str(deal.get("flag", deal_id))
+	fx.hope = clampi(hope + int(deal.get("hope", 0)), 0, 100) - hope
+	fx.discontent = clampi(discontent + int(deal.get("discontent", 0)), 0, 100) - discontent
+	fx.food = maxi(0, int(stock.food) + int(deal.get("food", 0))) - int(stock.food)
+	var shifts: Dictionary = deal.get("opinion", {})
+	for other in shifts:
+		if not standing.has(str(other)):
 			continue
+		var now := int(standing[other])
+		var moved := clampi(now + int(shifts[other]), -100, 100) - now
+		if moved != 0:
+			fx.standing[str(other)] = moved
+	if deal_id == "the_list" and people.has(str(audience.get("target", ""))):
+		fx.hand_over = str(audience.target)
+	if DEAL_LAW.has(deal_id) and not _law_on(str(DEAL_LAW[deal_id])):
+		fx.law = str(DEAL_LAW[deal_id])
+	if DEAL_ROOM.has(deal_id):
+		var type := str(DEAL_ROOM[deal_id])
 		var steps: Array = catalog.rooms[type].get("upgrades", [])
-		if int(room.upgrade) < steps.size():
-			room.upgrade = int(room.upgrade) + 1
-			_log("UPGRADE %s to %s" % [catalog.rooms[type].name, str(steps[int(room.upgrade) - 1])])
-			return
+		for room in rooms:
+			if str(room.type) == type and int(room.upgrade) < steps.size():
+				fx.tier = {"uid": str(room.uid), "type": type, "name": str(steps[int(room.upgrade)])}
+				break
+	fx.papers = deal_id == "burn_papers" and int(artifacts.papers) > 0
+	fx.toll_lost = deal_id == "lantern_toll" and int(standing.get(fid, 0)) < 0
+	return fx
 
 
 const PERSIST := [
