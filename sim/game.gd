@@ -5767,8 +5767,11 @@ func _arrived(rule: String) -> bool:
 	return false
 
 
-## A leader left waiting a week counts as turned away. Then at most one leader comes per dawn: the one whose
-## arrival came first, unless their deal is done or they were seen within the cooldown.
+## A leader left waiting a week counts as turned away. Then at most one leader comes per dawn, chosen among
+## those who have arrived, have no deal done and are out of cooldown (hostile and pact leaders have none).
+## Least recently seen goes first: never seen before anyone seen, then the oldest audience_last; ties go to
+## the earlier arrival, then to the order in faction_leaders.json. A refused or silent leader is requeued
+## behind everyone waiting, so a repeater cannot keep the door from the others.
 func _audience_dawn() -> void:
 	if catalog.leaders.is_empty():
 		return
@@ -5779,22 +5782,32 @@ func _audience_dawn() -> void:
 		var fid := str(row.get("id", ""))
 		if not audience_due.has(fid) and _arrived(str(row.get("arrival", ""))):
 			audience_due[fid] = week
-	var cooldown := int(catalog.leaders.audience_cooldown_weeks)
 	var best := ""
-	for fid in audience_due:
-		if audience_deals.has(fid):
+	var best_key: Array = []
+	for row in catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if not audience_eligible(fid):
 			continue
-		var band := standing_band(str(fid))
-		if band != "hostile" and band != "pact" and audience_last.has(fid) and week - int(audience_last[fid]) < cooldown:
-			continue
-		if best == "" or int(audience_due[fid]) < int(audience_due[best]):
-			best = str(fid)
+		var key := [int(audience_last.get(fid, -1)), int(audience_due[fid])]
+		if best == "" or key < best_key:
+			best = fid
+			best_key = key
 	if best == "":
 		return
 	var target := ""
 	if str(leader(best).get("dirty_deal", {}).get("id", "")) == "the_list":
 		target = list_target()
 	audience = {"faction": best, "week": week, "target": target}
+
+
+## Arrived, deal not done, and either never seen, out of the cooldown, or hostile or pact.
+func audience_eligible(fid: String) -> bool:
+	if not audience_due.has(fid) or audience_deals.has(fid):
+		return false
+	var band := standing_band(fid)
+	if band == "hostile" or band == "pact" or not audience_last.has(fid):
+		return true
+	return week - int(audience_last[fid]) >= int(catalog.leaders.audience_cooldown_weeks)
 
 
 ## Who the Directorate's list would name: the least skilled resident outside the council.

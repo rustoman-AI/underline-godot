@@ -1,7 +1,9 @@
 extends SceneTree
 
-## Headless gate: formula checks, then five seeds of each steward.
+## Headless gate: formula checks, then five seeds of each steward, then the leader audience checks.
 ##   godot --headless --path . -s res://sim/bot_run.gd
+
+const AudienceChecks = preload("res://sim/audience_checks.gd")
 
 
 func _init() -> void:
@@ -87,6 +89,17 @@ func _init() -> void:
 	if not _checks_ok("Follower", follower):
 		failed = true
 		print("CHECK TARGET FAIL follower")
+	print("")
+	var catalog := Catalog.new()
+	var audience: Dictionary = AudienceChecks.run(catalog) if catalog.load_all() else {"ok": false, "lines": ["FAIL catalog " + catalog.error]}
+	if audience.ok:
+		print("Audience checks: ok")
+	else:
+		failed = true
+		print("AUDIENCE CHECK FAIL")
+		for line in audience.lines:
+			if str(line).begins_with("FAIL"):
+				print("  ", line)
 	print("")
 	_print_banners()
 	print("")
