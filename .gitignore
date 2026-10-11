@@ -1,6 +1,5 @@
 .godot/
 .tools/
-export_presets.cfg
 *.translation
 .DS_Store
 build/
