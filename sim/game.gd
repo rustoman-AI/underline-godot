@@ -227,6 +227,8 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_assign(str(action.get("person", "")), str(action.get("room", "")))
 		"unassign":
 			ok = _apply_unassign(str(action.get("person", "")))
+		"switch":
+			ok = _apply_switch(str(action.get("room", "")), bool(action.get("on", true)))
 		"staff":
 			_auto_staff()
 			decisions += 1
@@ -2050,6 +2052,41 @@ func _apply_unassign(person_id: String) -> bool:
 	return true
 
 
+func switch_preview(uid: String) -> Dictionary:
+	var info := {"can": false, "on": true, "saves": 0, "reason": ""}
+	var room = _room(uid)
+	if room == null:
+		return info
+	var draw := int(catalog.rooms[room.type].get("power", 0))
+	info.saves = draw
+	info.on = not bool(room.get("switched_off", false))
+	if str(room.type) == "platform" or draw <= 0:
+		return info
+	if info.on and bool(room.offline):
+		info.reason = Copy.t("The room is offline.")
+		return info
+	info.can = true
+	return info
+
+
+func _apply_switch(uid: String, on: bool) -> bool:
+	var info := switch_preview(uid)
+	if not bool(info.can) or bool(info.on) == on:
+		return false
+	var room = _room(uid)
+	if on:
+		room.switched_off = false
+		room.offline = bool(cells[_ck(int(room.level), int(room.cell))].flooded)
+	else:
+		for id in room.staff.duplicate():
+			_unassign(str(id))
+		room.switched_off = true
+		room.offline = true
+	decisions += 1
+	_log("SWITCH %s %s" % [catalog.rooms[room.type].name, "on" if on else "off"])
+	return true
+
+
 func assign_preview(person_id: String, uid: String) -> Dictionary:
 	var info := {"ok": false, "reason": ""}
 	if not people.has(person_id):
@@ -2212,7 +2249,7 @@ func _apply_pump() -> bool:
 			var uid := str(cells[key].room)
 			var flooded_room = _room(uid)
 			if uid != "" and flooded_room != null:
-				flooded_room.offline = false
+				flooded_room.offline = bool(flooded_room.get("switched_off", false))
 	decisions += 1
 	_log("PUMP the lower level", true)
 	return true
@@ -5294,6 +5331,7 @@ func _place_room(type: String, level: int, cell: int) -> void:
 	var room := {
 		"uid": uid, "type": type, "level": level, "cell": cell,
 		"upgrade": 0, "efficiency": 1.0, "staff": [], "offline": false, "browned": false, "disabled": 0,
+		"switched_off": false,
 	}
 	rooms.append(room)
 	cells[_ck(level, cell)].room = uid

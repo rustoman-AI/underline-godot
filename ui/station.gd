@@ -113,6 +113,7 @@ var toast_label: Label
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
+var picker_busy_open := false
 var news_week := -1
 var net_guide := false
 var net_guided := false
@@ -179,7 +180,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual():
 		shot_mode = true
 	if hub_button != null:
 		hub_button.visible = _hub_texture() != null
@@ -187,7 +188,7 @@ func _ready() -> void:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -218,10 +219,16 @@ func _ready() -> void:
 		await _network_shots()
 	elif _want_ux():
 		await _ux_shots()
+	elif _want_visual():
+		await _visual_shots()
 
 
 func _want_ux() -> bool:
 	return OS.get_cmdline_user_args().has("--ux")
+
+
+func _want_visual() -> bool:
+	return OS.get_cmdline_user_args().has("--visual")
 
 
 func _want_shots() -> bool:
@@ -1869,15 +1876,6 @@ func _confirm_build(type: String, level: int, cell: int) -> void:
 	})
 
 
-func _room_lead(detail: Dictionary) -> String:
-	var bits: PackedStringArray = []
-	for out in detail.outputs:
-		bits.append(Copy.t("%s +%d / week") % [Copy.res(str(out.key)), int(out.amount)])
-	bits.append(Copy.t("%d of %d crew") % [detail.staff.size(), int(detail.staff_max)])
-	bits.append(Copy.t("uses %d power") % int(detail.power))
-	return " · ".join(bits)
-
-
 func _show_room(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
 	if detail.is_empty():
@@ -1885,44 +1883,18 @@ func _show_room(uid: String) -> void:
 	if not _claim(ModalDeck.AMBIENT, "room", _show_room.bind(uid)):
 		return
 	_open_card(str(detail.name))
+	var title_row := card_body.get_child(0) as HBoxContainer
+	if title_row != null:
+		title_row.add_theme_constant_override("separation", 12)
+		var icon := _room_icon(str(detail.type), 48)
+		title_row.add_child(icon)
+		title_row.move_child(icon, 0)
+	_room_header(detail)
 	if notice != "":
 		_body(notice)
 		notice = ""
-	_body(_room_lead(detail))
-	if bool(detail.offline):
-		_body("Offline.")
-	for member in detail.staff:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		row.add_child(_portrait_box(str(member.id), 44))
-		var staff_line := "%s · %s %d" % [str(member.name), Copy.skill(str(detail.skill), false), int(member.skill)]
-		if str(member.traits) != "":
-			staff_line += " · " + str(member.traits)
-		var lab := _label(staff_line, 15)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(lab)
-		var off := _button("Off", _unassign.bind(str(member.id), uid))
-		off.custom_minimum_size = Vector2(72, 48)
-		row.add_child(off)
-		card_body.add_child(row)
 	if int(detail.staff_max) > 0:
-		var picks := _assign_picks(uid)
-		if picks.is_empty():
-			var blocked := ""
-			for row in game.candidates_for(uid):
-				if bool(row.here):
-					continue
-				var preview: Dictionary = game.assign_preview(str(row.id), uid)
-				if not bool(preview.ok):
-					blocked = str(preview.reason)
-					break
-			if blocked != "":
-				_body(blocked)
-		else:
-			_body("Tap a name to assign.")
-			for row in picks:
-				card_body.add_child(_assign_row(uid, row))
+		_seat_row(uid, detail)
 	if str(detail.skill) != "":
 		_body(Copy.t("%s from crew skill.") % _mult(float(detail.multiplier)))
 	var up: Dictionary = game.upgrade_preview(uid)
@@ -1932,6 +1904,249 @@ func _show_room(uid: String) -> void:
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
 		card_body.add_child(_button("Laws", _show_laws))
+	_room_switch(uid)
+
+
+func _room_icon(type: String, px: int) -> Glyph:
+	var icon := Glyph.new()
+	icon.kind = type
+	icon.ink = PAPER_INK
+	icon.custom_minimum_size = Vector2(px, px)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return icon
+
+
+func _room_header(detail: Dictionary) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var outputs: Array = detail.outputs
+	if outputs.is_empty():
+		var defin: Dictionary = game.catalog.rooms[str(detail.type)]
+		var makes := _makes_line(str(detail.type), defin)
+		row.add_child(makes)
+	for out in outputs:
+		row.add_child(_mini_glyph(str(out.key), 20))
+		var amount := 0 if bool(detail.offline) else int(out.amount)
+		var lab := _label(Copy.t("%s %+d/wk") % [Copy.res(str(out.key)), amount], 18, true)
+		row.add_child(lab)
+	var draw := int(detail.power)
+	if draw > 0:
+		row.add_child(_dot())
+		row.add_child(_mini_glyph("power", 20))
+		var power_text := Copy.t("Power −%d/wk") % draw
+		if bool(game._room(str(detail.uid)).get("switched_off", false)):
+			power_text = Copy.t("Power 0/wk")
+		row.add_child(_label(power_text, 18, true))
+	card_body.add_child(row)
+	if bool(game._room(str(detail.uid)).get("switched_off", false)):
+		_body("Switched off. The crew went back to the platform.")
+	elif bool(detail.offline):
+		_body("Offline.")
+
+
+func _seat_row(uid: String, detail: Dictionary) -> void:
+	var free := _free_picks(uid)
+	var full: bool = detail.staff.size() >= int(detail.staff_max)
+	var room = game._room(uid)
+	var dark: bool = room != null and bool(room.offline)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var minus := _seat_step("−", _seat_minus.bind(uid))
+	minus.disabled = detail.staff.is_empty()
+	minus.tooltip_text = Copy.t("Take off the weakest worker")
+	row.add_child(minus)
+	var seats := HFlowContainer.new()
+	seats.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	seats.add_theme_constant_override("h_separation", 8)
+	seats.add_theme_constant_override("v_separation", 8)
+	seats.alignment = FlowContainer.ALIGNMENT_CENTER
+	for member in detail.staff:
+		seats.add_child(_seat_filled(uid, member, str(detail.skill)))
+	for i in int(detail.staff_max) - detail.staff.size():
+		seats.add_child(_seat_empty(uid, not dark))
+	row.add_child(seats)
+	var plus := _seat_step("+", _seat_plus.bind(uid))
+	plus.disabled = full or free.is_empty() or dark
+	plus.tooltip_text = Copy.t("Assign the best free resident")
+	row.add_child(plus)
+	card_body.add_child(row)
+	var each := _per_worker_text(uid, free)
+	if each != "":
+		var lab := _label(each, 16)
+		lab.add_theme_color_override("font_color", PAPER_MUTED)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card_body.add_child(lab)
+	if not full and not dark and free.is_empty():
+		_body("No free residents. Open a seat to take someone off other work.")
+
+
+func _seat_step(text: String, cb: Callable) -> Button:
+	var button := _button(text, cb)
+	button.custom_minimum_size = Vector2(56, 56)
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.add_theme_font_size_override("font_size", 32)
+	return button
+
+
+func _seat_filled(uid: String, member: Dictionary, skill_name: String) -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(120, 0)
+	var face := _button_face(false, false)
+	face.set_content_margin_all(6)
+	panel.add_theme_stylebox_override("panel", face)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	var portrait := _portrait_box(str(member.id), 56)
+	box.add_child(portrait)
+	var who := _label(str(member.name).get_slice(" ", 0), 15)
+	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	who.clip_text = true
+	who.tooltip_text = str(member.name)
+	who.mouse_filter = Control.MOUSE_FILTER_PASS
+	box.add_child(who)
+	if skill_name != "":
+		var skill := _label("%s %d" % [Copy.skill(skill_name, false), int(member.skill)], 14)
+		skill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		skill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		skill.add_theme_color_override("font_color", PAPER_MUTED)
+		box.add_child(skill)
+	var off := _button("Unassign", _unassign.bind(str(member.id), uid))
+	off.custom_minimum_size = Vector2(0, 28)
+	off.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	off.add_theme_font_size_override("font_size", 14)
+	for state in ["normal", "hover", "pressed"]:
+		var small := _button_face(state == "pressed", state == "hover")
+		small.content_margin_top = 2
+		small.content_margin_bottom = 2
+		off.add_theme_stylebox_override(state, small)
+	box.add_child(off)
+	panel.add_child(box)
+	return panel
+
+
+func _seat_empty(uid: String, open: bool) -> Control:
+	var slot := SeatSlot.new()
+	slot.custom_minimum_size = Vector2(120, 150)
+	slot.ink = PAPER_EDGE
+	slot.open = open
+	slot.tooltip_text = Copy.t("Choose who works here")
+	if open:
+		slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		slot.picked.connect(_open_picker.bind(uid))
+	return slot
+
+
+func _open_picker(uid: String) -> void:
+	picker_busy_open = false
+	_show_assign(uid)
+
+
+func _free_picks(uid: String) -> Array:
+	var rows: Array = []
+	for row in _assign_picks(uid):
+		if _other_room_name(str(row.id), uid) == "":
+			rows.append(row)
+	rows.sort_custom(func(a, b): return int(a.skill) > int(b.skill))
+	return rows
+
+
+func _per_worker_text(uid: String, free: Array) -> String:
+	var row: Dictionary = {}
+	if not free.is_empty():
+		row = free[0]
+	else:
+		var room = game._room(uid)
+		if room != null and not room.staff.is_empty():
+			var weakest := _weakest_staff(uid)
+			var effect: Dictionary = Brief.marginal(game, uid, weakest)
+			var delta := 0
+			if str(effect.key) != "":
+				var defin: Dictionary = game.catalog.rooms[room.type]
+				var all_ids: Array = []
+				var rest: Array = []
+				for id in room.staff:
+					all_ids.append(str(id))
+					if str(id) != weakest:
+						rest.append(str(id))
+				delta = Brief._amount(game, room, defin, all_ids, str(effect.key)) - Brief._amount(game, room, defin, rest, str(effect.key))
+			row = {"out_key": str(effect.key), "delta": delta, "note": str(effect.note)}
+	if row.is_empty():
+		return ""
+	var key := str(row.get("out_key", ""))
+	if key != "":
+		var word := Copy.res(key)
+		word = word.substr(0, 1).to_lower() + word.substr(1)
+		return Copy.t("Each worker: %+d %s/wk") % [int(row.delta), word]
+	var note := str(row.get("note", ""))
+	if note == "":
+		return ""
+	return Copy.t("Each worker: %s") % Copy.t(note)
+
+
+func _weakest_staff(uid: String) -> String:
+	var detail: Dictionary = game.room_detail(uid)
+	var weakest := ""
+	var low := 999
+	for member in detail.staff:
+		if int(member.skill) < low:
+			low = int(member.skill)
+			weakest = str(member.id)
+	return weakest
+
+
+func _seat_plus(uid: String) -> void:
+	var free := _free_picks(uid)
+	if free.is_empty():
+		_open_picker(uid)
+		return
+	_assign_person(str(free[0].id), uid)
+
+
+func _seat_minus(uid: String) -> void:
+	var weakest := _weakest_staff(uid)
+	if weakest != "":
+		_unassign(weakest, uid)
+
+
+func _room_switch(uid: String) -> void:
+	var info: Dictionary = game.switch_preview(uid)
+	if int(info.saves) <= 0:
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var on := bool(info.on)
+	var saves := int(info.saves)
+	var off_text := Copy.t("Switched off (saves 1 power)") if saves == 1 else Copy.t("Switched off (saves %d power)") % saves
+	var run := _pick_button(Copy.t("Room is running"), on, _switch_room.bind(uid, true), 0.0)
+	var stop := _pick_button(off_text, not on, _switch_room.bind(uid, false), 0.0)
+	run.disabled = not bool(info.can) and not on
+	stop.disabled = not bool(info.can) and on
+	for button in [run, stop]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.custom_minimum_size.y = 48
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		button.add_theme_font_size_override("font_size", 17)
+		row.add_child(button)
+	card_body.add_child(row)
+	if str(info.reason) != "":
+		_body(str(info.reason))
+
+
+func _switch_room(uid: String, on: bool) -> void:
+	if game.apply({"kind": "switch", "room": uid, "on": on}):
+		_refresh()
+	_show_room(uid)
 
 
 func _show_assign(uid: String) -> void:
@@ -1940,38 +2155,33 @@ func _show_assign(uid: String) -> void:
 		return
 	_open_card(Copy.t("Assign to %s") % Copy.t(str(detail.name)))
 	var skill_name := str(detail.skill)
-	_body(Copy.t("Best %s first. The number is that skill.") % Copy.skill(skill_name, false))
-	var filter := LineEdit.new()
-	filter.placeholder_text = Copy.t("Filter names")
-	filter.add_theme_color_override("font_color", PAPER_INK)
-	filter.add_theme_color_override("font_placeholder_color", PAPER_MUTED)
-	if body_font != null:
-		filter.add_theme_font_override("font", body_font)
-	filter.custom_minimum_size = Vector2(0, 44)
-	filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 8)
-	filter.text_changed.connect(_fill_assign.bind(uid, skill_name, list))
-	card_body.add_child(filter)
-	card_body.add_child(list)
-	_fill_assign(uid, skill_name, list, "")
+	if skill_name != "":
+		_body(Copy.t("Best %s first. The number is that skill.") % Copy.skill(skill_name, false))
+	var free := _free_picks(uid)
+	var busy: Array = []
+	for row in _assign_picks(uid):
+		if _other_room_name(str(row.id), uid) != "":
+			busy.append(row)
+	busy.sort_custom(func(a, b): return int(a.skill) > int(b.skill))
+	if free.is_empty():
+		_body("No free residents.")
+	for row in free:
+		card_body.add_child(_assign_row(uid, row))
+	if not busy.is_empty():
+		var arrow := "▾" if picker_busy_open else "▸"
+		var fold := _button("%s %s (%d)" % [arrow, Copy.t("Busy (take off other work)"), busy.size()], _toggle_picker_busy.bind(uid))
+		fold.custom_minimum_size.y = 44
+		fold.add_theme_font_size_override("font_size", 17)
+		card_body.add_child(fold)
+		if picker_busy_open:
+			for row in busy:
+				card_body.add_child(_assign_row(uid, row))
 	card_body.add_child(_button("Back", _show_room.bind(uid)))
 
 
-func _fill_assign(uid: String, _skill_name: String, list: VBoxContainer, query: String) -> void:
-	_wipe(list)
-	var needle := query.strip_edges().to_lower()
-	var shown := 0
-	for row in _assign_picks(uid):
-		var person_name := str(row.name)
-		if needle != "" and not person_name.to_lower().contains(needle):
-			continue
-		shown += 1
-		list.add_child(_assign_row(uid, row))
-	if shown == 0:
-		var empty := _label("No one matches.", 15)
-		list.add_child(empty)
+func _toggle_picker_busy(uid: String) -> void:
+	picker_busy_open = not picker_busy_open
+	_show_assign(uid)
 
 
 func _assign_person(person_id: String, uid: String) -> void:
@@ -2241,6 +2451,7 @@ func _paint_dawn() -> void:
 		_intent_row(folded)
 		_morning_notes(folded)
 		_forecast_buttons(_forecast_rows(URGENT_WEEKS, 99))
+	_choice_divider()
 	for choice in ev.choices:
 		if not game.choice_offered(choice):
 			continue
@@ -2321,10 +2532,7 @@ func _forecast_rows(within: int, beyond: int = -1) -> Array:
 
 
 func _alert_chips(urgent: PackedStringArray, news: int) -> void:
-	var flow := HFlowContainer.new()
-	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	flow.add_theme_constant_override("h_separation", 6)
-	flow.add_theme_constant_override("v_separation", 4)
+	var flow := _chip_flow()
 	var warning: Dictionary = game.revolt_warning()
 	var revolt_near := not warning.is_empty() and int(warning.get("weeks", 99)) <= URGENT_WEEKS
 	if revolt_near:
@@ -2361,11 +2569,29 @@ func _far_revolt() -> void:
 	var warning: Dictionary = game.revolt_warning()
 	if warning.is_empty() or int(warning.get("weeks", 99)) <= URGENT_WEEKS:
 		return
-	var warn := _button(str(warning.text), _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell)))
-	warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	warn.custom_minimum_size.y = 40
-	warn.add_theme_font_size_override("font_size", 17)
-	card_body.add_child(warn)
+	var flow := _chip_flow()
+	flow.add_child(_chip(str(warning.text), true, _open_forecast_at.bind(str(warning.hint), int(warning.level), int(warning.cell))))
+	card_body.add_child(flow)
+
+
+func _choice_divider() -> void:
+	var gap := MarginContainer.new()
+	gap.add_theme_constant_override("margin_top", 2)
+	gap.add_theme_constant_override("margin_bottom", 2)
+	var line := ColorRect.new()
+	line.color = Color(PAPER_EDGE, 0.45)
+	line.custom_minimum_size = Vector2(0, 1)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gap.add_child(line)
+	card_body.add_child(gap)
+
+
+func _chip_flow() -> HFlowContainer:
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 4)
+	return flow
 
 
 func _far_revolt_count() -> int:
@@ -2412,12 +2638,12 @@ func _chip(text: String, alert: bool, cb: Callable) -> Button:
 
 
 func _forecast_buttons(rows: Array) -> void:
+	if rows.is_empty():
+		return
+	var flow := _chip_flow()
 	for row in rows:
-		var button := _button(str(row.text), _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell)))
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.custom_minimum_size.y = 40
-		button.add_theme_font_size_override("font_size", 17)
-		card_body.add_child(button)
+		flow.add_child(_chip(str(row.text), false, _open_forecast_at.bind(str(row.hint), int(row.level), int(row.cell))))
+	card_body.add_child(flow)
 
 
 func _toggle_news() -> void:
@@ -3226,7 +3452,7 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(_room_thumb(type))
+	row.add_child(_room_icon(type, 48))
 	var text := VBoxContainer.new()
 	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3292,11 +3518,11 @@ func _makes_line(type: String, defin: Dictionary) -> HBoxContainer:
 	if not base.is_empty():
 		var key := str(base.keys()[0])
 		var span := Brief.output_span(game, type)
-		row.add_child(_mini_glyph(key))
+		row.add_child(_mini_glyph(key, 20))
 		var text := Copy.t("+%d / wk") % span.x
 		if span.x != span.y:
 			text = Copy.t("+%d…%d / wk") % [span.x, span.y]
-		var lab := _label(text, 15)
+		var lab := _label(text, 16)
 		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(lab)
 		return row
@@ -3314,8 +3540,8 @@ func _makes_line(type: String, defin: Dictionary) -> HBoxContainer:
 		words = Copy.t("Clears sickness")
 		glyph = "quarantine"
 	if glyph != "":
-		row.add_child(_mini_glyph(glyph))
-	var lab := _label(words, 15)
+		row.add_child(_mini_glyph(glyph, 20))
+	var lab := _label(words, 16)
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(lab)
 	return row
@@ -3350,27 +3576,27 @@ func _cost_line(info: Dictionary, defin: Dictionary, building: bool) -> HBoxCont
 
 func _cost_bit(row: HBoxContainer, kind: String, text: String, short: bool) -> void:
 	var ink := DELTA_DOWN if short else PAPER_INK
-	var icon := _mini_glyph(kind)
+	var icon := _mini_glyph(kind, 20)
 	icon.ink = ink
 	row.add_child(icon)
-	var lab := _label(text, 14)
+	var lab := _label(text, 16)
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lab.add_theme_color_override("font_color", ink)
 	row.add_child(lab)
 
 
 func _dot() -> Label:
-	var lab := _label("·", 14)
+	var lab := _label("·", 16)
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lab.add_theme_color_override("font_color", PAPER_MUTED)
 	return lab
 
 
-func _mini_glyph(kind: String) -> Glyph:
+func _mini_glyph(kind: String, px: int = 16) -> Glyph:
 	var icon := Glyph.new()
 	icon.kind = kind
 	icon.ink = PAPER_INK if on_paper else INK
-	icon.custom_minimum_size = Vector2(16, 16)
+	icon.custom_minimum_size = Vector2(px, px)
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return icon
@@ -3437,6 +3663,7 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 		var why := _label(str(info.get("reason", "")), 13)
 		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		why.add_theme_color_override("font_color", DELTA_DOWN)
 		text.add_child(why)
 		var lock := Glyph.new()
@@ -4715,6 +4942,153 @@ func _ux_fit_pass(tag: String) -> void:
 		_close_card()
 
 
+func _visual_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	game.pending.clear()
+	_refresh()
+	await _frame()
+	_save("station_full")
+	var crowded: Array = []
+	for room in game.rooms:
+		if str(room.type) == "quarters" and not bool(room.offline):
+			room.offline = true
+			crowded.append(room)
+	var pick := _ux_choice()
+	print("VISUAL crowding %s housing %d pop %d" % [game.residents.size() > game.housing(), game.housing(), game.residents.size()])
+	_offer_shot(str(pick.get("event", "moles_vents")))
+	await _frame()
+	await _frame()
+	_save("event_chips")
+	news_open = true
+	_paint_dawn()
+	await _frame()
+	await _frame()
+	_save("event_news_open")
+	var keep_dis := game.discontent
+	var keep_food := int(game.stock.food)
+	game.discontent = 72
+	game.stock.food = game.food_need() * 4
+	print("VISUAL forecasts %s revolt %s" % [str(game.forecasts()), str(game.revolt_warning())])
+	_paint_dawn()
+	await _frame()
+	await _frame()
+	_save("event_news_far")
+	news_open = false
+	_close_card()
+	game.pending.clear()
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("dawn_plain")
+	_close_card()
+	game.discontent = keep_dis
+	game.stock.food = keep_food
+	for room in crowded:
+		room.offline = false
+	game.pending.clear()
+	_refresh()
+	var uid := ""
+	for type in ["workshop", "hydroponics", "generator", "air_filter"]:
+		uid = _room_uid(type)
+		if uid != "":
+			break
+	if uid != "":
+		var room = game._room(uid)
+		var cap := int(game.catalog.rooms[str(room.type)].staff_max)
+		while room.staff.size() > maxi(1, cap - 2):
+			game.apply({"kind": "unassign", "person": str(room.staff.back())})
+		_refresh()
+		_show_room(uid)
+		await _frame()
+		await _frame()
+		_save("room_panel")
+		_close_card()
+		_visual_picker(uid)
+		await _frame()
+		await _frame()
+		_save("room_picker")
+		_close_card()
+		_open_picker(uid)
+		_toggle_picker_busy(uid)
+		await _frame()
+		await _frame()
+		card_scroll.scroll_vertical = int(card_body.size.y)
+		await _frame()
+		_save("room_picker_busy")
+		_close_card()
+		game.apply({"kind": "switch", "room": uid, "on": false})
+		_refresh()
+		_show_room(uid)
+		await _frame()
+		await _frame()
+		_save("room_panel_off")
+		_close_card()
+		game.apply({"kind": "switch", "room": uid, "on": true})
+		game.apply({"kind": "staff"})
+		_refresh()
+	var floor_at := _first_open_floor()
+	_show_build(floor_at.x, floor_at.y)
+	await _frame()
+	await _frame()
+	_save("build_menu")
+	_close_card()
+	var built := false
+	for type in ["generator", "workshop", "hydroponics", "air_filter", "quarters"]:
+		if built or not game.build_possible(type):
+			continue
+		var at := _first_open_floor()
+		built = game.apply({"kind": "build", "type": type, "level": at.x, "cell": at.y})
+	_sample_dig()
+	print("VISUAL build %s dig %s" % [str(game.build), str(game.dig)])
+	_refresh()
+	await _frame()
+	await _frame()
+	_save("construction_station")
+	if not game.build.is_empty():
+		yard._zoom_to(int(game.build.level), int(game.build.cell))
+		await _frame()
+		await _frame()
+		_save("construction_build")
+	if not game.dig.is_empty():
+		yard._zoom_to(int(game.dig.level), int(game.dig.cell))
+		await _frame()
+		await _frame()
+		_save("construction_dig")
+	yard.fit()
+	game.pending.clear()
+	_end_turn()
+	_close_card()
+	game.pending.clear()
+	_refresh()
+	if not game.build.is_empty():
+		yard._zoom_to(int(game.build.level), int(game.build.cell))
+		await _frame()
+		await _frame()
+		_save("construction_build_mid")
+	yard.fit()
+	_zoom_pair("workshop", "hydroponics")
+	await _frame()
+	await _frame()
+	_save("figures_rooms")
+	_zoom_room("quarters")
+	await _frame()
+	await _frame()
+	_save("figures_quarters")
+	get_tree().quit(0)
+
+
+func _visual_picker(uid: String) -> void:
+	_open_picker(uid)
+
+
 func _offer_shot(event_id: String) -> void:
 	game.pending.clear()
 	game.week_event_ids = {}
@@ -5360,7 +5734,12 @@ class Yard extends Control:
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
 	var backdrop_tex: Texture2D
-	var cell_build: Texture2D
+	var scaffold: Texture2D
+	var ghosts := {}
+	var room_figs := {}
+	var body_figs: Array = []
+	const FIG_DIR := "res://incoming-art/figures"
+	const SCAFFOLD := "res://incoming-art/construction/scaffold.png"
 	var glow := {}
 	var more_hits: Array = []
 	var art_aspect := 1.6
@@ -5436,8 +5815,6 @@ class Yard extends Control:
 			art[type] = tex
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
 		cell_dug = ArtPack.load_texture("res://assets/cells/cell_dug.webp")
-		var site := ArtPack.load_texture("res://assets/cells/cell_construction.webp")
-		cell_build = site if site != null else cell_dug
 		backdrop_tex = ArtPack.load_texture("res://assets/backdrop_station.webp")
 		for pose_name in POSE_ART:
 			var fig_path := str(POSE_ART[pose_name])
@@ -5451,6 +5828,37 @@ class Yard extends Control:
 			if str(pose_name) == "standing":
 				figure_scale_px = float(figure.get_height())
 			poses[pose_name] = ImageTexture.create_from_image(_erode_alpha(figure, 2))
+		if ResourceLoader.exists(SCAFFOLD):
+			scaffold = ArtPack.load_texture(SCAFFOLD)
+		_load_incoming_figures()
+
+	func _load_incoming_figures() -> void:
+		if not DirAccess.dir_exists_absolute(FIG_DIR):
+			return
+		var names := {}
+		for file in DirAccess.get_files_at(FIG_DIR):
+			var name := str(file).trim_suffix(".import").trim_suffix(".remap")
+			if name.get_extension().to_lower() in ["png", "webp"]:
+				names[name] = true
+		var sorted: Array = names.keys()
+		sorted.sort()
+		for name in sorted:
+			var path := FIG_DIR.path_join(str(name))
+			if not ResourceLoader.exists(path):
+				continue
+			var tex := ArtPack.load_texture(path)
+			if tex == null:
+				continue
+			var stem := str(name).get_basename()
+			if stem.begins_with("body_"):
+				body_figs.append(tex)
+				continue
+			for type in ART:
+				if stem.begins_with(str(type) + "_"):
+					if not room_figs.has(type):
+						room_figs[type] = []
+					room_figs[type].append(tex)
+					break
 
 	func _erode_alpha(image: Image, radius: int) -> Image:
 		var src := image.duplicate()
@@ -5738,7 +6146,6 @@ class Yard extends Control:
 		for level in 3:
 			for cell in 6:
 				_draw_cell(_rect(geo, level, cell), level, cell)
-		_draw_job_worker(geo)
 		_draw_pops(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
@@ -5801,10 +6208,10 @@ class Yard extends Control:
 			shift = shake_px if shake_px != 0.0 else sin(Time.get_ticks_msec() / 45.0) * 8.0
 		if shift != 0.0:
 			rect.position += Vector2(shift, 0.0)
-		if _job_is_build(level, cell):
-			draw_rect(rect, Color(0.08, 0.07, 0.06))
-			if cell_build != null:
-				_blit_room(cell_build, rect)
+		if _job_span(level, cell).x >= 0:
+			_draw_site(rect, level, cell)
+			if hover == Vector2i(level, cell):
+				draw_rect(rect.grow(-2.0), Color(0.93, 0.78, 0.45, 0.9), false, 2.0)
 			return
 		var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
 		var kind := _kind(spot)
@@ -5842,10 +6249,7 @@ class Yard extends Control:
 				draw_rect(rect.grow(-3.0), Color(0.95, 0.84, 0.55, 0.95), false, 3.0)
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
-		var job := _job_span(level, cell)
-		if job.x >= 0:
-			_draw_progress(rect, job.x, job.y, false)
-		elif kind == "undug":
+		if kind == "undug":
 			_draw_dig_outline(rect, level, cell)
 		if drag_id != "" and kind == "room" and room != null:
 			var preview: Dictionary = station.game.assign_preview(drag_id, str(room.uid))
@@ -6035,23 +6439,108 @@ class Yard extends Control:
 		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.06)
 		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
 
-	func _draw_progress(rect: Rect2, left: int, total: int, with_label: bool = true) -> void:
-		var span := maxi(total, 1)
-		var done := clampf(float(span - left) / float(span), 0.0, 1.0)
-		var bar := Rect2(rect.position.x + 8.0, rect.position.y + rect.size.y - 12.0, rect.size.x - 16.0, 5.0)
-		draw_rect(bar, Color(0.42, 0.30, 0.12, 0.95))
-		if done > 0.0:
-			draw_rect(Rect2(bar.position, Vector2(bar.size.x * done, bar.size.y)), Color(0.93, 0.78, 0.42, 0.95))
-		if not with_label:
+	func _job_reveal(level: int, cell: int) -> float:
+		var job := _job_span(level, cell)
+		if job.x < 0:
+			return 0.0
+		return clampf(float(job.y - job.x + 1) / float(job.y + 1), 0.0, 1.0)
+
+	func _fit_rect(texture: Texture2D, rect: Rect2) -> Rect2:
+		var tex := texture.get_size()
+		if tex.x < 1.0 or tex.y < 1.0:
+			return rect
+		var aspect := tex.x / tex.y
+		var cell_aspect := rect.size.x / maxf(rect.size.y, 1.0)
+		if cell_aspect > aspect:
+			var w := rect.size.y * aspect
+			return Rect2(rect.position.x + (rect.size.x - w) * 0.5, rect.position.y, w, rect.size.y)
+		if cell_aspect < aspect:
+			var h := rect.size.x / aspect
+			return Rect2(rect.position.x, rect.position.y + (rect.size.y - h) * 0.5, rect.size.x, h)
+		return rect
+
+	func _ghost(key: String, source: Texture2D) -> Texture2D:
+		if source == null:
+			return null
+		if ghosts.has(key):
+			return ghosts[key]
+		var image := source.get_image()
+		if image == null:
+			ghosts[key] = source
+			return source
+		if image.is_compressed():
+			image.decompress()
+		image.adjust_bcs(0.6, 0.9, 0.12)
+		image.generate_mipmaps()
+		var tex := ImageTexture.create_from_image(image)
+		ghosts[key] = tex
+		return tex
+
+	func _draw_site(rect: Rect2, level: int, cell: int) -> void:
+		var building := _job_is_build(level, cell)
+		var target: Texture2D = null
+		var workers: Array = []
+		if building:
+			var type := str(station.game.build.type)
+			draw_rect(rect, Color(0.08, 0.07, 0.06))
+			if cell_dug != null:
+				_blit_room(cell_dug, rect)
+			draw_rect(rect, Color(0, 0, 0, 0.5))
+			target = _ghost(type, art.get(type, null))
+			workers = station.game.build.get("workers", [])
+		else:
+			_blit_fill(cell_rock, rect)
+			draw_rect(rect, Color(0, 0, 0, 0.2))
+			target = _ghost("#dug", cell_dug)
+			workers = station.game.dig.get("workers", [])
+		var reveal := _job_reveal(level, cell)
+		var floor := rect
+		if target != null:
+			floor = _fit_rect(target, rect)
+			var tex := target.get_size()
+			var shown := floor.size.y * reveal
+			var top := floor.end.y - shown
+			draw_texture_rect_region(target, Rect2(floor.position.x, top, floor.size.x, shown), Rect2(0.0, tex.y * (1.0 - reveal), tex.x, tex.y * reveal))
+			draw_line(Vector2(floor.position.x, top), Vector2(floor.end.x, top), Color(0.95, 0.82, 0.42, 0.75), maxf(1.5, rect.size.y * 0.008))
+		if scaffold != null:
+			draw_texture_rect(scaffold, _fit_rect(scaffold, rect), false)
+		else:
+			_draw_frame(rect)
+		_draw_site_crew(floor, workers)
+
+	func _draw_frame(rect: Rect2) -> void:
+		var wood := Color(0.46, 0.31, 0.16, 0.9)
+		var edge := Color(0.10, 0.06, 0.03, 0.85)
+		var t := maxf(2.0, rect.size.x * 0.009)
+		var xs := [0.05, 0.5, 0.95]
+		var top := rect.position.y + rect.size.y * 0.06
+		var mid := rect.position.y + rect.size.y * 0.5
+		var low := rect.position.y + rect.size.y * 0.97
+		var beams: Array = []
+		for fx in xs:
+			var x: float = rect.position.x + rect.size.x * float(fx)
+			beams.append([Vector2(x, top), Vector2(x, low)])
+		for y in [top, mid]:
+			beams.append([Vector2(rect.position.x + rect.size.x * 0.03, y), Vector2(rect.end.x - rect.size.x * 0.03, y)])
+		for i in 2:
+			var x0: float = rect.position.x + rect.size.x * float(xs[i])
+			var x1: float = rect.position.x + rect.size.x * float(xs[i + 1])
+			beams.append([Vector2(x0, top), Vector2(x1, mid)])
+			beams.append([Vector2(x1, mid), Vector2(x0, low)])
+		for beam in beams:
+			draw_line(beam[0], beam[1], edge, t + 2.0)
+		for beam in beams:
+			draw_line(beam[0], beam[1], wood, t)
+
+	func _draw_site_crew(floor: Rect2, workers: Array) -> void:
+		if workers.is_empty():
 			return
-		var label := Copy.t("%d wk") % left
-		var font: Font = ThemeDB.fallback_font
-		if station.body_font != null:
-			font = station.body_font
-		var text_size: Vector2 = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
-		var box := Rect2(rect.position.x + 6.0, bar.position.y - text_size.y - 6.0, text_size.x + 8.0, text_size.y + 2.0)
-		draw_rect(box, Color(0.05, 0.04, 0.03, 0.55))
-		draw_string(font, box.position + Vector2(4.0, text_size.y - 1.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.96, 0.93, 0.86, 0.9))
+		var pose_name := "working" if poses.has("working") else "standing"
+		var slots := [0.3, 0.68, 0.48, 0.84]
+		for i in mini(workers.size(), slots.size()):
+			var id := str(workers[i])
+			var x := floor.position.x + floor.size.x * float(slots[i])
+			_paint_pose(pose_name, x, floor.end.y - 2.0, floor.size.y, id, i % 2 == 1)
 
 	func _job_span(level: int, cell: int) -> Vector2i:
 		var digging: Dictionary = station.game.dig
@@ -6132,9 +6621,7 @@ class Yard extends Control:
 			font = station.body_font
 		for level in 3:
 			for cell in 6:
-				if _job_is_build(level, cell):
-					_draw_build_bar(geo, level, cell)
-				_draw_job_timer(geo, level, cell, font)
+				_draw_job_plate(geo, level, cell, font)
 				var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
 				if str(spot.room) == "":
 					continue
@@ -6148,40 +6635,39 @@ class Yard extends Control:
 				_draw_sign(screen, room, font)
 				_draw_badge_screen(screen, room, font)
 
-	func _draw_build_bar(geo: Dictionary, level: int, cell: int) -> void:
-		var world := _rect(geo, level, cell)
-		var screen := Rect2(pan + world.position * zoom, world.size * zoom)
-		if screen.size.x < 24.0:
-			return
-		var built := _job_span(level, cell)
-		var span := maxi(built.y, 1)
-		var done := clampf(float(span - built.x) / float(span), 0.0, 1.0)
-		var bar := Rect2(screen.position.x + 8.0, screen.position.y + screen.size.y - 12.0, screen.size.x - 16.0, 6.0)
-		draw_rect(bar, Color(0.55, 0.38, 0.14, 0.96))
-		if done > 0.0:
-			draw_rect(Rect2(bar.position, Vector2(bar.size.x * done, bar.size.y)), Color(0.95, 0.82, 0.42, 1.0))
-		_draw_status(screen.get_center() - Vector2(12, 12), "building")
-
-	func _draw_job_timer(geo: Dictionary, level: int, cell: int, font: Font) -> void:
+	func _draw_job_plate(geo: Dictionary, level: int, cell: int, font: Font) -> void:
 		var job := _job_span(level, cell)
 		if job.x < 0:
 			return
 		var world := _rect(geo, level, cell)
 		var screen := Rect2(pan + world.position * zoom, world.size * zoom)
-		if screen.size.x < 40.0:
+		if screen.size.x < 60.0:
 			return
+		var kind := str(station.game.build.type) if _job_is_build(level, cell) else "dig"
+		var icon_px := 48.0 if screen.size.x >= 150.0 else 32.0
+		var font_size := 24 if icon_px >= 48.0 else 18
 		var label := Copy.t("%d wk") % job.x
-		var font_size := 26
-		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-		var room := screen.size.x - 16.0
-		if text_size.x + 16.0 > room:
-			font_size = maxi(18, int(floor(float(font_size) * room / (text_size.x + 16.0))))
-			text_size = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-		var plate := Rect2(screen.position.x + 8.0, screen.position.y + screen.size.y - 20.0 - text_size.y - 6.0, text_size.x + 16.0, text_size.y + 6.0)
-		draw_rect(plate, Color(0.05, 0.04, 0.03, 0.82))
+		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var line_h := font.get_height(font_size)
+		var bar_w := maxf(text_w, clampf(screen.size.x * 0.4, 60.0, 170.0))
+		var plate_w := minf(10.0 + icon_px + 8.0 + bar_w + 10.0, screen.size.x - 8.0)
+		bar_w = plate_w - icon_px - 28.0
+		var plate_h := maxf(icon_px, line_h + 14.0) + 12.0
+		var plate := Rect2(screen.get_center().x - plate_w * 0.5, screen.position.y + 8.0, plate_w, plate_h)
+		draw_rect(plate, Color(0.05, 0.04, 0.03, 0.86))
 		draw_rect(plate, Color(0.93, 0.78, 0.42, 0.9), false, 1.5)
-		var ascent := font.get_ascent(font_size)
-		draw_string(font, plate.position + Vector2(8.0, 3.0 + ascent), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.98, 0.94, 0.84))
+		var tex := ArtPack.icon_texture(kind, icon_px)
+		if tex != null:
+			draw_texture_rect(tex, Rect2(plate.position + Vector2(10.0, (plate_h - icon_px) * 0.5), Vector2(icon_px, icon_px)), false)
+		var x0 := plate.position.x + 10.0 + icon_px + 8.0
+		var block_h := line_h + 14.0
+		var y0 := plate.position.y + (plate_h - block_h) * 0.5
+		draw_string(font, Vector2(x0, y0 + font.get_ascent(font_size)), label, HORIZONTAL_ALIGNMENT_LEFT, bar_w, font_size, Color(0.98, 0.94, 0.84))
+		var bar := Rect2(x0, y0 + line_h + 4.0, bar_w, 10.0)
+		draw_rect(bar, Color(0.42, 0.30, 0.12, 0.95))
+		var done := _job_reveal(level, cell)
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * done, bar.size.y)), Color(0.95, 0.82, 0.42, 1.0))
+		draw_rect(bar, Color(0.1, 0.07, 0.03, 0.9), false, 1.0)
 
 	func _room_glyph(room_type: String) -> String:
 		return room_type
@@ -6251,6 +6737,9 @@ class Yard extends Control:
 		_draw_corner_label(Rect2(screen, Vector2(220, 28)), tip)
 
 	func _draw_people(rect: Rect2, room: Dictionary) -> void:
+		if str(room.type) == "quarters":
+			_draw_sleepers(rect, room)
+			return
 		var crew: Array = room.staff
 		if crew.is_empty() or not poses.has("standing"):
 			return
@@ -6258,20 +6747,27 @@ class Yard extends Control:
 		var spots: Array = defin.get("spots", [])
 		var floor := _art_rect(str(room.type), rect)
 		var shown := mini(crew.size(), mini(spots.size(), 3))
+		var own: Array = room_figs.get(str(room.type), [])
 		for i in shown:
 			var spot: Dictionary = spots[i]
+			var id := str(crew[i])
 			var x := floor.position.x + float(spot.get("x", 0.5)) * floor.size.x
-			var face := int(spot.get("face", 1))
-			var pose_name := str(spot.get("pose", "standing"))
-			if not poses.has(pose_name):
-				pose_name = "standing"
+			var flip := int(spot.get("face", 1)) < 0
+			var sprite: Texture2D = null
+			if not own.is_empty():
+				sprite = own[int(_id_hash(id)) % own.size()]
+				flip = int(_id_hash(id) / 7.0) % 2 == 0
+			else:
+				sprite = _pose_sprite(str(spot.get("pose", "standing")), id)
+			if sprite == null:
+				continue
 			var foot_y := floor.position.y + floor.size.y - 2.0
 			var body_h := floor.size.y
-			var fitted := _pose_size(poses[pose_name], body_h)
+			var fitted := _pose_size(sprite, body_h)
 			var limit := floor.size.x * 0.34
 			if fitted.x > limit:
 				body_h *= limit / fitted.x
-			_paint_pose(pose_name, x, foot_y, body_h, str(crew[i]), face < 0)
+			_paint_sprite(sprite, x, foot_y, body_h, id, flip)
 		if crew.size() > shown:
 			_draw_more(rect, crew.size() - shown, str(room.uid))
 		for id in crew:
@@ -6292,47 +6788,6 @@ class Yard extends Control:
 			_paint_pose(pose_name, x, foot_y, rect.size.y, str(ids[i]), i == 0)
 		if ids.size() > shown:
 			_draw_more(rect, ids.size() - shown, "free")
-
-	func _draw_job_worker(geo: Dictionary) -> void:
-		var job_level := -1
-		var job_cell := -1
-		var worker := ""
-		var digging: Dictionary = station.game.dig
-		if not digging.is_empty():
-			job_level = int(digging.level)
-			job_cell = int(digging.cell)
-			if digging.workers.size() > 0:
-				worker = str(digging.workers[0])
-		var building: Dictionary = station.game.build
-		if not building.is_empty():
-			job_level = int(building.level)
-			job_cell = int(building.cell)
-			if building.workers.size() > 0:
-				worker = str(building.workers[0])
-		if job_level < 0 or worker == "":
-			return
-		var host := _neighbor_floor(geo, job_level, job_cell)
-		if host.size.x < 1.0:
-			return
-		var pose_name := "carrying" if poses.has("carrying") else "standing"
-		var on_left: bool = host.position.x < _rect(geo, job_level, job_cell).position.x
-		var inset := maxf(36.0, host.size.x * 0.28)
-		var x := host.end.x - inset if on_left else host.position.x + inset
-		var foot_y := host.position.y + host.size.y - 2.0
-		_paint_pose(pose_name, x, foot_y, host.size.y, worker, not on_left)
-
-	func _neighbor_floor(geo: Dictionary, level: int, cell: int) -> Rect2:
-		for delta in [-1, 1]:
-			var next: int = cell + int(delta)
-			if next < 0 or next >= 6:
-				continue
-			var spot: Dictionary = station.game.cells["%d:%d" % [level, next]]
-			if str(spot.room) == "" and not bool(spot.dug):
-				continue
-			if _job_span(level, next).x >= 0:
-				continue
-			return _rect(geo, level, next)
-		return Rect2()
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))
@@ -6457,11 +6912,56 @@ class Yard extends Control:
 		var aspect := sprite.get_width() / maxf(sprite.get_height(), 1.0)
 		return Vector2(target_h * aspect, target_h)
 
-	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool) -> void:
-		if not poses.has(pose_name):
+	func _draw_sleepers(rect: Rect2, room: Dictionary) -> void:
+		var ids := _quarters_ids(str(room.uid))
+		if ids.is_empty():
 			return
-		var sprite: Texture2D = poses[pose_name]
-		var fitted := _pose_size(sprite, cell_h)
+		var floor := _art_rect("quarters", rect)
+		var own: Array = room_figs.get("quarters", [])
+		var slots := [0.2, 0.5, 0.8]
+		for i in mini(ids.size(), slots.size()):
+			var id := str(ids[i])
+			var sprite: Texture2D = null
+			if not own.is_empty():
+				sprite = own[int(_id_hash(id)) % own.size()]
+			else:
+				sprite = _pose_sprite("sitting", id)
+			if sprite == null:
+				continue
+			var x := floor.position.x + floor.size.x * float(slots[i])
+			var body_h := floor.size.y if not own.is_empty() else floor.size.y * 0.8
+			_paint_sprite(sprite, x, floor.end.y - 2.0, body_h, id, int(_id_hash(id) / 7.0) % 2 == 0)
+
+	func _quarters_ids(uid: String) -> Array:
+		var idle := _idle_ids()
+		var on_platform := mini(2, idle.size())
+		var rest: Array = idle.slice(on_platform)
+		var quarters: Array = []
+		for room in station.game.rooms:
+			if str(room.type) == "quarters" and not bool(room.offline):
+				quarters.append(str(room.uid))
+		quarters.sort()
+		var at := quarters.find(uid)
+		if at < 0:
+			return []
+		return rest.slice(at * 3, at * 3 + 3)
+
+	func _pose_sprite(pose_name: String, id: String) -> Texture2D:
+		if not body_figs.is_empty() and (pose_name == "standing" or pose_name == "walking"):
+			return body_figs[int(_id_hash(id)) % body_figs.size()]
+		if poses.has(pose_name):
+			return poses[pose_name]
+		return poses.get("standing", null)
+
+	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool) -> void:
+		var sprite := _pose_sprite(pose_name, id)
+		if sprite == null:
+			return
+		_paint_sprite(sprite, cx, foot_y, cell_h, id, flip)
+
+	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool) -> void:
+		var scale := 0.94 + fmod(floor(_id_hash(id) / 11.0), 13.0) * 0.01
+		var fitted := _pose_size(sprite, cell_h) * scale
 		var dest := Rect2(cx - fitted.x * 0.5, foot_y - fitted.y, fitted.x, fitted.y)
 		if flip:
 			dest.position.x += dest.size.x
@@ -6687,6 +7187,44 @@ class Glyph extends Control:
 				draw_rect(Rect2(c + Vector2(r * 0.15, -r), Vector2(s * 0.22, s * 0.75)), ink)
 			_:
 				draw_circle(c, r * 0.4, ink)
+
+
+class SeatSlot extends Control:
+	signal picked
+	var ink := Color("b89a6a")
+	var open := true
+	var hovered := false
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		mouse_entered.connect(func() -> void:
+			hovered = true
+			queue_redraw())
+		mouse_exited.connect(func() -> void:
+			hovered = false
+			queue_redraw())
+
+	func _gui_input(event: InputEvent) -> void:
+		if not open:
+			return
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			accept_event()
+			picked.emit()
+
+	func _draw() -> void:
+		var box := Rect2(Vector2(2, 2), size - Vector2(4, 4))
+		var col := ink
+		col.a = 0.95 if hovered and open else (0.7 if open else 0.3)
+		if hovered and open:
+			draw_rect(box, Color(col.r, col.g, col.b, 0.12))
+		var dash := 8.0
+		var corners := [box.position, Vector2(box.end.x, box.position.y), box.end, Vector2(box.position.x, box.end.y)]
+		for i in 4:
+			draw_dashed_line(corners[i], corners[(i + 1) % 4], col, 2.0, dash, true)
+		var c := box.get_center()
+		var arm := minf(box.size.x, box.size.y) * 0.16
+		draw_line(c - Vector2(arm, 0), c + Vector2(arm, 0), col, 4.0)
+		draw_line(c - Vector2(0, arm), c + Vector2(0, arm), col, 4.0)
 
 
 class ToolButton extends Button:
