@@ -21,8 +21,9 @@ Conditions the sim raises: `food_critical` (food under one week of meals), `powe
 | Phase 1 | `old_man_coney_story`, `salty_maggie_story`, `bait_story`, `barnum_story`, `sylvia_story`, `radio_news_002` to `radio_news_010` |
 | Phase 2 | resident stories: `ruth`, `benny`, `ellis`, `samira`, `owen`, `lila`, `pete`, `june`, `hal`, `nora`, `vic`, `ada`, `chris`, `mina`, `rob`, `tess`, `paul`, `kim`, `drew`, `ann`, `leo`, `fran` (`<id>_story`) |
 | Phase 3 | event resolves `event_<id>_resolve` (lamps, refugees, quarrel, smuggler, rumble, static, desertion, cough) and system lines `sys_<condition>` (all 8) |
+| Radio pilot 04 | `radio_flood_watch`, `radio_red_scarf`, `radio_purple_notice`, `radio_knock_twice` (from `data/vo/cable_radio.json`), delivered normalized to -23 LUFS. Not auditioned; ear review deferred until funding. |
 
-Still text only: the hand-written bulletins in `data/vo/cable_radio.json`.
+Radio count: 14 of 26 bulletins voiced (`radio_news_001` to `radio_news_010` and pilot 04); 12 still text only, all in `data/vo/cable_radio.json`.
 
 ## Loudness
 
