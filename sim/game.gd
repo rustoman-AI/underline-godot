@@ -1,6 +1,7 @@
 class_name Game
 extends RefCounted
 const Brief = preload("res://sim/brief.gd")
+const JOURNAL_MAX := 200
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -268,15 +269,7 @@ func apply(action: Dictionary) -> bool:
 func _journal_context(kind: String, action: Dictionary) -> Dictionary:
 	match kind:
 		"event":
-			for ev in pending:
-				if str(ev.get("id", "")) != str(action.get("event_id", "")):
-					continue
-				var row := {"event_id": str(ev.id), "title": ev.get("title", "")}
-				for choice in ev.get("choices", []):
-					if str(choice.get("id", "")) == str(action.get("choice_id", "")):
-						row["choice"] = choice.get("label", "")
-				return row
-			return {"event_id": str(action.get("event_id", ""))}
+			return {"event_id": str(action.get("event_id", "")), "choice_id": str(action.get("choice_id", ""))}
 		"build":
 			return {"type": str(action.get("type", ""))}
 		"dig":
@@ -295,12 +288,14 @@ func _journal_context(kind: String, action: Dictionary) -> Dictionary:
 	return {}
 
 
+## Rows hold ids only; the UI words them. Oldest rows drop off past JOURNAL_MAX so saves stay small.
 func _journal(kind: String, data: Dictionary) -> void:
 	var row := data.duplicate(true)
 	row["kind"] = kind
 	row["week"] = week
-	row["at"] = int(Time.get_unix_time_from_system())
 	journal.append(row)
+	if journal.size() > JOURNAL_MAX:
+		journal = journal.slice(journal.size() - JOURNAL_MAX)
 
 
 ## Notes a player action that happens outside apply(), such as a radio item heard.
@@ -681,7 +676,6 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
-	_journal("week", {})
 	_resolve_queued()
 	orders_left = council.size()
 	seat_used = {}
@@ -724,6 +718,7 @@ func _rival_phase() -> void:
 			if Copy.ru():
 				taken = "ULTIMATUM %s забирает цену. Еда −10." % Copy.t(_fname(str(d.faction)))
 			_log(taken, true)
+			_journal("ultimatum", {"faction": str(d.faction)})
 		else:
 			keep.append(d)
 	demands = keep
@@ -952,9 +947,12 @@ func _mark_brownout() -> void:
 		dark_set[str(uid)] = true
 	for room in rooms:
 		var uid := str(room.uid)
+		var was_dark := bool(room.get("browned", false))
 		room.browned = dark_set.has(uid)
 		if room.browned:
 			_log("BROWN %s is dark" % str(catalog.rooms[room.type].name), true)
+			if not was_dark:
+				_journal("dark", {"type": str(room.type)})
 
 
 func _brownout_ids() -> Array:
@@ -2347,6 +2345,7 @@ func _advance_jobs() -> void:
 		if int(build.left) <= 0:
 			_place_room(str(build.type), int(build.level), int(build.cell))
 			_log("%s is finished" % catalog.rooms[str(build.type)].name)
+			_journal("built", {"type": str(build.type)})
 			build = {}
 	if not dig.is_empty():
 		dig.left = int(dig.left) - 1
@@ -2377,6 +2376,8 @@ func _finish_dig() -> void:
 	elif find == "salvage":
 		stock.materials = int(stock.materials) + int(bal.find_salvage_materials)
 		_note("FIND salvage, +%d materials" % int(bal.find_salvage_materials), "FIND лом, +%d материалов." % int(bal.find_salvage_materials))
+	if find in ["flooded", "maintenance", "sealed_door", "cable", "salvage"]:
+		_journal("find", {"find": find})
 	if rng.randf() < 0.12 and dig.workers.size() > 0:
 		var hit := str(dig.workers[0])
 		if people.has(hit):
@@ -2478,6 +2479,7 @@ func _apply_flood_if_needed() -> void:
 	if Copy.ru():
 		flood_note = "SEASON Паводок на уровне %d (%s)." % [lowest, ", ".join(names)]
 	_log(flood_note, true)
+	_journal("flood", {"level": lowest})
 
 
 func _needs_pump() -> bool:
@@ -2705,6 +2707,7 @@ func _resolve_queued() -> void:
 		else:
 			text = "%s %s" % [Copy.t("The order failed."), text]
 		order_reports.append({"title": title, "text": text, "ok": ok})
+		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
 
 
 func _order_title(kind: String) -> String:
@@ -3203,6 +3206,7 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		edge.dug = true
 		edge.state = "open"
 		_log("DIG the tunnel toward %s is clear" % stations[nxt].name, true)
+		_journal("tunnel", {"station": nxt})
 		return true
 	var flooded: bool = state == "flooded" or bool(edge.get("flooded", false))
 	if flooded and int(sq.get("ford", 0)) < 1:
@@ -3288,6 +3292,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	st.low_weeks = 0
 	if fid != player or force:
 		_note_flip(sid, prev, fid)
+	_journal("station", {"station": sid, "to": fid, "from": prev})
 	if str(st.focus) == "":
 		st.focus = "food"
 	for key in st.rival_symp:
@@ -3402,6 +3407,7 @@ func _tick_holdings() -> void:
 					_capture(sid, suitor, false)
 				else:
 					_log("REVOLT %s throws the garrison out" % st.name, true)
+					_journal("station", {"station": sid, "to": "neutral", "from": player})
 					st.owner = "neutral"
 					st.loyalty = 45
 					st.sympathy = 0
@@ -3442,6 +3448,7 @@ func _drift_opinion() -> void:
 		if int(opinions[fid]) <= int(bal.opinion_war) and not bool(at_war.get(fid, false)):
 			at_war[fid] = true
 			_log("WAR %s" % _fname(fid), true)
+			_journal("war", {"faction": fid})
 
 
 # --- people ---
@@ -3596,6 +3603,7 @@ func _kill(n: int, why: String) -> void:
 	_shed(n)
 	if n > 0:
 		_log("%s. %d dead." % [why, n], true)
+		_journal("deaths", {"n": n})
 
 
 func _shed(n: int) -> void:
@@ -3750,6 +3758,7 @@ func _grow() -> void:
 		born += 1
 	if born > 0:
 		_log("BORN %d" % born, true)
+		_journal("born", {"n": born})
 
 
 func _is_council(id: String) -> bool:
@@ -4931,12 +4940,14 @@ func _season_clock() -> void:
 			if Copy.ru():
 				soon = "SEASON Скоро %s." % Copy.season(str(season.id))
 			_log(soon, true)
+			_journal("season", {"id": str(season.id), "soon": true})
 		if week == at:
 			active_season = {"id": str(season.id), "start": at, "until": at + int(season.weeks) - 1}
 			var begun := "SEASON %s" % str(season.id)
 			if Copy.ru():
 				begun = "SEASON Начался %s." % Copy.season(str(season.id))
 			_log(begun, true)
+			_journal("season", {"id": str(season.id)})
 			if str(season.id) == "cough":
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):
@@ -5665,5 +5676,3 @@ func _note(en: String, ru_line: String) -> void:
 
 func _log(text: String, important := false) -> void:
 	log.append({"week": week, "text": text, "important": important})
-	if important:
-		_journal("news", {"text": text})

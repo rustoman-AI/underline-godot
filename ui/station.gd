@@ -33,6 +33,24 @@ const NetworkViewScript = preload("res://ui/network_view.gd")
 const ArtPack = preload("res://ui/art_pack.gd")
 const Brief = preload("res://sim/brief.gd")
 const WAITING := "Someone is still waiting. Choose before the week ends."
+const ORDER_DONE := {
+	"propaganda": "agitation completed",
+	"envoy": "envoy mission completed",
+	"aid": "aid delivered",
+	"pay": "demand paid",
+	"gift": "gift delivered",
+	"trade": "trade deal struck",
+	"move": "squad moved",
+	"focus": "station focus set",
+	"expedition": "expedition set out",
+}
+const FIND_LINES := {
+	"flooded": "The dig hit a flooded pocket.",
+	"maintenance": "The dig opened an old maintenance room.",
+	"sealed_door": "The dig found a sealed door marked FLOOR.",
+	"cable": "The dig turned up old cable.",
+	"salvage": "The dig turned up salvage.",
+}
 const DISCLAIMER := "Underline is a work of fiction. Its people, communities and events are invented. Real New York places are used fictitiously, and any resemblance to real persons is coincidental. Not affiliated with or endorsed by the MTA or the City of New York."
 
 var game: Game
@@ -84,6 +102,7 @@ var people_button: Button
 var on_paper := false
 var turn_clear := false
 var card_fit_queued := false
+var card_fit_tries := 0
 var portraits: Array = []
 var ahead: PanelContainer
 var deck = ModalDeck.new()
@@ -239,6 +258,52 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_vo():
 		await _vo_shots()
+	elif OS.get_cmdline_user_args().has("--journal"):
+		await _journal_shots()
+
+
+func _journal_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	var spot := _first_open_floor()
+	if spot.x >= 0:
+		game.apply({"kind": "build", "type": "hydroponics", "level": spot.x, "cell": spot.y})
+	var target := ""
+	for sid in game.stations:
+		if game.order_block("propaganda", str(sid)) == "":
+			target = str(sid)
+			break
+	print("JOURNAL agitation target %s queued %s" % [target, target != "" and game.queue_order({"kind": "order", "order": "propaganda", "station": target})])
+	for i in 11:
+		if not game.pending.is_empty():
+			var ev: Dictionary = game.pending[0]
+			game.apply({"kind": "event", "event_id": str(ev.id), "choice_id": str(ev.choices[0].id)})
+		game.pending.clear()
+		game.end_week()
+		if game.over != "":
+			break
+	game.pending.clear()
+	_refresh()
+	_close_card()
+	print("JOURNAL rows %d bytes %d" % [game.journal.size(), JSON.stringify(game.journal).length()])
+	await _frame()
+	await _frame()
+	_save("journal_tray")
+	_show_journal()
+	await _frame()
+	await _frame()
+	_save("journal_all")
+	_pick_journal_filter("map")
+	await _frame()
+	await _frame()
+	_save("journal_map")
+	get_tree().quit()
 
 
 func _want_vo() -> bool:
@@ -656,12 +721,14 @@ func _build() -> void:
 	burn_button = _tool("burn", "Burn", _ask_burn)
 	power_button = _tool("power", "Power", _show_power)
 	people_button = _tool("people", "People", _toggle_drawer)
+	var journal_button := _tool("journal", "Journal", _show_journal)
 	pending_button = _tool("lock", "Pending", _show_pending)
 	pending_button.visible = false
 	burn_button.tooltip_text = "Burn salvage"
 	power_button.tooltip_text = "Power order"
 	people_button.tooltip_text = "Residents"
-	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, pending_button]:
+	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, journal_button, pending_button]:
 		tray.add_child(button)
 
 	end_button = _button("End turn", _end_turn)
@@ -1224,6 +1291,7 @@ func _fit_card() -> void:
 	card.offset_right = left + max_w
 	card.offset_bottom = top_limit + max_h
 	if not card_fit_queued:
+		card_fit_tries = 0
 		card_fit_queued = true
 		_shrink_card.call_deferred()
 
@@ -1240,10 +1308,12 @@ func _shrink_card() -> void:
 	var max_h := size.y - top_limit - bottom_limit
 	var content_h := card_body.size.y
 	if content_h < 40.0:
-		if not card_fit_queued:
+		if not card_fit_queued and card_fit_tries < 30:
+			card_fit_tries += 1
 			card_fit_queued = true
-			_shrink_card.call_deferred()
+			get_tree().process_frame.connect(_shrink_card, CONNECT_ONE_SHOT)
 		return
+	card_fit_tries = 0
 	var h := content_h + 52.0
 	if h > max_h and card_body.get_child_count() > 0:
 		var top_child := card_body.get_child(0)
@@ -2829,7 +2899,48 @@ func _journal_line(row: Dictionary) -> String:
 		"week":
 			return Copy.t("Week %d began.") % int(row.get("week", 0))
 		"build":
-			return Copy.t("Built %s.") % _room_type_name(str(row.get("type", "")))
+			return Copy.t("Started building %s.") % _room_type_name(str(row.get("type", "")))
+		"built":
+			return Copy.t("%s built.") % _room_type_name(str(row.get("type", "")))
+		"order_done":
+			var who := Copy.person(str(row.get("name", "")))
+			var what := Copy.t(str(ORDER_DONE.get(str(row.get("order", "")), "order completed"))) if bool(row.get("ok", true)) else Copy.t("order failed")
+			var line := "%s: %s" % [who, what] if who != "" else what.substr(0, 1).to_upper() + what.substr(1)
+			var where := _station_name(str(row.get("station", "")))
+			return "%s (%s)." % [line, where] if where != "" else line + "."
+		"season":
+			var season := Copy.season(str(row.get("id", "")))
+			if not Copy.ru():
+				season = season.capitalize()
+			if bool(row.get("soon", false)):
+				return Copy.t("%s season is coming.") % season
+			return Copy.t("%s season started.") % season
+		"flood":
+			return Copy.t("Flood started on level %d.") % (int(row.get("level", 0)) + 1)
+		"deaths":
+			return Copy.t("Deaths: %d.") % int(row.get("n", 0))
+		"born":
+			return Copy.t("New residents: %d.") % int(row.get("n", 0))
+		"find":
+			return Copy.t(str(FIND_LINES.get(str(row.get("find", "")), "The dig turned something up.")))
+		"tunnel":
+			return Copy.t("Tunnel to %s cleared.") % _station_name(str(row.get("station", "")))
+		"dark":
+			return Copy.t("%s went dark.") % _room_type_name(str(row.get("type", "")))
+		"war":
+			return Copy.t("%s declared war.") % Copy.t(game._fname(str(row.get("faction", ""))))
+		"ultimatum":
+			return Copy.t("%s took its price for an unpaid demand.") % Copy.t(game._fname(str(row.get("faction", ""))))
+		"station":
+			var place := _station_name(str(row.get("station", "")))
+			var to := str(row.get("to", ""))
+			if to == game.player:
+				return Copy.t("%s joined us.") % place
+			if str(row.get("from", "")) == game.player:
+				if to == "neutral":
+					return Copy.t("%s threw out our garrison.") % place
+				return Copy.t("%s went over to %s.") % [place, Copy.t(game._fname(to))]
+			return Copy.t("%s took %s.") % [Copy.t(game._fname(to)), place]
 		"dig":
 			return Copy.t("Dug a new cell.")
 		"upgrade":
@@ -2839,6 +2950,12 @@ func _journal_line(row: Dictionary) -> String:
 		"event":
 			var title := game.line_of(row, "title")
 			var choice := game.line_of(row, "choice")
+			var ev: Dictionary = game._event_by_id(str(row.get("event_id", "")))
+			if title == "" and not ev.is_empty():
+				title = Copy.t(game.line_of(ev, "title"))
+				for option in ev.get("choices", []):
+					if str(option.get("id", "")) == str(row.get("choice_id", "")):
+						choice = Copy.t(game.line_of(option, "label"))
 			if title == "":
 				title = str(row.get("event_id", ""))
 			return "%s: %s" % [title, choice] if choice != "" else title
@@ -2867,13 +2984,13 @@ func _journal_line(row: Dictionary) -> String:
 
 func _journal_group(kind: String) -> String:
 	match kind:
-		"build", "dig", "upgrade", "demolish":
+		"build", "built", "dig", "upgrade", "demolish", "find", "tunnel", "dark":
 			return "builds"
 		"event", "law", "repeal", "pump", "quarantine", "burn", "rally":
 			return "decisions"
-		"order", "cancel":
+		"order", "cancel", "order_done", "station", "war", "ultimatum":
 			return "map"
-		"news", "radio":
+		"news", "radio", "season", "flood", "deaths", "born":
 			return "news"
 	return ""
 
@@ -2887,15 +3004,10 @@ func _room_type_name(type: String) -> String:
 func _station_name(sid: String) -> String:
 	if sid == "" or not game.stations.has(sid):
 		return ""
-	return Copy.t(str(game.stations[sid].get("name", sid)))
-
-
-func _clock(unix: int) -> String:
-	if unix <= 0:
-		return ""
-	var bias := int(Time.get_time_zone_from_system().get("bias", 0)) * 60
-	var t := Time.get_datetime_dict_from_unix_time(unix + bias)
-	return "%02d:%02d" % [int(t.hour), int(t.minute)]
+	var st: Dictionary = game.stations[sid]
+	if Copy.ru() and str(st.get("community", "")) != "":
+		return str(st.community)
+	return Copy.t(str(st.get("name", sid)))
 
 
 func _show_journal() -> void:
@@ -2933,20 +3045,14 @@ func _show_journal() -> void:
 			var head := _label(Copy.t("Week %d") % week_n, 18, true)
 			head.add_theme_color_override("font_color", Color("e2a63a"))
 			card_body.add_child(head)
-		var line := HBoxContainer.new()
-		line.add_theme_constant_override("separation", 10)
-		var stamp := _label(_clock(int(row.get("at", 0))), 14)
-		stamp.add_theme_color_override("font_color", PAPER_MUTED)
-		stamp.custom_minimum_size = Vector2(48, 0)
-		stamp.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		line.add_child(stamp)
 		var text := _label(_journal_line(row), 15)
 		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if kind == "radio":
 			text.add_theme_color_override("font_color", PAPER_MUTED)
-		line.add_child(text)
-		card_body.add_child(line)
+		elif kind in ["flood", "deaths", "war", "ultimatum"] or (kind == "season" and not bool(row.get("soon", false))):
+			text.add_theme_color_override("font_color", Color("8a2f22"))
+		card_body.add_child(text)
 		shown += 1
 		if shown >= 150:
 			break
@@ -8153,6 +8259,11 @@ class Glyph extends Control:
 				draw_arc(c, r * 0.78, 0, TAU, 24, ink, maxf(1.6, thick * 0.45))
 				draw_line(c, c + Vector2(0, -r * 0.48), ink, maxf(1.6, thick * 0.4))
 				draw_line(c, c + Vector2(r * 0.34, r * 0.08), ink, maxf(1.6, thick * 0.4))
+			"journal":
+				draw_rect(Rect2(c + Vector2(-r * 0.7, -r * 0.9), Vector2(r * 1.4, r * 1.8)), ink, false, 1.6)
+				for k in 4:
+					var y := -r * 0.5 + k * r * 0.38
+					draw_line(c + Vector2(-r * 0.4, y), c + Vector2(r * (0.4 if k < 3 else 0.05), y), ink, 1.4)
 			"lock":
 				draw_arc(c + Vector2(0, -r * 0.2), r * 0.42, PI, TAU, 16, ink, maxf(1.6, thick * 0.45))
 				draw_rect(Rect2(c + Vector2(-r * 0.55, -r * 0.1), Vector2(r * 1.1, r * 0.95)), ink)
