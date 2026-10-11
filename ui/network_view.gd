@@ -877,7 +877,9 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var sid := str(row.id)
 		var info: Dictionary = _layout[sid]
 		var st: Dictionary = game.stations[sid]
-		var title := str(st.get("community", st.get("name", sid)))
+		var title: String = game.station_text(sid, "community")
+		if title == "":
+			title = str(st.get("name", sid))
 		var sub := str(st.get("name", "")) if level == 2 else ""
 		var width := _tag_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		if sub != "":
@@ -1139,7 +1141,7 @@ func _tip(sid: String) -> String:
 	var st: Dictionary = game.stations[sid]
 	if not bool(st.get("known", false)):
 		return Copy.t("Hidden station") if bool(st.get("hidden", false)) else ""
-	var lines: PackedStringArray = [str(st.community)]
+	var lines: PackedStringArray = [game.station_text(sid, "community")]
 	for intent in game.telegraphed:
 		if bool(intent.get("hidden", false)):
 			continue
@@ -1344,22 +1346,25 @@ func _fill_sheet_body(sid: String) -> void:
 	var st: Dictionary = game.stations[sid]
 	var own := str(st.owner) == str(game.player)
 	_sheet_body.add_child(_station_photo(game, st))
-	_sheet_body.add_child(_lab(str(st.community), 20, true))
+	_sheet_body.add_child(_lab(game.station_text(sid, "community"), 20, true))
 	_sheet_body.add_child(_lab(str(st.name), 14, false))
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body)
 	else:
-		if str(st.who) != "":
-			_sheet_body.add_child(_lab(str(st.who), 14, false))
-		if str(st.conflict) != "":
-			_sheet_body.add_child(_lab(str(st.conflict), 14, false))
+		var who: String = game.station_text(sid, "who")
+		if who != "":
+			_sheet_body.add_child(_lab(who, 14, false))
+		var conflict: String = game.station_text(sid, "conflict")
+		if conflict != "":
+			_sheet_body.add_child(_lab(conflict, 14, false))
 		_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Owner"), Copy.t(_owner_name(game, str(st.owner)))], 14, false))
 		_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
 		if int(st.unrest) > 0:
 			_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Unrest"), str(int(st.unrest))], 14, false))
 		_add_needs(st, _sheet_body)
-		if str(st.art) != "":
-			_sheet_body.add_child(_lab(str(st.art), 13, false))
+		var art: String = game.station_text(sid, "art")
+		if art != "":
+			_sheet_body.add_child(_lab(art, 13, false))
 		var trade := _trade_line(st)
 		if trade != "":
 			_sheet_body.add_child(_lab(trade, 14, false))
@@ -1720,14 +1725,15 @@ func _fill_visit(sid: String) -> void:
 	head.add_theme_constant_override("separation", 12)
 	if host != null and host.has_method("_portrait_box"):
 		head.add_child(host._portrait_box(str(sid), 64))
-	var quote := str(st.conflict) if str(st.conflict) != "" else str(st.who)
-	var words := _lab(quote, 18, true)
+	var who: String = game.station_text(sid, "who")
+	var conflict: String = game.station_text(sid, "conflict")
+	var words := _lab(conflict if conflict != "" else who, 18, true)
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(words)
 	_visit_body.add_child(head)
 	var named := HBoxContainer.new()
 	named.add_theme_constant_override("separation", 12)
-	var community := _lab(str(st.community), 22, true)
+	var community := _lab(game.station_text(sid, "community"), 22, true)
 	community.autowrap_mode = TextServer.AUTOWRAP_OFF
 	named.add_child(community)
 	var place := _lab(str(st.name), 15, false)
@@ -1735,8 +1741,8 @@ func _fill_visit(sid: String) -> void:
 	place.size_flags_vertical = Control.SIZE_SHRINK_END
 	named.add_child(place)
 	_visit_body.add_child(named)
-	if str(st.who) != "":
-		_visit_body.add_child(_lab(str(st.who), 15, false))
+	if who != "":
+		_visit_body.add_child(_lab(who, 15, false))
 	_add_needs(st, _visit_body)
 	var relation := int(st.get("sympathy", 0))
 	if game.opinions.has(str(st.owner)):
@@ -1745,8 +1751,9 @@ func _fill_visit(sid: String) -> void:
 	var trade := _trade_line(st)
 	if trade != "":
 		_visit_body.add_child(_lab(trade, 15, false))
-	if str(st.art) != "":
-		_visit_body.add_child(_lab(str(st.art), 14, false))
+	var art: String = game.station_text(sid, "art")
+	if art != "":
+		_visit_body.add_child(_lab(art, 14, false))
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body)
 	var back := Button.new()
 	back.text = Copy.t("Back to map")

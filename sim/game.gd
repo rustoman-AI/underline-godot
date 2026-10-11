@@ -2758,9 +2758,9 @@ func _resolve_queued() -> void:
 				ok = _order_address()
 		var place := sid
 		if kind == "move" and stations.has(str(action.get("dest", ""))):
-			place = str(stations[str(action.dest)].get("community", action.dest))
+			place = station_text(str(action.dest), "community")
 		elif stations.has(sid):
-			place = str(stations[sid].get("community", sid))
+			place = station_text(sid, "community")
 		seat_used.erase(str(row.get("role", "")))
 		var title := Copy.t("Dawn report")
 		var text := "%s · %s" % [str(row.get("name", "")), place]
@@ -2874,7 +2874,7 @@ func order_risk(kind: String, sid: String = "") -> String:
 			var odds := 100
 			if attack > 0.0:
 				odds = int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
-			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [str(st.get("community", st.name)), odds]
+			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [station_text(nxt, "community") if station_text(nxt, "community") != "" else str(st.name), odds]
 			if not bool(at_war.get(owner, false)):
 				line += " " + Copy.t("Their opinion of you drops by 20.")
 			return line
@@ -5395,6 +5395,22 @@ func _synod_preach() -> void:
 	_log("PREACH The Synod speaks at %s" % st.name, true)
 	if int(st.rival_symp.synod) >= 100:
 		_capture(best, "synod", false)
+
+
+const STATION_TEXT := ["community", "who", "conflict", "art"]
+
+
+## Community, who, conflict or art for the current language. Russian comes from data/station_communities.json
+## (then the station itself, for saves from before a station was in the file); English from
+## station_communities_en.json, falling back to the Russian line when the English one is missing.
+func station_text(sid: String, field: String) -> String:
+	var ru := str(catalog.communities.get("stations", {}).get(sid, {}).get(field, ""))
+	if ru == "":
+		ru = str(stations.get(sid, {}).get(field, ""))
+	if Copy.ru():
+		return ru
+	var en := str(catalog.communities_en.get("stations", {}).get(sid, {}).get(field, ""))
+	return en if en != "" else ru
 
 
 func _init_map() -> void:

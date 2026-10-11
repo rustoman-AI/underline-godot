@@ -3265,10 +3265,10 @@ func _upgrade_name(id: String) -> String:
 func _station_name(sid: String) -> String:
 	if sid == "" or not game.stations.has(sid):
 		return ""
-	var st: Dictionary = game.stations[sid]
-	if Copy.ru() and str(st.get("community", "")) != "":
-		return str(st.community)
-	return Copy.t(str(st.get("name", sid)))
+	var community: String = game.station_text(sid, "community")
+	if community != "":
+		return community
+	return Copy.t(str(game.stations[sid].get("name", sid)))
 
 
 func _show_journal() -> void:

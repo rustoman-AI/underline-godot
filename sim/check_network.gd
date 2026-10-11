@@ -16,6 +16,8 @@ func _init() -> void:
 		print("CATALOG ", catalog.error)
 		quit(1)
 		return
+	if not _station_text_ok(catalog):
+		failed = true
 	var game := Game.new()
 	game.setup(catalog, 1, 40)
 	if game.over == "error":
@@ -54,3 +56,46 @@ func _init() -> void:
 	else:
 		print("NETWORK CHECK OK")
 		quit(0)
+
+
+## Every station in station_communities.json has community, who, conflict and art in English, none empty,
+## no Cyrillic in the English file, no em dash in either; English display falls back to Russian where missing.
+func _station_text_ok(catalog: Catalog) -> bool:
+	var ok := true
+	var cyrillic := RegEx.create_from_string("[\\x{0400}-\\x{04FF}]")
+	var ru: Dictionary = catalog.communities.get("stations", {})
+	var en: Dictionary = catalog.communities_en.get("stations", {})
+	for sid in ru:
+		var row: Dictionary = en.get(sid, {})
+		for field in Game.STATION_TEXT:
+			var text := str(row.get(field, "")).strip_edges()
+			if text == "":
+				ok = false
+				print("WARN station %s has no English %s; English shows the Russian line" % [sid, field])
+			elif cyrillic.search(text) != null:
+				ok = false
+				print("STATION TEXT %s.%s (en) has Cyrillic: %s" % [sid, field, text])
+	for sid in en:
+		if not ru.has(sid):
+			ok = false
+			print("STATION TEXT %s is in the English file but not the Russian one" % sid)
+	for file in ["station_communities.json", "station_communities_en.json"]:
+		var lines := FileAccess.get_file_as_string("res://data/" + file).split("\n")
+		for i in lines.size():
+			if "\u2014" in lines[i]:
+				ok = false
+				print("STATION TEXT em dash in %s line %d" % [file, i + 1])
+	var game := Game.new()
+	game.catalog = catalog
+	var was := Copy.lang
+	Copy.set_lang("en")
+	for sid in ru:
+		for field in Game.STATION_TEXT:
+			var shown := game.station_text(str(sid), field)
+			if cyrillic.search(shown) != null:
+				ok = false
+				print("STATION TEXT English display of %s.%s is Russian" % [sid, field])
+	Copy.set_lang(was)
+	if ok:
+		print("Station text: %d stations, English complete, no em dash: ok" % ru.size())
+	return ok

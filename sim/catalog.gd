@@ -19,6 +19,8 @@ var residents: Array = []
 var names: Dictionary = {}
 var grid: Dictionary = {}
 var communities: Dictionary = {}
+## English community, who, conflict and art per station id; the Russian text lives in `communities`.
+var communities_en: Dictionary = {}
 var geo: Dictionary = {}
 var error: String = ""
 
@@ -39,6 +41,7 @@ func load_all() -> bool:
 	names = _obj("names.json")
 	grid = _obj("start_grid.json")
 	communities = _obj("station_communities.json")
+	communities_en = _obj("station_communities_en.json")
 	geo = _obj("map_geo.json")
 	return error == ""
 
