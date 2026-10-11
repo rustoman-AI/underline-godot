@@ -103,6 +103,8 @@ var on_paper := false
 var turn_clear := false
 var card_fit_queued := false
 var card_fit_tries := 0
+## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
+var card_roomy := false
 var portraits: Array = []
 var ahead: PanelContainer
 var deck = ModalDeck.new()
@@ -130,6 +132,7 @@ var guide_next: Button
 var guide_step := -1
 var guide_skips := 0
 var toast_label: Label
+var toast_fade: Tween
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
@@ -1340,10 +1343,8 @@ func _fit_card() -> void:
 	if card == null or not dim.visible:
 		return
 	var margin := 24.0
-	var max_w := minf(size.x - margin * 2.0, 680.0)
-	var top_limit := 64.0
-	if hud != null and hud.size.y > 8.0:
-		top_limit = hud.size.y + 8.0
+	var max_w := minf(size.x - margin * 2.0, 800.0 if card_roomy else 680.0)
+	var top_limit := _card_top_limit()
 	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
 	card_body.custom_minimum_size.x = max_w - 36.0
@@ -1362,14 +1363,21 @@ func _fit_card() -> void:
 		_shrink_card.call_deferred()
 
 
+func _card_top_limit() -> float:
+	var top_limit := 64.0
+	if hud != null and hud.size.y > 8.0:
+		top_limit = hud.size.y + 8.0
+		if card_roomy and ticker != null and ticker.visible:
+			top_limit -= 28.0
+	return top_limit
+
+
 func _shrink_card() -> void:
 	card_fit_queued = false
 	if card == null or card_body == null or not dim.visible:
 		return
 	var max_w := card.offset_right - card.offset_left
-	var top_limit := 64.0
-	if hud != null and hud.size.y > 8.0:
-		top_limit = hud.size.y + 8.0
+	var top_limit := _card_top_limit()
 	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
 	var content_h := card_body.size.y
@@ -2815,7 +2823,10 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	toast_label.position = Vector2(16.0, (hud.size.y if hud != null else 72.0) + 8.0)
 	toast_label.visible = true
 	toast_label.modulate.a = 1.0
-	var fade := create_tween()
+	if toast_fade != null and toast_fade.is_valid():
+		toast_fade.kill()
+	toast_fade = create_tween()
+	var fade := toast_fade
 	fade.tween_interval(hold)
 	fade.tween_property(toast_label, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
@@ -3627,10 +3638,14 @@ func _show_audience() -> void:
 		Sound.play("card")
 	var row: Dictionary = game.leader(fid)
 	_open_card(_leader_text(row.get("leader", {})), false)
+	card_roomy = true
+	_fit_card()
+	card_body.add_theme_constant_override("separation", 4)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 12)
-	var face := _leader_face(row, 112)
-	top.add_child(face if face != null else _faction_mark(row, 112))
+	var face_px := 80 if audience_heard else 112
+	var face := _leader_face(row, face_px)
+	top.add_child(face if face != null else _faction_mark(row, face_px))
 	var who := VBoxContainer.new()
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -3661,14 +3676,16 @@ func _show_audience() -> void:
 		_body(opening)
 	var memory: Array = game.standing_memory.get(fid, [])
 	if not memory.is_empty():
-		var head := _label("They remember", 15, true)
-		card_body.add_child(head)
+		var remembered := VBoxContainer.new()
+		remembered.add_theme_constant_override("separation", 0)
+		remembered.add_child(_label("They remember", 15, true))
 		for i in range(memory.size() - 1, -1, -1):
 			var line := _label("%s  %s" % [Copy.t("Week %d") % int(memory[i].get("week", 0)), _deed_line(memory[i])], 14)
 			line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			line.add_theme_color_override("font_color", PAPER_MUTED)
-			card_body.add_child(line)
+			remembered.add_child(line)
+		card_body.add_child(remembered)
 	var remembers_list := memory.any(func(deed): return str(deed.get("deed", "")) == "the_list")
 	if game.flags.has("collaborator") and not remembers_list:
 		var stain := _label(Copy.t("Known to all: you handed a person to the Directorate (week %d).") % int(game.flags.collaborator), 15)
@@ -3743,11 +3760,14 @@ func _audience_terms(fid: String, deal: Dictionary) -> void:
 		lines.append(Copy.t("Mark: %s.") % Copy.t(str(MARK_NAMES.get(str(fx.flag), fx.flag))))
 		if str(fx.flag) == "collaborator":
 			lines.append(Copy.t("This mark never comes off."))
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 1)
 	for line in lines:
-		var lab := _label("· " + line, 16)
+		var lab := _label("· " + line, 15)
 		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card_body.add_child(lab)
+		list.add_child(lab)
+	card_body.add_child(list)
 
 
 func _hear_audience() -> void:
@@ -4510,6 +4530,7 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 		room_open = ""
 		_sync_room_sound()
 	on_paper = true
+	card_roomy = false
 	_wipe(card_body)
 	card_body.add_theme_constant_override("separation", 6)
 	dim.visible = true
