@@ -13,17 +13,13 @@ Lines are data, not code: every JSON file in `data/vo/` lists lines with `id`, `
 
 Conditions the sim raises: `food_critical` (food under one week of meals), `power_restored` (power back after a shortfall or generator fault), `resident_joined` (population grew), `resident_lost` (deaths), `caravan_arrived` (Exchange trade or a station deal), `disease_contained` (last sick resident well), `tunnel_warning` (flood season ahead), `morale_high` (hope reaches 75), `season_<id>_soon` and `season_<id>` (flood, cold, cough). Confirmed actions also look up `<kind>_<id>` then `<kind>`, e.g. `law_curfew`, `rally`, `pump`.
 
-## Files present
+## Files present (EN + RU each)
 
-| File | Length |
+| Batch | Lines |
 | --- | --- |
-| `inez_story_en.ogg` | 72.8 s |
-| `inez_story_ru.ogg` | 77.5 s |
-| `jonah_story_en.ogg` | 63.2 s |
-| `jonah_story_ru.ogg` | 64.2 s |
-| `mara_story_en.ogg` | 66.5 s |
-| `mara_story_ru.ogg` | 63.2 s |
-| `radio_news_001_en.ogg` | 19.2 s |
-| `radio_news_001_ru.ogg` | 19.0 s |
+| Pilot | `jonah_story`, `inez_story`, `mara_story`, `radio_news_001` |
+| Phase 1 | `old_man_coney_story`, `salty_maggie_story`, `bait_story`, `barnum_story`, `sylvia_story`, `radio_news_002` to `radio_news_010` |
 
-The index spreadsheet names event files `event_<id>_resolve_resolve_<lang>.ogg`; the game expects `event_<id>_resolve_<lang>.ogg` as in `underline_vo.json`.
+Event files may arrive as `event_<id>_resolve_resolve_<lang>.ogg` (the index spreadsheet's spelling); the game accepts that as well as `event_<id>_resolve_<lang>.ogg` from `underline_vo.json`.
+
+Russian subtitles differ from the recorded wording where the script used em dashes; the rewrites live in `tools/vo_ru_fixes.json` and are applied by the importer.

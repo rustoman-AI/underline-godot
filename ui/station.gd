@@ -182,6 +182,9 @@ var vo_text := ""
 var vo_text_caption := ""
 var vo_text_until := 0
 var radio_bars: Control
+var radio_done_ms := 0
+var radio_extra_week := -1
+const RADIO_HALF_WEEK_MS := 75000
 var sentence_re := RegEx.create_from_string("[^.!?\u2026]+[.!?\u2026]+[\"'\u00bb\u201d]?")
 
 
@@ -365,6 +368,29 @@ func _vo_shots() -> void:
 	_tick_voice()
 	await _frame()
 	_save("vo_radio")
+	_hide_radio()
+	Voice.stop()
+	var played: PackedStringArray = []
+	for cast in ["old_man_coney", "salty_maggie", "bait", "barnum", "sylvia"]:
+		for pid in game.people:
+			if game.cast_id_of(game.people[pid]) == cast:
+				_open_dossier(str(pid))
+				await get_tree().create_timer(0.5).timeout
+				played.append("%s %s" % [cast, "plays" if Voice.playing(cast + "_story") else "SILENT"])
+				if cast == "salty_maggie":
+					await get_tree().create_timer(2.0).timeout
+					_tick_voice()
+					await _frame()
+					_save("vo_dossier_coney")
+				_close_card()
+				await _frame()
+	print("VO phase 1 stories: " + ", ".join(played))
+	_play_radio(Voice.line("radio_news_005"))
+	await get_tree().create_timer(3.0).timeout
+	_tick_voice()
+	await _frame()
+	print("VO radio_news_005 plays: %s" % str(Voice.playing("radio_news_005")))
+	_save("vo_radio_005")
 	_hide_radio()
 	Voice.stop()
 	game.vo_cues.append("food_critical")
@@ -2770,15 +2796,24 @@ func _toast(text: String) -> void:
 
 
 ## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.
+## At radio_every 0 (twice a week) a second item follows within the same turn, RADIO_HALF_WEEK_MS after the first ends.
 func _tick_radio() -> void:
 	if shot_mode or at_menu or game == null or game.over != "" or not Settings.radio_on:
 		return
-	if game.week - game.radio_week < Settings.radio_every or not game.has_radio_room():
+	if not game.has_radio_room():
+		return
+	var due := game.week - game.radio_week >= maxi(Settings.radio_every, 1)
+	var second := false
+	if not due and Settings.radio_every == 0 and game.radio_week == game.week and radio_extra_week != game.week:
+		second = Time.get_ticks_msec() >= radio_done_ms + RADIO_HALF_WEEK_MS
+	if not due and not second:
 		return
 	if hub_layer != null and hub_layer.visible:
 		return
 	if (dim != null and dim.visible) or guide_step >= 0 or Voice.playing():
 		return
+	if second:
+		radio_extra_week = game.week
 	game.radio_week = game.week
 	_play_radio(Radio.next(_threat()))
 
@@ -2804,6 +2839,7 @@ func _play_radio(item: Dictionary) -> void:
 	var hold := 10.0
 	if length > 0.0:
 		hold = maxf(hold, lead * 0.6 + length + 1.5)
+	radio_done_ms = Time.get_ticks_msec() + int(hold * 1000.0)
 	_show_radio(Radio.text(item), hold)
 
 
@@ -6593,12 +6629,13 @@ func _fill_settings() -> void:
 	var rooms := Copy.t("Room sounds") + ": " + Copy.t("On" if Settings.room_sounds else "Off")
 	sound.add_child(_pick_button(rooms, Settings.room_sounds, _toggle_room_sounds, 300.0))
 	sound.add_child(_label("Cable radio", 18, true))
-	var radios := HBoxContainer.new()
-	radios.add_theme_constant_override("separation", 8)
-	radios.add_child(_pick_button("Off", not Settings.radio_on, _pick_radio.bind(0)))
-	for pair in [[1, "Every week"], [2, "Every 2 weeks"]]:
+	var radios := HFlowContainer.new()
+	radios.add_theme_constant_override("h_separation", 8)
+	radios.add_theme_constant_override("v_separation", 8)
+	radios.add_child(_pick_button("Off", not Settings.radio_on, _pick_radio.bind(-1)))
+	for pair in [[1, "Every week"], [2, "Every 2 weeks"], [0, "More often (every 3-4 days)"]]:
 		var on := Settings.radio_on and Settings.radio_every == int(pair[0])
-		radios.add_child(_pick_button(str(pair[1]), on, _pick_radio.bind(int(pair[0])), 170.0))
+		radios.add_child(_pick_button(str(pair[1]), on, _pick_radio.bind(int(pair[0])), 0.0))
 	sound.add_child(radios)
 	var radio_hint := _label("Plays once a radio room is built.", 14)
 	radio_hint.add_theme_color_override("font_color", PAPER_MUTED)
@@ -6783,8 +6820,9 @@ func _toggle_quiet_cues() -> void:
 	_fill_settings()
 
 
+## -1 turns the radio off; 0 is twice a week.
 func _pick_radio(weeks: int) -> void:
-	Settings.radio_on = weeks > 0
+	Settings.radio_on = weeks >= 0
 	if Settings.radio_on:
 		Settings.radio_every = weeks
 	Settings.save()

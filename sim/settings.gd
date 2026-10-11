@@ -15,7 +15,7 @@ static var room_sounds := true
 ## No hover ticks or drips, and room loops only while a room panel is open.
 static var quiet_cues := false
 static var radio_on := true
-## Weeks between cable radio items once the station has a radio room.
+## Weeks between cable radio items once the station has a radio room; 0 means twice a week.
 static var radio_every := 1
 static var language := ""
 static var fullscreen := false
@@ -44,7 +44,7 @@ static func load_file() -> void:
 	room_sounds = bool(cfg.get_value("audio", "room_sounds", room_sounds))
 	quiet_cues = bool(cfg.get_value("audio", "quiet_cues", quiet_cues))
 	radio_on = bool(cfg.get_value("radio", "on", radio_on))
-	radio_every = clampi(int(cfg.get_value("radio", "every_weeks", radio_every)), 1, 4)
+	radio_every = clampi(int(cfg.get_value("radio", "every_weeks", radio_every)), 0, 4)
 	language = str(cfg.get_value("game", "language", ""))
 	fullscreen = bool(cfg.get_value("game", "fullscreen", false))
 	ui_scale = clampf(float(cfg.get_value("game", "ui_scale", 1.0)), 0.75, 1.5)

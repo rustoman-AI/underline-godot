@@ -78,11 +78,17 @@ static func text(row: Dictionary) -> String:
 
 
 ## Audio file for the current language, or "" when it has not been recorded.
+## The VO index spreadsheet names event files <id>_resolve_resolve_<lang>.ogg, so that spelling is accepted too.
 static func audio(row: Dictionary) -> String:
 	var path := str(row.get("audio_ru" if Copy.ru() else "audio_en", ""))
-	if path == "" or not ResourceLoader.exists(path):
+	if path == "":
 		return ""
-	return path
+	if ResourceLoader.exists(path):
+		return path
+	var doubled := path.replace("_resolve_", "_resolve_resolve_")
+	if doubled != path and ResourceLoader.exists(doubled):
+		return doubled
+	return ""
 
 
 static func has_audio(row: Dictionary) -> bool:

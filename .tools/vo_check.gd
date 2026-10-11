@@ -24,6 +24,20 @@ func _init() -> void:
 				silent += 1
 			by_type[str(row.get("type", ""))] = int(by_type.get(str(row.get("type", "")), 0)) + (1 if lang == "en" else 0)
 		print("%s: %d voiced, %d text only" % [lang, voiced, silent])
+	var phase1: Array = ["old_man_coney_story", "salty_maggie_story", "bait_story", "barnum_story", "sylvia_story"]
+	for n in range(2, 11):
+		phase1.append("radio_news_%03d" % n)
+	for lang in ["en", "ru"]:
+		Copy.set_lang(lang)
+		var lengths: PackedStringArray = []
+		for id in phase1:
+			var path := Voice.audio(Voice.line(str(id)))
+			var stream := load(path) as AudioStream if path != "" else null
+			if stream == null or stream.get_length() <= 0.0:
+				problems.append("%s %s does not load" % [id, lang])
+			else:
+				lengths.append("%s %.1fs" % [str(id).trim_suffix("_story"), stream.get_length()])
+		print("phase 1 %s: %s" % [lang, ", ".join(lengths)])
 	Copy.set_lang("en")
 	print("types %s" % str(by_type))
 	var events := {}

@@ -7,6 +7,7 @@ extends SceneTree
 ## since the text doubles as on-screen subtitles.
 
 const OUT := "res://data/vo/underline_vo.json"
+const FIXES := "res://tools/vo_ru_fixes.json"
 const TYPES := {"stories": "story", "radio": "radio", "events": "event", "system": "system"}
 const DASH := "\u0001"
 
@@ -22,6 +23,9 @@ func _init() -> void:
 		quit(1)
 		return
 	var paragraphs := _story_paragraphs(src.path_join("underline_vo_stories.md"))
+	var fixes = JSON.parse_string(FileAccess.get_file_as_string(FIXES))
+	if not fixes is Dictionary:
+		fixes = {}
 	var lines: Array = []
 	for section in TYPES:
 		var group = pack.get(section, {})
@@ -53,6 +57,8 @@ func _init() -> void:
 				var para_key := "%s:%s" % [key, lang]
 				if section == "stories" and paragraphs.has(para_key):
 					text = str(paragraphs[para_key])
+				if lang == "ru":
+					text = _apply_fixes(text, key, fixes.get(key, []))
 				row[lang] = clean(text)
 				row["audio_" + lang] = str(e.get("audio_" + lang, ""))
 			lines.append(row)
@@ -66,6 +72,21 @@ func _init() -> void:
 	f.close()
 	print("VO IMPORT OK %d lines -> %s" % [lines.size(), OUT])
 	quit(0)
+
+
+## Subtitle rewrites from FIXES, matched against the text with line wraps joined. Unmatched pairs are reported.
+func _apply_fixes(text: String, key: String, pairs: Array) -> String:
+	var paras: Array = []
+	for para in text.split("\n\n"):
+		paras.append(para.replace("\n", " "))
+	var out := "\n\n".join(paras)
+	for pair in pairs:
+		var from := str(pair[0])
+		if out.contains(from):
+			out = out.replace(from, str(pair[1]))
+		else:
+			print("VO FIX UNMATCHED %s: %s" % [key, from])
+	return out
 
 
 ## "jonah:en" -> paragraphs joined by blank lines, from the quoted blocks under each "### id" heading.
