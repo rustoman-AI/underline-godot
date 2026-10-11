@@ -19,6 +19,9 @@ Conditions the sim raises: `food_critical` (food under one week of meals), `powe
 | --- | --- |
 | Pilot | `jonah_story`, `inez_story`, `mara_story`, `radio_news_001` |
 | Phase 1 | `old_man_coney_story`, `salty_maggie_story`, `bait_story`, `barnum_story`, `sylvia_story`, `radio_news_002` to `radio_news_010` |
+| Phase 2 | resident stories: `ruth`, `benny`, `ellis`, `samira`, `owen`, `lila`, `pete`, `june`, `hal`, `nora`, `vic`, `ada`, `chris`, `mina`, `rob`, `tess`, `paul`, `kim`, `drew`, `ann`, `leo`, `fran` (`<id>_story`) |
+
+Still text only: event resolves (`event_*_resolve`), system lines (`sys_*`) and the hand-written bulletins in `data/vo/cable_radio.json`.
 
 Event files may arrive as `event_<id>_resolve_resolve_<lang>.ogg` (the index spreadsheet's spelling); the game accepts that as well as `event_<id>_resolve_<lang>.ogg` from `underline_vo.json`.
 
