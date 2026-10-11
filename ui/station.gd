@@ -8630,9 +8630,9 @@ class Yard extends Control:
 			dest.size.x = -dest.size.x
 		var shade := 0.36 + fmod(_id_hash(id), 5.0) * 0.02
 		var tint := Color(
-			clampf(shade * 1.2, 0.38, 0.55),
-			clampf(shade * 0.68, 0.22, 0.36),
-			clampf(shade * 0.28, 0.08, 0.16))
+			clampf(shade * 1.75, 0.6, 0.78),
+			clampf(shade * 1.5, 0.52, 0.66),
+			clampf(shade * 1.2, 0.42, 0.54))
 		draw_texture_rect(sprite, dest, false, tint)
 
 	func _idle_ids() -> Array:
