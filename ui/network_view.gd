@@ -1708,6 +1708,10 @@ func _fill_visit(sid: String) -> void:
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		face.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if sid in ["northgate", "chapel", "trampark", "brickworks"]:
+			# Preserve the full narrative composition of the faction hub panoramas.
+			var ratio := float(hub.get_height()) / float(hub.get_width())
+			face.resized.connect(func(): face.custom_minimum_size.y = face.size.x * ratio)
 		_visit_body.add_child(face)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
