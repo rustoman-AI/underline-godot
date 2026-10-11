@@ -21,7 +21,13 @@ Conditions the sim raises: `food_critical` (food under one week of meals), `powe
 | Phase 1 | `old_man_coney_story`, `salty_maggie_story`, `bait_story`, `barnum_story`, `sylvia_story`, `radio_news_002` to `radio_news_010` |
 | Phase 2 | resident stories: `ruth`, `benny`, `ellis`, `samira`, `owen`, `lila`, `pete`, `june`, `hal`, `nora`, `vic`, `ada`, `chris`, `mina`, `rob`, `tess`, `paul`, `kim`, `drew`, `ann`, `leo`, `fran` (`<id>_story`) |
 
-Still text only: event resolves (`event_*_resolve`), system lines (`sys_*`) and the hand-written bulletins in `data/vo/cable_radio.json`.
+| Phase 3 | event resolves `event_<id>_resolve` (lamps, refugees, quarrel, smuggler, rumble, static, desertion, cough) and system lines `sys_<condition>` (all 8) |
+
+Still text only: the hand-written bulletins in `data/vo/cable_radio.json`.
+
+## Loudness
+
+Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Radio, event and system lines keep their delivered mix. `.tools/measure_vo.ps1` prints min/median/max per group.
 
 Event files may arrive as `event_<id>_resolve_resolve_<lang>.ogg` (the index spreadsheet's spelling); the game accepts that as well as `event_<id>_resolve_<lang>.ogg` from `underline_vo.json`.
 
