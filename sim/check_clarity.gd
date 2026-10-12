@@ -4,6 +4,7 @@ extends SceneTree
 ##   B1  a rebuilt card leaves no empty paper; a second press inside the guard window is dropped.
 ##   B2  station and network cameras keep the dark void out at every zoom and window size.
 ##   B3  wheel zoom keeps the point under the cursor unless the bounds need the view to move.
+##   M1, M3  the network map opens filling 90 percent of the free area; zoom bounds, the deepest zoom, + - and Whole map.
 ##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
 ##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
 ##   C8  people, beds and the weekly overcrowding cost on the people line, the people tab and the ticker.
@@ -444,6 +445,7 @@ func _network_bounds() -> void:
 				if why != "":
 					bad.append("B2 network %s zoom x%.1f: %s" % [view, factor, why])
 		net._fit()
+		_map_fill(net, view)
 		var area: Rect2 = net._open_area()
 		var spot := area.position + area.size * Vector2(0.25, 0.3)
 		for step in 10:
@@ -460,6 +462,54 @@ func _network_bounds() -> void:
 					bad.append("B3 network %s: zoom moved the view %.1f px with no bounds reason" % [view, drift.length()])
 	print("B2 network: %d clamps checked" % checked)
 	st._toggle_network()
+
+
+## Map size: the opening view fills 90 percent of the free area with every station inside it; no void at the
+## smallest and the largest zoom; the deepest zoom shows a dense station and its neighbours on about a third of
+## the window; the "+", "-" and "Whole map" buttons step the zoom and come back to the opening view.
+func _map_fill(net, view: Vector2) -> void:
+	var area: Rect2 = net._open_area()
+	var spots := Rect2()
+	var first := true
+	for sid in net._spots:
+		var at: Vector2 = net._screen(net._map_xf * net._map_spot(str(sid)))
+		spots = Rect2(at, Vector2.ZERO) if first else spots.expand(at)
+		first = false
+		if not area.has_point(at):
+			bad.append("M1 network %s: station %s at %s is outside the free area %s" % [view, sid, at, area])
+	var fill := maxf(spots.size.x / area.size.x, spots.size.y / area.size.y)
+	print("M1 network %s: stations fill %.0f%% of the free area" % [view, 100.0 * fill])
+	if fill < 0.9:
+		bad.append("M1 network %s: the opening view fills %.0f%% of the free area, under 90%%" % [view, 100.0 * fill])
+	var opening: float = net.zoom
+	var kept: Vector2 = net.origin
+	for z in [net._zoom_min, net._zoom_max]:
+		net.zoom = z
+		for far in [Vector2(-1e5, -1e5), Vector2(1e5, 1e5)]:
+			net.origin = far
+			net._clamp_view()
+			var why := _covers(_net_shown(net), area)
+			if why != "":
+				bad.append("M3 network %s at zoom %.2f: %s" % [view, z, why])
+	var third := minf(view.x, view.y) / 3.0
+	var span: float = net._neighbour_span()
+	if span <= 0.0 or span * net._zoom_max < third * 0.95:
+		bad.append("M3 network %s: at the deepest zoom a dense station and its neighbours span %.0f px, under a third (%.0f)" % [view, span * net._zoom_max, third])
+	net.zoom = opening
+	net.origin = kept
+	net._zoom_button("out")
+	if not is_equal_approx(net.zoom, opening):
+		bad.append("M3 network %s: '-' went below the opening zoom" % view)
+	net._zoom_button("in")
+	net._zoom_button("in")
+	if net.zoom <= opening * 1.2:
+		bad.append("M3 network %s: '+' did not zoom in (%.2f from %.2f)" % [view, net.zoom, opening])
+	net._zoom_button("fit")
+	if not is_equal_approx(net.zoom, opening) or net.origin.distance_to(kept) > 0.5:
+		bad.append("M3 network %s: 'Whole map' did not return to the opening view" % view)
+	var bar: Rect2 = net._zoom_bar.get_rect()
+	if not Rect2(Vector2.ZERO, view).encloses(bar) or bar.end.y > net._chrome_top() + 0.5:
+		bad.append("M3 network %s: zoom buttons %s are off the map or over the bottom buttons" % [view, bar])
 
 
 func _net_shown(net) -> Rect2:

@@ -15,6 +15,8 @@ const CARD_MUTED := Color("554533")
 const TAG_PAPER := Color("efe4c8")
 const TAG_INK := Color("2b2118")
 ## Faction sign on a station tag: 16 px at tag levels 0 and 1, where pins sit close together; 20 px at level 2.
+## Station names are never smaller than this on screen, in window pixels.
+const TAG_MIN_PX := 14.0
 const TAG_BADGE_SMALL := 16.0
 const TAG_BADGE_LARGE := 20.0
 const GRAPHITE := Color(0.19, 0.18, 0.17, 0.78)
@@ -29,6 +31,11 @@ const LINE_ALPHA := 0.85
 const LINE_WIDTH := 5.0
 const LINE_GAP := LINE_WIDTH + 1.0
 const FIT_PAD := 14.0
+## Screen px kept free around the outermost stations at the opening zoom, for their pins.
+const FIT_PIN := 24.0
+const ZOOM_STEP := 1.25
+## At the deepest zoom a station and its neighbours span about this share of the window's short side.
+const NEAR_SHARE := 1.0 / 3.0
 const WASH_RADIUS := 70.0
 const PIN_CAPITAL := 52.0
 const PIN_OTHER := 38.0
@@ -68,6 +75,9 @@ var _hop := {}
 var _hop_left := 0.0
 var _zoom_min := 1.0
 var _zoom_max := 3.5
+var _near_span := 0.0
+var _zoom_bar: HBoxContainer
+var _zoom_buttons := {}
 var _cam_origin := Vector2.ZERO
 var _cam_zoom := 1.0
 var visit: PanelContainer
@@ -120,6 +130,7 @@ func _ready() -> void:
 	_wash_layer.material = mul
 	_ink_layer = _add_layer(_draw_ink)
 	_paper = _map_tex("res://assets/map/paper.webp")
+	_build_zoom_bar()
 	_build_sheet()
 	_build_council()
 	_build_visit()
@@ -181,6 +192,8 @@ func bind(station) -> void:
 
 func refresh() -> void:
 	_track_hops()
+	_ready_fonts()
+	_name_zoom_bar()
 	_place_panels()
 	if _fitted:
 		_rezoom()
@@ -201,7 +214,21 @@ func open_sheet(sid: String) -> void:
 	selected = sid
 	sheet.visible = true
 	_fill_sheet(sid)
+	_clear_of_sheet(sid)
 	_redraw()
+
+
+## Slides the map so the chosen station is not under its own sheet, as far as the map's bounds allow.
+func _clear_of_sheet(sid: String) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	var at := _screen(_station_world(game.stations[sid]))
+	var edge := sheet.offset_left - 48.0
+	if at.x <= edge:
+		return
+	var goal := (FIT_PAD + edge) * 0.5
+	_glide_to(origin + Vector2((at.x - goal) / zoom, 0.0))
 
 
 func close_sheet() -> void:
@@ -312,7 +339,7 @@ func _process(delta: float) -> void:
 
 func _on_resize() -> void:
 	_place_panels()
-	if not _fitted:
+	if not _fitted or zoom <= _zoom_min * 1.001:
 		_fit()
 		return
 	_rezoom()
@@ -374,11 +401,54 @@ func _open_area() -> Rect2:
 	return Rect2(FIT_PAD, top, maxf(size.x - FIT_PAD * 2.0, 1.0), maxf(size.y - top - FIT_PAD, 1.0))
 
 
+## Every station spot on the desk, hidden ones too, so the opening view does not change as stations turn up.
+func _net_box() -> Rect2:
+	var box := Rect2()
+	var first := true
+	for sid in _spots:
+		var at := _map_xf * _map_spot(str(sid))
+		box = Rect2(at, Vector2.ZERO) if first else box.expand(at)
+		first = false
+	return _map_box() if first else box
+
+
+## The lower quartile of "a station and its tunnel neighbours" spans, in desk px: the dense middle of the map.
+func _neighbour_span() -> float:
+	if _near_span > 0.0:
+		return _near_span
+	var game = _game()
+	if game == null:
+		return 0.0
+	var spans: Array = []
+	for sid in game.stations:
+		var box := Rect2(_station_world(game.stations[sid]), Vector2.ZERO)
+		for tunnel in game.tunnels:
+			var other := ""
+			if str(tunnel.a) == str(sid):
+				other = str(tunnel.b)
+			elif str(tunnel.b) == str(sid):
+				other = str(tunnel.a)
+			if other != "" and game.stations.has(other):
+				box = box.expand(_station_world(game.stations[other]))
+		var span := maxf(box.size.x, box.size.y)
+		if span > 1.0:
+			spans.append(span)
+	if spans.is_empty():
+		return 0.0
+	spans.sort()
+	_near_span = float(spans[spans.size() / 4])
+	return _near_span
+
+
 func _zoom_range() -> void:
-	var box := _map_box()
+	var box := _net_box()
 	var area := _open_area()
-	_zoom_min = minf(area.size.x / box.size.x, area.size.y / box.size.y)
+	var room := area.size - Vector2(FIT_PIN, FIT_PIN) * 2.0
+	_zoom_min = minf(room.x / maxf(box.size.x, 1.0), room.y / maxf(box.size.y, 1.0))
 	_zoom_max = _zoom_min * ZOOM_SPAN
+	var span := _neighbour_span()
+	if span > 0.0:
+		_zoom_max = maxf(_zoom_max, minf(size.x, size.y) * NEAR_SHARE / span)
 
 
 func _clamp_view() -> void:
@@ -398,7 +468,7 @@ func _fit() -> void:
 		return
 	_zoom_range()
 	zoom = _zoom_min
-	origin = _map_box().get_center()
+	origin = _net_box().get_center() - (_open_area().get_center() - _center()) / zoom
 	_clamp_view()
 	_fitted = true
 	_place_panels()
@@ -636,9 +706,9 @@ func _draw_legend(c: CanvasItem, game) -> void:
 	for row in rows:
 		widest = maxf(widest, _tag_font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
 	var area := _open_area()
-	var bottom := area.end.y
-	if host != null and host.get("chrome_bottom") != null:
-		bottom = minf(bottom, size.y - float(host.chrome_bottom) - 6.0)
+	var bottom := minf(area.end.y, _chrome_top())
+	if _zoom_bar != null and _zoom_bar.visible:
+		bottom = _zoom_bar.position.y - 8.0
 	var slip := Vector2(widest + icon + 26.0, step * rows.size() + 12.0)
 	var box := Rect2(Vector2(area.position.x + 4.0, bottom - slip.y), slip)
 	if council != null and council.visible and box.intersects(council.get_rect().grow(6.0)):
@@ -945,6 +1015,14 @@ func _tag_level() -> int:
 	return 2
 
 
+## Window pixels per UI pixel: below 1 when the interface is scaled down to fit a small window.
+func _window_scale() -> float:
+	var ui_h := get_viewport_rect().size.y
+	if not is_inside_tree() or ui_h < 1.0:
+		return 1.0
+	return clampf(float(get_window().size.y) / ui_h, 0.25, 4.0)
+
+
 func _hits(box: Rect2, boxes: Array) -> bool:
 	for other in boxes:
 		if box.intersects(other):
@@ -980,9 +1058,12 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var info: Dictionary = _layout[sid]
 		var r := float(info.r)
 		heads.append({"id": sid, "box": Rect2(info.at - Vector2(r, r), Vector2(r, r) * 2.0)})
-	var placed: Array = []
+	var placed: Array = [Rect2(0.0, 0.0, size.x, _hud_top())]
+	for panel in [council, sheet, _zoom_bar]:
+		if panel != null and panel.visible:
+			placed.append(panel.get_rect().grow(4.0))
 	_tags.clear()
-	var fs := 14 if level < 2 else 15
+	var fs := maxi(14 if level < 2 else 15, ceili(TAG_MIN_PX / _window_scale()))
 	for row in rows:
 		var sid := str(row.id)
 		var info: Dictionary = _layout[sid]
@@ -1012,6 +1093,12 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		if own or sid == _hover or sid == selected:
 			sides.append(Rect2(at + Vector2(-w * 0.5, -reach - h), Vector2(w, h)))
 			sides.append(Rect2(at + Vector2(-w * 0.5, reach), Vector2(w, h)))
+		if own or bool(info.big) or sid == _hover or sid == selected:
+			for lean in [reach * 0.7, reach * 1.8, reach * 3.0]:
+				for corner in [Vector2(1, -1), Vector2(-1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+					var x: float = at.x + lean if corner.x > 0.0 else at.x - lean - w
+					var y: float = at.y - lean - h if corner.y < 0.0 else at.y + lean
+					sides.append(Rect2(Vector2(x, y), Vector2(w, h)))
 		var others: Array = []
 		for head in heads:
 			if str(head.id) != sid:
@@ -1028,6 +1115,9 @@ func _draw_tags(c: CanvasItem, game) -> void:
 			continue
 		placed.append(chosen.grow(3.0))
 		_tags[sid] = chosen
+		var near := Vector2(clampf(at.x, chosen.position.x, chosen.end.x), clampf(at.y, chosen.position.y, chosen.end.y))
+		if near.distance_to(at) > reach + 6.0:
+			c.draw_line(at + (near - at).normalized() * float(info.r), near, GRAPHITE, 1.2, true)
 		_paint_tag(c, chosen, title, sub, fs, _faction_color(game, str(st.owner)), sid, mark, badge, _paper_tint(fid))
 
 
@@ -1381,16 +1471,83 @@ func _place_panels() -> void:
 	if host != null and host.get("hud") != null and host.hud.size.y > 8.0:
 		top = host.hud.size.y + 22.0
 	if sheet != null:
-		var w := clampf(size.x * 0.24, 330.0, 420.0)
-		sheet.offset_left = size.x - w - 30.0
+		var w := clampf(size.x * 0.22, 300.0, 400.0)
+		var right := 30.0
+		if host != null and host.get("side") != null and host.side.visible:
+			right = maxf(right, host.side.size.x + 10.0)
+		sheet.offset_left = size.x - w - right
 		sheet.offset_top = top + 4.0
-		sheet.offset_right = size.x - 30.0
+		sheet.offset_right = size.x - right
 		sheet.offset_bottom = size.y - 120.0
 	if council != null:
 		council.offset_left = 24.0
 		council.offset_top = top
 		council.offset_right = 24.0 + 280.0
 		council.offset_bottom = top + 10.0
+	if _zoom_bar != null:
+		_zoom_bar.reset_size()
+		_zoom_bar.position = Vector2(FIT_PAD + 4.0, _chrome_top() - _zoom_bar.size.y)
+
+
+## Just above the station's bottom buttons.
+func _chrome_top() -> float:
+	var bottom := size.y - FIT_PAD
+	if host != null and host.get("chrome_bottom") != null:
+		bottom = minf(bottom, size.y - float(host.chrome_bottom) - 6.0)
+	return bottom
+
+
+func _build_zoom_bar() -> void:
+	_zoom_bar = HBoxContainer.new()
+	_zoom_bar.add_theme_constant_override("separation", 6)
+	_zoom_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for key in ["out", "in", "fit"]:
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(44, 44)
+		button.focus_mode = Control.FOCUS_NONE
+		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		button.add_theme_font_size_override("font_size", 22 if key != "fit" else 16)
+		for state in ["normal", "hover", "pressed"]:
+			var face := StyleBoxFlat.new()
+			face.bg_color = TAG_PAPER.darkened(0.12 if state == "pressed" else 0.0).lightened(0.06 if state == "hover" else 0.0)
+			face.border_color = Color(TAG_INK, 0.85)
+			face.set_border_width_all(1)
+			face.set_content_margin_all(6)
+			face.content_margin_left = 12
+			face.content_margin_right = 12
+			face.shadow_color = Color(0, 0, 0, 0.35)
+			face.shadow_size = 3
+			face.shadow_offset = Vector2(1, 2)
+			button.add_theme_stylebox_override(state, face)
+		for colour in ["font_color", "font_hover_color", "font_pressed_color"]:
+			button.add_theme_color_override(colour, TAG_INK)
+		button.pressed.connect(_zoom_button.bind(key))
+		_zoom_bar.add_child(button)
+		_zoom_buttons[key] = button
+	add_child(_zoom_bar)
+	_name_zoom_bar()
+
+
+func _name_zoom_bar() -> void:
+	if _zoom_bar == null:
+		return
+	_zoom_buttons.out.text = "-"
+	_zoom_buttons.out.tooltip_text = Copy.t("Zoom out")
+	_zoom_buttons["in"].text = "+"
+	_zoom_buttons["in"].tooltip_text = Copy.t("Zoom in")
+	_zoom_buttons.fit.text = Copy.t("Whole map")
+	_zoom_buttons.fit.tooltip_text = Copy.t("Show the whole network")
+	if _tag_font != null:
+		_zoom_buttons.fit.add_theme_font_override("font", _tag_font)
+
+
+func _zoom_button(key: String) -> void:
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	if key == "fit":
+		_fit()
+		return
+	_zoom_at(_open_area().get_center(), ZOOM_STEP if key == "in" else 1.0 / ZOOM_STEP)
 
 
 func _fill_council() -> void:

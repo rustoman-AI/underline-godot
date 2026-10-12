@@ -1132,5 +1132,9 @@
   "%s: nothing this week, %s.": "%s: на этой неделе ничего, %s.",
   "base %s": "база %s",
   "Click for every line.": "Нажмите, чтобы увидеть все строки.",
+  "Zoom in": "Приблизить",
+  "Zoom out": "Отдалить",
+  "Whole map": "Вся карта",
+  "Show the whole network": "Показать всю сеть",
   "%s %+d a week: %s": "%s %+d в неделю: %s"
 }
