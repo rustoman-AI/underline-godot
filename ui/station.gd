@@ -3217,6 +3217,11 @@ func _journal_line(row: Dictionary) -> String:
 				for option in ev.get("choices", []):
 					if str(option.get("id", "")) == str(row.get("choice_id", "")):
 						choice = Copy.t(game.line_of(option, "label"))
+			if title == "" and ev.is_empty():
+				var leg: Dictionary = game.crunch_leg(str(row.get("event_id", "")))
+				if not leg.is_empty():
+					title = Copy.t(str(leg.title))
+					choice = Copy.t(str(leg.suffer)) if str(row.get("choice_id", "")) == "leave" else ""
 			if title == "":
 				title = str(row.get("event_id", ""))
 			return "%s: %s" % [title, choice] if choice != "" else title

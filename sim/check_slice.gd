@@ -361,6 +361,13 @@ func _check_crisis(catalog: Catalog) -> bool:
 		if not game.crisis_faults.is_empty():
 			print("Crisis: FAIL ", game.crisis_faults)
 			return false
+		for kind in [0, 1, 2]:
+			game.crunch_kind = kind
+			for leg in game._crunch_legs():
+				var found: Dictionary = game.crunch_leg(str(leg.id))
+				if str(found.get("title", "")) != str(leg.title) or str(found.get("suffer", "")) != str(leg.suffer):
+					print("Crisis: FAIL journal cannot name crunch %s" % str(leg.id))
+					return false
 	print("Crisis: ok")
 	return true
 

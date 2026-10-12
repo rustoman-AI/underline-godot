@@ -4041,6 +4041,19 @@ func _queue_crunch() -> void:
 
 
 func _crunch_legs() -> Array:
+	var legs := _crunch_table()
+	if crunch_kind == 1:
+		return [legs.stacks, legs.ducts, legs.shopbelt]
+	if crunch_kind == 2:
+		return [legs.pantry, legs.dynamo, legs.belt]
+	return [legs.pantry, legs.ducts, legs.belt]
+
+
+func crunch_leg(id: String) -> Dictionary:
+	return _crunch_table().get(id, {})
+
+
+func _crunch_table() -> Dictionary:
 	var food_gap := _cover_gap("food")
 	var air_gap := _cover_gap("air")
 	var power_pain := 14 if int(stock.power) < _power_need() * 2 else 5
@@ -4083,11 +4096,7 @@ func _crunch_legs() -> Array:
 		"pay": "Spend %s to grease the bearing", "suffer": "Let the dynamo limp",
 		"pain": gen_pain, "hit": {"gen_down": true, "hope": -1},
 	}
-	if crunch_kind == 1:
-		return [stacks, ducts, shop]
-	if crunch_kind == 2:
-		return [pantry, dynamo, belt]
-	return [pantry, ducts, belt]
+	return {"pantry": pantry, "ducts": ducts, "belt": belt, "stacks": stacks, "shopbelt": shop, "dynamo": dynamo}
 
 
 func _crunch_event(leg: Dictionary) -> Dictionary:
