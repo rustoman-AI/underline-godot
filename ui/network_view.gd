@@ -991,8 +991,8 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var st: Dictionary = game.stations[sid]
 		var title: String = game.station_text(sid, "community")
 		if title == "":
-			title = str(st.get("name", sid))
-		var sub := str(st.get("name", "")) if level == 2 else ""
+			title = Copy.t(str(st.get("name", sid)))
+		var sub := Copy.t(str(st.get("name", ""))) if level == 2 else ""
 		var width := _tag_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		if sub != "":
 			width = maxf(width, _italic.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x)
@@ -1434,7 +1434,7 @@ func _fill_council() -> void:
 		row.add_theme_constant_override("separation", 8)
 		if host != null and host.has_method("_portrait_box"):
 			row.add_child(host._portrait_box(str(seat.id), 64))
-		var text := "%s\n%s" % [Copy.t(role.capitalize()), str(person.get("name", ""))]
+		var text := "%s\n%s" % [Copy.t(role.capitalize()), Copy.person(str(person.get("name", "")))]
 		if used != "":
 			text += "\n" + Copy.t("Council order") + ": " + Copy.t(_order_title(used))
 		else:
@@ -1484,7 +1484,7 @@ func _fill_sheet_body(sid: String) -> void:
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_child(title)
 		_sheet_body.add_child(head)
-	_sheet_body.add_child(_lab(str(st.name), 14, false))
+	_sheet_body.add_child(_lab(Copy.t(str(st.name)), 14, false))
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body)
 	else:
@@ -1542,7 +1542,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	var detail := Copy.t("Next dawn")
 	if game != null:
 		var who: Dictionary = game.order_councillor()
-		var who_name := str(who.get("name", ""))
+		var who_name := Copy.person(str(who.get("name", "")))
 		if who.is_empty():
 			who_name = Copy.t("No councillor is free.")
 		detail = "%s · %s · %s" % [_cost_text(game.order_cost(kind, sid)), who_name, Copy.t("Next dawn")]
@@ -1581,7 +1581,7 @@ func _order_tip(game, kind: String, sid: String, why: String) -> String:
 	var who: Dictionary = game.order_councillor()
 	var lines: PackedStringArray = []
 	lines.append("%s: %s" % [Copy.t("Cost"), _cost_text(cost)])
-	lines.append("%s: %s" % [Copy.t("Goes"), str(who.get("name", ""))])
+	lines.append("%s: %s" % [Copy.t("Goes"), Copy.person(str(who.get("name", "")))])
 	lines.append("%s: %s" % [Copy.t("Result"), Copy.t("Next dawn")])
 	var risk: String = game.order_risk(kind, sid)
 	if risk != "":
@@ -1890,7 +1890,7 @@ func _fill_visit(sid: String) -> void:
 	var community := _lab(game.station_text(sid, "community"), 22, true)
 	community.autowrap_mode = TextServer.AUTOWRAP_OFF
 	named.add_child(community)
-	var place := _lab(str(st.name), 15, false)
+	var place := _lab(Copy.t(str(st.name)), 15, false)
 	place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	place.size_flags_vertical = Control.SIZE_SHRINK_END
 	named.add_child(place)
@@ -2002,7 +2002,7 @@ func _station_photo(game, st: Dictionary) -> Control:
 		shot.texture = _thumb_tex(game, st)
 		shot.modulate = Color(1.0, 0.94, 0.84)
 		box.add_child(shot)
-		caption = str(st.get("name", ""))
+		caption = Copy.t(str(st.get("name", "")))
 	var tag := Label.new()
 	tag.text = caption
 	tag.add_theme_font_size_override("font_size", 12)
