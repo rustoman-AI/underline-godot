@@ -5804,6 +5804,63 @@ func cast_id_of(person: Dictionary) -> String:
 	return str(person.get("id", ""))
 
 
+## Cast id of a resident for the portrait, "" for residents outside the cast and for ids that are not residents.
+func cast_of(id: String) -> String:
+	if not people.has(id):
+		return ""
+	var person: Dictionary = people[id]
+	var cast := cast_id_of(person)
+	return "" if cast == str(person.get("id", "")) else cast
+
+
+func has_coney_cast() -> bool:
+	return capital_id == "southdepot" or capital_id == "coney"
+
+
+## The portrait a resident wears, out of `names` (portrait_01, portrait_02...). A Coney cast member keeps the
+## pin from data/cast_portraits.json; nobody else wears a pinned face. The others take the remaining faces in
+## arrival order, so any run of arrivals as long as that pool has no two alike, and a face never moves when
+## someone dies or leaves. Ids that are not residents get a face from the same pool by hash.
+func portrait_name(id: String, names: Array) -> String:
+	if names.is_empty():
+		return ""
+	var pins: Dictionary = catalog.cast_portraits if catalog != null and has_coney_cast() else {}
+	var pin := str(pins.get(cast_of(id), ""))
+	if pin != "" and names.has(pin):
+		return pin
+	var rest: Array = []
+	for name in names:
+		if not pins.values().has(name):
+			rest.append(name)
+	if rest.is_empty():
+		rest = names
+	var rank := arrival_rank(id)
+	if rank < 0:
+		rank = 0
+		for i in id.length():
+			rank = (rank * 33 + id.unicode_at(i)) % rest.size()
+	return str(rest[rank % rest.size()])
+
+
+## Place of a resident among the people who do not wear a cast face: the starting residents in
+## data/residents.json order, then newcomers n1, n2... in the order they came. -1 for anyone else.
+func arrival_rank(id: String) -> int:
+	if catalog == null:
+		return -1
+	var cast_slots: Array = CONEY_SLOTS if has_coney_cast() and not catalog.cast_portraits.is_empty() else []
+	var rank := 0
+	for row in catalog.residents:
+		var rid := str(row.get("id", ""))
+		if cast_slots.has(rid):
+			continue
+		if rid == id:
+			return rank
+		rank += 1
+	if id.begins_with("n") and id.substr(1).is_valid_int() and int(id.substr(1)) > 0:
+		return rank + int(id.substr(1)) - 1
+	return -1
+
+
 func _init_grid() -> void:
 	var levels := int(catalog.grid.levels)
 	var width := int(catalog.grid.cells)

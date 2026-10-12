@@ -25,6 +25,8 @@ var truth: Dictionary = {}
 ## Endings and epilogue lines (data/endings.json): "endings", "leaders" by answer, "truth" by proofs.
 var endings: Dictionary = {}
 var coney: Dictionary = {}
+## Cast id to the resident portrait it keeps, e.g. "bait": "portrait_05" (data/cast_portraits.json).
+var cast_portraits: Dictionary = {}
 var residents: Array = []
 var names: Dictionary = {}
 var grid: Dictionary = {}
@@ -53,6 +55,7 @@ func load_all() -> bool:
 	endings = _obj("endings.json")
 	check_events = _obj("events_checks.json")
 	coney = _obj("characters_coney.json")
+	cast_portraits = _obj("cast_portraits.json").get("pins", {})
 	residents = _arr("residents.json")
 	names = _obj("names.json")
 	grid = _obj("start_grid.json")

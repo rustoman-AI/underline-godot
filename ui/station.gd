@@ -106,6 +106,7 @@ var card_fit_tries := 0
 ## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
 var card_roomy := false
 var portraits: Array = []
+var portrait_names: Array = []
 var ahead: PanelContainer
 var deck = ModalDeck.new()
 var ambient_restore: Callable = Callable()
@@ -670,10 +671,12 @@ func _system_cyrillic() -> Font:
 
 func _load_portraits() -> void:
 	portraits.clear()
+	portrait_names.clear()
 	for i in range(1, 17):
 		var tex := ArtPack.load_texture("res://assets/portraits/portrait_%02d.webp" % i)
 		if tex != null:
 			portraits.append(tex)
+			portrait_names.append("portrait_%02d" % i)
 
 
 func _audit_art() -> void:
@@ -704,6 +707,10 @@ func _audit_art() -> void:
 func _portrait_for(id: String) -> Texture2D:
 	if portraits.is_empty():
 		return null
+	if game != null:
+		var at := portrait_names.find(game.portrait_name(id, portrait_names))
+		if at >= 0:
+			return portraits[at]
 	var n := 0
 	for i in id.length():
 		n = (n * 33 + id.unicode_at(i)) % portraits.size()

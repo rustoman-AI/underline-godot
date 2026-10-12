@@ -18,7 +18,10 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var cards: Array = CARDS.duplicate()
+	var folder := "pool1"
 	for arg in OS.get_cmdline_user_args():
+		if str(arg).begins_with("--dir="):
+			folder = str(arg).trim_prefix("--dir=")
 		if str(arg).begins_with("--lang="):
 			Copy.set_lang(str(arg).trim_prefix("--lang="))
 		if str(arg).begins_with("--cards="):
@@ -31,7 +34,7 @@ func _run() -> void:
 	st.hold_dawn = false
 	var size: Vector2i = st._shot_size()
 	await st._settle(size)
-	out_dir = "pool1/%s_%dx%d" % [Copy.lang, size.x, size.y]
+	out_dir = "%s/%s_%dx%d" % [folder, Copy.lang, size.x, size.y]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots/" + out_dir))
 	st._begin_new_game(false)
 	st._close_card()
@@ -48,7 +51,7 @@ func _run() -> void:
 		var who := str(ev.get("who", ""))
 		if who != "":
 			var rid: String = st._resident_id_named(who)
-			print("WHO %s %s: %s" % [Copy.lang, id, "resident %s shown as %s" % [rid, Copy.person(str(game.people[rid].name))] if rid != "" else "no resident named " + who])
+			print("WHO %s %s: %s" % [Copy.lang, id, "resident %s shown as %s, %s" % [rid, Copy.person(str(game.people[rid].name)), game.portrait_name(rid, st.portrait_names)] if rid != "" else "no resident named " + who])
 		game.week = int(ev.get("min_week", 1))
 		game.pending = []
 		game.week_event_ids = {}
