@@ -26,6 +26,7 @@ func _init() -> void:
 	_rejects()
 	_story_saves()
 	_shared_catalog()
+	_mid_run_mutations()
 	_resume()
 	_slots()
 	_wipe(SaveGame.root)
@@ -250,6 +251,84 @@ func _shared_catalog() -> void:
 	_expect(opened > 0 and runs[0] == runs[1] and marked.is_empty(),
 		"Same seed twice on one catalog plays the same (%d checks with open effects)" % opened,
 		"shared catalog: open checks %d, same %s, catalog events marked %d" % [opened, runs[0] == runs[1], marked.size()])
+
+
+## Saves from the middle of a run with one record broken (the save fuzz's half-loads): each is refused with the
+## live game untouched. Harmless changes load and play on.
+func _mid_run_mutations() -> void:
+	var source := _game(2)
+	var bot := Bot.new()
+	var event_fix := {}
+	while source.week < 30 and event_fix.is_empty():
+		bot._act(source)
+		source.end_week()
+		if source.week >= 12:
+			event_fix = _numeric_choice(source)
+	var good := source.export_state()
+	good["schema"] = Game.SAVE_SCHEMA
+	var sid: String = good.stations.keys()[1]
+	var pid: String = good.people.keys()[0]
+	var linked := ""
+	for tunnel in good.tunnels:
+		linked = str(tunnel.b)
+	var refused := {
+		"unknown law": func(d): d.laws_on["no_such_law"] = true,
+		"station without sympathy": func(d): d.stations[sid].erase("sympathy"),
+		"station rival_symp not a dictionary": func(d): d.stations[sid].rival_symp = 2.5,
+		"station owner missing": func(d): d.stations[sid].erase("owner"),
+		"station gone under a tunnel": func(d): d.stations.erase(linked),
+		"person skills null": func(d): d.people[pid].skills = null,
+		"person without sick": func(d): d.people[pid].erase("sick"),
+		"person checks text": func(d): d.people[pid].checks = "wits",
+		"stock without air": func(d): d.stock.erase("air"),
+		"stock air text": func(d): d.stock.air = "lots",
+		"room browned text": func(d): d.rooms[0].browned = "yes",
+		"room without uid": func(d): d.rooms[0].erase("uid"),
+		"check without id": func(d): d.check_schedule[0].erase("id"),
+	}
+	if not event_fix.is_empty():
+		refused["waiting choice without id"] = func(d): d.pending[event_fix.at].choices[event_fix.choice].erase("id")
+		refused["waiting choice number as text"] = func(d): d.pending[event_fix.at].choices[event_fix.choice][event_fix.key] = "x"
+	for name in refused:
+		var data: Dictionary = good.duplicate(true)
+		refused[name].call(data)
+		var game := _busy_game()
+		var before := var_to_bytes(game.export_state())
+		var loaded := game.import_state(data)
+		_expect(not loaded and game.load_error != "" and var_to_bytes(game.export_state()) == before,
+			"Mid-run save refused: %s (%s)" % [name, game.load_error], "mid-run %s loaded=%s" % [name, loaded])
+	var harmless := {
+		"extra key": func(d): d["from_the_future"] = {"a": 1},
+		"long name": func(d): d.people[pid].name = "N".repeat(1 << 16),
+		"unknown waiting event": func(d): d.pending.append({"id": "no_such_event", "title": "x", "text": "x", "choices": []}),
+	}
+	for name in harmless:
+		var data: Dictionary = good.duplicate(true)
+		harmless[name].call(data)
+		var game := _busy_game()
+		var loaded := game.import_state(data)
+		var start := game.week
+		for i in 3:
+			bot._act(game)
+			game.end_week()
+		_expect(loaded and game.errors.is_empty() and (game.week == start + 3 or game.over != ""),
+			"Mid-run save with %s loads and plays on" % name, "mid-run %s loaded=%s %s errors %s" % [name, loaded, game.load_error, game.errors])
+	_expect(not event_fix.is_empty(), "Mid-run save had a waiting event with numbers", "no waiting event with numbers by week 30")
+
+
+## A waiting catalog event with a number on one of its choices: {at, choice, key}.
+func _numeric_choice(game: Game) -> Dictionary:
+	for at in game.pending.size():
+		var ev: Dictionary = game.pending[at]
+		var source: Dictionary = game._event_by_id(str(ev.id))
+		for i in ev.choices.size():
+			for row in source.get("choices", []):
+				if str(row.id) != str(ev.choices[i].id):
+					continue
+				for key in row:
+					if (row[key] is int or row[key] is float) and ev.choices[i].has(key):
+						return {"at": at, "choice": i, "key": key}
+	return {}
 
 
 func _with(data: Dictionary, key: String, value) -> Dictionary:

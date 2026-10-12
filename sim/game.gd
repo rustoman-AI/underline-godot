@@ -7005,7 +7005,7 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 			return "council seat malformed"
 	var uids := {}
 	for room in state.rooms:
-		if not (room is Dictionary) or not cat.rooms.has(str(room.get("type", ""))) or not (room.get("staff") is Array):
+		if not (room is Dictionary) or not cat.rooms.has(str(room.get("type", ""))) or not (room.get("staff") is Array) or not (room.get("uid") is String):
 			return "room malformed"
 		if uids.has(str(room.get("uid", ""))):
 			return "room %s twice" % str(room.get("uid", ""))
@@ -7063,6 +7063,127 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 			return "fragment %s week %s" % [str(id), str(row.get("week"))]
 	if int(state.story_words) < 0:
 		return "story_words %d" % int(state.story_words)
+	for law in state.laws_on:
+		if not cat.laws.has(str(law)):
+			return "law %s unknown" % str(law)
+	for tunnel in state.tunnels:
+		if not (tunnel is Dictionary) or not state.stations.has(str(tunnel.get("a", ""))) or not state.stations.has(str(tunnel.get("b", ""))):
+			return "tunnel to an unknown station"
+	return _shape_problem(state, cat)
+
+
+## Shapes of a fresh run on this catalog: the keys every person, station, room and council seat carries there,
+## with their types. A saved record must carry them too, or the week code reads a hole.
+static var _models := {}
+
+
+static func _model(cat: Catalog) -> Dictionary:
+	var id := cat.get_instance_id()
+	if not _models.has(id):
+		var fresh := Game.new()
+		fresh.setup(cat, 1, 40)
+		_models.clear()
+		_models[id] = {
+			"stock": _common([fresh.stock]), "person": _common(fresh.people.values()),
+			"station": _common(fresh.stations.values()), "room": _common(fresh.rooms), "seat": _common(fresh.council),
+			"tunnel": _common(fresh.tunnels),
+		}
+	return _models[id]
+
+
+## What every row shares: a Dictionary of the keys all rows have (each with what their values share),
+## a sample value when all rows are of one kind, or null when they differ.
+static func _common(rows: Array):
+	if rows.is_empty():
+		return null
+	var first = rows[0]
+	for row in rows:
+		if not _same_kind(row, first):
+			return null
+	if not first is Dictionary:
+		return [] if first is Array else first
+	var out := {}
+	for key in first:
+		var values: Array = []
+		for row in rows:
+			if not row.has(key):
+				values = []
+				break
+			values.append(row[key])
+		if not values.is_empty():
+			out[key] = _common(values)
+	return out
+
+
+static func _same_kind(a, b) -> bool:
+	if (a is int or a is float) and (b is int or b is float):
+		return true
+	return typeof(a) == typeof(b)
+
+
+static func _shape(value, model, path: String) -> String:
+	if model == null:
+		return ""
+	if not _same_kind(value, model):
+		return "%s is %s" % [path, type_string(typeof(value))]
+	if model is Dictionary:
+		for key in model:
+			if not value.has(key):
+				return "%s.%s missing" % [path, str(key)]
+			var why := _shape(value[key], model[key], "%s.%s" % [path, str(key)])
+			if why != "":
+				return why
+	return ""
+
+
+static func _shape_problem(state: Dictionary, cat: Catalog) -> String:
+	var model := _model(cat)
+	var why := _shape(state.stock, model.stock, "stock")
+	for id in state.people:
+		if why == "":
+			why = _shape(state.people[id], model.person, "person %s" % str(id))
+	for id in state.stations:
+		if why == "":
+			why = _shape(state.stations[id], model.station, "station %s" % str(id))
+	for room in state.rooms:
+		if why == "":
+			why = _shape(room, model.room, "room %s" % str(room.uid))
+	for seat in state.council:
+		if why == "":
+			why = _shape(seat, model.seat, "council seat")
+	for tunnel in state.tunnels:
+		if why == "":
+			why = _shape(tunnel, model.tunnel, "tunnel")
+	if why != "":
+		return why
+	for item in state.check_schedule:
+		if not (item is Dictionary) or not (item.get("id") is String) or not _same_kind(item.get("week"), 0) or not (item.get("done") is bool):
+			return "check schedule malformed"
+	for ev in state.pending + state.white_pending:
+		why = _event_problem(ev, cat)
+		if why != "":
+			return why
+	return ""
+
+
+## A waiting event needs its id and choices, each choice its id, and every number the catalog's choice
+## carries must still be a number.
+static func _event_problem(ev, cat: Catalog) -> String:
+	if not (ev is Dictionary) or not (ev.get("id") is String) or not (ev.get("choices") is Array):
+		return "waiting event malformed"
+	var source := {}
+	for row in cat.events:
+		if str(row.get("id", "")) == ev.id:
+			source = row
+	for choice in ev.choices:
+		if not (choice is Dictionary) or not (choice.get("id") is String):
+			return "event %s choice malformed" % ev.id
+		for row in source.get("choices", []):
+			if str(row.get("id", "")) != choice.id:
+				continue
+			for key in row:
+				if (row[key] is int or row[key] is float) and choice.has(key) and not _same_kind(choice[key], 0):
+					return "event %s choice %s %s is %s" % [ev.id, choice.id, str(key), type_string(typeof(choice[key]))]
 	return ""
 
 
