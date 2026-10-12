@@ -8689,7 +8689,7 @@ class Yard extends Control:
 		if ids.is_empty():
 			return
 		var floor := _art_rect("quarters", rect)
-		var own: Array = room_figs.get("quarters", [])
+		var own: Array = room_figs.get("quarters", body_figs)
 		var slots := [0.2, 0.5, 0.8]
 		for i in mini(ids.size(), slots.size()):
 			var id := str(ids[i])
