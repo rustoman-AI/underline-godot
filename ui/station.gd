@@ -7729,9 +7729,10 @@ func _fill_settings() -> void:
 	var cards := HBoxContainer.new()
 	cards.add_theme_constant_override("separation", 16)
 	menu_settings.add_child(cards)
+	var col_w := clampf((size.x - 112.0) * 0.5, 440.0, 500.0)
 	var sound_card := PanelContainer.new()
 	sound_card.add_theme_stylebox_override("panel", _paper_style())
-	sound_card.custom_minimum_size = Vector2(500, 0)
+	sound_card.custom_minimum_size = Vector2(col_w, 0)
 	sound_card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var sound := VBoxContainer.new()
 	sound.add_theme_constant_override("separation", 8)
@@ -7739,13 +7740,14 @@ func _fill_settings() -> void:
 	cards.add_child(sound_card)
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", _paper_style())
-	card.custom_minimum_size = Vector2(500, 0)
+	card.custom_minimum_size = Vector2(col_w, 0)
 	card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	card.add_child(box)
 	cards.add_child(card)
 	on_paper = true
+	var inner := col_w - 20.0
 	sound.add_child(_label("Volume", 18, true))
 	sound.add_child(_volume_row("Master", Settings.master, _set_master))
 	sound.add_child(_volume_row("Music", Settings.music, _set_music))
@@ -7788,15 +7790,15 @@ func _fill_settings() -> void:
 	scales.add_theme_constant_override("separation", 8)
 	for pair in [[0.75, "75%"], [1.0, "100%"], [1.25, "125%"], [1.5, "150%"]]:
 		var scale := float(pair[0])
-		scales.add_child(_pick_button(str(pair[1]), absf(Settings.ui_scale - scale) < 0.02, _pick_scale.bind(scale)))
+		scales.add_child(_pick_button(str(pair[1]), absf(Settings.ui_scale - scale) < 0.02, _pick_scale.bind(scale), minf(112.0, (inner - 24.0) * 0.25)))
 	box.add_child(scales)
 	var motion := Copy.t("Reduce motion") + ": " + Copy.t("On" if Settings.reduce_motion else "Off")
-	box.add_child(_pick_button(motion, Settings.reduce_motion, _toggle_motion, 420.0))
+	box.add_child(_pick_button(motion, Settings.reduce_motion, _toggle_motion, minf(420.0, inner)))
 	var quiet := Copy.t("Fewer audio cues") + ": " + Copy.t("On" if Settings.quiet_cues else "Off")
-	box.add_child(_pick_button(quiet, Settings.quiet_cues, _toggle_quiet_cues, 420.0))
+	box.add_child(_pick_button(quiet, Settings.quiet_cues, _toggle_quiet_cues, minf(420.0, inner)))
 	var quiet_hint := _label("No hover ticks or drips. Room sounds only while a room is open.", 14)
 	quiet_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	quiet_hint.custom_minimum_size = Vector2(460, 0)
+	quiet_hint.custom_minimum_size = Vector2(minf(460.0, inner), 0)
 	quiet_hint.add_theme_color_override("font_color", PAPER_MUTED)
 	box.add_child(quiet_hint)
 	on_paper = false
