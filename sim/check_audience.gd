@@ -7,6 +7,7 @@ const AudienceChecks = preload("res://sim/audience_checks.gd")
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var catalog := Catalog.new()
 	if not catalog.load_all():
 		print("CATALOG ", catalog.error)

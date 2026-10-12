@@ -11,6 +11,7 @@ const SLOTS := {"chris": "old_man_coney", "mina": "salty_maggie", "kim": "bait",
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var bad: PackedStringArray = []
 	var catalog := Catalog.new()
 	if not catalog.load_all():

@@ -5,6 +5,7 @@ extends SceneTree
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var failed := false
 	for err in Geo.self_check():
 		failed = true

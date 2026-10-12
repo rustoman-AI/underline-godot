@@ -9,6 +9,7 @@ const FACTIONS := ["depot", "directorate", "synod", "exchange", "black_flag"]
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var bad: PackedStringArray = []
 	var expected := {}
 	var total := 0.0

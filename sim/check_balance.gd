@@ -16,6 +16,7 @@ const WHITE := [55, 85]
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var first := 1
 	for arg in OS.get_cmdline_user_args():
 		if str(arg).begins_with("--from="):

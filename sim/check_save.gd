@@ -13,6 +13,7 @@ var failed := false
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	catalog = Catalog.new()
 	if not catalog.load_all():
 		print("CATALOG ", catalog.error)

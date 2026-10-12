@@ -9,6 +9,7 @@ const AudienceChecks = preload("res://sim/audience_checks.gd")
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var failed := false
 	var formula_errors := Formulas.self_check()
 	if formula_errors.is_empty():

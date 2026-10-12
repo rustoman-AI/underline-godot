@@ -5,6 +5,7 @@ extends SceneTree
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var failed := false
 	var catalog := Catalog.new()
 	if not catalog.load_all():
