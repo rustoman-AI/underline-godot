@@ -50,3 +50,5 @@
 2. Новая идея = одна строка здесь. Обсуждать позже.
 3. Музыка, озвучка, арт и крупный код только после слов владельца «в работу».
 4. После плейтеста: смотрим журналы и анкеты, выбираем **одну** следующую цель.
+
+- Settings text "No hover ticks or drips..." (ui/station.gd:8326, data/ru.json:909) is stale: hover ticks no longer exist. Reword with the next code pass. (12 Oct, from Cursor playtest3 report)
