@@ -9,7 +9,10 @@ extends SceneTree
 
 const PROFILES := ["careful", "expander", "follower"]
 const WEEKS := 40
-const STYLES := ["silence", "helper", "helper_mixed", "accept_all", "mixed", "storyteller"]
+const STYLES := ["silence", "helper", "helper_mixed", "accept_all", "mixed", "storyteller", "storyteller_climb",
+	"storyteller_control"]
+## The control is the S2 storyteller: picks by proof only in bunker scenes, story events played like any other.
+const CONTROL := "storyteller_control"
 const SCENES := ["st3_floor", "st3_quarantine", "st3_observatory", "st3_decision"]
 const STORYTELLER_CAP := 90
 
@@ -29,7 +32,7 @@ func _initialize() -> void:
 		var shown := {}
 		var picks := {}
 		var flags := {}
-		var gate := {"path": 0, "open": 0, "weeks": []}
+		var gate := {"path": 0, "open": 0, "weeks": [], "iron": [], "iron_end": []}
 		var at_decision := {}
 		var honest := 0
 		var dirty := 0
@@ -44,7 +47,8 @@ func _initialize() -> void:
 				game.audit = profile != "follower"
 				var bot := Bot.new()
 				bot.profile = profile
-				bot.audience_style = style
+				bot.audience_style = "storyteller" if style == CONTROL else style
+				bot.prefer_story = style != CONTROL
 				bot.take_endings = true
 				var guard := 0
 				var opened := false
@@ -68,12 +72,14 @@ func _initialize() -> void:
 					game.end_week()
 					if path_week == 0 and game.fragment_known("quarantine_path"):
 						path_week = game.week
+						gate.iron.append(int(game.artifacts.get("iron", 0)))
 					if not opened and game.quarantine_block() == "":
 						opened = true
 						gate.open += 1
 				if path_week > 0:
 					gate.path += 1
 					gate.weeks.append(path_week)
+				gate.iron_end.append(int(game.artifacts.get("iron", 0)))
 				runs += 1
 				errors += game.errors.filter(func(e): return not str(e).contains("decisions")).size()
 				var end := game.ending_id() if game.ending_id() != "" else "running"
@@ -114,6 +120,8 @@ func _initialize() -> void:
 		print("  endings open at the decision: %s" % (_row(at_decision, runs) if not at_decision.is_empty() else "no decision"))
 		gate.weeks.sort()
 		print("  quarantine path learned in %d runs (weeks %s); Quarantine order open in %d" % [gate.path, str(gate.weeks), gate.open])
+		print("  iron when the path is learned %s; iron at the end: %d runs with 1+, mean %.2f" % [str(gate.iron),
+			gate.iron_end.filter(func(n): return n >= 1).size(), gate.iron_end.reduce(func(a, n): return a + n, 0) / float(runs)])
 		print("  fragments per run: honest %.2f, dirty %.2f; proofs per run %.2f; runs with 0/1/2/3+ proofs %d/%d/%d/%d" % [
 			honest / float(runs), dirty / float(runs), proofs / float(runs),
 			int(proof_runs.get(0, 0)), int(proof_runs.get(1, 0)), int(proof_runs.get(2, 0)), int(proof_runs.get(3, 0))])

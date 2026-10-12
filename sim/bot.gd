@@ -12,14 +12,20 @@ var profile := "careful"
 ## (or when it cannot pay for the help).
 ## A deal the bot cannot pay for is left waiting, which the game counts as silence.
 ## "storyteller" answers like "helper", listens to one new resident story a week (as the player does in a
-## dossier), approaches the Floor, the Quarantine and the Observatory as soon as it can, takes the choice with a proof (then a
-## flag) in bunker scenes, and takes an ending at the final decision.
+## dossier), approaches the Floor, the Quarantine and the Observatory as soon as it can, and takes an ending at
+## the final decision. In bunker scenes and in events where some choice brings a fragment, a proof or artifacts
+## it takes the choice bringing the most (fragment, then proof, then artifacts, then a flag), the cheaper one on a tie.
+## "storyteller_climb" is the same but prefers the climb to the door at the final decision.
 var audience_style := "silence"
-const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed", "storyteller"]
+const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed", "storyteller",
+	"storyteller_climb"]
+## Off, a storyteller picks only in bunker scenes and only by proof, then flag (the S2 storyteller).
+var prefer_story := true
 ## At an event offering endings (st3_decision) the bot holds unless `take_endings` is set or it is a
 ## storyteller, so the stewards in bot_run still play to week 40. Taking one, it prefers them in this order.
 var take_endings := false
 const ENDING_ORDER := ["door", "climb", "order", "hold"]
+const CLIMB_ORDER := ["climb", "door", "order", "hold"]
 const MIXED_ACCEPTS := ["synod", "exchange"]
 var _did_aid := false
 var _did_talk := false
@@ -50,7 +56,7 @@ func _act(game: Game) -> void:
 	if game.use_medkits():
 		pass
 	_answer_audience(game)
-	if audience_style == "storyteller":
+	if _teller():
 		_listen(game)
 	if profile == "follower":
 		_follow(game)
@@ -65,7 +71,7 @@ func _act(game: Game) -> void:
 		var best_score := -99999
 		if Game.offers_ending(ev):
 			best = _decision_choice(game, ev)
-		elif audience_style == "storyteller" and ev.has("trigger"):
+		elif _story_pick(ev):
 			best = _scene_choice(game, ev)
 		elif profile == "expander" and _all_checks(ev):
 			best = _expander_check_choice(game, ev)
@@ -97,8 +103,29 @@ func _act(game: Game) -> void:
 		game.apply({"kind": "staff"})
 
 
+func _teller() -> bool:
+	return audience_style == "storyteller" or audience_style == "storyteller_climb"
+
+
+func _story_pick(ev: Dictionary) -> bool:
+	if not _teller():
+		return false
+	if ev.has("trigger"):
+		return true
+	if not prefer_story:
+		return false
+	for choice in ev.choices:
+		if _story_value(choice) > 1:
+			return true
+	return false
+
+
 func _decision_choice(game: Game, ev: Dictionary) -> Dictionary:
-	var order: Array = ENDING_ORDER if take_endings or audience_style == "storyteller" else ["hold"]
+	var order: Array = ["hold"]
+	if audience_style == "storyteller_climb":
+		order = CLIMB_ORDER
+	elif take_endings or audience_style == "storyteller":
+		order = ENDING_ORDER
 	for id in order:
 		for choice in ev.choices:
 			if str(choice.id) == id and _open(game, choice):
@@ -109,15 +136,49 @@ func _decision_choice(game: Game, ev: Dictionary) -> Dictionary:
 	return {}
 
 
+## Fragment 1000, each proof 100, each artifact 10, a flag 1: one fragment outweighs any proofs and so on.
+func _story_value(choice: Dictionary) -> int:
+	var value := 0
+	if str(choice.get("fragment", "")) != "":
+		value += 1000
+	value += maxi(0, int(choice.get("proof", 0))) * 100
+	var found = choice.get("artifacts", {})
+	if found is Dictionary:
+		for key in found:
+			value += maxi(0, int(found[key])) * 10
+	value += maxi(0, int(choice.get("papers", 0))) * 10
+	if str(choice.get("flag", "")) != "":
+		value += 1
+	return value
+
+
+func _cost_of(choice: Dictionary) -> int:
+	var total := 0
+	var cost = choice.get("cost", {})
+	if cost is Dictionary:
+		for key in cost:
+			total += maxi(0, int(cost[key]))
+	return total
+
+
 func _scene_choice(game: Game, ev: Dictionary) -> Dictionary:
 	var best := {}
 	var best_score := -1
+	var best_cost := 0
 	for choice in ev.choices:
 		if not _open(game, choice):
 			continue
-		var score := int(choice.get("proof", 0)) * 2 + (1 if str(choice.get("flag", "")) != "" else 0)
-		if score > best_score:
-			best_score = score
+		if not prefer_story:
+			var score := int(choice.get("proof", 0)) * 2 + (1 if str(choice.get("flag", "")) != "" else 0)
+			if score > best_score:
+				best_score = score
+				best = choice
+			continue
+		var value := _story_value(choice)
+		var cost := _cost_of(choice)
+		if value > best_score or (value == best_score and cost < best_cost):
+			best_score = value
+			best_cost = cost
 			best = choice
 	return best
 
@@ -141,7 +202,7 @@ func _answer_audience(game: Game) -> void:
 	if game.audience.is_empty() or audience_style == "silence":
 		return
 	var fid := str(game.audience.get("faction", ""))
-	if audience_style == "helper" or audience_style == "helper_mixed" or audience_style == "storyteller":
+	if audience_style == "helper" or audience_style == "helper_mixed" or _teller():
 		var deal_now := audience_style == "helper_mixed" and MIXED_ACCEPTS.has(fid) \
 			and (str(game.leader_answers.get(fid, {}).get("answer", "")) == "helped" or game.help_reason() != "")
 		if deal_now:
@@ -174,7 +235,7 @@ func _follow(game: Game) -> void:
 		var choice := _visible_choice(game, ev, forecasts)
 		if Game.offers_ending(ev):
 			choice = _decision_choice(game, ev)
-		elif audience_style == "storyteller" and ev.has("trigger"):
+		elif _story_pick(ev):
 			choice = _scene_choice(game, ev)
 		if choice.is_empty():
 			break
@@ -524,7 +585,7 @@ func _project_expander(game: Game) -> Dictionary:
 
 
 func _order(game: Game) -> Dictionary:
-	if audience_style == "storyteller":
+	if _teller():
 		if game.can_approach():
 			return {"kind": "order", "order": "approach"}
 		if game.can_approach_quarantine():
