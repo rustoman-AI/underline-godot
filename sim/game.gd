@@ -72,6 +72,9 @@ var audience := {}
 var audience_last := {}
 var audience_due := {}
 var audience_deals := {}
+## Each leader's first audience answer this run: {faction: {"answer": "accepted"|"refused"|"silence", "week"}}.
+## Set once, never overwritten; leader consequence events read it.
+var leader_answers := {}
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -741,6 +744,7 @@ func _dawn() -> void:
 	_season_clock()
 	_queue_crunch()
 	_roll_events()
+	_offer_leader_event()
 	_release_white_checks()
 	_offer_checks()
 	_note_dawn_afford()
@@ -1240,7 +1244,7 @@ func close_caption() -> String:
 	var choice := _free_choice(front_event())
 	if choice.is_empty():
 		return Copy.t("Close")
-	return Copy.t("Close: %s") % Copy.t(str(choice.label))
+	return Copy.t("Close: %s") % Copy.t(line_of(choice, "label"))
 
 
 func _food_thin() -> bool:
@@ -4007,6 +4011,44 @@ func _roll_events() -> void:
 	_present_event(_weighted(pool))
 
 
+## Leader consequence events ("needs") never enter the random pool. At dawn, once that leader's first answer
+## matches ("refused" also matches silence) and the weeks since it are inside after_weeks, the event is shown
+## unless a major event is already waiting; then it tries again next dawn until its window closes. One per week
+## at most, the one whose window closes first; each shows once a run. Draws nothing from the random streams.
+func _offer_leader_event() -> void:
+	for ev in pending:
+		if bool(ev.get("major", false)):
+			return
+	var pick := {}
+	var pick_left := 1 << 30
+	for ev in catalog.events:
+		var left := leader_event_window(ev)
+		if left >= 0 and left < pick_left:
+			pick = ev
+			pick_left = left
+	if not pick.is_empty():
+		_present_event(pick)
+
+
+## Weeks left in the event's window this dawn, or -1 when it cannot show now.
+func leader_event_window(ev: Dictionary) -> int:
+	var needs = ev.get("needs", null)
+	if not (needs is Dictionary) or events_seen.has(str(ev.id)):
+		return -1
+	var row: Dictionary = leader_answers.get(str(needs.get("leader", "")), {})
+	if row.is_empty() or not answer_matches(str(needs.get("answer", "")), str(row.answer)):
+		return -1
+	var span: Array = needs.get("after_weeks", [0, 0])
+	var since := week - int(row.week)
+	if since < int(span[0]) or since > int(span[1]):
+		return -1
+	return int(span[1]) - since
+
+
+static func answer_matches(wanted: String, given: String) -> bool:
+	return wanted == given or (wanted == "refused" and given == "silence")
+
+
 func _present_due_follows() -> void:
 	var keep: Array = []
 	var presented := 0
@@ -4156,7 +4198,7 @@ func _event_pool(major_only: bool) -> Array:
 
 func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
-	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
+	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)) or ev.has("needs"):
 		return false
 	if id == "lamps" and week == crunch_week:
 		return false
@@ -4209,6 +4251,8 @@ func choice_offered(choice: Dictionary) -> bool:
 func line_of(node: Dictionary, key: String) -> String:
 	if not node.has(key):
 		return ""
+	if Copy.ru() and node.get("ru_own", null) is Dictionary and node.ru_own.has(key):
+		return str(node.ru_own[key])
 	var pack = node[key]
 	if pack is Dictionary:
 		var lang := "ru" if Copy.ru() else "en"
@@ -4714,6 +4758,7 @@ func _apply_event(action: Dictionary) -> bool:
 		_resolve_bet(choice)
 	else:
 		_apply_deltas(choice)
+		_apply_standing_choice(ev, choice)
 	decisions += 1
 	if not keep:
 		return true
@@ -4725,6 +4770,26 @@ func _apply_event(action: Dictionary) -> bool:
 	_schedule_follow(ev, choice)
 	_log("EVENT %s: %s" % [line_of(ev, "title"), line_of(choice, "label")], bool(ev.get("major", false)))
 	return true
+
+
+## Choice effect "standing": {faction: delta} moves that leader's regard (clamped -100..100). The leader
+## remembers the event as a deed, and the journal gets a "regard" row with the change that actually happened.
+func _apply_standing_choice(ev: Dictionary, choice: Dictionary) -> void:
+	var shifts = choice.get("standing", {})
+	if not (shifts is Dictionary):
+		return
+	_init_standing()
+	for fid in shifts:
+		var key := str(fid)
+		if not standing.has(key):
+			continue
+		var was := int(standing[key])
+		_add_standing(key, int(shifts[fid]), {"deed": "event", "event": str(ev.id), "choice": str(choice.id)})
+		var moved := int(standing[key]) - was
+		if moved == 0:
+			continue
+		_journal("regard", {"faction": key, "delta": moved, "event_id": str(ev.id)})
+		_log("STANDING %s %s" % [key, "+%d" % moved if moved >= 0 else str(moved)], true)
 
 
 func _apply_effect_block(effects: Dictionary, person_id: String, red: bool, host: Dictionary) -> void:
@@ -5936,10 +6001,19 @@ func audience_reason() -> String:
 
 func _audience_refuse(how: String) -> void:
 	var fid := str(audience.get("faction", ""))
+	_record_answer(fid, how)
 	audience_last[fid] = week
 	_remember(fid, {"deed": how})
 	_journal("audience", {"faction": fid, "result": how})
 	audience = {}
+
+
+## The week is the audience's own: a leader left waiting is counted at the next dawn but was answered by
+## silence the week they came.
+func _record_answer(fid: String, answer: String) -> void:
+	if fid == "" or leader_answers.has(fid):
+		return
+	leader_answers[fid] = {"answer": answer, "week": int(audience.get("week", week))}
 
 
 func _apply_audience(accept: bool) -> bool:
@@ -5981,6 +6055,7 @@ func _apply_audience(accept: bool) -> bool:
 		laws_on[str(fx.law)] = true
 	flags[str(fx.flag)] = week
 	_journal("audience", {"faction": fid, "result": "deal", "deal": deal_id})
+	_record_answer(fid, "accepted")
 	audience_deals[fid] = week
 	audience_last[fid] = week
 	audience = {}
@@ -6045,14 +6120,14 @@ const PERSIST := [
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
-	"audience_due", "audience_deals", "vo_cues",
+	"audience_due", "audience_deals", "vo_cues", "leader_answers",
 ]
 
 
 ## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
 ## Adding a PERSIST key needs a new schema number and its own migration list.
-const SAVE_SCHEMA := 2
+const SAVE_SCHEMA := 3
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -6063,6 +6138,9 @@ const V1_ADDED := [
 ]
 ## Version 1 saves predate these streams; they restart from the seed the same way setup() seeds them.
 const V1_RNG_ADDED := ["net_state", "check_state"]
+## Fields a version 1 or 2 save may lack; they start empty like a fresh Game (no answers recorded yet).
+const V2_ADDED := ["leader_answers"]
+const ANSWERS := ["accepted", "refused", "silence"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -6103,7 +6181,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	if cat == null:
 		return {"error": "no catalog", "state": {}}
 	var schema = data.get("schema", 1)
-	if typeof(schema) != TYPE_INT or (int(schema) != 1 and int(schema) != SAVE_SCHEMA):
+	if typeof(schema) != TYPE_INT or int(schema) < 1 or int(schema) > SAVE_SCHEMA:
 		return {"error": "unsupported schema %s" % str(schema), "state": {}}
 	var base := Game.new()
 	base.catalog = cat
@@ -6112,7 +6190,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif int(schema) == 1 and V1_ADDED.has(key):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -6212,6 +6290,14 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 		var target := str(state.audience.get("target", ""))
 		if target != "" and not state.people.has(target):
 			return "audience target %s unknown" % target
+	for fid in state.leader_answers:
+		var row = state.leader_answers[fid]
+		if not leaders.has(str(fid)) or not (row is Dictionary):
+			return "leader answer %s malformed" % str(fid)
+		if not ANSWERS.has(str(row.get("answer", ""))):
+			return "leader answer %s is %s" % [str(fid), str(row.get("answer", ""))]
+		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
+			return "leader answer %s week %s" % [str(fid), str(row.get("week"))]
 	return ""
 
 

@@ -14,6 +14,8 @@ var stations: Array = []
 var tunnels: Array = []
 var events: Array = []
 var check_events: Dictionary = {}
+## English -> Russian for the leader consequence events, as written in data/events_leaders.json.
+var leader_ru: Dictionary = {}
 var coney: Dictionary = {}
 var residents: Array = []
 var names: Dictionary = {}
@@ -35,6 +37,7 @@ func load_all() -> bool:
 	stations = _arr("stations.json")
 	tunnels = _arr("tunnels.json")
 	events = _arr("events.json")
+	_add_leader_events(_obj("events_leaders.json"), _obj("ru.json"))
 	check_events = _obj("events_checks.json")
 	coney = _obj("characters_coney.json")
 	residents = _arr("residents.json")
@@ -44,6 +47,31 @@ func load_all() -> bool:
 	communities_en = _obj("station_communities_en.json")
 	geo = _obj("map_geo.json")
 	return error == ""
+
+
+## Leader consequence events (data/events_leaders.json) join the event list. Their "ru" map joins the Russian
+## lookup in Copy; where ru.json already words the same English string differently, the event keeps its own
+## Russian in "ru_own" (read by Game.line_of) so neither text changes the other.
+func _add_leader_events(data: Dictionary, base_ru: Dictionary) -> void:
+	var own: Dictionary = data.get("ru", {})
+	leader_ru = own
+	for ev in data.get("events", []):
+		if not (ev is Dictionary):
+			continue
+		_keep_ru(ev, ["title", "text"], own, base_ru)
+		for choice in ev.get("choices", []):
+			if choice is Dictionary:
+				_keep_ru(choice, ["label"], own, base_ru)
+		events.append(ev)
+
+
+func _keep_ru(node: Dictionary, keys: Array, own: Dictionary, base_ru: Dictionary) -> void:
+	for key in keys:
+		var en := str(node.get(key, ""))
+		if own.has(en) and base_ru.has(en) and str(base_ru[en]) != str(own[en]):
+			if not node.has("ru_own"):
+				node["ru_own"] = {}
+			node.ru_own[key] = str(own[en])
 
 
 func _read(name: String) -> Variant:

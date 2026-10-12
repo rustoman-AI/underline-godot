@@ -3237,6 +3237,8 @@ func _journal_line(row: Dictionary) -> String:
 			return Copy.t("Burned the papers before any clue was found.")
 		"false_way":
 			return Copy.t("%s took the lantern toll and gave nothing back.") % _leader_text(game.leader_name("black_flag", "leader"))
+		"regard":
+			return _regard_text({str(row.get("faction", "")): int(row.get("delta", 0))}) + "."
 	return kind
 
 
@@ -3244,7 +3246,7 @@ func _journal_group(kind: String) -> String:
 	match kind:
 		"build", "built", "dig", "upgrade", "demolish", "find", "tunnel", "dark":
 			return "builds"
-		"event", "law", "repeal", "pump", "quarantine", "burn", "rally", "audience", "handed_over", "papers_burned", "false_way":
+		"event", "law", "repeal", "pump", "quarantine", "burn", "rally", "audience", "handed_over", "papers_burned", "false_way", "regard":
 			return "decisions"
 		"order", "cancel", "order_done", "station", "war", "ultimatum":
 			return "map"
@@ -3629,6 +3631,12 @@ func _deed_line(row: Dictionary) -> String:
 		if name == "":
 			name = Copy.person(str(row.get("name", "")))
 		return Copy.t("You handed %s to the Directorate.") % name
+	if deed == "event":
+		var ev: Dictionary = game._event_by_id(str(row.get("event", "")))
+		for option in ev.get("choices", []):
+			if str(option.get("id", "")) == str(row.get("choice", "")):
+				return "%s: %s." % [Copy.t(game.line_of(ev, "title")), Copy.t(game.line_of(option, "label")).trim_suffix(".")]
+		return Copy.t(game.line_of(ev, "title"))
 	return Copy.t(str(DEED_LINES.get(deed, deed)))
 
 
@@ -4083,6 +4091,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
 	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
 	var snapshot := _tally_snapshot()
+	var regard_before: Dictionary = game.standing.duplicate()
 	if not game.apply(action):
 		footer.text = Copy.t("That choice did not take.")
 		footer.visible = true
@@ -4090,7 +4099,12 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if choice.has("check") or choice.has("bet"):
 		check_flash = true
 	var changes := _tally_changes(snapshot)
-	_record_choice(title, game.line_of(choice, "label"), changes)
+	var regard := {}
+	for fid in game.standing:
+		var moved := int(game.standing[fid]) - int(regard_before.get(fid, game.standing[fid]))
+		if moved != 0:
+			regard[str(fid)] = moved
+	_record_choice(title, game.line_of(choice, "label"), changes, regard)
 	_refresh()
 	note_change(changes)
 	if card != null and dim.visible:
@@ -4121,13 +4135,26 @@ func _tally_changes(before: Dictionary) -> Dictionary:
 	return out
 
 
-func _record_choice(title: String, label: String, changes: Dictionary) -> void:
+func _record_choice(title: String, label: String, changes: Dictionary, regard: Dictionary = {}) -> void:
 	var keep: Array = []
 	for row in game.choice_results:
 		if int(row.get("week", 0)) >= game.week:
 			keep.append(row)
-	keep.append({"week": game.week, "title": title, "label": label, "changes": changes})
+	var row := {"week": game.week, "title": title, "label": label, "changes": changes}
+	if not regard.is_empty():
+		row["regard"] = regard
+	keep.append(row)
 	game.choice_results = keep
+
+
+## "Regard: The Depot +5, Synod -3", the audience card's wording.
+func _regard_text(regard: Dictionary) -> String:
+	var parts: PackedStringArray = []
+	for fid in regard:
+		parts.append("%s %s" % [_leader_text(game.leader_name(str(fid), "name")), _signed(int(regard[fid]))])
+	if parts.is_empty():
+		return ""
+	return Copy.t("Regard: %s") % ", ".join(parts)
 
 
 func _change_text(changes: Dictionary) -> String:
@@ -4154,7 +4181,12 @@ func _choice_tally() -> void:
 	var lines: PackedStringArray = []
 	for row in rows:
 		var label := Copy.t(str(row.get("label", ""))).trim_suffix(".")
-		lines.append("%s: %s. %s" % [Copy.t(str(row.get("title", ""))), label, _change_text(row.get("changes", {}))])
+		var moved: Dictionary = row.get("changes", {})
+		var said := _change_text(moved)
+		var regard := _regard_text(row.get("regard", {}))
+		if regard != "":
+			said = regard if moved.is_empty() else "%s, %s" % [said, regard]
+		lines.append("%s: %s. %s" % [Copy.t(str(row.get("title", ""))), label, said])
 	var tally := RichTextLabel.new()
 	tally.bbcode_enabled = true
 	tally.fit_content = true
@@ -4465,7 +4497,27 @@ func _marks(choice: Dictionary) -> HBoxContainer:
 	for key in ["food", "air", "power", "materials", "tokens", "influence", "hope", "discontent"]:
 		if choice.has(key):
 			_add_mark(row, key, int(choice[key]))
+	var shifts = choice.get("standing", {})
+	if shifts is Dictionary:
+		for fid in shifts:
+			_add_regard_mark(row, str(fid), int(shifts[fid]))
 	return row
+
+
+## A leader's regard change on a choice: their faction sign and the signed amount.
+func _add_regard_mark(row: HBoxContainer, fid: String, amount: int) -> void:
+	if amount == 0 or game.leader(fid).is_empty():
+		return
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 2)
+	var sign := _faction_mark(game.leader(fid), 16)
+	box.add_child(sign)
+	var lab := _label(_signed(amount), 14)
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(lab)
+	row.add_child(box)
 
 
 func _add_mark(row: HBoxContainer, key: String, amount: int) -> void:

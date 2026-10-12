@@ -59,6 +59,7 @@ func _busy_game() -> Game:
 	game.audience = {"faction": "black_flag", "week": 20, "target": ""}
 	game.audience_last["synod"] = 19
 	game.audience_due["exchange"] = 3
+	game.leader_answers["synod"] = {"answer": "refused", "week": 19}
 	return game
 
 
@@ -85,9 +86,18 @@ func _legacy() -> void:
 		and empty_memory and game.standing_memory.size() == _start_standing().size() and game.seed == 1,
 		"Legacy audience fixture loads to defaults",
 		"legacy fixture loaded=%s deals=%s standing=%s audience=%s memory=%s" % [loaded, game.audience_deals, game.standing, game.audience, game.standing_memory])
+	_expect(loaded and game.leader_answers.is_empty(), "Legacy save starts with no leader answers", "legacy answers %s" % [game.leader_answers])
+	var second := source.export_state()
+	second["schema"] = 2
+	for key in Game.V2_ADDED:
+		second.erase(key)
+	game = _busy_game()
+	loaded = game.import_state(second)
+	_expect(loaded and game.leader_answers.is_empty() and game.seed == 1,
+		"Schema 2 save migrates with no leader answers", "schema 2 loaded=%s %s answers=%s" % [loaded, game.load_error, game.leader_answers])
 	var oldest := source.export_state()
 	oldest.erase("schema")
-	for key in Game.V1_ADDED + Game.V1_RNG_ADDED:
+	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED:
 		oldest.erase(key)
 	game = _busy_game()
 	loaded = game.import_state(oldest)
@@ -117,6 +127,9 @@ func _rejects() -> void:
 		"stranger on staff": _staffed_by(good, "ghost"),
 		"resident outside people": _with(good, "people", {}),
 		"unknown audience leader": _with(good, "audience", {"faction": "nobody", "week": 1, "target": ""}),
+		"v3 missing leader_answers": _without(good, "leader_answers"),
+		"leader answer unknown": _with(good, "leader_answers", {"depot": {"answer": "maybe", "week": 1}}),
+		"leader answer future week": _with(good, "leader_answers", {"depot": {"answer": "accepted", "week": 39}}),
 	}
 	for name in cases:
 		var game := _busy_game()
@@ -150,7 +163,7 @@ func _staffed_by(data: Dictionary, id: String) -> Dictionary:
 ## Plays a seed through, saving to disk at many points; each save is resumed in a different live run
 ## and must reach exactly the same states and ending as the uninterrupted run.
 func _resume() -> void:
-	var covered := {"pending": 0, "white_pending": 0, "queued_orders": 0, "audience": 0, "after_load_rng": 0}
+	var covered := {"pending": 0, "white_pending": 0, "queued_orders": 0, "audience": 0, "leader_answers": 0, "after_load_rng": 0}
 	var points := 0
 	var mismatches: PackedStringArray = []
 	for run_seed in SEEDS:
@@ -173,7 +186,7 @@ func _resume() -> void:
 			if not marked and at % 7 != 0:
 				continue
 			points += 1
-			for key in ["pending", "white_pending", "queued_orders", "audience"]:
+			for key in ["pending", "white_pending", "queued_orders", "audience", "leader_answers"]:
 				if not snap[key].is_empty():
 					covered[key] += 1
 			var why := _resume_from(snap, bots[at], states, at, run_seed)

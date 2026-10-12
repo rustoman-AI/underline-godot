@@ -17,6 +17,8 @@ extends SceneTree
 ## dawn 5 and 10 weeks later are compared with the silence branch.
 
 const STYLES := ["careful", "expander", "follower"]
+## Bot.audience_style values; sections 1 to 6 use "silence" runs only, section 7 compares all of them.
+const AUDIENCE := ["silence", "accept_all", "refuse_all", "mixed"]
 const WEEKS := 40
 const FACTIONS := ["depot", "directorate", "synod", "exchange", "black_flag"]
 ## Seconds per decision (brief, section 3), and how much longer or shorter each player type takes.
@@ -25,6 +27,8 @@ const SPEED := {"careful": 1.5, "normal": 1.0, "fast": 0.6}
 
 var seeds := 30
 var fork_seeds := 10
+## Appended to the report name ("e1" gives content_audit_<date>_e1.md) so a re-run never overwrites an earlier one.
+var tag := ""
 var md: PackedStringArray = []
 ## Numbers the closing list repeats from earlier sections.
 var facts := {}
@@ -36,15 +40,21 @@ func _init() -> void:
 			seeds = int(str(arg).trim_prefix("--seeds="))
 		if str(arg).begins_with("--fork-seeds="):
 			fork_seeds = int(str(arg).trim_prefix("--fork-seeds="))
+		if str(arg).begins_with("--tag="):
+			tag = str(arg).trim_prefix("--tag=")
 	var started := Time.get_ticks_msec()
 	var runs: Array = []
+	var all_runs: Array = []
 	var forks: Array = []
-	for style in STYLES:
-		for s in range(1, seeds + 1):
-			var run := _play(style, s, s <= fork_seeds)
-			runs.append(run)
-			forks.append_array(run.forks)
-		print("AUDIT %s done (%d s)" % [style, (Time.get_ticks_msec() - started) / 1000])
+	for answer in AUDIENCE:
+		for style in STYLES:
+			for s in range(1, seeds + 1):
+				var run := _play(style, s, answer == "silence" and s <= fork_seeds, answer)
+				all_runs.append(run)
+				if answer == "silence":
+					runs.append(run)
+					forks.append_array(run.forks)
+			print("AUDIT %s / %s done (%d s)" % [style, answer, (Time.get_ticks_msec() - started) / 1000])
 	var date := Time.get_date_dict_from_system()
 	var stamp := "%04d%02d%02d" % [date.year, date.month, date.day]
 	_header(stamp)
@@ -53,42 +63,64 @@ func _init() -> void:
 	_runtime(runs)
 	_dead_ends(runs)
 	_leaders(runs, forks)
+	_consequences(all_runs)
 	_thin(runs, forks)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://docs/audit"))
-	var path := "res://docs/audit/content_audit_%s.md" % stamp
+	var path := "res://docs/audit/content_audit_%s%s.md" % [stamp, "_" + tag if tag != "" else ""]
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string("\n".join(md) + "\n")
 	f.close()
-	print("AUDIT wrote %s, %d runs, %d forks, %d s" % [path, runs.size(), forks.size(), (Time.get_ticks_msec() - started) / 1000])
+	print("AUDIT wrote %s, %d runs, %d forks, %d s" % [path, all_runs.size(), forks.size(), (Time.get_ticks_msec() - started) / 1000])
 	quit(0)
 
 
 # ---------------------------------------------------------------- runs
 
+## The sim unchanged, plus a record of what each leader consequence choice moved when it was applied.
+class AuditGame extends Game:
+	var lc_picks: Array = []
+
+	func _apply_event(action: Dictionary) -> bool:
+		var front: Dictionary = pending[0] if not pending.is_empty() else {}
+		var watch: bool = front.has("needs") and str(front.id) == str(action.get("event_id", ""))
+		var h := hope
+		var d := discontent
+		var was: Dictionary = standing.duplicate()
+		var ok := super(action)
+		if ok and watch:
+			var fid := str(front.needs.leader)
+			lc_picks.append({"event": str(front.id), "choice": str(action.get("choice_id", "")), "week": week,
+				"hope": hope - h, "dis": discontent - d, "standing": int(standing.get(fid, 0)) - int(was.get(fid, 0))})
+		return ok
+
+
 func _new_game(run_seed: int) -> Game:
 	var catalog := Catalog.new()
 	catalog.load_all()
-	var game := Game.new()
+	var game := AuditGame.new()
 	game.setup(catalog, run_seed, WEEKS)
 	return game
 
 
-func _new_bot(style: String) -> Bot:
+func _new_bot(style: String, answer: String = "silence") -> Bot:
 	var bot := Bot.new()
 	bot.profile = style
+	bot.audience_style = answer
 	return bot
 
 
 ## One bot run with per-week counts; forks each leader's first audience when `fork` is set.
-func _play(style: String, run_seed: int, fork: bool) -> Dictionary:
+func _play(style: String, run_seed: int, fork: bool, answer: String = "silence") -> Dictionary:
 	var game := _new_game(run_seed)
 	game.audit = style != "follower"
-	var bot := _new_bot(style)
+	var bot := _new_bot(style, answer)
 	var weeks: Array = []
 	var picks: Array = []
 	var shown_leaders := {}
 	var forks: Array = []
 	var guard := 0
+	var hope_min := game.hope
+	var dis_max := game.discontent
 	while game.over == "" and guard < WEEKS + 2:
 		guard += 1
 		var w := game.week
@@ -101,6 +133,8 @@ func _play(style: String, run_seed: int, fork: bool) -> Dictionary:
 		row["audience"] = 1 if fid != "" else 0
 		weeks.append(row)
 		game.end_week()
+		hope_min = mini(hope_min, game.hope)
+		dis_max = maxi(dis_max, game.discontent)
 	var shown := {}
 	for item in game.event_history:
 		shown[str(item.id)] = int(shown.get(str(item.id), 0)) + 1
@@ -111,10 +145,16 @@ func _play(style: String, run_seed: int, fork: bool) -> Dictionary:
 	for row in game.journal:
 		if str(row.get("kind", "")) == "audience" and str(row.get("result", "")) == "deal":
 			deals[str(row.faction)] = true
+	var lc_seen := {}
+	for ev in game.catalog.events:
+		if ev.has("needs") and game.events_seen.has(str(ev.id)):
+			lc_seen[str(ev.id)] = int(game.events_seen[str(ev.id)])
 	return {
 		"style": style, "seed": run_seed, "over": game.over, "week": game.week, "weeks": weeks,
 		"shown": shown, "picks": picks, "leaders": shown_leaders, "deals": deals, "forks": forks,
-		"errors": game.errors.size(),
+		"errors": game.errors.size(), "answer": answer, "answers": game.leader_answers.duplicate(true),
+		"lc_seen": lc_seen, "lc_picks": game.lc_picks.duplicate(true), "hope_min": hope_min, "dis_max": dis_max,
+		"hope_end": game.hope, "dis_end": game.discontent,
 	}
 
 
@@ -253,7 +293,7 @@ func _diff(a: Dictionary, b: Dictionary) -> Dictionary:
 func _header(stamp: String) -> void:
 	md.append("# Content audit %s" % stamp)
 	md.append("")
-	md.append("Measured with `.tools/content_audit.gd` on the current data and sim, %d seeds for each of the bot styles %s (%d runs of %d weeks), leader forks on seeds 1 to %d. Facts only, no proposals. The bots are not players: they decide instantly, use the same rules each week and never answer an audience." % [seeds, ", ".join(STYLES), seeds * STYLES.size(), WEEKS, fork_seeds])
+	md.append("Measured with `.tools/content_audit.gd` on the current data and sim, %d seeds for each of the bot styles %s and each audience style %s (%d runs of %d weeks), leader forks on seeds 1 to %d. Facts only, no proposals. The bots are not players: they decide instantly and use the same rules each week. Sections 1 to 6 use the silence audience style (the bot never answers, so every leader is turned away by silence, as before audience styles existed): %d runs. Section 7 compares the audience styles." % [seeds, ", ".join(STYLES), ", ".join(AUDIENCE), seeds * STYLES.size() * AUDIENCE.size(), WEEKS, fork_seeds, seeds * STYLES.size()])
 	md.append("")
 
 
@@ -665,7 +705,7 @@ func _leaders(runs: Array, forks: Array) -> void:
 			cells.append("%d of %d" % [took, n])
 		md.append("| %s |" % " | ".join(cells))
 	md.append("")
-	md.append("None of the three bot styles has audience logic (`sim/bot.gd`): a leader left waiting is turned away by silence at the next dawn, which the game records as a refusal with the deed \"silence\". The forks below answer for the bot.")
+	md.append("These runs use the silence audience style: a leader left waiting is turned away by silence at the next dawn, which the game records as a refusal with the deed \"silence\" and which the leader consequence events treat as refused. The forks below answer for the bot.")
 	md.append("")
 	md.append("Forks: %d (seeds 1 to %d, all styles, first audience of each leader). Each row compares the accept or refuse branch with the silence branch at the same week: right after the answer (t0), 5 weeks later and 10 weeks later. Counts are forks where the item differs." % [forks.size(), fork_seeds])
 	md.append("")
@@ -717,7 +757,7 @@ func _leaders(runs: Array, forks: Array) -> void:
 					fid if horizon == "t0" else "", policy if horizon == "t0" else "", set.size() if horizon == "t0" else 0,
 					blocked if horizon == "t0" else 0, horizon, flag, own / n, others, law, pop / n, hope / n, ev, jr])
 	md.append("")
-	md.append("Journal rows that differ from the silence branch by week +10 (row kind:result, number of forks), and event ids shown in one branch only (mean per fork). The sim draws all events from one random stream, so any change of state shifts later draws; none of the 39 events names a leader, deal or deal flag in its conditions:")
+	md.append("Journal rows that differ from the silence branch by week +10 (row kind:result, number of forks), and event ids shown in one branch only (mean per fork). The sim draws all events from one random stream, so any change of state shifts later draws; the leader consequence events (section 7) read the first answer, not the deal flags:")
 	md.append("")
 	md.append("| Leader | Branch | Journal rows that differ | Event ids in one branch only (mean per fork) |")
 	md.append("| --- | --- | --- | --- |")
@@ -745,7 +785,7 @@ func _leaders(runs: Array, forks: Array) -> void:
 		var flag := str(deal.get("flag", deal.get("id", "")))
 		md.append("| %s | %s | %s | %s |" % [str(row.id), str(deal.get("id", "")), flag, _readers(flag)])
 	md.append("")
-	md.append("Readers of the other state a deal changes, from `sim/game.gd`: `audience_deals` stops that leader coming back (`audience_eligible`); `standing` feeds the leader's band, which picks the leader's lines, the audience cooldown and the lantern toll; `standing_memory` is shown on the leader card. Outside the audience code and its tests, nothing in `sim/` reads standing (no map, order, trade or event rule).")
+	md.append("Readers of the other state a deal changes, from `sim/game.gd`: `audience_deals` stops that leader coming back (`audience_eligible`); `leader_answers` (first answer and its week) opens that leader's consequence event; `standing` feeds the leader's band, which picks the leader's lines, the audience cooldown and the lantern toll; `standing_memory` is shown on the leader card. Outside the audience code, the consequence events and their tests, nothing in `sim/` reads standing (no map, order or trade rule).")
 	md.append("")
 	var sanity := 0
 	for run in runs:
@@ -755,6 +795,125 @@ func _leaders(runs: Array, forks: Array) -> void:
 			sanity += 1
 	md.append("Silence branches replayed from an exported state: %d; branches with a load error: %d." % [sanity, _load_errors(forks)])
 	md.append("")
+
+
+## Leader consequence events (data/events_leaders.json) under each audience style.
+func _consequences(all_runs: Array) -> void:
+	var cat: Catalog = _new_game(1).catalog
+	var events: Array = cat.events.filter(func(ev): return ev.has("needs"))
+	md.append("## 7. Leader consequences by audience style")
+	md.append("")
+	md.append("Audience styles (`Bot.audience_style`): silence leaves every leader waiting; accept_all takes every deal it can pay for (a deal it cannot pay for is left waiting, which counts as silence); refuse_all turns everyone away; mixed accepts the Synod and the Exchange and refuses the others. Event choices are the bot style's own (careful, expander, follower), unchanged. %d runs per audience style." % (seeds * STYLES.size()))
+	md.append("")
+	md.append("First answer per leader (`leader_answers`), runs out of %d per audience style. \"none\" = the leader never came or was never answered before the run ended:" % (seeds * STYLES.size()))
+	md.append("")
+	md.append("| Leader | Audience style | accepted | refused | silence | none | Mean answer week |")
+	md.append("| --- | --- | --- | --- | --- | --- | --- |")
+	for fid in FACTIONS:
+		for answer in AUDIENCE:
+			var counts := {"accepted": 0, "refused": 0, "silence": 0, "none": 0}
+			var weeks := 0.0
+			var n := 0
+			for run in all_runs:
+				if str(run.answer) != answer:
+					continue
+				var row: Dictionary = run.answers.get(fid, {})
+				if row.is_empty():
+					counts.none += 1
+					continue
+				counts[str(row.answer)] += 1
+				weeks += float(row.week)
+				n += 1
+			md.append("| %s | %s | %d | %d | %d | %d | %s |" % [fid if answer == AUDIENCE[0] else "", answer, counts.accepted, counts.refused, counts.silence, counts.none, "%.1f" % (weeks / n) if n > 0 else "-"])
+	md.append("")
+	md.append("How often each consequence fires. Due = runs where the matching answer (refused also matches silence) was given in week %d or earlier, the brief's \"at least 3 weeks before week 40\"; cut short = due runs that ended before the window opened. Target: fired in at least 95 percent of due runs. Fired late = shown with fewer weeks left in its window than it had when it opened (held by a major event)." % (WEEKS - 3))
+	md.append("")
+	md.append("| Event | Needs | Due | Cut short | Fired | Fired of due | Weeks after the answer (mean) | Held at least one dawn |")
+	md.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+	var worst := 1.0
+	var all_due := 0
+	var all_fired := 0
+	for ev in events:
+		var id := str(ev.id)
+		var fid := str(ev.needs.leader)
+		var lo := int(ev.needs.after_weeks[0])
+		var due := 0
+		var cut := 0
+		var fired := 0
+		var gap := 0.0
+		var held := 0
+		for run in all_runs:
+			var row: Dictionary = run.answers.get(fid, {})
+			if row.is_empty() or not Game.answer_matches(str(ev.needs.answer), str(row.answer)) or int(row.week) > WEEKS - 3:
+				continue
+			due += 1
+			if run.lc_seen.has(id):
+				fired += 1
+				var since := int(run.lc_seen[id]) - int(row.week)
+				gap += since
+				if since > lo:
+					held += 1
+			elif int(run.week) < int(row.week) + lo or str(run.over) != "time":
+				cut += 1
+		var share := float(fired) / float(maxi(due, 1))
+		if due > 0:
+			worst = minf(worst, share)
+		all_due += due
+		all_fired += fired
+		md.append("| %s | %s %s %d..%d | %d | %d | %d | %.0f%% | %s | %d |" % [id, fid, str(ev.needs.answer), lo, int(ev.needs.after_weeks[1]), due, cut, fired, share * 100.0, "%.1f" % (gap / fired) if fired > 0 else "-", held])
+	md.append("")
+	md.append("All consequences: fired in %d of %d due runs (%.1f%%); lowest single event %.0f%%." % [all_fired, all_due, 100.0 * all_fired / maxf(all_due, 1), worst * 100.0])
+	md.append("")
+	md.append("What each choice moved when the bot (or the night resolve) took it, mean over all picks in all %d runs. Standing is the event's own leader; changes are after clamping:" % all_runs.size())
+	md.append("")
+	md.append("| Event | Choice | Picks | Hope | Discontent | Standing |")
+	md.append("| --- | --- | --- | --- | --- | --- |")
+	for ev in events:
+		for choice in ev.choices:
+			var n := 0
+			var h := 0.0
+			var d := 0.0
+			var s := 0.0
+			for run in all_runs:
+				for pick in run.lc_picks:
+					if str(pick.event) == str(ev.id) and str(pick.choice) == str(choice.id):
+						n += 1
+						h += float(pick.hope)
+						d += float(pick.dis)
+						s += float(pick.standing)
+			var f := maxf(n, 1)
+			md.append("| %s | %s | %d | %s | %s | %s |" % [str(ev.id) if choice == ev.choices[0] else "", str(choice.id), n,
+				"%+.2f" % (h / f) if n > 0 else "-", "%+.2f" % (d / f) if n > 0 else "-", "%+.2f" % (s / f) if n > 0 else "-"])
+	md.append("")
+	md.append("Endings and meters per bot style and audience style (report only, nothing tuned). Hope min and discontent max are the run's extremes at the end of each week, mean over seeds:")
+	md.append("")
+	md.append("| Bot style | Audience style | Endings | Collapse, hope or revolt endings | Hope min (mean) | Discontent max (mean, worst) |")
+	md.append("| --- | --- | --- | --- | --- | --- |")
+	for style in STYLES:
+		for answer in AUDIENCE:
+			var ends := {}
+			var bad := 0
+			var hmin := 0.0
+			var dmax := 0.0
+			var dworst := 0
+			var n := 0
+			for run in all_runs:
+				if str(run.style) != style or str(run.answer) != answer:
+					continue
+				n += 1
+				var key := str(run.over) if str(run.over) == "time" else "%s (week %d)" % [run.over, int(run.week)]
+				ends[key] = int(ends.get(key, 0)) + 1
+				if str(run.over) != "time":
+					bad += 1
+				hmin += float(run.hope_min)
+				dmax += float(run.dis_max)
+				dworst = maxi(dworst, int(run.dis_max))
+			var bits: PackedStringArray = []
+			for k in ends:
+				bits.append("%s x%d" % [k, ends[k]])
+			md.append("| %s | %s | %s | %d | %.1f | %.1f, %d |" % [style if answer == AUDIENCE[0] else "", answer, ", ".join(bits), bad, hmin / maxf(n, 1), dmax / maxf(n, 1), dworst])
+	md.append("")
+	facts["lc_fired"] = [all_fired, all_due, worst]
 
 
 func _load_errors(forks: Array) -> int:
@@ -824,13 +983,20 @@ func _thin(runs: Array, forks: Array) -> void:
 				only_audience = false
 		if not d.flags.is_empty() or not d.standing.is_empty() or d.pop != 0 or d.hope != 0 or d.dis != 0 or d.food != 0 or not only_audience or not d.events_only.is_empty():
 			refuse_same = false
-	md.append("- Every one of the %d catalog events has exactly 2 choices; the %d upkeep events built in `sim/game.gd` are pay or suffer." % [facts.events, facts.upkeep])
+	var by_count := {}
+	for ev in _new_game(1).catalog.events:
+		var c: int = ev.get("choices", []).size()
+		by_count[c] = int(by_count.get(c, 0)) + 1
+	var count_bits: PackedStringArray = []
+	for c in by_count:
+		count_bits.append("%d with %d choices" % [by_count[c], c])
+	md.append("- Catalog events: %s; the %d upkeep events built in `sim/game.gd` are pay or suffer." % [", ".join(count_bits), facts.upkeep])
 	md.append("- A 40-week run shows %.1f distinct event ids on average out of %d possible (%d catalog + %d upkeep); %.1f of them come up twice or more. Rumble and its follow-up came up %d and %d times in %d runs." % [distinct / n, facts.events + facts.upkeep, facts.events, facts.upkeep, twice / n, int(facts.fired.get("rumble", 0)), int(facts.fired.get("rumble_next", 0)), runs.size()])
 	md.append("- No bot style picked %d of the %d choices in events that fired." % [facts.never_choice, facts.choices])
 	md.append("- Endings: %d of %d runs ended on time (week 40); never reached: %s." % [int(reached.get("time", 0)), runs.size(), ", ".join(unreached) if not unreached.is_empty() else "none"])
 	md.append("- Artifacts: only papers has a source in the sim; %s are declared with no source." % ", ".join(facts.no_source))
 	md.append("- Backstories: %d for %d named residents." % [facts.stories, facts.residents])
 	md.append("- Every week had at least one event and one decision (longest gap %d weeks, %.1f empty weeks per run)." % [gap, zero / n])
-	md.append("- Leader deals: accepted %d times over %d bot runs (the bots have no audience logic). An accepted deal sets its flag, moves standing and changes meters at once; no sim rule reads any of the five deal flags afterwards, and only `collaborator` is read by the UI (one dossier line)." % [accepted, runs.size()])
-	md.append("- Refusing and leaving a leader waiting %s at +10 weeks except for the audience row's result (refused or silence)." % ("end the same in every fork" if refuse_same else "differ in some forks"))
+	md.append("- Leader deals: accepted %d times over the %d silence-style runs. An accepted deal sets its flag, moves standing and changes meters at once; no sim rule reads any of the five deal flags afterwards (`collaborator` is read by the UI for one dossier line); the consequence events read the first answer instead (section 7)." % [accepted, runs.size()])
+	md.append("- Refusing and leaving a leader waiting %s at +10 weeks except for the audience row's result (refused or silence); the consequence events treat both as refused." % ("end the same in every fork" if refuse_same else "differ in some forks"))
 	md.append("")

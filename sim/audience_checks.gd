@@ -26,7 +26,9 @@ static func run(cat: Catalog) -> Dictionary:
 	checks._leader_voice_files()
 	checks._openings()
 	checks._flavour()
-	return {"ok": not checks.failed, "lines": checks.lines}
+	var consequences: Dictionary = load("res://sim/leader_event_checks.gd").run(cat)
+	checks.lines.append_array(consequences.lines)
+	return {"ok": not checks.failed and bool(consequences.ok), "lines": checks.lines}
 
 
 func _expect(ok: bool, good: String, bad: String) -> void:

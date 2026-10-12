@@ -4,6 +4,13 @@ extends RefCounted
 ## Two stewards. Careful keeps a reserve. Expander takes every station and spends the reserve.
 
 var profile := "careful"
+## How the bot answers a leader at the door, separate from how it plays events:
+## "silence" leaves every leader waiting (the old behaviour), "accept_all" takes every deal it can pay for,
+## "refuse_all" turns everyone away, "mixed" accepts the Synod and the Exchange and refuses the others.
+## A deal the bot cannot pay for is left waiting, which the game counts as silence.
+var audience_style := "silence"
+const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed"]
+const MIXED_ACCEPTS := ["synod", "exchange"]
 var _did_aid := false
 var _did_talk := false
 var _did_ration := false
@@ -30,6 +37,7 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictio
 func _act(game: Game) -> void:
 	if game.use_medkits():
 		pass
+	_answer_audience(game)
 	if profile == "follower":
 		_follow(game)
 		return
@@ -69,6 +77,17 @@ func _act(game: Game) -> void:
 		spent += 1
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
+
+
+func _answer_audience(game: Game) -> void:
+	if game.audience.is_empty() or audience_style == "silence":
+		return
+	var fid := str(game.audience.get("faction", ""))
+	var accept := audience_style == "accept_all" or (audience_style == "mixed" and MIXED_ACCEPTS.has(fid))
+	if not accept:
+		game.apply({"kind": "audience", "accept": false})
+	elif game.audience_reason() == "":
+		game.apply({"kind": "audience", "accept": true})
 
 
 func _follow(game: Game) -> void:
