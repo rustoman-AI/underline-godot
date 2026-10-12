@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 149. Первый: 2026-10-02. Последний: 2026-10-12 6dbc2a5.
+Коммитов: 152. Первый: 2026-10-02. Последний: 2026-10-12 5ae2e12.
 
 ## Этапы
 
@@ -19,8 +19,11 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-12 (30)
+### 2026-10-12 (33)
 
+- `5ae2e12` Settings and Credits as framed cards over a dim
+- `f039afb` Clarity: explain overcrowding on the people line and ticker
+- `0523634` Docs: central index, decisions log, changelog, parking, design frame, feedback log
 - `6dbc2a5` Playtest build version 0.1.0-playtest3
 - `e81d426` Audio mix: quieter click and hydroponics loop
 - `7485f3f` First-run hints and how-to v2
