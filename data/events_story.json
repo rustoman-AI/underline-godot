@@ -219,6 +219,389 @@
           }
         }
       ]
+    },
+    {
+      "id": "st2_depot_honest",
+      "title": "The scrap Bernie kept",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "standing_min": {
+          "depot": 15
+        },
+        "no_flag": "buried_papers",
+        "no_fragment": "depot_order"
+      },
+      "text": "Bernie Shaw asks you to sit in the stove room and shuts the door. She takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" she says. \"Lock the gates. Admit no one to the tunnel.\" She does not look up.",
+      "choices": [
+        {
+          "id": "take",
+          "label": "Take the scrap and ask what she wants for it",
+          "fragment": "depot_order",
+          "how": "honest",
+          "hope": -1,
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Tell her to keep it",
+          "hope": 1,
+          "standing": {
+            "depot": 2
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_depot_dirty",
+      "title": "What you remember of the copy",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "flag": "buried_papers",
+        "no_fragment": "depot_order"
+      },
+      "text": "You read the copy before it burned. At night the first line comes back by itself: lock the gates, admit no one to the tunnel. There is no paper left to show anyone. Only you.",
+      "choices": [
+        {
+          "id": "write",
+          "label": "Write down what you remember",
+          "fragment": "depot_order",
+          "how": "dirty",
+          "hope": -2
+        },
+        {
+          "id": "let",
+          "label": "Let it fade",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_dir_honest",
+      "title": "The page with his name",
+      "needs": {
+        "week": [
+          16,
+          36
+        ],
+        "standing_min": {
+          "directorate": 50
+        },
+        "no_flag": "collaborator",
+        "no_fragment": "directorate_ledger"
+      },
+      "text": "Lionel Abelard slides a ledger across the table and turns it to the page. Rations for four thousand, three months before the Silence. The signature at the bottom is his. \"I would like someone to read it,\" he says, \"who is not me.\"",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read it to the end",
+          "fragment": "directorate_ledger",
+          "how": "honest",
+          "hope": -1,
+          "discontent": 0,
+          "standing": {
+            "directorate": 10
+          }
+        },
+        {
+          "id": "close",
+          "label": "Close the ledger and leave it unread",
+          "standing": {
+            "directorate": -5
+          },
+          "hope": 1
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_dir_dirty",
+      "title": "A page left behind",
+      "needs": {
+        "week": [
+          16,
+          36
+        ],
+        "flag": "collaborator",
+        "no_fragment": "directorate_ledger"
+      },
+      "text": "After the Directorate's clerk leaves, a single page is still on your table. Rations for four thousand. A date three months before the Silence. A signature you know. He did not forget it. Clerks do not forget pages.",
+      "choices": [
+        {
+          "id": "copy",
+          "label": "Copy the figures before anyone comes back",
+          "fragment": "directorate_ledger",
+          "how": "dirty",
+          "standing": {
+            "directorate": -5
+          }
+        },
+        {
+          "id": "return",
+          "label": "Return the page unread",
+          "standing": {
+            "directorate": 5
+          },
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_synod_honest",
+      "title": "The end of the recording",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "standing_min": {
+          "synod": 50
+        },
+        "no_flag": "stayed_down",
+        "no_fragment": "synod_recording"
+      },
+      "text": "Dorothy Chen plays you the recording in the quiet room, with the door closed and the lamp turned low. Wind, only wind. Then, at the very end, a click, steady, evenly spaced. She turns it off. \"Someone is counting,\" she says. \"I did not want to be the one who said so.\"",
+      "choices": [
+        {
+          "id": "listen",
+          "label": "Ask to hear it again",
+          "fragment": "synod_recording",
+          "how": "honest",
+          "hope": 1,
+          "discontent": 0,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "destroy",
+          "label": "Ask her to destroy it",
+          "hope": -1,
+          "standing": {
+            "synod": 3
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_synod_dirty",
+      "title": "The woman who listened",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "flag": "stayed_down",
+        "no_fragment": "synod_recording"
+      },
+      "text": "The woman from hydroponics who asked to listen at the grate comes back to the platform and sits down. \"There is wind,\" she says. \"And at the end, a click. Regular. Like someone counting.\" She says it only once, to you.",
+      "choices": [
+        {
+          "id": "write",
+          "label": "Write down exactly what she says",
+          "fragment": "synod_recording",
+          "how": "dirty",
+          "hope": -1
+        },
+        {
+          "id": "hush",
+          "label": "Tell her not to repeat it",
+          "discontent": 0,
+          "hope": 0,
+          "standing": {
+            "synod": 3
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_exchange_honest",
+      "title": "A packet at a fair price",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "standing_min": {
+          "exchange": 15
+        },
+        "no_flag": "open_books",
+        "no_fragment": "exchange_papers"
+      },
+      "text": "Marcel Toussaint sets a sealed packet on the table between you. \"Bought it from the Floor,\" he says. \"Bought it again from the Directorate. Both times for a fair price. I would like a third party to hold it before I decide who gets to pay for it.\"",
+      "choices": [
+        {
+          "id": "buy",
+          "label": "Buy it",
+          "cost": {
+            "tokens": 20
+          },
+          "fragment": "exchange_papers",
+          "how": "honest",
+          "standing": {
+            "exchange": 5
+          }
+        },
+        {
+          "id": "haggle",
+          "label": "Haggle him down and take a transcript only",
+          "cost": {
+            "tokens": 10
+          },
+          "fragment": "exchange_papers",
+          "how": "dirty",
+          "standing": {
+            "exchange": -3
+          }
+        },
+        {
+          "id": "no",
+          "label": "Decline",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_exchange_dirty",
+      "title": "A folded packet in your books",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "flag": "open_books",
+        "no_fragment": "exchange_papers"
+      },
+      "text": "Marcel returns your books, neatly squared. Between two pages there is a folded sealed packet that is not yours. A note says: bought twice, a gift, for later. He has read everything you know. Now you know what he knows.",
+      "choices": [
+        {
+          "id": "keep",
+          "label": "Keep the packet",
+          "fragment": "exchange_papers",
+          "how": "dirty",
+          "standing": {
+            "exchange": 3
+          }
+        },
+        {
+          "id": "return",
+          "label": "Return it and ask what he wants",
+          "standing": {
+            "exchange": -5
+          },
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_lamp_honest",
+      "title": "A door at the end of the water",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "standing_min": {
+          "black_flag": 15
+        },
+        "no_flag": "lantern_toll",
+        "no_fragment": "quarantine_path"
+      },
+      "text": "Niki Ortega takes you into the flooded tunnel with a single lamp. She counts her steps out loud, and you count them with her. At the end of the water there is a steel door, still wet. She knocks twice. Nobody answers.",
+      "choices": [
+        {
+          "id": "follow",
+          "label": "Follow her all the way and mark the route",
+          "cost": {
+            "food": 4
+          },
+          "fragment": "quarantine_path",
+          "how": "honest",
+          "artifacts": {
+            "iron": 1
+          },
+          "hope": -1,
+          "standing": {
+            "black_flag": 5
+          }
+        },
+        {
+          "id": "turn",
+          "label": "Turn back before the door",
+          "hope": 0,
+          "standing": {
+            "black_flag": 2
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_lamp_dirty",
+      "title": "The chalk on the wall",
+      "needs": {
+        "week": [
+          14,
+          34
+        ],
+        "flag": "lantern_toll",
+        "no_fragment": "quarantine_path"
+      },
+      "text": "Where the Lamplighters led a family through your station, someone has left chalk on the tunnel wall: a line, a knot of water, a door. They did not mean for you to read it. They did not hide it either.",
+      "choices": [
+        {
+          "id": "sketch",
+          "label": "Sketch the marks",
+          "fragment": "quarantine_path",
+          "how": "dirty",
+          "standing": {
+            "black_flag": -3
+          }
+        },
+        {
+          "id": "wipe",
+          "label": "Rub them out",
+          "standing": {
+            "black_flag": 3
+          },
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
     }
   ],
   "ru": {
@@ -250,6 +633,47 @@
     "A child of nine asks you at the water point whether the surface will come back. She asks it like she asks for a cup. The adults pretend not to listen.": "Девятилетняя девочка спрашивает тебя у водяного поста, вернётся ли поверхность. Спрашивает так, как просят кружку. Взрослые делают вид, что не слушают.",
     "Tell her you do not know": "Сказать, что не знаешь",
     "Tell her yes, soon": "Сказать, что да, скоро",
-    "Tell her the Synod keeps a quiet room for such questions": "Сказать, что у Синода есть тихая комната для таких вопросов"
+    "Tell her the Synod keeps a quiet room for such questions": "Сказать, что у Синода есть тихая комната для таких вопросов",
+    "The scrap Bernie kept": "Обрывок, который хранила Берни",
+    "Bernie Shaw asks you to sit in the stove room and shuts the door. She takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" she says. \"Lock the gates. Admit no one to the tunnel.\" She does not look up.": "Берни Шоу просит тебя сесть в печной комнате и закрывает дверь. Из сапога она достаёт обгоревший угол бумаги. Она говорит: «Уцелела только первая строка. Запереть створки. Никого не пускать в тоннель». Она не поднимает глаз.",
+    "Take the scrap and ask what she wants for it": "Взять обрывок и спросить, чего она хочет за него",
+    "Tell her to keep it": "Сказать, чтобы оставила себе",
+    "What you remember of the copy": "Что ты помнишь о копии",
+    "You read the copy before it burned. At night the first line comes back by itself: lock the gates, admit no one to the tunnel. There is no paper left to show anyone. Only you.": "Ты прочёл копию до того, как она сгорела. По ночам первая строка возвращается сама: запереть створки, никого не пускать в тоннель. Бумаги, которую можно показать, не осталось. Только ты.",
+    "Write down what you remember": "Записать то, что помнишь",
+    "Let it fade": "Дать ей стереться",
+    "The page with his name": "Страница с его именем",
+    "Lionel Abelard slides a ledger across the table and turns it to the page. Rations for four thousand, three months before the Silence. The signature at the bottom is his. \"I would like someone to read it,\" he says, \"who is not me.\"": "Лайонел Абелард подвигает через стол журнал и открывает его на нужной странице. Пайки на четыре тысячи, за три месяца до Тишины. Внизу его подпись. Он говорит: «Я хотел бы, чтобы это прочёл кто-то другой, не я».",
+    "Read it to the end": "Дочитать до конца",
+    "Close the ledger and leave it unread": "Закрыть журнал, не читая",
+    "A page left behind": "Забытая страница",
+    "After the Directorate's clerk leaves, a single page is still on your table. Rations for four thousand. A date three months before the Silence. A signature you know. He did not forget it. Clerks do not forget pages.": "После ухода служащего Дирекции на твоём столе остаётся одна страница. Пайки на четыре тысячи. Дата за три месяца до Тишины. Знакомая подпись. Он не забыл её. Служащие не забывают страниц.",
+    "Copy the figures before anyone comes back": "Скопировать цифры, пока никто не вернулся",
+    "Return the page unread": "Вернуть страницу нечитанной",
+    "The end of the recording": "Конец записи",
+    "Dorothy Chen plays you the recording in the quiet room, with the door closed and the lamp turned low. Wind, only wind. Then, at the very end, a click, steady, evenly spaced. She turns it off. \"Someone is counting,\" she says. \"I did not want to be the one who said so.\"": "Дороти Чен включает тебе запись в тихой комнате, при закрытой двери и прикрученной лампе. Ветер, только ветер. Потом, в самом конце, щелчок, ровный, через равные промежутки. Она выключает. Она говорит: «Кто-то считает. Я не хотела быть той, кто это скажет».",
+    "Ask to hear it again": "Попросить послушать ещё раз",
+    "Ask her to destroy it": "Попросить её уничтожить запись",
+    "The woman who listened": "Женщина, которая слушала",
+    "The woman from hydroponics who asked to listen at the grate comes back to the platform and sits down. \"There is wind,\" she says. \"And at the end, a click. Regular. Like someone counting.\" She says it only once, to you.": "Женщина из гидропоники, которая просилась послушать у решётки, возвращается на платформу и садится. Она говорит: «Там ветер. А в конце щелчок. Ровный. Как будто кто-то считает». Она говорит это только один раз, только тебе.",
+    "Write down exactly what she says": "Записать в точности её слова",
+    "Tell her not to repeat it": "Сказать, чтобы не повторяла",
+    "A packet at a fair price": "Пакет по честной цене",
+    "Marcel Toussaint sets a sealed packet on the table between you. \"Bought it from the Floor,\" he says. \"Bought it again from the Directorate. Both times for a fair price. I would like a third party to hold it before I decide who gets to pay for it.\"": "Марсель Туссен кладёт между вами на стол запечатанный пакет. Он говорит: «Купил у Этажа. Купил ещё раз у Дирекции. Оба раза по честной цене. Я хотел бы, чтобы третья сторона подержала его, пока я решу, кто за него заплатит».",
+    "Buy it": "Купить",
+    "Haggle him down and take a transcript only": "Сбить цену и взять только расшифровку",
+    "Decline": "Отказаться",
+    "A folded packet in your books": "Сложенный пакет в твоих тетрадях",
+    "Marcel returns your books, neatly squared. Between two pages there is a folded sealed packet that is not yours. A note says: bought twice, a gift, for later. He has read everything you know. Now you know what he knows.": "Марсель возвращает твои тетради, аккуратно сложив. Между двумя страницами лежит запечатанный пакет, который не твой. В записке: куплен дважды, подарок, на потом. Он прочёл всё, что знаешь ты. Теперь ты знаешь то, что знает он.",
+    "Keep the packet": "Оставить пакет себе",
+    "Return it and ask what he wants": "Вернуть и спросить, чего он хочет",
+    "A door at the end of the water": "Дверь в конце воды",
+    "Niki Ortega takes you into the flooded tunnel with a single lamp. She counts her steps out loud, and you count them with her. At the end of the water there is a steel door, still wet. She knocks twice. Nobody answers.": "Ники Ортега ведёт тебя в затопленный тоннель с единственной лампой. Она считает шаги вслух, и ты считаешь вместе с ней. В конце воды стальная дверь, всё ещё мокрая. Она стучит дважды. Никто не отвечает.",
+    "Follow her all the way and mark the route": "Пройти за ней до конца и отметить маршрут",
+    "Turn back before the door": "Повернуть назад до двери",
+    "The chalk on the wall": "Мел на стене",
+    "Where the Lamplighters led a family through your station, someone has left chalk on the tunnel wall: a line, a knot of water, a door. They did not mean for you to read it. They did not hide it either.": "Там, где Фонарщики вели семью через твою станцию, на стене тоннеля остался мел: линия, узел воды, дверь. Они не хотели, чтобы ты это прочёл. Но и не прятали.",
+    "Sketch the marks": "Зарисовать знаки",
+    "Rub them out": "Стереть их"
   }
 }

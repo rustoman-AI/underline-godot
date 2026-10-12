@@ -164,6 +164,9 @@ func _validate() -> void:
 		for key in ev:
 			if not LeaderEventChecks.EVENT_KEYS.has(str(key)):
 				bad.append("%s: unknown key %s" % [id, key])
+		for key in ["fragment", "no_fragment"]:
+			if ev.get("needs", {}).has(key) and not catalog.truth.has(str(ev.needs[key])):
+				bad.append("%s: needs.%s %s is not in truth.json" % [id, key, str(ev.needs[key])])
 		var texts: Array = [str(ev.get("title", "")), str(ev.get("text", ""))]
 		var choices: Array = ev.get("choices", [])
 		if choices.size() < 2:
@@ -178,6 +181,8 @@ func _validate() -> void:
 			for key in choice:
 				if not LeaderEventChecks.CHOICE_KEYS.has(str(key)):
 					bad.append("%s/%s: unknown effect %s" % [id, cid, key])
+			if choice.has("fragment") and not catalog.truth.has(str(choice.fragment)):
+				bad.append("%s/%s: fragment %s is not in truth.json" % [id, cid, str(choice.fragment)])
 			var cost = choice.get("cost", {})
 			if cost is Dictionary:
 				for key in cost:
@@ -503,7 +508,8 @@ func _saves() -> void:
 	_expect(bad.is_empty(), "Rejects malformed fragments, testimonies and artifacts", "accepted: " + ", ".join(bad))
 
 
-## Share of bot runs (percent) a story event must show in; COVERAGE_REST for any not listed.
+## Share of bot runs (percent) an act I story event (st1_*) must show in; COVERAGE_REST for any not listed.
+## Later acts hang on standing and deals the bots rarely reach, so they are only counted.
 const COVERAGE := {"st1_first_paper": 90, "st1_story_night": 90}
 const COVERAGE_REST := 75
 
@@ -550,7 +556,7 @@ func _bot() -> void:
 	var rare: PackedStringArray = []
 	for id in story:
 		counts.append("%s %d" % [id, int(shown.get(id, 0))])
-		if int(shown.get(id, 0)) * 100 < runs * int(COVERAGE.get(id, COVERAGE_REST)):
+		if str(id).begins_with("st1_") and int(shown.get(id, 0)) * 100 < runs * int(COVERAGE.get(id, COVERAGE_REST)):
 			rare.append("%s %d/%d (needs %d%%)" % [id, int(shown.get(id, 0)), runs, int(COVERAGE.get(id, COVERAGE_REST))])
 	_expect(errors == 0 and int(probes.probe_forced) == runs and int(probes.probe_drawn) > 0,
 		"Bots play story events in %d runs without errors; forced probe %d/%d, drawn probe %d" % [runs, int(probes.probe_forced), runs, int(probes.probe_drawn)],

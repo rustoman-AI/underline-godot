@@ -5124,6 +5124,15 @@ func fragment_known(id: String) -> bool:
 	return row is Dictionary and bool(row.get("known", false))
 
 
+## Fragments learned the honest way, with proof; the endings will weigh them.
+func proofs() -> int:
+	var n := 0
+	for id in fragments:
+		if fragment_known(str(id)) and str(fragments[id].get("how", "")) == "honest":
+			n += 1
+	return n
+
+
 ## A fragment's "title", "hint" or "text" from data/truth.json in the current language, "" when unwritten.
 func fragment_text(id: String, key: String) -> String:
 	var pair = catalog.truth.get(id, {}).get(key, {})

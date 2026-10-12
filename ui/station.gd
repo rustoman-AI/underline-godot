@@ -3342,6 +3342,8 @@ const SLIP_UNKNOWN := Color("cfc3a6")
 const SLIP_INK := Color("2b2118")
 const SLIP_MUTED := Color("5f4f3c")
 const FRAGMENT_HOW := {"honest": "Learned honestly, week %d", "dirty": "Learned the dirty way, week %d", "found": "Found, week %d"}
+const PROOF_MARK := {"honest": "with proof", "dirty": "without proof", "found": "found"}
+const PROOF_INK := {"honest": Color("2f5a2c"), "dirty": Color("8a2f22"), "found": Color("5f4f3c")}
 
 
 ## The journal's Truth page: the five fragments as paper slips, then the artifact counts and the Words source.
@@ -3391,9 +3393,15 @@ func _truth_slip(id: String) -> PanelContainer:
 	line.add_child(words)
 	var holder := Copy.t("Held by %s, %s.") % [_leader_text(game.leader_name(fid, "leader")), _leader_text(game.leader_name(fid, "title"))]
 	if known:
-		words.add_child(_slip_label(_fragment_title(id), 17, SLIP_INK, true))
-		words.add_child(_slip_label(game.fragment_text(id, "text"), 15, SLIP_INK))
 		var how := str(row.get("how", "found"))
+		if not PROOF_MARK.has(how):
+			how = "found"
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 8)
+		head.add_child(_slip_label(_fragment_title(id), 17, SLIP_INK, true))
+		head.add_child(_proof_stamp(how))
+		words.add_child(head)
+		words.add_child(_slip_label(game.fragment_text(id, "text"), 15, SLIP_INK))
 		words.add_child(_slip_label(Copy.t(str(FRAGMENT_HOW.get(how, FRAGMENT_HOW.found))) % int(row.get("week", 0)), 13, SLIP_MUTED))
 	else:
 		words.add_child(_slip_label("?", 22, SLIP_INK, true))
@@ -3402,6 +3410,27 @@ func _truth_slip(id: String) -> PanelContainer:
 			words.add_child(_slip_label(hint, 15, SLIP_INK))
 		words.add_child(_slip_label(holder, 13, SLIP_MUTED))
 	return slip
+
+
+## A small ink stamp on a known slip: with proof (honest), without proof (dirty) or found.
+func _proof_stamp(how: String) -> PanelContainer:
+	var ink: Color = PROOF_INK[how]
+	var stamp := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(ink, 0.08)
+	style.border_color = ink
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 1
+	style.content_margin_bottom = 1
+	stamp.add_theme_stylebox_override("panel", style)
+	stamp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var lab := _label(Copy.t(str(PROOF_MARK[how])).to_upper(), 12, true)
+	lab.add_theme_color_override("font_color", ink)
+	stamp.add_child(lab)
+	return stamp
 
 
 func _slip_label(text: String, size: int, ink: Color, display := false) -> Label:
