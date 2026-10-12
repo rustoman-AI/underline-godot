@@ -58,7 +58,7 @@ func _run() -> void:
 
 func _build_info() -> void:
 	var info := BuildInfo.info()
-	if str(info.version) != "0.1.0-playtest1" or str(info.build) == "" or str(info.build) == "unknown":
+	if not RegEx.create_from_string("^0\\.1\\.0-playtest\\d+$").search(str(info.version)) or str(info.build) == "" or str(info.build) == "unknown":
 		bad.append("build_info %s" % str(info))
 	if not BuildInfo.line().contains(str(info.version)):
 		bad.append("build line %s" % BuildInfo.line())
@@ -181,7 +181,7 @@ func _station() -> void:
 		bad.append("Allow logging did not start the log")
 	if st.notice_layer != null:
 		bad.append("consent card stays open")
-	if not _shows(st, "Playtest log: on") or not _shows(st, "Open log folder") or not _shows(st, "Copy report") or not _shows(st, "Version 0.1.0-playtest1"):
+	if not _shows(st, "Playtest log: on") or not _shows(st, "Open log folder") or not _shows(st, "Copy report") or not _shows(st, "Version " + str(BuildInfo.info().version)):
 		bad.append("main menu lacks the log row or the version")
 
 	st._begin_new_game(false)
