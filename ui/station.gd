@@ -107,6 +107,13 @@ var card_fit_tries := 0
 var card_roomy := false
 var portraits: Array = []
 var portrait_names: Array = []
+## Playtest: consent, how-to and crash cards sit on their own layer above the menu.
+var notice_layer: Control
+var howto_check: CheckBox
+var howto_count := 0
+var log_game: Game
+var log_week := -1
+var log_over := ""
 var ahead: PanelContainer
 var deck = ModalDeck.new()
 var ambient_restore: Callable = Callable()
@@ -237,6 +244,8 @@ func _ready() -> void:
 	if not shot_mode:
 		Settings.apply_display(get_window())
 		Sound.apply_buses()
+		PlaytestLog.begin(_session_info())
+		_playtest_prompts.call_deferred()
 	if shot_mode:
 		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer():
 			_show_dawn()
@@ -278,7 +287,7 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_vo():
 		await _vo_shots()
-	elif OS.get_cmdline_user_args().has("--journal"):
+	elif _dev_args().has("--journal"):
 		await _journal_shots()
 
 
@@ -327,7 +336,7 @@ func _journal_shots() -> void:
 
 
 func _want_vo() -> bool:
-	return OS.get_cmdline_user_args().has("--vo")
+	return _dev_args().has("--vo")
 
 
 func _vo_shots() -> void:
@@ -423,11 +432,11 @@ func _vo_shots() -> void:
 
 
 func _want_lore() -> bool:
-	return OS.get_cmdline_user_args().has("--lore")
+	return _dev_args().has("--lore")
 
 
 func _want_drawer() -> bool:
-	return OS.get_cmdline_user_args().has("--drawer")
+	return _dev_args().has("--drawer")
 
 
 func _drawer_shots() -> void:
@@ -574,39 +583,44 @@ func _lore_shots() -> void:
 
 
 func _want_ux() -> bool:
-	return OS.get_cmdline_user_args().has("--ux")
+	return _dev_args().has("--ux")
 
 
 func _want_visual() -> bool:
-	return OS.get_cmdline_user_args().has("--visual")
+	return _dev_args().has("--visual")
 
 
 func _want_shots() -> bool:
-	return OS.get_cmdline_user_args().has("--shots") or OS.get_environment("UNDERLINE_SHOTS") == "1"
+	return _dev_args().has("--shots") or (OS.is_debug_build() and OS.get_environment("UNDERLINE_SHOTS") == "1")
+
+
+## Screenshot and review switches. Empty in a release export, so a player's build cannot reach them.
+func _dev_args() -> PackedStringArray:
+	return OS.get_cmdline_user_args() if OS.is_debug_build() else PackedStringArray()
 
 
 func _want_review() -> bool:
-	return OS.get_cmdline_user_args().has("--review")
+	return _dev_args().has("--review")
 
 
 func _want_clarity() -> bool:
-	return OS.get_cmdline_user_args().has("--clarity")
+	return _dev_args().has("--clarity")
 
 
 func _want_hub() -> bool:
-	return OS.get_cmdline_user_args().has("--hub")
+	return _dev_args().has("--hub")
 
 
 func _want_checks() -> bool:
-	return OS.get_cmdline_user_args().has("--checks")
+	return _dev_args().has("--checks")
 
 
 func _want_polish() -> bool:
-	return OS.get_cmdline_user_args().has("--polish")
+	return _dev_args().has("--polish")
 
 
 func _want_network() -> bool:
-	return OS.get_cmdline_user_args().has("--network")
+	return _dev_args().has("--network")
 
 
 func _tabular(base: Font) -> Font:
@@ -757,6 +771,7 @@ func _who_row(who: String) -> void:
 
 
 func _process(_delta: float) -> void:
+	_watch_log()
 	_tick_radio()
 	_tick_voice()
 	if end_button == null:
@@ -5459,17 +5474,24 @@ func _show_menu() -> void:
 	if not _claim(ModalDeck.AMBIENT, "menu", _show_menu):
 		return
 	_open_card("Menu")
-	card_body.add_child(_button("Save", _manual_save))
 	var load_button := _button("Load", _manual_load)
 	load_button.disabled = not SaveGame.has_manual()
 	if load_button.disabled:
 		load_button.tooltip_text = Copy.t("No saved game.")
-	card_body.add_child(load_button)
-	card_body.add_child(_button("Settings", _open_settings.bind(true)))
-	card_body.add_child(_button("Journal  (J)", _show_journal))
-	card_body.add_child(_button("Guide", _replay_guide))
-	card_body.add_child(_button("Main menu", _back_to_menu))
-	card_body.add_child(_button("Close", _close_card))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 6)
+	for button in [_button("Save", _manual_save), load_button, _button("Settings", _open_settings.bind(true)),
+			_button("Journal  (J)", _show_journal), _button("Guide", _replay_guide), _button("How to play", _show_howto.bind(false)),
+			_button("Main menu", _back_to_menu), _button("Close", _close_card)]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(button)
+	card_body.add_child(grid)
+	card_body.add_child(_log_row(true))
+	var version := _label(BuildInfo.line(), 13)
+	version.add_theme_color_override("font_color", PAPER_MUTED)
+	card_body.add_child(version)
 
 
 func _replay_guide() -> void:
@@ -7154,6 +7176,7 @@ func _begin_new_game(intro: bool) -> void:
 	_refresh()
 	if not shot_mode:
 		SaveGame.write_auto(game)
+		_show_howto(true)
 	if intro and _hub_texture() != null:
 		_show_start()
 		return
@@ -7308,9 +7331,11 @@ func _fill_menu_root() -> void:
 		continue_button.tooltip_text = Copy.t("No saved game.")
 	menu_root.add_child(continue_button)
 	menu_root.add_child(_menu_choice("New game", _begin_new_game.bind(true), true))
+	menu_root.add_child(_menu_choice("How to play", _show_howto.bind(false), false))
 	menu_root.add_child(_menu_choice("Settings", _open_settings.bind(false), false))
 	menu_root.add_child(_menu_choice("Credits", _open_credits, false))
-	menu_root.add_child(_menu_choice("Quit", func() -> void: get_tree().quit(), false))
+	menu_root.add_child(_menu_choice("Quit", _quit_game, false))
+	menu_root.add_child(_log_row(false))
 	var push := Control.new()
 	push.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	push.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -7323,7 +7348,11 @@ func _fill_menu_root() -> void:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size = Vector2(minf(720.0, size.x - 120.0), 0)
 	note.add_theme_color_override("font_color", Color(0.94, 0.9, 0.82, 0.85))
-	plate.add_child(note)
+	var lines := VBoxContainer.new()
+	lines.add_theme_constant_override("separation", 4)
+	lines.add_child(note)
+	lines.add_child(_version_label())
+	plate.add_child(lines)
 	menu_root.add_child(plate)
 
 
@@ -7335,6 +7364,341 @@ func _menu_choice(caption: String, cb: Callable, primary: bool) -> Button:
 	if primary:
 		_style_primary(button)
 	return button
+
+
+func _version_label() -> Label:
+	var lab := _label(BuildInfo.line(), 13)
+	lab.add_theme_color_override("font_color", PAPER_MUTED if on_paper else Color(0.94, 0.9, 0.82, 0.7))
+	return lab
+
+
+const CONSENT_TEXT := "This playtest build writes a local log of what you did (weeks, choices, time) to a file on your computer. Nothing is sent automatically. You can send the file to the developer if you want."
+
+var howto_data := {}
+
+
+## Playtest log controls for the main menu and the in-game Menu card: the log state (click to change), the log
+## folder and the copied report.
+func _log_row(in_card: bool) -> HFlowContainer:
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 8)
+	row.add_theme_constant_override("v_separation", 6)
+	var on := Settings.log_consent == "yes"
+	var refill := _show_menu if in_card else _fill_menu_root
+	var state := _button("Playtest log: on" if on else "Playtest log: off", func() -> void:
+		PlaytestLog.set_consent(not on)
+		refill.call())
+	for button in [state, _button("Open log folder", _open_log_folder), _button("Copy report", _copy_report)]:
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.autowrap_mode = TextServer.AUTOWRAP_OFF
+		button.add_theme_font_size_override("font_size", 16)
+		button.custom_minimum_size = Vector2(0, 40)
+		row.add_child(button)
+	return row
+
+
+func _open_log_folder() -> void:
+	OS.shell_show_in_file_manager(PlaytestLog.folder(), true)
+
+
+func _report_text() -> String:
+	return PlaytestLog.report_text(PlaytestLog.records, PlaytestLog.active_seconds())
+
+
+func _copy_report() -> void:
+	DisplayServer.clipboard_set(_report_text())
+	Sound.play("confirm")
+	_toast(Copy.t("Report copied. Paste it into your reply."), 3.0)
+	toast_label.z_index = 95 if menu_layer != null and menu_layer.visible else 30
+
+
+func _session_info() -> Dictionary:
+	var screen := DisplayServer.screen_get_size()
+	var win := get_window().size
+	return {
+		"version": BuildInfo.version(),
+		"build": BuildInfo.build(),
+		"language": Copy.lang,
+		"resolution": "%dx%d" % [screen.x, screen.y],
+		"window": "%dx%d" % [win.x, win.y],
+		"fullscreen": Settings.fullscreen,
+		"os": OS.get_name(),
+		"godot_version": str(Engine.get_version_info().get("string", "")),
+	}
+
+
+func _quit_game() -> void:
+	_end_log()
+	get_tree().quit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_end_log()
+
+
+func _end_log() -> void:
+	if shot_mode or not PlaytestLog.started:
+		return
+	var ending := ""
+	if game != null and game.over != "":
+		ending = game.ending_id()
+	PlaytestLog.end(maxi(log_week, 0), ending)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton or event is InputEventKey or event is InputEventMouseMotion or event is InputEventScreenTouch:
+		PlaytestLog.touch()
+
+
+## Week starts, dawn events and the ending go to the playtest log from here; choices come through game.watcher.
+func _watch_log() -> void:
+	if not PlaytestLog.started or shot_mode:
+		return
+	PlaytestLog.pump()
+	if at_menu or game == null:
+		return
+	if log_game != game:
+		log_game = game
+		log_week = -1
+		log_over = ""
+		game.watcher = _on_game_note
+	if game.week != log_week:
+		log_week = game.week
+		PlaytestLog.week = game.week
+		var stocks := {}
+		for key in game.stock:
+			stocks[str(key)] = int(game.stock[key])
+		PlaytestLog.event("week_start", {
+			"week": game.week,
+			"real_seconds_since_start": PlaytestLog.real_seconds(),
+			"active_seconds": PlaytestLog.active_seconds(),
+			"hope": game.hope,
+			"discontent": game.discontent,
+			"stocks": stocks,
+		})
+		var ids: Array = []
+		for ev in game.pending:
+			ids.append(str(ev.get("id", "")))
+		PlaytestLog.event("dawn_events", {"week": game.week, "ids": ids})
+	if game.over != "" and log_over == "":
+		log_over = game.over
+		PlaytestLog.event("ending", {"id": game.ending_id(), "week": game.week, "proofs": game.proofs()})
+
+
+func _on_game_note(what: String, data: Dictionary) -> void:
+	var week := int(game.week) if game != null else 0
+	if what == "journal":
+		match str(data.get("kind", "")):
+			"order":
+				PlaytestLog.event("decision", {"kind": "order", "id": str(data.get("order", "")), "choice": str(data.get("station", "")), "week": week})
+			"audience":
+				var leader := str(data.get("faction", ""))
+				var answer := str(data.get("result", ""))
+				PlaytestLog.event("decision", {"kind": "audience", "id": leader, "choice": answer, "week": week})
+				PlaytestLog.event("audience", {"leader": leader, "answer": answer, "week": week})
+			"truth":
+				PlaytestLog.event("fragment", {"id": str(data.get("id", "")), "how": str(data.get("how", "")), "week": week})
+		return
+	var kind := str(data.get("kind", ""))
+	var action: Dictionary = data.get("action", {})
+	var entry: Dictionary = data.get("entry", {})
+	var row := {}
+	match kind:
+		"order", "audience":
+			return
+		"event":
+			row = {"kind": "event_choice", "id": str(action.get("event_id", "")), "choice": str(action.get("choice_id", ""))}
+			if bool(data.get("scene", false)):
+				PlaytestLog.event("bunker_scene", {"id": row.id, "choice": row.choice, "week": week})
+		"build":
+			row = {"kind": "build", "id": str(action.get("type", "")), "choice": "build"}
+		"demolish":
+			row = {"kind": "build", "id": str(entry.get("type", "")), "choice": "demolish"}
+		"dig":
+			row = {"kind": "dig", "id": "%d:%d" % [int(action.get("level", -1)), int(action.get("cell", -1))], "choice": "dig"}
+		"upgrade":
+			row = {"kind": "upgrade", "id": str(entry.get("type", "")), "choice": "upgrade"}
+		"law":
+			row = {"kind": "law", "id": str(action.get("law", "")), "choice": "pass"}
+		"repeal":
+			row = {"kind": "law", "id": str(action.get("law", "")), "choice": "repeal"}
+		"assign", "unassign", "staff":
+			var room = game._room(str(action.get("room", ""))) if game != null else null
+			row = {"kind": "assign", "id": str(room.type) if room != null else "", "choice": kind}
+		_:
+			row = {"kind": "action", "id": kind, "choice": ""}
+	row["week"] = week
+	PlaytestLog.event("decision", row)
+
+
+## First launch asks about the log; after a launch that never reached session_end, offers the log folder once.
+func _playtest_prompts() -> void:
+	if Settings.log_consent == "":
+		_show_consent()
+	elif PlaytestLog.crashed and Settings.log_consent == "yes":
+		PlaytestLog.crashed = false
+		_show_crash_offer()
+
+
+## A paper card over everything, menus included. `fill` adds the body to the card's column.
+func _notice(heading: String, fill: Callable) -> void:
+	_close_notice()
+	var was := on_paper
+	on_paper = true
+	var layer := Control.new()
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.z_index = 90
+	var shade := ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0, 0, 0, 0.55)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(shade)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(center)
+	var panel := PanelContainer.new()
+	var style := _paper_style()
+	style.set_content_margin_all(24)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	box.custom_minimum_size = Vector2(minf(760.0, maxf(size.x, 1280.0) - 120.0), 0)
+	panel.add_child(box)
+	var title := _label(heading, 28, true)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(title)
+	fill.call(box)
+	add_child(layer)
+	notice_layer = layer
+	on_paper = was
+
+
+func _notice_text(box: VBoxContainer, text: String, font_size: int = 18) -> Label:
+	var lab := _label(text, font_size)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(lab)
+	return lab
+
+
+func _notice_buttons(box: VBoxContainer, rows: Array) -> void:
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 12)
+	for spec in rows:
+		var button := _button(str(spec[0]), spec[1], "confirm" if bool(spec[2]) else "click")
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.autowrap_mode = TextServer.AUTOWRAP_OFF
+		button.custom_minimum_size = Vector2(200, 48)
+		if bool(spec[2]):
+			_style_primary(button)
+		line.add_child(button)
+	box.add_child(line)
+
+
+func _close_notice() -> void:
+	if notice_layer != null:
+		notice_layer.queue_free()
+	notice_layer = null
+	howto_check = null
+
+
+func _show_consent() -> void:
+	_notice("Playtest log", func(box: VBoxContainer) -> void:
+		_notice_text(box, CONSENT_TEXT)
+		_notice_buttons(box, [["Allow logging", _answer_consent.bind(true), true], ["No logging", _answer_consent.bind(false), false]]))
+
+
+func _answer_consent(allow: bool) -> void:
+	PlaytestLog.set_consent(allow)
+	_close_notice()
+	if at_menu:
+		_fill_menu_root()
+
+
+func _show_crash_offer() -> void:
+	_notice("Playtest log", func(box: VBoxContainer) -> void:
+		_notice_text(box, "The game closed unexpectedly. Open the log folder?")
+		_notice_buttons(box, [["Open log folder", _crash_open_folder, true], ["Not now", _close_notice, false]]))
+
+
+func _crash_open_folder() -> void:
+	_close_notice()
+	_open_log_folder()
+
+
+func _howto() -> Dictionary:
+	if howto_data.is_empty():
+		var f := FileAccess.open("res://data/howto.json", FileAccess.READ)
+		var data = JSON.parse_string(f.get_as_text()) if f != null else null
+		howto_data = data if data is Dictionary else {}
+	return howto_data
+
+
+## data/howto.json on paper. At the start of a new game unless the player ticked Do not show again; always
+## from the menus.
+func _show_howto(auto: bool) -> void:
+	var data := _howto()
+	if data.is_empty() or (auto and Settings.howto_hidden):
+		return
+	howto_count += 1
+	var lang := "ru" if Copy.ru() else "en"
+	var title: Dictionary = data.get("title", {})
+	_notice(str(title.get(lang, title.get("en", ""))), func(box: VBoxContainer) -> void:
+		var n := 0
+		for line in data.get("lines", []):
+			n += 1
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 12)
+			var num := _label("%d" % n, 22, true)
+			num.custom_minimum_size = Vector2(22, 0)
+			num.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			row.add_child(num)
+			var text := _label(str(line.get(lang, line.get("en", ""))), 18)
+			text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(text)
+			box.add_child(row)
+		var check := CheckBox.new()
+		check.text = Copy.t("Do not show again")
+		check.button_pressed = Settings.howto_hidden
+		check.add_theme_font_size_override("font_size", 17)
+		if body_font != null:
+			check.add_theme_font_override("font", body_font)
+		for key in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+			check.add_theme_color_override(key, PAPER_INK)
+		check.add_theme_icon_override("checked", _check_icon(true))
+		check.add_theme_icon_override("unchecked", _check_icon(false))
+		check.add_theme_constant_override("h_separation", 10)
+		check.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		box.add_child(check)
+		howto_check = check
+		_notice_buttons(box, [["Close", _close_howto, true]]))
+
+
+## A 22 px box in the paper card's colours, ticked with a brass square.
+func _check_icon(on: bool) -> Texture2D:
+	var px := 22
+	var image := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	for i in px:
+		for edge in [0, 1, px - 2, px - 1]:
+			image.set_pixel(i, edge, PAPER_INK)
+			image.set_pixel(edge, i, PAPER_INK)
+	if on:
+		image.fill_rect(Rect2i(5, 5, px - 10, px - 10), Color("e2a63a"))
+	return ImageTexture.create_from_image(image)
+
+
+func _close_howto() -> void:
+	if howto_check != null:
+		Settings.howto_hidden = howto_check.button_pressed
+		Settings.save()
+	_close_notice()
 
 
 func _fill_settings() -> void:
@@ -7481,6 +7845,7 @@ func _fill_credits() -> void:
 		box.add_child(missing)
 	on_paper = false
 	menu_credits.add_child(_menu_choice("Back", _menu_back, false))
+	menu_credits.add_child(_version_label())
 
 
 func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:
@@ -7587,6 +7952,7 @@ func _pick_lang(code: String) -> void:
 		return
 	Settings.language = code
 	Settings.save()
+	PlaytestLog.event("settings", {"language": code})
 	if not at_menu and game != null:
 		SaveGame.write_auto(game)
 		Settings.resume = true

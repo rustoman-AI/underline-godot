@@ -199,6 +199,8 @@ static func _detect() -> String:
 		picked = _file_lang(ProjectSettings.globalize_path("res://data/lang.txt"))
 	if picked == "ru" or picked == "en":
 		return picked
+	if OS.get_locale_language() == "ru":
+		return "ru"
 	return "en"
 
 

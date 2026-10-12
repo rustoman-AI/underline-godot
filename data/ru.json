@@ -1040,5 +1040,18 @@
   "Drop here to take off work": "Отпустите здесь, чтобы снять с работы",
   "Drag a name onto a room or a group here. Drop on a full room to swap. Drop on Free to take someone off work.": "Перетащите имя на комнату или на группу здесь. На полную комнату: обмен. На «Свободные»: снять с работы.",
   "Disclaimer": "Оговорка",
+  "How to play": "Как играть",
+  "Do not show again": "Больше не показывать",
+  "Playtest log": "Журнал плейтеста",
+  "Playtest log: on": "Журнал плейтеста: вкл",
+  "Playtest log: off": "Журнал плейтеста: выкл",
+  "Open log folder": "Открыть папку журналов",
+  "Copy report": "Скопировать отчёт",
+  "Report copied. Paste it into your reply.": "Отчёт скопирован. Вставьте его в ответ.",
+  "Version %s, build %s": "Версия %s, сборка %s",
+  "Allow logging": "Разрешить журнал",
+  "No logging": "Без журнала",
+  "This playtest build writes a local log of what you did (weeks, choices, time) to a file on your computer. Nothing is sent automatically. You can send the file to the developer if you want.": "Эта тестовая сборка записывает локальный журнал ваших действий (недели, решения, время) в файл на вашем компьютере. Ничего не отправляется автоматически. Если захотите, можете отправить этот файл разработчику.",
+  "The game closed unexpectedly. Open the log folder?": "Игра закрылась неожиданно. Открыть папку журналов?",
   "Underline is a work of fiction. Its people, communities and events are invented. Real New York places are used fictitiously, and any resemblance to real persons is coincidental. Not affiliated with or endorsed by the MTA or the City of New York.": "Игра Underline является художественным вымыслом. Люди, общины и события в игре придуманы. Реальные места Нью-Йорка использованы условно, любое сходство с реальными людьми случайно. Игра не связана с MTA и мэрией Нью-Йорка и не одобрена ими."
 }

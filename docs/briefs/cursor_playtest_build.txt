@@ -1,0 +1,38 @@
+CURSOR: PLAYTEST BUILD FOR ITCH.IO (closed test, Windows, version 0.1.0-playtest1)
+Goal: a single clean Windows zip the project lead can upload to a restricted itch.io page, plus local logging so testers can send back real data. You do NOT publish or upload anything; the lead does that in their own itch account. Local only. No push. Base balance, map and content unchanged.
+
+1. EXPORT PRESET
+- One preset "Windows Playtest" (replace the EN and RU presets; keep them if you need, but ship one build). The game language follows the OS locale on first launch and is switchable in Settings (check this exists; if not, add the minimal switch EN/RU in Settings and persist it).
+- No console wrapper. No debug shortcuts or shot_mode hooks reachable by a player. embed_pck=true.
+- exclude_filter so the package does NOT contain development or rejected material: incoming-art/*, incoming-audio/*, shots/*, docs/*, .tools/*, tools/*, build/*, export_templates/*, assets/figures/residents/*, assets/factions/*_old*, any *_originals_* folder, *.md except none. Verify by exporting a .pck and listing its contents (script), and report package size before and after (the old exe was about 142 MB).
+- Output: build/playtest/Underline-0.1.0-playtest1-windows.zip containing Underline.exe, README_RU.txt and README_EN.txt (copy from docs/playtest/TESTER_GUIDE_RU.md and TESTER_GUIDE_EN.md, plain text), CREDITS.txt (from CREDITS.md).
+- Old files PLAYTEST.md and PLAYTEST_RU.md at the repo root and in build/*/windows are obsolete: move them to docs/playtest/old/ and do not ship them.
+
+2. VERSION AND BUILD INFO
+Add data/build_info.json {version: "0.1.0-playtest1", build: git short hash, date} (generated at export time by a small script), shown at the bottom of the Menu and Credits and written into every log.
+
+3. HOW TO PLAY CARD
+Show data/howto.json (title and six lines, EN and RU, written by the lead) once at the start of the first New game, with a Do not show again checkbox, and always reachable from the Menu as "How to play". Fits 1280x720, plain paper-card style.
+
+4. PLAYTEST LOG (local only, no network)
+- On first launch show a short consent card (EN and RU): "This playtest build writes a local log of what you did (weeks, choices, time) to a file on your computer. Nothing is sent automatically. You can send the file to the developer if you want." Buttons: Allow logging / No logging. Persist the choice; Menu shows the current state and lets the player change it.
+- If allowed, write user://playtest/session_<yyyymmdd_hhmmss>.jsonl, one JSON line per event: session_start {version, build, language, resolution, fullscreen, os, godot_version}, week_start {week, real_seconds_since_start, hope, discontent, stocks}, dawn_events {ids}, decision {kind: event_choice|order|law|audience|build|dig|upgrade|assign, id, choice, week}, audience {leader, answer, week}, fragment {id, how, week}, bunker_scene {id, choice}, ending {id, week, proofs}, warning/error {text, week} for script errors, idle {seconds} for gaps longer than 120 s (so idle time is excluded from play time), session_end {week, ending, real_minutes, active_minutes}. No names, no paths, no IP, no hardware ids.
+- Menu additions: "Open log folder" and "Copy report". The report is plain text for pasting: version, build, language, active minutes, weeks reached, ending (or "not finished"), hope and discontent at the last week, decisions per week average, the five slowest weeks (seconds), number of script errors with the last three messages, fragments known (honest, dirty), audience answers per leader.
+- Autosave behaviour unchanged. Logging must never crash or slow the game; swallow file errors.
+
+4b. CRASH SAFETY
+If a script error occurs, log it (point 4) and continue; no popups in the player's face. If the game exits abnormally, the next launch offers "The game closed unexpectedly. Open the log folder?" once.
+
+5. SMOKE TEST OF THE EXPORTED BUILD
+Export, then launch the exported Underline.exe from a clean folder with no Godot environment variables and a fresh user data dir, play a scripted 10-week bot run via a command-line flag if one exists, or at minimum start it, wait 30 s and confirm it did not crash and wrote a log. Report what you could and could not verify (the lead must still test on another machine).
+
+6. DOCS
+Do not edit docs/playtest/*.md (the lead's text) except moving the old playtest files. If a button name in the guide differs from the real UI text, report it so the lead fixes the guide.
+
+7. CHECKS
+bot_run, check_audience, check_save, check_network, check_slice (and the new balance check if it exists). New tests: log lines are valid JSON, idle gap handling, report text contains the expected fields, build_info loads, how-to card appears once. Screenshots EN and RU 1280x720: consent card, how-to card, Menu with log buttons and version, the copied report (as text file in shots/playtest/).
+
+8. LOG ANALYSIS TOOL (for when testers send logs back)
+.tools/playtest_report.js (Node) or a Godot script: reads a folder of session_*.jsonl and prints a Markdown summary into docs/playtest/results_YYYYMMDD.md: per tester active minutes, weeks reached, ending, per-week time (mean and the five slowest weeks across testers), decisions per week, choices by id with counts (which choices nobody takes, which everyone takes), audience answers, fragments, errors. Test it on synthetic logs you generate.
+
+9. COMMIT locally: "Playtest build: preset, build info, how-to card, local log and report, tester docs". Do not commit build/, incoming-art/, shots/.

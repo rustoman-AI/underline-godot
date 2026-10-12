@@ -87,6 +87,9 @@ var story_queue: Array = []
 ## Proofs gained from choices ("proof": n) on top of the fragments learned honestly.
 var proof_extra := 0
 var errors: Array = []
+## Told about every applied action ("action", {...}) and journal row ("journal", row). Set by the UI for the
+## playtest log; never saved.
+var watcher: Callable
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
 var growth_bank := 0.0
@@ -287,6 +290,7 @@ func apply(action: Dictionary) -> bool:
 		return false
 	var kind := str(action.get("kind", ""))
 	var entry := _journal_context(kind, action)
+	var scene: bool = kind == "event" and not pending.is_empty() and pending[0].has("trigger")
 	var ok := false
 	match kind:
 		"event":
@@ -334,6 +338,8 @@ func apply(action: Dictionary) -> bool:
 			ok = false
 	if ok and not entry.is_empty():
 		_journal(kind, entry)
+	if ok and watcher.is_valid():
+		watcher.call("action", {"kind": kind, "action": action, "entry": entry, "scene": scene})
 	return ok
 
 
@@ -366,6 +372,8 @@ func _journal(kind: String, data: Dictionary) -> void:
 	row["kind"] = kind
 	row["week"] = week
 	journal.append(row)
+	if watcher.is_valid():
+		watcher.call("journal", row)
 	if journal.size() > JOURNAL_MAX:
 		journal = journal.slice(journal.size() - JOURNAL_MAX)
 

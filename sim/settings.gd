@@ -3,7 +3,8 @@ extends RefCounted
 
 ## Player preferences in user://settings.cfg. Window, audio, language, motion.
 
-const PATH := "user://settings.cfg"
+## Tests point this at a scratch file so they never touch the player's settings.
+static var path := "user://settings.cfg"
 const DRIP_MODES := ["off", "rare", "often"]
 
 static var master := 0.85
@@ -22,6 +23,9 @@ static var fullscreen := false
 static var ui_scale := 1.0
 static var reduce_motion := false
 static var people_free_only := false
+## Playtest log: "" until the player answers the consent card, then "yes" or "no".
+static var log_consent := ""
+static var howto_hidden := false
 static var loaded := false
 static var resume := false
 static var reopen := ""
@@ -32,7 +36,7 @@ static func load_file() -> void:
 		return
 	loaded = true
 	var cfg := ConfigFile.new()
-	if cfg.load(PATH) != OK:
+	if cfg.load(path) != OK:
 		return
 	master = clampf(float(cfg.get_value("audio", "master", master)), 0.0, 1.0)
 	music = clampf(float(cfg.get_value("audio", "music", music)), 0.0, 1.0)
@@ -50,6 +54,10 @@ static func load_file() -> void:
 	ui_scale = clampf(float(cfg.get_value("game", "ui_scale", 1.0)), 0.75, 1.5)
 	reduce_motion = bool(cfg.get_value("game", "reduce_motion", false))
 	people_free_only = bool(cfg.get_value("game", "people_free_only", false))
+	log_consent = str(cfg.get_value("playtest", "log", ""))
+	if log_consent != "yes" and log_consent != "no":
+		log_consent = ""
+	howto_hidden = bool(cfg.get_value("playtest", "howto_hidden", false))
 
 
 static func save() -> void:
@@ -68,7 +76,9 @@ static func save() -> void:
 	cfg.set_value("game", "ui_scale", ui_scale)
 	cfg.set_value("game", "reduce_motion", reduce_motion)
 	cfg.set_value("game", "people_free_only", people_free_only)
-	cfg.save(PATH)
+	cfg.set_value("playtest", "log", log_consent)
+	cfg.set_value("playtest", "howto_hidden", howto_hidden)
+	cfg.save(path)
 
 
 static func reduced() -> bool:
