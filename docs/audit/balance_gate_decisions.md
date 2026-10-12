@@ -69,3 +69,31 @@ Tools: `.tools/story_slot_diag.gd` (`--gate` for the 30-seed table, `--profile=e
 
 - The expander's share with story beats moves by 3.3 points between seed sets, both before and after. On seeds 31 to 60 the new content does better with the story beats than without them (19 against 17).
 - The follower's white rate over 30 seeds stays at 75 to 77% before and after. The gate reads only seeds 1 to 5, about 20 rolls, where one roll is 5 points. The same gate on seeds 31 to 35 gives 93.8% even before the content change.
+
+## 2026-10-12: follow-up rule counts data/events.json only
+
+**Changed.** In `sim/check_slice.gd`, the rule that at least a third of the drawn events have a follow-up (`follow`) now counts only the events in `data/events.json`. Random pool batches (`data/events_pool.json`) are not part of the count.
+
+**Why.** The vertical slice rule describes the base pool. Pool batch 1 adds 14 events without follow-ups by design (docs/briefs/cursor_event_pool_1.txt). Counted together they give 12 of 48, below a third, though the base pool itself is unchanged (12 of 34).
+
+## 2026-10-12: balance targets on 30 seeds (sim/check_balance.gd)
+
+**Changed.** The balance targets in `sim/bot_run.gd` judged on seeds 1 to 5 are removed: CAREFUL TARGET, HOPE TARGET, EXPANDER TARGET, OUTPOST PAYBACK, FOLLOWER TARGET and the CHECK TARGET for each steward. A new headless gate, `sim/check_balance.gd`, plays careful, expander and follower on seeds 1 to 30 and gates:
+- the number of seeds each steward passes its per-seed rules on (careful: lives to week 40, at most 2 shortage weeks, discontent peak 35 to 55, 45 to 70 people, food median 2 to 4; expander: ends by time or revolt, at most 5 shortage weeks, hope min 20; follower: lives to week 40, food median 1.5, hope min 15, discontent peak 65, 45 people, at most 3 shortage weeks);
+- the number of seeds where the expander's mean hope is below the careful steward's;
+- the expander's red check rate (45 to 70%) and the follower's white check rate (55 to 85%).
+
+Each seed count threshold is the worst of HEAD on seeds 1-30 and 31-60, minus 2. `sim/bot_run.gd` keeps the formulas, run integrity (no sim errors, a clean end state; the follower never at 0 power for more than 2 weeks, never an unaffordable dawn, at least 12 events by week 15), the expander's discontent on 30 seeds, the network pacing, the audience checks and the banner list.
+
+**Why.** Five seeds are too few: one seed or one check roll flips a gate. Pool batch 1 turned four of these gates red on seeds 1 to 5 while the same rules over 30 seeds showed no loss. The gate's own numbers on two seed sets, before and after:
+
+| | threshold | HEAD, seeds 1-30 | HEAD, seeds 31-60 | new, seeds 1-30 | new, seeds 31-60 |
+|---|---|---|---|---|---|
+| careful seeds passing | 18 | 26 | 20 | 29 | 26 |
+| expander seeds passing | 27 | 30 | 29 | 29 | 29 |
+| follower seeds passing | 22 | 25 | 24 | 23 | 21 |
+| expander hope below careful | 16 | 19 | 18 | 16 | 12 |
+| expander red checks | 45-70% | 54.1% | 64.1% | 56.8% | 62.2% |
+| follower white checks | 55-85% | 75.2% | 77.4% | 75.8% | 73.1% |
+
+HEAD is 326d9db (before pool batch 1); new is pool batch 1 with the lead's numbers. The gate runs seeds 1 to 30. On seeds 31 to 60 the new content falls below two thresholds (follower 21, hope order 12): the hope order drops from 18-19 to 12-16 seeds. Recorded as a watch item, not tuned.

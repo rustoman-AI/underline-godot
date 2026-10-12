@@ -1,0 +1,539 @@
+{
+  "_note": "E2 event pool, batch 1 (docs/EA_PLAN.md), written by the project lead. Merge into the main random event pool like data/events.json. Schema: same as events.json (who, min_week, max_week, weight, cooldown, choices with hope, discontent, food, tokens, cost, artifacts, standing). Numbers are first-pass. \"ru\" maps each English string to Russian.",
+  "events": [
+    {
+      "id": "inez_count",
+      "title": "Inez talks the count down",
+      "major": false,
+      "min_week": 6,
+      "max_week": 30,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "A Directorate patrol stops at the gate and asks for a count of your people. Inez Calder says she can talk them down to a smaller number. She does not say what it will cost her.",
+      "choices": [
+        {
+          "id": "talk",
+          "label": "Let Inez talk",
+          "hope": -1,
+          "standing": {
+            "directorate": 3
+          }
+        },
+        {
+          "id": "count",
+          "label": "Give the real count",
+          "discontent": 1,
+          "standing": {
+            "directorate": 5
+          }
+        },
+        {
+          "id": "away",
+          "label": "Send them away",
+          "hope": 1,
+          "standing": {
+            "directorate": -8
+          }
+        }
+      ],
+      "who": "Inez"
+    },
+    {
+      "id": "leo_torch",
+      "title": "A boy with a torch",
+      "major": false,
+      "min_week": 10,
+      "max_week": 34,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "A bracket on the hydroponic racks needs welding in a space only a thirteen-year-old fits into. Leo Marsh has already put on the mask. Samira Holt says nothing and holds the door.",
+      "choices": [
+        {
+          "id": "leo",
+          "label": "Let Leo do it",
+          "hope": 1,
+          "discontent": 1
+        },
+        {
+          "id": "watch",
+          "label": "Let Leo weld with Samira watching",
+          "cost": {
+            "materials": 1
+          },
+          "hope": 1
+        },
+        {
+          "id": "bed",
+          "label": "Send him to bed and wait for a bigger welder",
+          "discontent": 1,
+          "hope": -1
+        }
+      ],
+      "who": "Leo"
+    },
+    {
+      "id": "fran_crate",
+      "title": "The woman who sells without stamps",
+      "major": false,
+      "min_week": 8,
+      "max_week": 34,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "A Directorate clerk asks you, politely, whether you know a woman who sells things without stamps. Fran Doyle has never been caught. The clerk has a form with a space for a name.",
+      "choices": [
+        {
+          "id": "name",
+          "label": "Give her name",
+          "discontent": 3,
+          "hope": -2,
+          "standing": {
+            "directorate": 8
+          }
+        },
+        {
+          "id": "no",
+          "label": "Say you do not know any such woman",
+          "hope": 1,
+          "standing": {
+            "directorate": -3
+          }
+        },
+        {
+          "id": "warn",
+          "label": "Warn Fran and take a cut",
+          "tokens": 10,
+          "standing": {
+            "directorate": -5
+          }
+        }
+      ],
+      "who": "Fran"
+    },
+    {
+      "id": "birth",
+      "title": "The first child since the Silence",
+      "major": false,
+      "min_week": 8,
+      "max_week": 36,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "A girl is born in quarters, the first since the Silence. People bring things that are not theirs to give: a cup, a scarf, a scrap of soap. Someone asks whether the platform will hold a naming.",
+      "choices": [
+        {
+          "id": "naming",
+          "label": "Hold a naming on the platform",
+          "food": -3,
+          "hope": 3
+        },
+        {
+          "id": "quiet",
+          "label": "Let the family have the quiet",
+          "hope": 1
+        },
+        {
+          "id": "ration",
+          "label": "Add a ration for the newborn",
+          "food": -2,
+          "hope": 1,
+          "discontent": -1
+        }
+      ]
+    },
+    {
+      "id": "graves",
+      "title": "Where the dead go",
+      "major": false,
+      "min_week": 10,
+      "max_week": 36,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "Three dead this month. The lower cell is damp, and the walls are soft. People ask quietly where the dead are going to go, and then do not ask again.",
+      "choices": [
+        {
+          "id": "room",
+          "label": "Dig a quiet room",
+          "cost": {
+            "materials": 6
+          },
+          "hope": 1,
+          "discontent": -2
+        },
+        {
+          "id": "synod",
+          "label": "Ask the Synod to take them",
+          "cost": {
+            "tokens": 4
+          },
+          "standing": {
+            "synod": 3
+          }
+        },
+        {
+          "id": "seal",
+          "label": "Seal them in the old tunnel",
+          "discontent": 3,
+          "hope": -2
+        }
+      ]
+    },
+    {
+      "id": "ration_card",
+      "title": "Two cards for one name",
+      "major": false,
+      "min_week": 6,
+      "max_week": 34,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "A man has made himself a second ration card, with careful handwriting and a stamp carved from a shoe heel. Everyone in the line has seen it. They are waiting to see what you do.",
+      "choices": [
+        {
+          "id": "cut",
+          "label": "Cut his portion for a week",
+          "food": 3,
+          "hope": -1,
+          "discontent": 1
+        },
+        {
+          "id": "work",
+          "label": "Make him work a double shift",
+          "discontent": 0,
+          "materials": 3
+        },
+        {
+          "id": "blind",
+          "label": "Pretend not to see",
+          "discontent": 2
+        }
+      ]
+    },
+    {
+      "id": "wet_boots",
+      "title": "Wet boots",
+      "major": false,
+      "min_week": 10,
+      "max_week": 34,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "The tunnel floor is ankle deep for three weeks. The boots do not dry. People wrap their feet in bags and complain less than they should.",
+      "choices": [
+        {
+          "id": "issue",
+          "label": "Issue spare boots from the stores",
+          "cost": {
+            "materials": 5
+          },
+          "hope": 1,
+          "discontent": -1
+        },
+        {
+          "id": "rotate",
+          "label": "Rotate the dry pairs by shift",
+          "discontent": 1
+        },
+        {
+          "id": "wait",
+          "label": "Wait for the water to drop",
+          "discontent": 2,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "quiet_letter",
+      "title": "A letter from a quiet station",
+      "major": false,
+      "min_week": 6,
+      "max_week": 36,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "A boy brings a letter that was pushed under the gate in the night. It is from a station that stopped answering the wire a month ago. It is written in pencil and it says only what they ate and who is still well.",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read it aloud on the platform",
+          "hope": -1,
+          "discontent": -1,
+          "artifacts": {
+            "words": 1
+          }
+        },
+        {
+          "id": "keep",
+          "label": "Keep it with the testimonies",
+          "artifacts": {
+            "words": 1
+          }
+        },
+        {
+          "id": "burn",
+          "label": "Burn it before anyone else sees",
+          "hope": 1
+        }
+      ]
+    },
+    {
+      "id": "old_diary",
+      "title": "A diary behind the tiles",
+      "major": false,
+      "min_week": 8,
+      "max_week": 36,
+      "weight": 3,
+      "cooldown": 99,
+      "text": "Behind a loose tile in the workshop wall, a diary: a station clerk's, the last six weeks before the Silence. Most pages are shopping lists. A few are not.",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read the pages that are not lists",
+          "hope": -1,
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "file",
+          "label": "File it with the papers and say nothing",
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "sell",
+          "label": "Sell it to the Exchange",
+          "tokens": 8,
+          "standing": {
+            "exchange": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "coney_errand",
+      "title": "The Wheel wants a record",
+      "major": false,
+      "min_week": 8,
+      "max_week": 30,
+      "weight": 3,
+      "cooldown": 99,
+      "who": "Old Man Coney",
+      "text": "Old Man Coney takes the plush tiger head off his hair and holds it like a hat. He says the Wheel is cold and wants a record, the one with the blue label, from the booth by the Cyclone. He wants someone to go up and get it. Nobody who went up has come back, and he knows that better than anyone.",
+      "choices": [
+        {
+          "id": "forbid",
+          "label": "Forbid it: nobody goes up",
+          "hope": -1,
+          "discontent": 1
+        },
+        {
+          "id": "alone",
+          "label": "Let him go alone, at night",
+          "materials": 6,
+          "hope": -2
+        },
+        {
+          "id": "mend",
+          "label": "Give him the old ticket punch to mend instead",
+          "materials": 2,
+          "hope": 1
+        }
+      ]
+    },
+    {
+      "id": "maggie_salt",
+      "title": "Salt by the share",
+      "major": false,
+      "min_week": 6,
+      "max_week": 34,
+      "weight": 3,
+      "cooldown": 99,
+      "who": "Salty Maggie",
+      "text": "Salty Maggie puts her ladle on your table like a gavel. Her pans are full, her crew is half, and she says a person is worth exactly as much salt as you can boil out of them. She offers preserved salt for the beds, at a price that is not only tokens.",
+      "choices": [
+        {
+          "id": "pay",
+          "label": "Pay in tokens",
+          "cost": {
+            "tokens": 6
+          },
+          "food": 8
+        },
+        {
+          "id": "labour",
+          "label": "Pay in labour: two shifts at the pans",
+          "food": 5,
+          "discontent": 1
+        },
+        {
+          "id": "refuse",
+          "label": "Refuse and keep the old salt",
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "bait_throw",
+      "title": "He never misses",
+      "major": false,
+      "min_week": 8,
+      "max_week": 34,
+      "weight": 3,
+      "cooldown": 99,
+      "who": "Bait",
+      "text": "Something has drifted into the flooded pocket under the platform: a crate on a tether, or a body. Bait stands at the edge with a harpoon and says he can reach it with one throw. He does not say what he is afraid it is.",
+      "choices": [
+        {
+          "id": "throw",
+          "label": "Let him throw",
+          "materials": 5,
+          "hope": -1
+        },
+        {
+          "id": "rope",
+          "label": "Send a rope crew instead",
+          "cost": {
+            "materials": 2
+          },
+          "materials": 5
+        },
+        {
+          "id": "leave",
+          "label": "Leave it to the water",
+          "discontent": 1
+        }
+      ]
+    },
+    {
+      "id": "barnum_cabinet",
+      "title": "The curiosity cabinet",
+      "major": false,
+      "min_week": 10,
+      "max_week": 36,
+      "weight": 3,
+      "cooldown": 99,
+      "who": "Barnum",
+      "text": "Barnum has opened his cabinet in the stairwell, and a line has formed: a dodo skeleton, a two-headed calf, a jar nobody wants to look at. He asks whether he may charge for a look. He says people need to be frightened by something small.",
+      "choices": [
+        {
+          "id": "charge",
+          "label": "Let him charge admission",
+          "tokens": 8,
+          "discontent": 1
+        },
+        {
+          "id": "free",
+          "label": "Let him show it for nothing",
+          "hope": 1,
+          "discontent": -1
+        },
+        {
+          "id": "close",
+          "label": "Close the cabinet",
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "sylvia_tide",
+      "title": "The Tide at the grate",
+      "major": false,
+      "min_week": 8,
+      "max_week": 36,
+      "weight": 3,
+      "cooldown": 99,
+      "who": "Sylvia the Mermaid",
+      "text": "Sylvia sings at the grate after the last shift, and people from the next station come to stand in the tunnel and listen. She says she is not singing for them. She says she is singing for the families she left on the pier.",
+      "choices": [
+        {
+          "id": "nightly",
+          "label": "Let her sing every night",
+          "hope": 3,
+          "food": -2
+        },
+        {
+          "id": "worst",
+          "label": "Keep it for the worst weeks",
+          "hope": 1
+        },
+        {
+          "id": "stop",
+          "label": "Ask her to stop, the patrols can hear",
+          "hope": -2,
+          "standing": {
+            "directorate": 3
+          }
+        }
+      ]
+    }
+  ],
+  "ru": {
+    "Inez talks the count down": "Инез сбивает число",
+    "A Directorate patrol stops at the gate and asks for a count of your people. Inez Calder says she can talk them down to a smaller number. She does not say what it will cost her.": "Патруль Дирекции останавливается у ворот и просит сосчитать твоих людей. Инез Колдер говорит, что сможет уговорить их на меньшее число. Чего это ей будет стоить, она не говорит.",
+    "Let Inez talk": "Пусть Инез поговорит",
+    "Give the real count": "Назвать настоящее число",
+    "Send them away": "Прогнать их",
+    "A boy with a torch": "Мальчик с горелкой",
+    "A bracket on the hydroponic racks needs welding in a space only a thirteen-year-old fits into. Leo Marsh has already put on the mask. Samira Holt says nothing and holds the door.": "Кронштейн на стойках гидропоники нужно сварить в щели, куда пролезет только тринадцатилетний. Лео Марш уже надел маску. Самира Холт молчит и держит дверь.",
+    "Let Leo do it": "Пусть Лео сварит",
+    "Let Leo weld with Samira watching": "Пусть Лео варит под присмотром Самиры",
+    "Send him to bed and wait for a bigger welder": "Отправить его спать и ждать сварщика покрупнее",
+    "The woman who sells without stamps": "Женщина, которая торгует без печатей",
+    "A Directorate clerk asks you, politely, whether you know a woman who sells things without stamps. Fran Doyle has never been caught. The clerk has a form with a space for a name.": "Служащий Дирекции вежливо спрашивает, не знаешь ли ты женщину, которая торгует без печатей. Фрэн Дойл ни разу не поймали. У служащего бланк с графой для имени.",
+    "Give her name": "Назвать её имя",
+    "Say you do not know any such woman": "Сказать, что такой женщины не знаешь",
+    "Warn Fran and take a cut": "Предупредить Фрэн и взять долю",
+    "The first child since the Silence": "Первый ребёнок после Тишины",
+    "A girl is born in quarters, the first since the Silence. People bring things that are not theirs to give: a cup, a scarf, a scrap of soap. Someone asks whether the platform will hold a naming.": "В жилых отсеках рождается девочка, первая с тех пор, как наступила Тишина. Люди несут то, что не их дело отдавать: кружку, шарф, обломок мыла. Кто-то спрашивает, устроит ли платформа наречение имени.",
+    "Hold a naming on the platform": "Устроить наречение на платформе",
+    "Let the family have the quiet": "Дать семье тишину",
+    "Add a ration for the newborn": "Добавить паёк для новорождённой",
+    "Where the dead go": "Куда деваются мёртвые",
+    "Three dead this month. The lower cell is damp, and the walls are soft. People ask quietly where the dead are going to go, and then do not ask again.": "Трое мёртвых за этот месяц. Нижняя ячейка сырая, стены мягкие. Люди тихо спрашивают, куда денутся мёртвые, и больше не спрашивают.",
+    "Dig a quiet room": "Выкопать тихую комнату",
+    "Ask the Synod to take them": "Попросить Синод принять их",
+    "Seal them in the old tunnel": "Замуровать их в старом тоннеле",
+    "Two cards for one name": "Две карточки на одно имя",
+    "A man has made himself a second ration card, with careful handwriting and a stamp carved from a shoe heel. Everyone in the line has seen it. They are waiting to see what you do.": "Мужчина сделал себе вторую карточку на паёк, аккуратным почерком, со штампом, вырезанным из каблука. Все в очереди это видели. Они ждут, что ты сделаешь.",
+    "Cut his portion for a week": "Урезать его паёк на неделю",
+    "Make him work a double shift": "Заставить его отработать двойную смену",
+    "Pretend not to see": "Сделать вид, что не видишь",
+    "Wet boots": "Мокрые сапоги",
+    "The tunnel floor is ankle deep for three weeks. The boots do not dry. People wrap their feet in bags and complain less than they should.": "Три недели пол в тоннеле по щиколотку. Сапоги не сохнут. Люди заворачивают ноги в мешки и жалуются меньше, чем следовало бы.",
+    "Issue spare boots from the stores": "Выдать запасные сапоги со склада",
+    "Rotate the dry pairs by shift": "Менять сухие пары по сменам",
+    "Wait for the water to drop": "Ждать, пока спадёт вода",
+    "A letter from a quiet station": "Письмо с замолчавшей станции",
+    "A boy brings a letter that was pushed under the gate in the night. It is from a station that stopped answering the wire a month ago. It is written in pencil and it says only what they ate and who is still well.": "Мальчик приносит письмо, подсунутое ночью под ворота. Оно со станции, которая месяц назад перестала отвечать по проводу. Написано карандашом, и в нём только то, что они ели и кто ещё здоров.",
+    "Read it aloud on the platform": "Прочесть вслух на платформе",
+    "Keep it with the testimonies": "Хранить вместе со свидетельствами",
+    "Burn it before anyone else sees": "Сжечь, пока никто не увидел",
+    "A diary behind the tiles": "Дневник за плиткой",
+    "Behind a loose tile in the workshop wall, a diary: a station clerk's, the last six weeks before the Silence. Most pages are shopping lists. A few are not.": "За отошедшей плиткой в стене мастерской дневник станционного служащего, последние шесть недель до Тишины. Большинство страниц это списки покупок. Несколько нет.",
+    "Read the pages that are not lists": "Прочесть страницы, которые не списки",
+    "File it with the papers and say nothing": "Подшить к бумагам и ничего не говорить",
+    "Sell it to the Exchange": "Продать Бирже",
+    "The Wheel wants a record": "Колесу нужна пластинка",
+    "Old Man Coney takes the plush tiger head off his hair and holds it like a hat. He says the Wheel is cold and wants a record, the one with the blue label, from the booth by the Cyclone. He wants someone to go up and get it. Nobody who went up has come back, and he knows that better than anyone.": "Старик Кони снимает с головы плюшевую голову тигра и держит её, как шапку. Он говорит, что Колесу холодно и ей нужна пластинка, та, с синей этикеткой, из будки у Циклона. Он хочет, чтобы кто-нибудь поднялся и принёс её. Никто из поднявшихся не вернулся, и он знает это лучше всех.",
+    "Forbid it: nobody goes up": "Запретить: наверх никто не идёт",
+    "Let him go alone, at night": "Пусть идёт один, ночью",
+    "Give him the old ticket punch to mend instead": "Дать ему починить старый компостер вместо этого",
+    "Salt by the share": "Соль по долям",
+    "Salty Maggie puts her ladle on your table like a gavel. Her pans are full, her crew is half, and she says a person is worth exactly as much salt as you can boil out of them. She offers preserved salt for the beds, at a price that is not only tokens.": "Солёная Мэгги кладёт на твой стол черпак, как молоток судьи. Её выпарки полны, бригада вполовину, и она говорит, что человек стоит ровно столько, сколько соли из него можно выварить. Она предлагает соль для грядок, и цена в ней не только жетоны.",
+    "Pay in tokens": "Заплатить жетонами",
+    "Pay in labour: two shifts at the pans": "Заплатить работой: две смены у выпарки",
+    "Refuse and keep the old salt": "Отказаться и держаться старой соли",
+    "He never misses": "Он не промахивается",
+    "Something has drifted into the flooded pocket under the platform: a crate on a tether, or a body. Bait stands at the edge with a harpoon and says he can reach it with one throw. He does not say what he is afraid it is.": "В затопленный карман под платформой что-то занесло: ящик на тросе или тело. Наживка стоит у края с гарпуном и говорит, что дотянется одним броском. Чего он боится, что это такое, он не говорит.",
+    "Let him throw": "Пусть бросает",
+    "Send a rope crew instead": "Послать вместо этого бригаду с верёвкой",
+    "Leave it to the water": "Оставить воде",
+    "The curiosity cabinet": "Кабинет редкостей",
+    "Barnum has opened his cabinet in the stairwell, and a line has formed: a dodo skeleton, a two-headed calf, a jar nobody wants to look at. He asks whether he may charge for a look. He says people need to be frightened by something small.": "Барнум открыл свой кабинет на лестнице, и выстроилась очередь: скелет дронта, двухголовый телёнок, банка, в которую никто не хочет смотреть. Он спрашивает, можно ли брать плату за просмотр. Он говорит, что людям нужно бояться чего-то маленького.",
+    "Let him charge admission": "Позволить брать плату за вход",
+    "Let him show it for nothing": "Пусть показывает даром",
+    "Close the cabinet": "Закрыть кабинет",
+    "The Tide at the grate": "Прилив у решётки",
+    "Sylvia sings at the grate after the last shift, and people from the next station come to stand in the tunnel and listen. She says she is not singing for them. She says she is singing for the families she left on the pier.": "Сильвия поёт у решётки после последней смены, и люди с соседней станции приходят стоять в тоннеле и слушать. Она говорит, что поёт не для них. Она говорит, что поёт для семей, которых оставила на пирсе.",
+    "Let her sing every night": "Пусть поёт каждую ночь",
+    "Keep it for the worst weeks": "Приберечь это для худших недель",
+    "Ask her to stop, the patrols can hear": "Попросить её замолчать, патрули слышат"
+  }
+}

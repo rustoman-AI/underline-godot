@@ -18,6 +18,8 @@ var check_events: Dictionary = {}
 var leader_ru: Dictionary = {}
 ## English -> Russian for the story events, as written in data/events_story.json.
 var story_ru: Dictionary = {}
+## English -> Russian for the random pool batches, as written in data/events_pool.json.
+var pool_ru: Dictionary = {}
 ## Truth fragments by id (data/truth.json): title, hint and text, each {en, ru}.
 var truth: Dictionary = {}
 ## Endings and epilogue lines (data/endings.json): "endings", "leaders" by answer, "truth" by proofs.
@@ -44,6 +46,7 @@ func load_all() -> bool:
 	tunnels = _arr("tunnels.json")
 	events = _arr("events.json")
 	var base_ru := _obj("ru.json")
+	pool_ru = add_events(_obj("events_pool.json"), base_ru)
 	leader_ru = add_events(_obj("events_leaders.json"), base_ru)
 	story_ru = add_events(_obj("events_story.json"), base_ru)
 	truth = _index(_obj("truth.json").get("fragments", []), "id")
@@ -59,7 +62,8 @@ func load_all() -> bool:
 	return error == ""
 
 
-## Leader consequence and story events (data/events_leaders.json, data/events_story.json) join the event list.
+## Random pool batches, leader consequence and story events (data/events_pool.json, data/events_leaders.json,
+## data/events_story.json) join the event list.
 ## Their "ru" map joins the Russian lookup in Copy; where ru.json already words the same English string
 ## differently, the event keeps its own Russian in "ru_own" (read by Game.line_of) so neither text changes the
 ## other. Returns the file's "ru" map.

@@ -232,7 +232,7 @@ static func _load() -> bool:
 		push_error("Underline: bad data/ru.json")
 		return false
 	map = data
-	for file in ["events_leaders.json", "events_story.json"]:
+	for file in ["events_pool.json", "events_leaders.json", "events_story.json"]:
 		var extra = JSON.parse_string(FileAccess.get_file_as_string("res://data/" + file))
 		if extra is Dictionary and extra.get("ru", null) is Dictionary:
 			for en in extra.ru:

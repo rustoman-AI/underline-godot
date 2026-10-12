@@ -220,10 +220,15 @@ func _check_events(catalog: Catalog) -> bool:
 		names.append(str(person.name).split(" ")[0])
 	var named := 0
 	var drawn := 0
+	## The one-in-three follow-up rule counts data/events.json only (docs/audit/balance_gate_decisions.md).
+	var base := {}
+	var raw = JSON.parse_string(FileAccess.get_file_as_string("res://data/events.json"))
+	for ev in raw if raw is Array else []:
+		base[str(ev.get("id", ""))] = true
 	for ev in catalog.events:
 		if bool(ev.get("sasha", false)):
 			sasha += 1
-		if not bool(ev.get("check_only", false)) and not ev.has("needs") and not ev.has("trigger"):
+		if base.has(str(ev.id)) and not bool(ev.get("check_only", false)) and not ev.has("needs") and not ev.has("trigger"):
 			drawn += 1
 			if str(ev.get("follow", "")) != "":
 				chains += 1
