@@ -56,3 +56,5 @@
 - F22: station view scale and width ("increase map scale, make it wider", Taiga). Needs a clarifying answer from the author first: station cross-section or network map, and what is too small. Check against the B2 camera clamp and the 0.75 to 1.5 zoom limits before any change.
 
 - F22 update: Ruslan also says the map should be bigger (two testers now, with Nicholas). Candidate NEXT package after numbers clarity, once we know which view (station or network) and what is too small. Network view today: min zoom = fit to the area, max = 3.5x fit (ui/network_view.gd:36,380).
+
+- Intro (about 45 s, 5 to 6 cards): in-engine slideshow of existing art with slow pan, text from data (EN/RU), optional narrator via Muse on "go". No AI video. Candidate after numbers clarity and map size, if playtest data still says "I do not understand the goal". (12 Oct, owner)
