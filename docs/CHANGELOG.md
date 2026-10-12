@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 162. Первый: 2026-10-02. Последний: 2026-10-12 60a4d4a.
+Коммитов: 165. Первый: 2026-10-02. Последний: 2026-10-12 4283f1b.
 
 ## Этапы
 
@@ -19,8 +19,11 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-12 (43)
+### 2026-10-12 (46)
 
+- `4283f1b` Map size: network map fills the window
+- `4473c26` Docs: Cursor brief for map size
+- `12e14d2` Docs: playtest4 build recorded
 - `60a4d4a` Docs: park toast layering and workshop storage notes
 - `3afc7a4` Numbers clarity: weekly in and out on resource cards
 - `191f700` Docs: park intro idea
