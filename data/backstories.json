@@ -110,6 +110,446 @@
         "en": "Her megaphone died mid-sermon once, batteries flat. She finished the sermon in sign language, and the crowd stayed. Afterwards someone gave her two fresh batteries, the most expensive gift on the line that year.",
         "ru": "Однажды посреди проповеди у неё сели батарейки в мегафоне. Она закончила проповедь жестами, и толпа не разошлась. Потом кто-то подарил ей две новые батарейки, самый дорогой подарок на линии в тот год."
       }
+    },
+    "jonah": {
+      "nostalgia": {
+        "en": "He remembers the stairwell of the fifth-floor walk-up: his neighbour's frying onions, and the elevated shaking the coffee in his cup at 6:12 every morning. He never once looked up from the cup. Now he stands at the gate at that hour without knowing why.",
+        "ru": "Он помнит лестницу пятого этажа без лифта: жареный лук у соседей и эстакаду, которая каждое утро в 6:12 трясла кофе в его кружке. Ни разу он не поднял глаз от кружки. Теперь он в этот час стоит у ворот и сам не знает почему."
+      },
+      "regret": {
+        "en": "On the bridge the squad broke in the first real dark. He gave the order to hold and then, a minute too late, the order to run. He came back with six tags in his coat and could not say their names aloud for a week. The names are on a list in his pocket, and the list has gone soft from folding.",
+        "ru": "На мосту отряд сломался в первой настоящей темноте. Он отдал приказ держаться, а через минуту, слишком поздно, приказ бежать. Вернулся с шестью жетонами в кармане и неделю не мог произнести их имена вслух. Имена записаны на листке в его кармане, и листок размяк от сгибов."
+      },
+      "pride": {
+        "en": "In the first winter he held the gate for forty days with half a rifle and a rota of people who had never held one. He taught a baker to stand a watch and a schoolteacher to say halt as if she meant it. Nobody came through who was not meant to.",
+        "ru": "В первую зиму он сорок дней держал ворота с половиной винтовки и с караулом из людей, которые никогда её не держали. Он научил пекаря стоять на посту, а учительницу говорить «стой» так, будто она имеет это в виду. Никто не прошёл, кто не должен был пройти."
+      },
+      "other": {
+        "en": "Every Sunday he polishes a pair of boots that are not his: size eleven, the left heel worn flat. Inside the left boot a name is written in marker. He has not read it since the first winter.",
+        "ru": "Каждое воскресенье он чистит пару сапог, которые ему не принадлежат: одиннадцатый размер, левый каблук стоптан. Внутри левого сапога маркером написано имя. Он не читал его с первой зимы."
+      },
+      "anecdote": {
+        "en": "A rookie once asked why the rifle at the gate had no firing pin. He said that was the whole point of a gate: people only need to believe it can bite. The rookie told it as a joke for a month and then began to sleep better.",
+        "ru": "Новобранец однажды спросил, почему у винтовки у ворот нет бойка. Он ответил, что в этом весь смысл ворот: людям достаточно верить, что они могут укусить. Новобранец месяц пересказывал это как шутку, а потом стал лучше спать."
+      }
+    },
+    "inez": {
+      "nostalgia": {
+        "en": "The second-floor kitchen, her mother's radio never off, and a burn ring on the table where one pot had stood for thirty years. Inez learned to argue by cutting in over the radio. She can still do the weather, the ball game and the preacher, in that order, without a breath.",
+        "ru": "Кухня на втором этаже, радио матери, которое никогда не выключали, и круг ожога на столе, где тридцать лет стояла одна и та же кастрюля. Инез училась спорить, перебивая радио. До сих пор она может отбарабанить погоду, бейсбол и проповедника, именно в этом порядке, на одном дыхании."
+      },
+      "regret": {
+        "en": "She had the papers and the truck. She did not have her mother, who would not leave without the kitchen radio, and the radio's plug was behind the fridge. They argued for nine minutes. The roads closed at minute ten.",
+        "ru": "У неё были бумаги и грузовик. Матери у неё не было: та не уезжала без кухонного радио, а вилка радио была за холодильником. Они спорили девять минут. На десятой минуте перекрыли дороги."
+      },
+      "pride": {
+        "en": "In her first winter as envoy she talked a Depot foreman into lending a drill crew for a promise she could not afford, and then made the promise affordable. The crew dug the lower cell. It is the cell people sleep in now.",
+        "ru": "В первую зиму послом она уговорила бригадира Депо одолжить буровую бригаду под обещание, которое ей было не по карману, а потом сделала это обещание посильным. Бригада вырыла нижнюю ячейку. Теперь в ней спят люди."
+      },
+      "other": {
+        "en": "She keeps a ledger of words she has learned in other people's languages: the Depot's counting words, the Directorate's schedules, the Exchange's prices. She reads it before every meeting like a prayer. The page for please has been rewritten four times.",
+        "ru": "Она ведёт записную книгу слов, которым научилась на чужих языках: счётные слова Депо, расписания Дирекции, цены Биржи. Перед каждой встречей она читает её, как молитву. Страница со словом «пожалуйста» переписана четыре раза."
+      },
+      "anecdote": {
+        "en": "She once ended a standoff at the gate by asking the Directorate captain, in front of both crews, what his mother would have said about the weather. He had a mother. The patrol went home.",
+        "ru": "Однажды она закончила стычку у ворот тем, что при обеих бригадах спросила капитана Дирекции, что сказала бы о погоде его мать. У него была мать. Патруль ушёл домой."
+      }
+    },
+    "mara": {
+      "nostalgia": {
+        "en": "The cab of the express before sunrise: the dead-man's handle warm under her palm, the signals going from red to green one after another like a sentence being finished. She could drive Stillwell to Fourth Avenue with the lights off and the radio dead. In a way she still does.",
+        "ru": "Кабина экспресса до рассвета: рукоятка бдительности тёплая под ладонью, сигналы переходят с красного на зелёный один за другим, как заканчиваемая фраза. Она могла провести поезд от Стиллвелла до Четвёртой авеню с выключенным светом и мёртвой рацией. В каком-то смысле она так и делает до сих пор."
+      },
+      "regret": {
+        "en": "Reyes rode in the cab with her for eleven years, a thermos on his knee. On the last night he stayed on the platform to hold the crowd back. She took the train into the yard with the doors closed, as the manual said, and the manual is the one thing she has never forgiven.",
+        "ru": "Одиннадцать лет Рейес ездил с ней в кабине, держа термос на колене. В последнюю ночь он остался на платформе удерживать толпу. Она ввела поезд в депо с закрытыми дверями, как велела инструкция, и инструкцию она так и не простила."
+      },
+      "pride": {
+        "en": "She wired the first generator out of scrap, spite and three weeks without sleep. The night it caught, she stood in the dark of the platform while the first bulb came up and let everyone else cheer. She counted the seconds to full load under her breath, as if the number could be taken away.",
+        "ru": "Первый генератор она собрала из лома, злости и трёх недель без сна. В ночь, когда он завёлся, она стояла в темноте платформы, пока разгоралась первая лампа, и позволила всем остальным кричать. Про себя она считала секунды до полной нагрузки, словно это число можно отнять."
+      },
+      "other": {
+        "en": "She carries a real timetable in her coat, with every stop, every curve and the speed limit for each. On bad nights she reads the Stillwell page. It has a coffee stain in the shape of Florida.",
+        "ru": "В пальто она носит настоящее расписание: каждая остановка, каждая кривая и ограничение скорости для каждой. В плохие ночи она читает страницу про Стиллвелл. На ней пятно от кофе в форме Флориды."
+      },
+      "anecdote": {
+        "en": "When the big generator stalled during the flood, she kicked it twice, said something about her ex-husband, and it started. The platform has kept a rule since: nobody touches the generator without kicking it once for Mara.",
+        "ru": "Когда во время потопа большой генератор встал, она дважды пнула его, сказала что-то про бывшего мужа, и он завёлся. С тех пор на платформе правило: к генератору никто не прикасается, не пнув его один раз за Мару."
+      }
+    },
+    "ruth": {
+      "nostalgia": {
+        "en": "The fourth-floor ward at three in the morning: monitors in soft green, a radiator ticking, and a night janitor named Gus who left a clementine on her desk every shift. She misses the clementine more than she admits.",
+        "ru": "Палата на четвёртом этаже в три часа ночи: мониторы мягкого зелёного, тикающая батарея и ночной уборщик Гас, который каждую смену оставлял ей на столе мандарин. Она скучает по мандарину больше, чем признаёт."
+      },
+      "regret": {
+        "en": "Mrs. Abernathy asked for water at 3:10. Ruth said in a minute, and closed her eyes for it. When she opened them it was 3:40. Mrs. Abernathy left on the last truck north, thin and alive, and Ruth has never decided whether that forgives her.",
+        "ru": "В 3:10 миссис Абернати попросила воды. Рут сказала «сейчас» и закрыла на это глаза. Когда открыла, было 3:40. Миссис Абернати уехала на последнем грузовике на север, худая, но живая, и Рут так и не решила, прощает ли это её."
+      },
+      "pride": {
+        "en": "Nobody in the quarters has died while she slept, because she does not sleep. She knows each cough in the station by its sound. By evening she can tell you who will be in the infirmary by morning.",
+        "ru": "Ни один человек в жилых отсеках не умер, пока она спала, потому что она не спит. Она знает каждый кашель на станции по звуку. К вечеру она может сказать, кто к утру окажется в лазарете."
+      },
+      "other": {
+        "en": "She keeps count of the scarves: forty-three given away, nine returned with thanks, three with complaints, one wrapped around a baby. She stopped counting the thanks in the first month and started counting the cold.",
+        "ru": "Она ведёт счёт шарфам: сорок три отдано, девять вернулись с благодарностью, три с жалобами, один обмотан вокруг младенца. Благодарности она перестала считать в первый же месяц и начала считать холод."
+      },
+      "anecdote": {
+        "en": "When a child asked whether she ever slept, she said yes, once, in a hospital, and it cost an old woman her water. The child gave her a blanket, and the station pretended not to see the nurse hold it for an hour without moving.",
+        "ru": "Когда ребёнок спросил, спит ли она вообще, она сказала, что да, один раз, в больнице, и это стоило одной старушке стакана воды. Ребёнок отдал ей одеяло, и станция сделала вид, что не видит, как медсестра час держит его, не шевелясь."
+      }
+    },
+    "benny": {
+      "nostalgia": {
+        "en": "The bodega on Neptune Avenue at six in the morning: the shutter rattling up, burnt coffee and fried onions, the lottery tickets lined up by price. He knew who bought cigarettes for whom and who was lying about quitting. He misses being the man who knew.",
+        "ru": "Бодега на Нептьюн-авеню в шесть утра: грохочет поднимающаяся решётка, пахнет пригоревшим кофе и жареным луком, лотерейные билеты выложены по цене. Он знал, кто кому покупает сигареты и кто врёт, что бросил. Ему не хватает того человека, который всё знал."
+      },
+      "regret": {
+        "en": "He sold his brother's seat on the last truck north, and the money fed twelve strangers for two months. His brother understood. That was the worst of it. Benny has been waiting ever since for someone to be angry with him properly.",
+        "ru": "Он продал место брата на последнем грузовике на север, и на эти деньги два месяца кормились двенадцать чужих людей. Брат понял. Это хуже всего. С тех пор Бенни ждёт, чтобы кто-нибудь как следует на него рассердился."
+      },
+      "pride": {
+        "en": "He never cheated a hungry person: no short weights, no watered soup. His prices are robbery by any honest standard, and he posts them on a board where anyone can read them. The only people who have complained about the board are those who could afford it.",
+        "ru": "Он ни разу не обманул голодного: ни обвеса, ни разбавленного супа. Его цены по любым честным меркам грабёж, и он вывешивает их на доске, где может прочесть любой. Жаловались на доску только те, кто мог себе позволить его цены."
+      },
+      "other": {
+        "en": "He keeps the bell from the bodega door in his coat and rings it once on the first Monday of every month, for no reason he will state. Nobody has asked him to stop. A few people on the platform have started looking up.",
+        "ru": "Колокольчик с двери бодеги он носит в пальто и раз в месяц, в первый понедельник, звонит в него без объяснений. Его никто не просил перестать. Несколько человек на платформе стали поднимать глаза."
+      },
+      "anecdote": {
+        "en": "He once traded a whole crate of batteries for a working toaster. The platform smelled of breakfast for a week. He insists it was the best deal of his life and will not sell the toaster for anything, including a crate of batteries.",
+        "ru": "Однажды он обменял целый ящик батареек на рабочий тостер. Неделю вся платформа пахла завтраком. Он настаивает, что это лучшая сделка в его жизни, и не продаёт тостер ни за что, в том числе за ящик батареек."
+      }
+    },
+    "samira": {
+      "nostalgia": {
+        "en": "Her father's workshop on a Saturday morning: the radio on low, the vise ticking as it cooled, orange peel curling over the edge of the bench. He hummed one song, always the same four bars, and never found the end of it. She can still hum the four bars. She has not found the end either.",
+        "ru": "Мастерская отца субботним утром: радио вполголоса, остывающие тиски, шелуха апельсина, свисающая с края верстака. Он напевал одну и ту же песню, одни и те же четыре такта, и никогда не находил конца. Она до сих пор может напеть эти четыре такта. Конца она тоже не нашла."
+      },
+      "regret": {
+        "en": "She was not in the shop the day he stopped coming in. She was at an evening class, learning to read drawings she already understood, because the certificate paid more. The engine was one crankshaft from done. The certificate was in her bag when the Silence came, and she kept it for a month before she burned it for light.",
+        "ru": "Её не было в мастерской в тот день, когда он перестал приходить. Она сидела на вечернем курсе, учась читать чертежи, которые и так понимала, потому что диплом оплачивался лучше. До готового двигателя не хватало одного коленвала. Диплом лежал в сумке, когда пришла Тишина, и она хранила его месяц, а потом сожгла ради света."
+      },
+      "pride": {
+        "en": "When the main pump seized last month she took it apart on the floor of the pump room by lamplight and had it breathing again by dawn. Mara stared. Samira wiped her hands on her trousers and asked what was for breakfast.",
+        "ru": "Когда в прошлом месяце встал главный насос, она разобрала его на полу насосной при свете лампы, и к рассвету он дышал снова. Мара только смотрела. Самира вытерла руки о штаны и спросила, что на завтрак."
+      },
+      "other": {
+        "en": "She talks to the machines. The drill is Clementine, the big pump is the Bishop, and the belt in the workshop is called Sunday because it is only reliable once a week. Leo has started naming his tools too. She pretends not to have noticed.",
+        "ru": "Она разговаривает с механизмами. Бур зовут Клементина, большой насос Епископ, а ремень в мастерской Воскресенье, потому что он надёжен только раз в неделю. Лео тоже начал давать имена своим инструментам. Она делает вид, что не заметила."
+      },
+      "anecdote": {
+        "en": "When the drill went missing for a day, Samira did not raise the alarm. She sat in the lower passage with a thermos until she heard it: a child, tapping a rhythm on the pipes with it, off the beat. She did not scold him. She showed him where the beat was.",
+        "ru": "Когда бур пропал на день, Самира не подняла тревогу. Она сидела в нижнем проходе с термосом, пока не услышала: ребёнок отбивал им ритм по трубам, мимо такта. Она не стала ругать. Она показала ему, где такт."
+      }
+    },
+    "owen": {
+      "nostalgia": {
+        "en": "The Fourth of July parade down his own street: the drums arriving a block before the band, the old men on the curb taking off their caps, the little flag the barber stuck in his pocket every year. He marched in it at nineteen. He still falls into step when a pipe knocks twice.",
+        "ru": "Парад Четвёртого июля на его собственной улице: барабаны приходят за квартал до оркестра, старики на бордюре снимают кепки, маленький флажок, который парикмахер каждый год совал ему в карман. Он шагал в нём в девятнадцать. Он по сей день сбивается на шаг, когда труба дважды стукнет."
+      },
+      "regret": {
+        "en": "The child he shorted that first winter is still on the station, taller now, and eats with his head down. Owen has never said sorry out loud. He counts that boy's bowl a third time, and the boy has never once asked why.",
+        "ru": "Ребёнок, которого он обделил в ту первую зиму, всё ещё на станции, он вырос и ест, опустив голову. Оуэн ни разу не извинился вслух. Миску этого мальчика он пересчитывает в третий раз, и мальчик ни разу не спросил почему."
+      },
+      "pride": {
+        "en": "In the tunnel riots he held the north stair with two others against forty. It is in the record book in his own hand, one line long: held. He would not let the clerk add a second line.",
+        "ru": "Во время бунтов в тоннеле он вместе с двумя другими удерживал северную лестницу против сорока. Это записано в книге учёта его почерком, одной строкой: «Удержали». Дописать вторую строку он писарю не позволил."
+      },
+      "other": {
+        "en": "The kids call him Bowlman behind his back. Last winter someone left a bowl on his bunk with the name painted on it in white. It is the only thing in the station that is his. He has never eaten from it: it stands on the shelf above the bunk, turned to face the wall.",
+        "ru": "Дети за спиной зовут его Мисочником. Прошлой зимой кто-то оставил на его койке миску с надписью белой краской. Это единственная вещь на станции, которая принадлежит ему. Он ни разу не ел из неё: она стоит на полке над койкой, повёрнутая к стене."
+      },
+      "anecdote": {
+        "en": "Once a man asked him whether it was true that everybody eats the same. Owen put the man's bowl on the scale in front of the whole line, then his own. They weighed the same. The man ate in silence. The line, for once, did too.",
+        "ru": "Однажды один человек спросил, правда ли, что все едят одинаково. Оуэн при всей очереди поставил на весы миску этого человека, потом свою. Они весили одинаково. Человек ел молча. Очередь на этот раз тоже."
+      }
+    },
+    "lila": {
+      "nostalgia": {
+        "en": "The roof of the building on Dean Street on summer evenings: tar paper still warm from the day, all of Brooklyn laid out like a model railway, pigeons turning above the water towers. She took one person up there, once, a boy from the second floor who had never seen the sky without a wall in it. She has not forgotten his face.",
+        "ru": "Крыша дома на Дин-стрит в летние вечера: рубероид, ещё тёплый от дня, весь Бруклин, как игрушечная железная дорога, голуби над водонапорными башнями. Она вывела туда одного человека, один раз: мальчика со второго этажа, который никогда не видел неба без стены в углу. Его лица она не забыла."
+      },
+      "regret": {
+        "en": "She froze on the stairwell while her sister called her name from two flights below. Somebody else went down. Her sister never mentioned it. She has been waiting a year for her sister to mention it, and in the evenings she sits close enough to hear her breathe.",
+        "ru": "Она застыла на лестнице, пока сестра звала её по имени двумя пролётами ниже. Кто-то другой спустился вместо неё. Сестра ни разу об этом не упомянула. Уже год она ждёт, что сестра упомянет, и по вечерам садится достаточно близко, чтобы слышать её дыхание."
+      },
+      "pride": {
+        "en": "When the rumble came and the little ones were in the lower passage, she went down. Her hands shook so hard she held the lamp in both. She carried out four children, one on her back. Fear does not get a vote when children are involved: that is the rule she made, and she has not broken it.",
+        "ru": "Когда загрохотало и малыши оказались в нижнем проходе, она спустилась. Руки так дрожали, что лампу она держала обеими руками. Она вынесла четверых детей, одного на спине. Страх не имеет голоса, когда речь о детях: это правило она придумала, и ни разу не нарушила."
+      },
+      "other": {
+        "en": "She sleeps on the platform edge, never in the bunks. She says that way she can see the dark coming from far away. Nobody has told her the platform edge is where the draft is. She has a scarf for that, from Ruth, the blue one.",
+        "ru": "Она спит на краю платформы и никогда в койках. Говорит, так видно, как темнота приближается издалека. Никто не сказал ей, что на краю платформы сквозняк. На этот случай у неё есть шарф от Рут, синий."
+      },
+      "anecdote": {
+        "en": "She marks the wall above her sleeping place with chalk: one tick for every week since she last went below. The ticks run in a long arc. Pete says it looks like the vault of a church. She says it looks like a sky.",
+        "ru": "Она отмечает мелом стену над своим местом: одна чёрточка за каждую неделю с тех пор, как она последний раз спускалась вниз. Чёрточки идут длинной дугой. Пит говорит, что это похоже на свод церкви. Она говорит, что на небо."
+      }
+    },
+    "pete": {
+      "nostalgia": {
+        "en": "The fire escape on the third floor at night: a mug of tea going cold on the grating, the street lamp swinging in a puddle, and rain on the metal in a rhythm he could set a watch by. He fell asleep there more often than in his bed.",
+        "ru": "Пожарная лестница на третьем этаже ночью: остывающая кружка чая на решётке, уличный фонарь, качающийся в луже, и дождь по металлу в ритме, по которому можно было сверять часы. Он засыпал там чаще, чем в кровати."
+      },
+      "regret": {
+        "en": "Every Sunday for three years he said next weekend, Ma, I promise, and bought a roll of tar paper he never carried over. The rolls are still in a closet on Avenue D. He has not been told what became of the roof. He has been told his mother's building still stands, and he cannot decide whether that is better.",
+        "ru": "Каждое воскресенье три года он говорил «на следующих выходных, мам, обещаю» и покупал рулон рубероида, который так и не донёс. Рулоны до сих пор лежат в шкафу на Авеню Д. Что стало с крышей, ему не говорили. Ему сказали, что мамин дом стоит, и он не может решить, лучше ли это."
+      },
+      "pride": {
+        "en": "The drip over the bunks, fixed with tar paper, wire and a tin cup for a gutter. Three months without a drop on a single blanket. Whenever something leaks people say Pete's drip is back, and somebody always goes to look, and it is never his.",
+        "ru": "Капель над койками, починенная рубероидом, проволокой и жестяной кружкой вместо желоба. Три месяца ни одной капли ни на одно одеяло. Когда что-нибудь течёт, люди говорят «капает у Пита», и кто-нибудь всегда идёт проверять, и это никогда не бывает его капель."
+      },
+      "other": {
+        "en": "He named the leaks before he fixed them: Old Faithful, the Twins, and one he called Ma's Roof, which he fixed first, always. He keeps a list on the wall of the pump room in pencil, with a tick beside each name that has gone quiet.",
+        "ru": "Он давал имена протечкам, прежде чем их чинить: Старый Верный, Близнецы и одна, которую он называл Мамина Крыша: её он всегда чинил первой. На стене насосной он ведёт карандашный список с галочкой у каждого имени, которое замолчало."
+      },
+      "anecdote": {
+        "en": "A child once asked Pete what he would name the first leak after the surface returned. He thought for a long time and said Welcome Back. The child wrote it on the wall of the pump room, at the bottom of the list, and left room for a tick.",
+        "ru": "Ребёнок однажды спросил Пита, как он назовёт первую протечку после возвращения поверхности. Он долго думал и сказал: «С возвращением». Ребёнок написал это на стене насосной в самом низу списка и оставил место для галочки."
+      }
+    },
+    "june": {
+      "nostalgia": {
+        "en": "Her radio on the windowsill, tuned a hair off the station so the static sat under the voice like a blanket. The DJ read the traffic as if it were poetry and the news as if it were weather. She fell asleep before the weather every night. She has never heard the end of the broadcast.",
+        "ru": "Радио на подоконнике, настроенное чуть мимо станции, чтобы помехи лежали под голосом, как одеяло. Ди-джей читал пробки как стихи, а новости как погоду. Каждую ночь она засыпала до прогноза. Конца передачи она так ни разу и не слышала."
+      },
+      "regret": {
+        "en": "Her brother's number is the first line of the logbook, and the line has been traced over so often the pen has worn through the page. She has not called it. She says the number would ring in a room that is not there. She traces it every night anyway.",
+        "ru": "Номер брата стоит первой строкой в журнале, и эту строку обводили так часто, что ручка протёрла страницу. Она не звонила. Она говорит, что номер зазвонил бы в комнате, которой больше нет. Каждый вечер она всё равно его обводит."
+      },
+      "pride": {
+        "en": "She logs everything the radio gives her: static, whispers, half a song, once a voice that read a list of names in a language she did not know. The logbook is on its fourth volume. If anyone ever asks how the surface sounded in the first year, she is the only one who can say.",
+        "ru": "Она записывает всё, что даёт радио: помехи, шёпот, половину песни, однажды голос, читавший список имён на неизвестном ей языке. Журнал дошёл до четвёртого тома. Если кто-нибудь спросит, как звучала поверхность в первый год, ответить сможет только она."
+      },
+      "other": {
+        "en": "Twice she heard a voice say the station's name, clear as anything, and both times at the same minute past three. She has stopped telling people the minute. She sits at the set at that minute every night, the headphones around her neck, not on.",
+        "ru": "Дважды она слышала голос, который произнёс название станции, чисто, как в студии, и оба раза в одну и ту же минуту после трёх. Минуту она людям говорить перестала. Каждую ночь в эту минуту она сидит у приёмника, наушники на шее, не на ушах."
+      },
+      "anecdote": {
+        "en": "A child once asked June which voice in the notebook was her favourite. She turned the pages for a long time and read out the one in which a woman, somewhere, slowly reads a recipe for cornbread. That night half the platform dreamed of cornbread.",
+        "ru": "Ребёнок однажды спросил Джун, какой голос в тетради её любимый. Она долго листала и прочла вслух тот, где какая-то женщина где-то не спеша читает рецепт кукурузного хлеба. В ту ночь полплатформы видело во сне кукурузный хлеб."
+      }
+    },
+    "hal": {
+      "nostalgia": {
+        "en": "The Q35 at 2 a.m.: the empty airport road, a lit window every few blocks, a woman with a violin case asleep against the glass, and the bus sighing as it knelt at each stop as if it were tired too. He said good night to every passenger. Most of them did not answer.",
+        "ru": "Q35 в два часа ночи: пустая дорога в аэропорт, освещённое окно каждые несколько кварталов, женщина с футляром скрипки, спящая у стекла, и автобус, который на каждой остановке вздыхал, опускаясь, будто тоже устал. Он желал спокойной ночи каждому пассажиру. Большинство не отвечало."
+      },
+      "regret": {
+        "en": "His wife did not say it twice. You are disappearing, she said once, at the kitchen table, and he heard it as a complaint about money. He understood on the second night of the Silence, driving no bus, in no direction. There are two mugs on the table by the dials. He has never taken the second one away.",
+        "ru": "Жена не сказала это дважды. «Ты исчезаешь», сказала она один раз, на кухне, и он расслышал в этом жалобу на деньги. Понял он на вторую ночь после Тишины, когда ехал без автобуса и без направления. На столе у пульта стоят две кружки. Вторую он ни разу не убрал."
+      },
+      "pride": {
+        "en": "Every night shift since the first, without exception. He knows the sound of each generator going wrong before it goes wrong: a cough, a pause, a note too high. Twice he has woken the whole platform in time. Nobody has ever thanked him for the nights when nothing happened. He counts those too.",
+        "ru": "Каждая ночная смена с первой, без исключений. Он знает звук каждого генератора раньше, чем тот сломается: кашель, пауза, нота выше обычной. Дважды он будил всю платформу вовремя. Никто ни разу не поблагодарил его за ночи, когда ничего не случилось. Их он тоже считает."
+      },
+      "other": {
+        "en": "He sleeps from six to ten in a bunk beside the dial room, curtain drawn, with a tag on the rail: Asleep. Wake for fire or birth. Ruth added the second half. He did not ask her to. He has never taken the tag down.",
+        "ru": "Он спит с шести до десяти на койке рядом с пультом, занавеска задёрнута, на перилах висит бирка: «Сплю. Будить при пожаре или родах». Вторую половину дописала Рут. Он её не просил. Бирку он ни разу не снимал."
+      },
+      "anecdote": {
+        "en": "A drunk once boarded his bus at 4:40 a.m. and asked where it was going. Hal said the airport. The man said he had always wanted to see where the planes go. Hal drove him there and stood beside him at the fence for half an hour. Neither of them said what they were looking for.",
+        "ru": "Однажды в 4:40 утра в его автобус сел пьяный и спросил, куда он едет. Хэл сказал: в аэропорт. Мужчина ответил, что всегда хотел увидеть, куда летят самолёты. Хэл довёз его и полчаса простоял с ним у ограды. Ни один не сказал, что они ищут."
+      }
+    },
+    "nora": {
+      "nostalgia": {
+        "en": "The ferry rail at six in the morning: diesel and salt, a rope coiled wet at her feet, gulls fighting over a paper bag, and a horizon so far off it seemed to be breathing. She could name the tide by the taste of the spray. Her father taught her that in a rowboat, a mouthful at a time.",
+        "ru": "Поручень парома в шесть утра: запах солярки и соли, мокрый канат кольцом у ног, чайки, дерущиеся за бумажный пакет, и горизонт так далеко, что казалось, он дышит. Прилив она называла по вкусу брызг. Этому её отец учил в лодке, глоток за глотком."
+      },
+      "regret": {
+        "en": "Her father told her to learn the water's moods and she laughed. He did not live to see what she learned. She has been trying to make it up to him ever since, by tasting the air at the grate every night, as if it were a debt.",
+        "ru": "Отец велел ей учить настроения воды, а она смеялась. До того, чему она научилась, он не дожил. С тех пор она пытается загладить это перед ним: каждую ночь пробует воздух у решётки на вкус, как будто это долг."
+      },
+      "pride": {
+        "en": "Last month she caught the mould two days before any instrument did, standing in the lower passage with her eyes closed. They scrubbed the walls and nobody fell ill. Mara calls it a superpower. Nora calls it her father's voice and does not say which words.",
+        "ru": "В прошлом месяце она почуяла плесень за два дня до любого прибора, стоя в нижнем проходе с закрытыми глазами. Стены отскребли, и никто не заболел. Мара называет это сверхспособностью. Нора называет это голосом отца и не говорит, какие слова он произносит."
+      },
+      "other": {
+        "en": "She can tell which tunnel the wind came through by taste, and tests herself every morning: a mouthful at each grate, a chalk mark at the one that tastes of rust. Nobody has ever stumped her. Leo tried with a wet sock.",
+        "ru": "По вкусу она может сказать, через какой тоннель пришёл ветер, и проверяет себя каждое утро: глоток воздуха у каждой решётки и меловая отметка у той, что отдаёт ржавчиной. Её никто ни разу не поймал. Лео пробовал мокрым носком."
+      },
+      "anecdote": {
+        "en": "A child once asked her what the surface tasted like. She said salt, distance and something she had no word for, and that she would describe it properly once she had tasted it again. The child asked her to write it down so she would not forget. She did, in chalk, on the wall by the third grate: salt, distance, ?",
+        "ru": "Ребёнок однажды спросил её, какой вкус у поверхности. Она сказала: соль, даль и что-то, для чего у неё нет слова, и что опишет как следует, когда попробует снова. Ребёнок попросил записать, чтобы не забыть. Она записала мелом на стене у третьей решётки: «соль, даль, ?»."
+      }
+    },
+    "vic": {
+      "nostalgia": {
+        "en": "The Flatlands yard on a Sunday: rows of cars stacked like loaves, a radio playing somewhere under a hood, his father with a cigarette behind his ear pointing at a fender and saying what it was before. He could say what any part used to be and what it could still become. Vic is learning the second half.",
+        "ru": "Свалка во Флэтлендсе в воскресенье: ряды машин, сложенных, как буханки, радио, играющее где-то под капотом, и отец с сигаретой за ухом, указывающий на крыло и говорящий, чем оно было раньше. Он мог сказать, чем была любая деталь и чем она ещё может стать. Вторую половину Вик пока учит."
+      },
+      "regret": {
+        "en": "He left the wooden box with his name burned in the lid, and took the food, which was the right call. The box is the one thing from that day he has tried to build around: every shelf he makes is the size of a lid. He does not know he is doing it.",
+        "ru": "Он оставил деревянный ящик с именем, выжженным на крышке, и взял еду, это было правильно. Ящик единственное из того дня, вокруг чего он пытался строить: каждая полка, которую он делает, размером с крышку. Он не знает, что делает это."
+      },
+      "pride": {
+        "en": "The pile is labelled, shelved and counted. It has saved the station twice: a gasket for the pump, an antenna for the radio. At two in the morning he can find a left-handed flange in the dark by the shape of the gap it leaves.",
+        "ru": "Куча подписана, разложена по полкам и посчитана. Она дважды спасала станцию: прокладка для насоса, антенна для радио. В два часа ночи он находит левый фланец в темноте по форме пустого места, которое тот оставил."
+      },
+      "other": {
+        "en": "He has a rule he never explains: nothing leaves the pile for nothing. Not for tokens, not for a favour, but for a story of what it was. People bring him the story and take the part. He has heard the history of a hundred things and wrote none of it down.",
+        "ru": "У него есть правило, которое он не объясняет: ничего не уходит из кучи просто так. Не за жетоны и не за услугу, а за историю о том, чем оно было. Люди приносят ему историю и уносят деталь. Он выслушал историю сотни вещей и ни одной не записал."
+      },
+      "anecdote": {
+        "en": "People joke about the mountain, and one winter Samira painted a flag and stuck it on top: VIC. He took it down, folded it, and put it in a wooden box he built that same night, a little too small for the flag. He kept it that way.",
+        "ru": "Над горой шутят, и одной зимой Самира нарисовала флаг и воткнула его наверху: «ВИК». Он снял его, сложил и убрал в деревянный ящик, который смастерил в ту же ночь, немного тесноватый для флага. Так и оставил."
+      }
+    },
+    "ada": {
+      "nostalgia": {
+        "en": "The brass plate on the door of her first flat, still bright on the day she locked it for the last time, and a key warm in her hand from her pocket. The sound of the latch settling. The afternoon light from the one window, falling square on the floor, going nowhere. She misses the quiet of being nobody's neighbour.",
+        "ru": "Латунная табличка на двери её первой квартиры, ещё блестящая в тот день, когда она в последний раз запирала дверь, и ключ, тёплый от кармана. Звук, с которым щёлкает задвижка. Дневной свет из единственного окна, лежащий на полу квадратом и никуда не идущий. Она скучает по тишине человека, который ничей не сосед."
+      },
+      "regret": {
+        "en": "She and her sister shared a bed until fourteen and a wall until Ada swore she never would again. They had not spoken for a year when the Silence came. She does not know whether her sister was in the city. Each month she makes one curtain too many and hangs it in the passage, where nobody sleeps, and says it is for the draught.",
+        "ru": "Они с сестрой делили кровать до четырнадцати лет и стену до тех пор, пока Ада не поклялась, что больше не будет. Они не разговаривали год, когда пришла Тишина. Она не знает, была ли сестра в городе. Каждый месяц она шьёт на одну занавеску больше, чем нужно, и вешает её в проходе, где никто не спит, и говорит, что это от сквозняка."
+      },
+      "pride": {
+        "en": "Every one of the forty bunks has a curtain now: cloth, canvas, once a tarpaulin. She embroidered the good ones with trains, because trains were what she had. People cry behind them, and she lets them. A room should hold whatever you bring into it, she says, and keeps her needle moving.",
+        "ru": "У каждой из сорока коек теперь есть занавеска: ткань, брезент, однажды тент. Хорошие она вышила поездами, потому что поезда были тем, что у неё осталось. За занавесками плачут, и она позволяет. «Комната должна вмещать всё, что ты в неё приносишь», говорит она и не прекращает шить."
+      },
+      "other": {
+        "en": "Her own curtain is the only one with a small stitched door in the corner, the size of a thumb. She says it is for the mice. The mice, she adds, have never complained about the rent. A child once asked to see it open, and Ada sewed on a latch.",
+        "ru": "Её собственная занавеска единственная с маленькой пришитой дверцей в углу, величиной с большой палец. Она говорит, что это для мышей. Мыши, добавляет она, ни разу не жаловались на арендную плату. Однажды ребёнок попросил показать, как она открывается, и Ада пришила задвижку."
+      },
+      "anecdote": {
+        "en": "Once a man complained that the curtains made it impossible to tell who was awake. Ada took him by the sleeve to the middle of the room and had him close his eyes and listen. By the end of a minute he could tell eleven people apart by their breathing. He stopped complaining and began to draw his own curtain only halfway.",
+        "ru": "Один мужчина как-то пожаловался, что из-за занавесок не понять, кто не спит. Ада взяла его за рукав, отвела на середину комнаты и велела закрыть глаза и слушать. К концу минуты он различал одиннадцать человек по дыханию. Он перестал жаловаться и стал задёргивать свою занавеску только наполовину."
+      }
+    },
+    "rob": {
+      "nostalgia": {
+        "en": "The plant at the end of third shift: the whistle, the belt winding down like a held breath let go, forty men washing their hands at one long steel sink and not talking. He misses the sink more than the belt. Standing shoulder to shoulder with strangers who were tired in exactly the same way.",
+        "ru": "Завод в конце третьей смены: свисток, лента, замедляющаяся, как выдохнутый наконец вдох, сорок мужчин, моющих руки у одной длинной стальной раковины и не разговаривающих. Раковины ему не хватает больше, чем ленты. Он стоял плечом к плечу с чужими людьми, уставшими абсолютно одинаково."
+      },
+      "regret": {
+        "en": "His daughter was three days old before he held her. He promised to be there for the next one, and there was no next one. He keeps a tally of overtime hours on the wall by his bunk, because hours are the only thing he knows how to give. It is a long tally. The wall has run out.",
+        "ru": "Дочери было три дня, когда он впервые взял её на руки. Он обещал быть рядом при следующем ребёнке, и следующего не было. На стене у его койки он ведёт счёт сверхурочных часов, потому что часы единственное, что он умеет отдавать. Счёт длинный. Стена кончилась."
+      },
+      "pride": {
+        "en": "He has never left a shift unfinished. Belts jam, lights die, the world ends, and Rob stays on the belt until the work is done. When the supply belt seized in the flood he fed it by hand for eleven hours. The platform ate that week on what he moved.",
+        "ru": "Он ни разу не оставил смену недоделанной. Ленты заклинивает, свет гаснет, мир кончается, а Роб остаётся на ленте, пока работа не сделана. Когда во время потопа встала подающая лента, он одиннадцать часов подавал вручную. В ту неделю платформа ела то, что он передвинул."
+      },
+      "other": {
+        "en": "He talks in his sleep in short sentences the length of a task: pass it, hold it, next. Mara says it is not a skill but a medical condition. The belt, he says, kept moving. Ruth keeps a notebook of everything he says in his sleep and has not told him there is a notebook.",
+        "ru": "Он говорит во сне короткими фразами длиной в одну операцию: передай, держи, следующий. Мара говорит, что это не навык, а болезнь. Лента, говорит он, продолжала двигаться. Рут ведёт тетрадь всего, что он произносит во сне, и не сказала ему, что тетрадь есть."
+      },
+      "anecdote": {
+        "en": "He once fell asleep standing at the belt and woke up still moving his hands. Mara said that was a medical condition. He went back to work. Since then, when somebody on the station is too tired to stop, people say they are doing a Rob, and hold out a cup.",
+        "ru": "Однажды он заснул стоя у ленты и проснулся, продолжая двигать руками. Мара сказала, что это болезнь. Он вернулся к работе. С тех пор, когда кто-то на станции слишком устал, чтобы остановиться, люди говорят, что он делает «как Роб», и протягивают ему кружку."
+      }
+    },
+    "tess": {
+      "nostalgia": {
+        "en": "The parish hall on a Wednesday night: twenty folding chairs in a ring, the piano a quarter tone flat, a thermos of tea going round with one chipped cup. They never sang for anybody. She misses the second after the last note, when nobody moved and nobody wanted to be the first.",
+        "ru": "Приходской зал в среду вечером: двадцать складных стульев кругом, пианино на четверть тона ниже, термос с чаем, который ходит по кругу с одной щербатой чашкой. Они ни для кого не пели. Ей не хватает той секунды после последней ноты, когда никто не шевелится и никто не хочет шевельнуться первым."
+      },
+      "regret": {
+        "en": "When the panic hit the platform she froze with all her faith stuck in her throat, and Ellis was the one who moved. She promised God she would be brave next time. She has spent every week since waiting for next time, and half of every week afraid of it.",
+        "ru": "Когда на платформе началась паника, она застыла, и вся её вера застряла в горле, а двинулся с места Эллис. Она пообещала Богу быть храброй в следующий раз. Каждую неделю с тех пор она ждёт следующего раза и половину каждой недели боится его."
+      },
+      "pride": {
+        "en": "She started the hymn. Shaking, in the middle of the screaming, she began to sing, and one by one they joined her, and the screaming stopped. Fear cannot sing and scream at the same time. She learned that once and has used it twice since, on a quarrel and on a fire drill.",
+        "ru": "Она начала гимн. Дрожа, посреди крика, она запела, и один за другим к ней присоединились, и крик прекратился. Страх не может петь и кричать одновременно. Она узнала это один раз и пользовалась этим дважды с тех пор: на ссоре и на учебной тревоге."
+      },
+      "other": {
+        "en": "She hums a lullaby while she folds the bunk blankets, always the same one, in a key too low for her voice. It was her mother's. Sometimes someone passing stops to finish the line before they remember themselves, and then walks on a little faster.",
+        "ru": "Складывая койки-одеяла, она напевает колыбельную, всегда одну и ту же, в тональности слишком низкой для её голоса. Это колыбельная её матери. Иногда кто-нибудь, проходя мимо, останавливается и допевает строку, пока не опомнится, а потом идёт дальше чуть быстрее."
+      },
+      "anecdote": {
+        "en": "Teaching the children the old songs, she found they did not know the words, so they made up new ones about the tunnels. The best, she says, is the one about the third grate, which has no rhyme and eleven verses. God has heard worse rhymes. He has not heard more verses.",
+        "ru": "Обучая детей старым песням, она обнаружила, что они не знают слов, и они придумали новые, про тоннели. Лучшая, говорит она, про третью решётку: в ней нет ни одной рифмы и одиннадцать куплетов. Бог слышал рифмы и похуже. Столько куплетов он не слышал."
+      }
+    },
+    "paul": {
+      "nostalgia": {
+        "en": "The cab at Church Avenue: the tunnel breathing cold on his neck at the same second every run, the signal lamps like beads on a string, the radio saying the stop before the stop. He could say the signals in his sleep and sometimes did. He misses knowing exactly where he was in the dark.",
+        "ru": "Кабина на Чёрч-авеню: тоннель дышит холодом ему в затылок в одну и ту же секунду каждого рейса, сигнальные лампы, как бусины на нитке, рация, называющая остановку перед остановкой. Он мог перечислять сигналы во сне и иногда перечислял. Ему не хватает того, как точно он знал, где находится в темноте."
+      },
+      "regret": {
+        "en": "He was two minutes late the night of the derailment. Had he been on time he would have been past the curve when the rail gave. He promised the families he would tell them what happened. The rail gave: that is all he has. He has told it forty times, and each time the families' faces ask the same question, and he does not have the answer.",
+        "ru": "В ночь схода с рельсов он опаздывал на две минуты. Приди он вовремя, он проехал бы поворот до того, как рельс лопнул. Он пообещал семьям рассказать, что произошло. Рельс лопнул: это всё, что у него есть. Он рассказывал это сорок раз, и каждый раз лица семей задавали один и тот же вопрос, а ответа у него нет."
+      },
+      "pride": {
+        "en": "When scouts need a way through, they ask Paul. Every tunnel by heart, by foot, by the sound the dark makes. Last year he led a crew through a flooded run in pitch darkness by listening to the water, and brought them out where he said he would.",
+        "ru": "Когда разведчикам нужен проход, они идут к Полу. Каждый тоннель наизусть, ногами, по звуку, которым отзывается тьма. В прошлом году он провёл бригаду через затопленный перегон в полной темноте, слушая воду, и вывел их там, где сказал."
+      },
+      "other": {
+        "en": "Once a month he walks his old route and says the stops aloud: Union Square, Prospect Park, Church Avenue, Kings Highway, Brighton Beach. The tiles are still there, the signs, the names. Nobody has asked him to stop, and last winter a few people began to walk behind him, without a word, in the dark.",
+        "ru": "Раз в месяц он проходит свой старый маршрут и вслух называет остановки: Юнион-сквер, Проспект-парк, Чёрч-авеню, Кингс-хайвей, Брайтон-Бич. Плитка всё ещё на месте, знаки, названия. Его никто не просил прекратить, а прошлой зимой несколько человек молча пошли за ним в темноте."
+      },
+      "anecdote": {
+        "en": "A boy once asked Paul what his favourite stop was. He thought for a long time and said Kings Highway, because nothing ever happened there. The boy asked why that made it his favourite. Paul said that on a bad night a stop where nothing happens is the best one on the line.",
+        "ru": "Мальчик однажды спросил Пола, какая у него любимая остановка. Он долго думал и сказал: Кингс-хайвей, потому что там никогда ничего не случалось. Мальчик спросил, почему это делает её любимой. Пол сказал, что в плохую ночь остановка, где ничего не случается, самая лучшая на линии."
+      }
+    },
+    "leo": {
+      "nostalgia": {
+        "en": "The bell, and then the whole building moving at once: lockers, sneakers, the smell of floor wax and chalk, somebody's lunch gone off in a locker. A shop teacher's hands holding a rod the way you hold a pencil. He was thirteen. It was the last time anyone told him what the day was for.",
+        "ru": "Звонок, а потом всё здание приходит в движение разом: шкафчики, кроссовки, запах мастики и мела, чей-то прокисший обед в шкафчике. Руки учителя труда, державшие электрод, как держат карандаш. Ему было тринадцать. Это был последний раз, когда кто-то говорил ему, для чего этот день."
+      },
+      "regret": {
+        "en": "Mr. Harrow said next term. Leo counts the terms he has missed, in the dark, one for each September. It is six now. He does not say it to feel sorry for himself. He says it so the number stays true.",
+        "ru": "Мистер Харроу сказал: в следующем семестре. Лео считает пропущенные семестры в темноте, по одному на каждый сентябрь. Теперь их шесть. Он говорит это не для того, чтобы себя пожалеть. Он говорит это, чтобы число оставалось верным."
+      },
+      "pride": {
+        "en": "He fixed a valve alone last week. Mara checked it afterwards and nodded. Just nodded. He carries that nod around like a medal and has told no one, which is why everyone knows.",
+        "ru": "На прошлой неделе он починил вентиль в одиночку. Мара потом проверила и кивнула. Просто кивнула. Он носит этот кивок, как медаль, и никому не говорил, поэтому все знают."
+      },
+      "other": {
+        "en": "His wrench is too big for him and he knows it. He has wound a strip of cloth round the handle where his hand goes, and a second where it will go. Samira says that is how you grow into a tool. Leo says it is a plan, and does not say the cloth is from his school shirt.",
+        "ru": "Его гаечный ключ слишком велик для него, и он это знает. На рукоять он намотал полоску ткани там, где лежит его рука, и вторую там, где она ляжет. Самира говорит, что так и врастают в инструмент. Лео говорит, что это план, и не говорит, что ткань от его школьной рубашки."
+      },
+      "anecdote": {
+        "en": "Someone told him once that a welder's bead should look like a neat stack of coins. His first looked like a caterpillar, and he kept a drawing of it. His tenth looks like a weld. The drawing of the caterpillar hangs over his bunk for the days when the tenth looks like a caterpillar again.",
+        "ru": "Кто-то сказал ему однажды, что сварочный шов должен выглядеть как ровная стопка монет. Первый у него был похож на гусеницу, и он сохранил рисунок. Десятый похож на шов. Рисунок гусеницы висит над его койкой на тот случай, когда десятый снова будет похож на гусеницу."
+      }
+    },
+    "fran": {
+      "nostalgia": {
+        "en": "The docks at dawn: the cranes standing in their own fog, the smell of diesel and fish and coffee from a thermos, men calling to one another in six languages. She was twelve, and every one of them knew her name. Nobody tells you that the best part of a childhood is being known by name by strangers.",
+        "ru": "Доки на рассвете: краны стоят в собственном тумане, пахнет соляркой, рыбой и кофе из термоса, мужчины окликают друг друга на шести языках. Ей было двенадцать, и каждый из них знал её имя. Никто не говорит, что лучшее в детстве это когда чужие люди знают тебя по имени."
+      },
+      "regret": {
+        "en": "Her older brother was the one who stayed out of trouble: a reservist, steady, who wrote home every Sunday. The letters stopped the night the lights went out. She keeps a pocket in her coat for them and does not open it when anyone is looking.",
+        "ru": "Её старший брат был тем, кто держался подальше от неприятностей: резервист, надёжный, писавший домой каждое воскресенье. Письма прекратились в ночь, когда погас свет. В пальто у неё есть карман для них, и она не открывает его, когда кто-то смотрит."
+      },
+      "pride": {
+        "en": "She has never been caught: not by Directorate patrols, not by Exchange auditors, not by the Marshal's own people. The crates move, the stamps appear, Fran shrugs. The antibiotics went past three checkpoints in a hollowed-out accordion, and the medicine was real.",
+        "ru": "Её ни разу не поймали. Ни патрули Дирекции, ни аудиторы Биржи, ни люди самого маршала. Ящики движутся, штампы появляются, Фрэн пожимает плечами. Антибиотики прошли три блокпоста в выпотрошенном аккордеоне, и лекарство было настоящим."
+      },
+      "other": {
+        "en": "She plays the accordion badly, and only when nobody is crossing a checkpoint. There is a hole in the bellows she patched with a bus transfer. The note it makes when squeezed is, everyone agrees, a question. Nobody has ever answered it.",
+        "ru": "Она плохо играет на аккордеоне и только тогда, когда никто не проходит блокпост. В мехах дыра, которую она залатала пересадочным талоном. Звук, который он издаёт, когда его сжимаешь, все согласны, вопрос. Никто на него ни разу не ответил."
+      },
+      "anecdote": {
+        "en": "At the third checkpoint the guard asked her to play something cheerful. She played the saddest song she knew, and the guard wept and waved her through with the medicine under his own nose. Since then Fran has refused to play anything cheerful. It does not work.",
+        "ru": "На третьем блокпосту охранник попросил сыграть что-нибудь весёлое. Она сыграла самую грустную из известных ей песен, и охранник заплакал и махнул ей проходить, а лекарство лежало у него под самым носом. С тех пор Фрэн отказывается играть что-либо весёлое. Не помогает."
+      }
+    },
+    "ellis": {
+      "nostalgia": {
+        "en": "The chapel on a Sunday: the rope in his hands, warm from the previous ringer, the bell a note he felt in his back teeth, and forty minutes of knowing where every person in the neighbourhood would be that day. He called it the shape of the week. Now the shape is whatever Jonah says it is, and Ellis has stopped being sure that is worse.",
+        "ru": "Часовня в воскресенье: верёвка в руках, тёплая от предыдущего звонаря, колокол, который чувствуешь задними зубами, и сорок минут уверенности, куда в этот день пойдёт каждый человек в округе. Он называл это формой недели. Теперь форма такова, какой её назначит Джона, и Эллис перестал быть уверен, что это хуже."
+      },
+      "regret": {
+        "en": "He locked the chapel doors when the panic came and told himself it was to save the old ones from the crush. Maybe it was. The pounding comes back some nights, in the same rhythm as the bell. He has never found out who was on the other side, because he has never asked who did not come back.",
+        "ru": "Он запер двери часовни, когда началась паника, и говорил себе, что это чтобы спасти стариков от давки. Возможно, так и было. Стук возвращается по ночам, в том же ритме, что колокол. Он так и не узнал, кто был по ту сторону, потому что ни разу не спросил, кто не вернулся."
+      },
+      "pride": {
+        "en": "Everyone they lost that first winter he buried properly: the words said, the ground marked, a name on a scrap. Nobody went into the dark unnamed. The scraps are in a tin box under his bunk, in order, with the dates, and the box is the heaviest thing he owns.",
+        "ru": "Каждого, кого они потеряли в ту первую зиму, он похоронил как следует: слова сказаны, место отмечено, имя на обрывке. Никто не ушёл в темноту безымянным. Обрывки лежат в жестяной коробке под его койкой, по порядку, с датами, и эта коробка самая тяжёлая вещь, которой он владеет."
+      },
+      "other": {
+        "en": "His hymnal has water-stained pages and a binding held with wire. He preaches in the passage on Sundays, with fewer bells now and more listening. Tess says he has started pausing after each line to let the pipes answer. He says it is only the pipes. He keeps the pause.",
+        "ru": "Страницы его сборника гимнов испорчены водой, а переплёт держится на проволоке. По воскресеньям он проповедует в проходе: колоколов теперь меньше, а слушания больше. Тесс говорит, что после каждой строки он стал делать паузу, чтобы трубы ответили. Он говорит, что это просто трубы. Паузу он оставляет."
+      },
+      "anecdote": {
+        "en": "A boy once asked him whether God lived upstairs or down. Ellis took off his cap, scratched his head, and said that as a boy he had been told up, but it seemed to him that down here God had far more to do. The boy told everybody. For a week people said the line to one another, and not as a joke.",
+        "ru": "Мальчик однажды спросил его, где живёт Бог, наверху или внизу. Эллис снял кепку, почесал голову и сказал, что в детстве ему говорили «наверху», но ему кажется, что здесь, внизу, у Бога гораздо больше дел. Мальчик рассказал всем. Неделю люди повторяли эту фразу друг другу, и не в шутку."
+      }
     }
   }
 }
