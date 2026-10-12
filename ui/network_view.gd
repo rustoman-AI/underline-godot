@@ -32,6 +32,8 @@ const PIN_OTHER := 38.0
 const PIN_FLOOR := 24.0
 const ZOOM_SPAN := 3.5
 const PIN_SPRITE := {"depot": "depot", "directorate": "dir", "exchange": "exch", "synod": "synod"}
+## Symbols too pale to read on the cream paper in their own colours; on paper they are printed as an ink stamp.
+const STAMP_ON_PAPER := ["black_flag"]
 const FLAG_ANCHOR := Vector2(0.176, 0.35)
 const FLAG_CLOTH := Vector2(0.62, 0.42)
 const PANORAMA_HUBS := ["northgate", "chapel", "trampark", "brickworks"]
@@ -91,6 +93,10 @@ var _on_paper := false
 var _tag_font: Font
 var _italic: Font
 var _glide: Tween
+## Faction id -> symbol texture, or null when the file is missing (the tag keeps its colour strip).
+var _symbols := {}
+## Station id -> the tag box drawn last frame, in screen px.
+var _tags := {}
 
 
 func _ready() -> void:
@@ -561,6 +567,100 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_flags(c, game)
 	_draw_squads(c, game)
 	_draw_intents(c, game)
+	_draw_legend(c, game)
+
+
+## Faction whose symbol a station carries: its owner when that is a leader faction, otherwise the leader
+## faction whose name is the station's community (the Lamplighters' camp at Atlantic Av). "" for bunkers,
+## ruins, enemies and neutrals.
+func station_faction(game, sid: String) -> String:
+	if game == null or not game.stations.has(sid):
+		return ""
+	var named: Dictionary = game.catalog.lines.get("factions", {})
+	var owner := str(game.stations[sid].owner)
+	if named.has(owner):
+		return owner
+	var community := str(game.catalog.communities_en.get("stations", {}).get(sid, {}).get("community", ""))
+	if community == "":
+		return ""
+	for fid in named:
+		if str(named[fid].get("name", {}).get("en", "")) == community:
+			return str(fid)
+	return ""
+
+
+func _symbol(game, fid: String) -> Texture2D:
+	if fid == "" or game == null:
+		return null
+	if not _symbols.has(fid):
+		var path := str(game.leader(fid).get("symbol", ""))
+		_symbols[fid] = ArtPack.load_texture(path) if path != "" and ResourceLoader.exists(path) else null
+	return _symbols[fid]
+
+
+func _paper_tint(fid: String) -> Color:
+	return Color(TAG_INK, 0.85) if fid in STAMP_ON_PAPER else Color.WHITE
+
+
+func _symbol_rect(mark: Texture2D, px: int, tint := Color.WHITE) -> TextureRect:
+	var pic := TextureRect.new()
+	pic.texture = mark
+	pic.self_modulate = tint
+	pic.custom_minimum_size = Vector2(px, px)
+	pic.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return pic
+
+
+## The five symbols with their names on a paper slip in the lower left of the desk; left out on any frame
+## where the slip would cover a pin or a tag.
+func _draw_legend(c: CanvasItem, game) -> void:
+	var rows: Array = []
+	for row in game.catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		var mark := _symbol(game, fid)
+		if mark == null:
+			continue
+		var name: Dictionary = game.leader_name(fid, "name")
+		rows.append([mark, str(name.get("ru" if Copy.ru() else "en", fid)), _paper_tint(fid)])
+	if rows.is_empty():
+		return
+	var fs := 13
+	var icon := 20.0
+	var step := 25.0
+	var widest := 0.0
+	for row in rows:
+		widest = maxf(widest, _tag_font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	var area := _open_area()
+	var bottom := area.end.y
+	if host != null and host.get("chrome_bottom") != null:
+		bottom = minf(bottom, size.y - float(host.chrome_bottom) - 6.0)
+	var slip := Vector2(widest + icon + 26.0, step * rows.size() + 12.0)
+	var box := Rect2(Vector2(area.position.x + 4.0, bottom - slip.y), slip)
+	if council != null and council.visible and box.intersects(council.get_rect().grow(6.0)):
+		return
+	for sid in _layout:
+		var info: Dictionary = _layout[sid]
+		var r := float(info.r)
+		if box.grow(4.0).intersects(Rect2(info.at - Vector2(r, r), Vector2(r, r) * 2.0)):
+			return
+	for sid in _tags:
+		if box.grow(4.0).intersects(_tags[sid]):
+			return
+	c.draw_set_transform(box.get_center(), deg_to_rad(-0.8))
+	var local := Rect2(-box.size * 0.5, box.size)
+	c.draw_rect(Rect2(local.position + Vector2(1.5, 2.0), local.size), Color(0, 0, 0, 0.35))
+	c.draw_rect(local, TAG_PAPER)
+	c.draw_rect(local, Color(TAG_INK, 0.85), false, 1.0)
+	for i in rows.size():
+		var top := local.position.y + 6.0 + step * i
+		c.draw_texture_rect(rows[i][0], Rect2(local.position.x + 7.0, top + (step - icon) * 0.5, icon, icon), false, rows[i][2])
+		var base := top + (step - _tag_font.get_height(fs)) * 0.5 + _tag_font.get_ascent(fs)
+		c.draw_string(_tag_font, Vector2(local.position.x + icon + 14.0, base), str(rows[i][1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
+	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _draw_lamp(c: CanvasItem, view: Transform2D) -> void:
@@ -794,6 +894,14 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	else:
 		var dst := src.size * (px / src.size.x)
 		c.draw_texture_rect_region(_pins, Rect2(at - _head_anchor * dst - Vector2(0, 2.0 * lift), dst), src)
+	if bool(st.get("capital", false)):
+		var mark := _symbol(game, station_faction(game, sid))
+		if mark != null:
+			var head := at - Vector2(0, 2.0 * lift)
+			c.draw_circle(head, r * 0.72, TAG_PAPER)
+			c.draw_arc(head, r * 0.72, 0, TAU, 24, Color(TAG_INK, 0.7), 1.0, true)
+			var s := r * 1.08
+			c.draw_texture_rect(mark, Rect2(head - Vector2(s, s) * 0.5, Vector2(s, s)), false)
 	if sid == selected:
 		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
 		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
@@ -872,6 +980,7 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var r := float(info.r)
 		heads.append({"id": sid, "box": Rect2(info.at - Vector2(r, r), Vector2(r, r) * 2.0)})
 	var placed: Array = []
+	_tags.clear()
 	var fs := 14 if level < 2 else 15
 	for row in rows:
 		var sid := str(row.id)
@@ -887,7 +996,10 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var h := _tag_font.get_height(fs) + 6.0
 		if sub != "":
 			h += _italic.get_height(11)
-		var w := width + 18.0
+		var fid := station_faction(game, sid)
+		var mark := _symbol(game, fid)
+		var badge := clampf(fs * 1.4, 18.0, 22.0) if mark != null else 0.0
+		var w := width + 18.0 + badge
 		var at: Vector2 = info.at
 		var reach := float(info.r) + 5.0
 		var right := Rect2(at + Vector2(reach, -h * 0.5), Vector2(w, h))
@@ -913,23 +1025,31 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		if not found:
 			continue
 		placed.append(chosen.grow(3.0))
-		_paint_tag(c, chosen, title, sub, fs, _faction_color(game, str(st.owner)), sid)
+		_tags[sid] = chosen
+		_paint_tag(c, chosen, title, sub, fs, _faction_color(game, str(st.owner)), sid, mark, badge, _paper_tint(fid))
 
 
-func _paint_tag(c: CanvasItem, box: Rect2, title: String, sub: String, fs: int, strip: Color, sid: String) -> void:
+## A tag with a faction carries its symbol at the left (the tag is `badge` px wider for it); one without keeps
+## the colour strip.
+func _paint_tag(c: CanvasItem, box: Rect2, title: String, sub: String, fs: int, strip: Color, sid: String, mark: Texture2D = null, badge := 0.0, tint := Color.WHITE) -> void:
 	var tilt := deg_to_rad(float(_hash(sid + "#tag") % 61 - 30) / 10.0)
 	var pivot := box.get_center()
 	c.draw_set_transform(pivot, tilt)
 	var local := Rect2(box.position - pivot, box.size)
 	c.draw_rect(Rect2(local.position + Vector2(1.5, 2.0), local.size), Color(0, 0, 0, 0.35))
 	c.draw_rect(local, TAG_PAPER)
-	c.draw_rect(Rect2(local.position, Vector2(5.0, local.size.y)), strip)
+	if mark == null:
+		c.draw_rect(Rect2(local.position, Vector2(5.0, local.size.y)), strip)
+	else:
+		var line_h := _tag_font.get_height(fs) + 6.0
+		c.draw_texture_rect(mark, Rect2(local.position + Vector2(4.0, maxf(1.0, (line_h - badge) * 0.5)), Vector2(badge, badge)), false, tint)
 	c.draw_rect(local, Color(TAG_INK, 0.85), false, 1.0)
+	var text_x := local.position.x + 10.0 + badge
 	var base := local.position.y + 3.0 + _tag_font.get_ascent(fs)
-	c.draw_string(_tag_font, Vector2(local.position.x + 10.0, base), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
+	c.draw_string(_tag_font, Vector2(text_x, base), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
 	if sub != "":
 		var sub_base := base + _tag_font.get_descent(fs) + _italic.get_ascent(11)
-		c.draw_string(_italic, Vector2(local.position.x + 10.0, sub_base), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(TAG_INK, 0.8))
+		c.draw_string(_italic, Vector2(text_x, sub_base), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(TAG_INK, 0.8))
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
@@ -1346,7 +1466,18 @@ func _fill_sheet_body(sid: String) -> void:
 	var st: Dictionary = game.stations[sid]
 	var own := str(st.owner) == str(game.player)
 	_sheet_body.add_child(_station_photo(game, st))
-	_sheet_body.add_child(_lab(game.station_text(sid, "community"), 20, true))
+	var title := _lab(game.station_text(sid, "community"), 20, true)
+	var fid := station_faction(game, sid)
+	var mark := _symbol(game, fid)
+	if mark == null:
+		_sheet_body.add_child(title)
+	else:
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 8)
+		head.add_child(_symbol_rect(mark, 26, _paper_tint(fid)))
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(title)
+		_sheet_body.add_child(head)
 	_sheet_body.add_child(_lab(str(st.name), 14, false))
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body)
@@ -1733,6 +1864,9 @@ func _fill_visit(sid: String) -> void:
 	_visit_body.add_child(head)
 	var named := HBoxContainer.new()
 	named.add_theme_constant_override("separation", 12)
+	var mark := _symbol(game, station_faction(game, sid))
+	if mark != null:
+		named.add_child(_symbol_rect(mark, 28))
 	var community := _lab(game.station_text(sid, "community"), 22, true)
 	community.autowrap_mode = TextServer.AUTOWRAP_OFF
 	named.add_child(community)
