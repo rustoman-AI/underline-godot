@@ -38,6 +38,11 @@ func _run() -> void:
 		if a.begins_with("--mode="):
 			mode = a.trim_prefix("--mode=")
 	dir = "map_symbols/%s/%s_%s" % [mode, Copy.lang, size]
+	if "--recount" in OS.get_cmdline_user_args():
+		tags = JSON.parse_string(FileAccess.get_file_as_string("res://shots/%s/tags.json" % dir))
+		_overlaps(size)
+		quit(0)
+		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots/" + dir))
 	st = load("res://ui/station.tscn").instantiate()
 	st.shot_mode = true
@@ -102,7 +107,32 @@ func _run() -> void:
 	f.close()
 	if mode != "before":
 		_compare(size)
+	_overlaps(size)
 	quit(0)
+
+
+## Every tag on screen against every other station's pin head and every other tag, whatever the mode.
+func _overlaps(size: String) -> void:
+	var pins := 0
+	var stacked := 0
+	var lines: PackedStringArray = []
+	var untagged: PackedStringArray = []
+	for shot in tags:
+		var row: Dictionary = tags[shot]
+		for sid in row.tags:
+			var box := _rect(row.tags[sid])
+			for h in _hits(box, row.heads, sid):
+				pins += 1
+				lines.append("%s tag %s covers pin %s" % [shot, sid, h])
+			for t in _hits(box, row.tags, sid):
+				if str(t) > str(sid):
+					stacked += 1
+					lines.append("%s tags %s and %s overlap" % [shot, sid, t])
+		for sid in row.get("own_untagged", []):
+			untagged.append("%s %s" % [shot, sid])
+	print("OVERLAPS %s %s %s: %d tag over pin, %d tag over tag in %d shots; player's stations on screen without a tag: %s%s" % [
+		mode, Copy.lang, size, pins, stacked, tags.size(), ", ".join(untagged) if not untagged.is_empty() else "none",
+		"" if lines.is_empty() else "\n  " + "\n  ".join(lines)])
 
 
 func _by_name(name: String) -> String:
@@ -138,6 +168,11 @@ func _shot(name: String, record := true) -> void:
 		var head := Rect2(info.at - Vector2(r, r), Vector2(r, r) * 2.0)
 		if screen.intersects(head):
 			row.heads[sid] = [head.position.x, head.position.y, head.size.x, head.size.y]
+	var untagged: Array = []
+	for sid in row.heads:
+		if str(game.stations[sid].owner) == str(game.player) and bool(game.stations[sid].get("known", false)) and not row.tags.has(sid):
+			untagged.append(str(sid))
+	row["own_untagged"] = untagged
 	tags[name] = row
 
 

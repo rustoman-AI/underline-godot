@@ -14,6 +14,9 @@ const CARD_INK := Color("2b2118")
 const CARD_MUTED := Color("554533")
 const TAG_PAPER := Color("efe4c8")
 const TAG_INK := Color("2b2118")
+## Faction sign on a station tag: 16 px at tag levels 0 and 1, where pins sit close together; 20 px at level 2.
+const TAG_BADGE_SMALL := 16.0
+const TAG_BADGE_LARGE := 20.0
 const GRAPHITE := Color(0.19, 0.18, 0.17, 0.78)
 const ORDER_RED := Color("a0281e")
 const LINE_COLOR := {
@@ -998,7 +1001,7 @@ func _draw_tags(c: CanvasItem, game) -> void:
 			h += _italic.get_height(11)
 		var fid := station_faction(game, sid)
 		var mark := _symbol(game, fid)
-		var badge := clampf(fs * 1.4, 18.0, 22.0) if mark != null else 0.0
+		var badge := (TAG_BADGE_SMALL if level < 2 else TAG_BADGE_LARGE) if mark != null else 0.0
 		var w := width + 18.0 + badge
 		var at: Vector2 = info.at
 		var reach := float(info.r) + 5.0
@@ -1007,21 +1010,22 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var sides := [right, left]
 		if right.end.x > size.x - 8.0:
 			sides = [left, right]
+		var own := str(st.owner) == str(game.player)
+		if own or sid == _hover or sid == selected:
+			sides.append(Rect2(at + Vector2(-w * 0.5, -reach - h), Vector2(w, h)))
+			sides.append(Rect2(at + Vector2(-w * 0.5, reach), Vector2(w, h)))
 		var others: Array = []
 		for head in heads:
 			if str(head.id) != sid:
 				others.append(head.box)
 		var chosen := Rect2()
 		var found := false
-		for strict in [true, false]:
-			for box in sides:
-				if _hits(box, placed) or (strict and _hits(box, others)):
-					continue
-				chosen = box
-				found = true
-				break
-			if found:
-				break
+		for box in sides:
+			if _hits(box, placed) or _hits(box, others):
+				continue
+			chosen = box
+			found = true
+			break
 		if not found:
 			continue
 		placed.append(chosen.grow(3.0))
