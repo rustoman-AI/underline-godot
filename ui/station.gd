@@ -7445,6 +7445,8 @@ class Yard extends Control:
 	var soft_figs := {}
 	var fig_tint_mix := 0.0
 	const FIG_DIR := "res://assets/figures/poses"
+	## Drawn stems for the crew on a building site: the hammer and the crate.
+	const BUILDER_FIGS := ["workshop_02", "workshop_03"]
 	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
 	var more_hits: Array = []
@@ -7606,6 +7608,41 @@ class Yard extends Control:
 		if variants.is_empty():
 			return null
 		return variants[int(_id_hash(id + "#palette")) % variants.size()]
+
+	## Figures for people seen together, in order: each takes its own stem by id hash while the group still has
+	## stems it has not used, then a palette of that stem nobody in the group wears yet. Fixed by the ids and
+	## their order (room staff order is saved), so a reload draws the same people. null where no stem is drawn.
+	func _figs_for_group(stems: Array, ids: Array) -> Array:
+		var out: Array = []
+		var used_stems := {}
+		var worn := {}
+		for id in ids:
+			var key := str(id)
+			if stems.is_empty():
+				out.append(null)
+				continue
+			var n := stems.size()
+			var at := int(_id_hash(key)) % n
+			if used_stems.size() < n:
+				for step in n:
+					if not used_stems.has(stems[(at + step) % n]):
+						at = (at + step) % n
+						break
+			var stem := str(stems[at])
+			used_stems[stem] = true
+			var variants: Array = fig_variants.get(stem, [])
+			if variants.is_empty():
+				out.append(null)
+				continue
+			var m := variants.size()
+			var pick := int(_id_hash(key + "#palette")) % m
+			for step in m:
+				if not worn.has(variants[(pick + step) % m]):
+					pick = (pick + step) % m
+					break
+			worn[variants[pick]] = true
+			out.append(variants[pick])
+		return out
 
 	func _erode_alpha(image: Image, radius: int) -> Image:
 		var src := image.duplicate()
@@ -8278,7 +8315,7 @@ class Yard extends Control:
 			draw_texture_rect(scaffold, _fit_rect(scaffold, rect), false)
 		else:
 			_draw_frame(rect)
-		_draw_site_crew(floor, workers)
+		_draw_site_crew(floor, workers, building)
 
 	func _draw_frame(rect: Rect2) -> void:
 		var wood := Color(0.46, 0.31, 0.16, 0.9)
@@ -8304,15 +8341,23 @@ class Yard extends Control:
 		for beam in beams:
 			draw_line(beam[0], beam[1], wood, t)
 
-	func _draw_site_crew(floor: Rect2, workers: Array) -> void:
+	## Builders are the drawn hammer and crate figures, diggers any body stem; the old working pose only when
+	## the drawn set is not installed.
+	func _draw_site_crew(floor: Rect2, workers: Array, building: bool) -> void:
 		if workers.is_empty():
 			return
 		var pose_name := "working" if poses.has("working") else "standing"
 		var slots := [0.3, 0.68, 0.48, 0.84]
-		for i in mini(workers.size(), slots.size()):
+		var shown := mini(workers.size(), slots.size())
+		var stems: Array = BUILDER_FIGS.filter(func(s): return fig_variants.has(s)) if building else body_figs
+		var looks := _figs_for_group(stems, workers.slice(0, shown))
+		for i in shown:
 			var id := str(workers[i])
 			var x := floor.position.x + floor.size.x * float(slots[i])
-			_paint_pose(pose_name, x, floor.end.y - 2.0, floor.size.y, id, i % 2 == 1)
+			if looks[i] != null:
+				_paint_sprite(looks[i], x, floor.end.y - 2.0, floor.size.y, id, i % 2 == 1)
+			else:
+				_paint_pose(pose_name, x, floor.end.y - 2.0, floor.size.y, id, i % 2 == 1)
 
 	func _job_span(level: int, cell: int) -> Vector2i:
 		var digging: Dictionary = station.game.dig
@@ -8520,16 +8565,16 @@ class Yard extends Control:
 		var floor := _art_rect(str(room.type), rect)
 		var shown := mini(crew.size(), mini(spots.size(), 3))
 		var own: Array = room_figs.get(str(room.type), [])
+		var looks := _figs_for_group(own if not own.is_empty() else body_figs, crew.slice(0, shown))
 		for i in shown:
 			var spot: Dictionary = spots[i]
 			var id := str(crew[i])
 			var x := floor.position.x + float(spot.get("x", 0.5)) * floor.size.x
 			var flip := int(spot.get("face", 1)) < 0
-			var sprite: Texture2D = null
+			var sprite: Texture2D = looks[i]
 			if not own.is_empty():
-				sprite = _fig_for(own, id)
 				flip = int(_id_hash(id) / 7.0) % 2 == 0
-			else:
+			elif sprite == null:
 				sprite = _pose_sprite(str(spot.get("pose", "standing")), id)
 			if sprite == null:
 				continue
@@ -8554,10 +8599,14 @@ class Yard extends Control:
 		var ids: Array = _idle_ids()
 		var shown := mini(2, ids.size())
 		var pose_name := "walking" if poses.has("walking") else "standing"
+		var looks := _figs_for_group(body_figs, ids.slice(0, shown))
 		for i in shown:
 			var x := rect.position.x + rect.size.x * (0.28 if i == 0 else 0.62)
 			var foot_y := rect.position.y + rect.size.y - 2.0
-			_paint_pose(pose_name, x, foot_y, rect.size.y, str(ids[i]), i == 0)
+			if looks[i] != null:
+				_paint_sprite(looks[i], x, foot_y, rect.size.y, str(ids[i]), i == 0)
+			else:
+				_paint_pose(pose_name, x, foot_y, rect.size.y, str(ids[i]), i == 0)
 		if ids.size() > shown:
 			_draw_more(rect, ids.size() - shown, "free")
 
@@ -8691,12 +8740,11 @@ class Yard extends Control:
 		var floor := _art_rect("quarters", rect)
 		var own: Array = room_figs.get("quarters", body_figs)
 		var slots := [0.2, 0.5, 0.8]
+		var looks := _figs_for_group(own, ids.slice(0, slots.size()))
 		for i in mini(ids.size(), slots.size()):
 			var id := str(ids[i])
-			var sprite: Texture2D = null
-			if not own.is_empty():
-				sprite = _fig_for(own, id)
-			else:
+			var sprite: Texture2D = looks[i]
+			if sprite == null:
 				sprite = _pose_sprite("sitting", id)
 			if sprite == null:
 				continue
@@ -8719,7 +8767,7 @@ class Yard extends Control:
 		return rest.slice(at * 3, at * 3 + 3)
 
 	func _pose_sprite(pose_name: String, id: String) -> Texture2D:
-		if not body_figs.is_empty() and (pose_name == "standing" or pose_name == "walking"):
+		if not body_figs.is_empty():
 			return _fig_for(body_figs, id)
 		if poses.has(pose_name):
 			return poses[pose_name]
