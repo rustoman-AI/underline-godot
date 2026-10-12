@@ -1063,5 +1063,13 @@
   "Court St": "Корт-стрит",
   "Myrtle-Willoughby": "Миртл-Уиллоуби",
   "Captain Rhee": "Капитан Ри",
-  "Broker Lin": "Брокер Лин"
+  "Broker Lin": "Брокер Лин",
+  "BATTLE %s takes %s": "Бой. %s занимает %s.",
+  "BATTLE %s is thrown back from %s": "Бой. %s отброшен от %s.",
+  "%s takes %s": "%s занимает %s.",
+  "DEFECT %s leaves for %s": "Отход. Станция %s уходит к %s.",
+  "REVOLT %s throws the garrison out": "Бунт. %s выгоняет гарнизон.",
+  "PREACH The Synod speaks at %s": "Проповедь. Синод говорит на станции %s.",
+  "DEAL %s asks to join": "Станция %s просит принять её.",
+  "DEAL %s (%d)": "Сделка. %s (%d)."
 }
