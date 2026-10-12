@@ -1,0 +1,20 @@
+CURSOR: STORY ENGINE, PHASE S1 (state, conditions, sources, journal page)
+Read docs/STORY.md first. Audit facts (docs/audit): only papers has a source, iron and words have none, deal flags are read nowhere, the Floor approach order logs one line and ends. Local only. No push. Base balance (rooms, map, laws, old 39 events, balance.json) unchanged; new content is added on top. Save rules from the save-hardening brief apply to every new persisted field (schema bump, migration default, validation, check_save case).
+
+1. TRUTH FRAGMENTS (state)
+Five fragments with fixed ids: depot_order, directorate_ledger, synod_recording, exchange_papers, quarantine_path. Persist {id: {known: bool, how: "honest" | "dirty" | "found", week: int}} (empty by default). A helper game.know_fragment(id, how) sets it once, logs a journal row and shows one line in the dawn report. Nothing else changes by itself yet.
+2. JOURNAL PAGE "Truth / Правда"
+A new filter in the journal (or a card reachable from it): the five fragments as paper slips. Unknown ones show "?" and a one-line hint of who holds it (the leader's name and title from leader_lines). Known ones show a short text from data/truth.json (I write it: fields id, title, text, en/ru) and how it was learned. Also show Papers / Iron / Words counts (artifacts) and "Words: stories heard N, next testimony in K stories".
+3. EVENT CONDITIONS (extend "needs" in events and events_leaders)
+In addition to {leader, answer, after_weeks}, allow any of: "standing_min": {faction: n}, "standing_max": {faction: n}, "band": {faction: band_id}, "fragment": id (known), "no_fragment": id, "flag": name (set), "no_flag": name, "artifacts_min": {papers|iron|words: n}, "week": [min, max], "season": id, "ending_blocked": bool. All keys optional, all must hold. Same once-per-run, same forcing rule as leader consequences when the event has "forced": true; otherwise normal weighted draw with the global cooldown. Add the same validation check and bot coverage.
+4. NEW CHOICE EFFECTS
+"fragment": id (calls know_fragment with how = the choice's "how", default "found"), "artifacts": {papers|iron|words: n}, "flag": name (sets a flag), "no_flag" is not needed. Keep the existing effects. Validate effect keys.
+5. SOURCES FOR iron AND words
+- words: every 3 voiced resident stories heard (the existing heard counter, vo_heard) grants 1 words, once per threshold, persisted; the toast/journal says "Testimony gathered". Stories heard can be per language; count distinct story ids.
+- iron: no automatic source; it comes through events (effect "artifacts") and expeditions. Leave the expedition order as is for now, but add the hook so an expedition result can grant iron (data driven via events_story).
+6. DATA FILES
+Load data/events_story.json (I write it later: same schema as events_leaders.json including its "ru" map) and data/truth.json. Create both with empty "events": [] / "fragments": [] placeholders so loading is tested now.
+7. DOES NOT INCLUDE
+Bunker orders, endings, epilogue screen. Those are Phase S2 after I write the content.
+8. CHECKS AND REPORT
+bot_run, check_audience, check_save (new migration, round trip of fragments), check_network, check_slice. New check: every new needs key and effect key is validated, empty placeholder files load, words source fires exactly once per 3 stories. Screenshots of the Truth page with 0, 2 and 5 known fragments (EN and RU, 1280x720). Commit locally: "Story engine S1: truth fragments, conditions, words and iron sources, journal page". Do not commit incoming-art/. Also commit docs/STORY.md, docs/EA_PLAN.md and the new briefs under docs/briefs/ in a separate commit "Docs: story spine, EA plan, briefs".
