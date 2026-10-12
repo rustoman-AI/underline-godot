@@ -7,6 +7,7 @@ extends SceneTree
 ##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
 ##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
 ##   C8  people, beds and the weekly overcrowding cost on the people line, the people tab and the ticker.
+##   C9  Settings in a framed card over a dim, below the top bar, Back inside, Esc closes, at 1280x720 and 1024x768.
 ##   Hints: shown in their weeks, hidden under a modal, dismissed by the action or a click, remembered in the
 ##   player's settings file (not the save), off in shot runs and on saves loaded past week 6.
 ## Settings, saves and logs go to user://check_clarity, never to the player's own files.
@@ -56,6 +57,7 @@ func _run() -> void:
 	_event_words()
 	_audience_words()
 	_crowd_words()
+	await _settings_sheet()
 	await _hint_flow()
 	st._end_log()
 	st.queue_free()
@@ -150,6 +152,42 @@ func _crowd_words() -> void:
 		game.residents.pop_back()
 	st._refresh()
 	print("C8 crowd tip: %s" % want)
+
+
+## C9: Settings from the game sits in a framed card over a dark overlay, below the top bar, Back inside; Esc closes.
+func _settings_sheet() -> void:
+	_clear_modals()
+	var views := []
+	for window in [Vector2(1280, 720), Vector2(1024, 768)]:
+		views.append([window / Settings.auto_scale(int(window.y)), true])
+		views.append([window, false])
+	for pair in views:
+		var view: Vector2 = pair[0]
+		st.size = view
+		st._layout()
+		st._open_settings(true)
+		await _frames(3)
+		var frame: Control = st.menu_settings.get_child(0)
+		var box: Rect2 = frame.get_global_rect()
+		if not st.menu_dim.visible:
+			bad.append("C9: no dim behind Settings")
+		if bool(pair[1]) and box.position.y < st.hud.get_global_rect().end.y:
+			bad.append("C9 %s: Settings card starts at %.0f, under the top bar" % [view, box.position.y])
+		if not Rect2(Vector2.ZERO, view).grow(1.0).encloses(box):
+			bad.append("C9 %s: Settings card %s leaves the window" % [view, box])
+		var back := _find_meta(frame, "sheet_back")
+		if back == null:
+			bad.append("C9: Back is not inside the Settings card")
+		if not _shows(frame, "Settings"):
+			bad.append("C9: the Settings title is not inside the card")
+		var esc := InputEventKey.new()
+		esc.keycode = KEY_ESCAPE
+		esc.pressed = true
+		st._unhandled_key_input(esc)
+		if st.menu_layer.visible:
+			bad.append("C9: Esc did not close Settings")
+	st.size = Vector2(1280, 720)
+	st._layout()
 
 
 func _plain_event() -> Dictionary:

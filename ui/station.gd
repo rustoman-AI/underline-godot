@@ -182,8 +182,12 @@ var at_menu := false
 var hold_dawn := false
 var menu_layer: Control
 var menu_root: Control
-var menu_settings: VBoxContainer
-var menu_credits: VBoxContainer
+var menu_settings: Control
+var menu_credits: Control
+var settings_body: VBoxContainer
+var credits_body: VBoxContainer
+var menu_picture: TextureRect
+var menu_dim: ColorRect
 var continue_button: Button
 var settings_from_game := false
 var filling_settings := false
@@ -1167,6 +1171,7 @@ func _show_crowd() -> void:
 func _layout() -> void:
 	_place_chrome()
 	_place_source()
+	_place_sheet()
 	if yard != null:
 		yard.on_resize()
 
@@ -3595,6 +3600,11 @@ func _fragment_title(id: String) -> String:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and _sheet_open():
+		Sound.play("click")
+		_menu_back()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_J and not at_menu and game != null:
 		if deck.top_token() == "journal":
 			_close_card()
@@ -5251,6 +5261,16 @@ func _paper_style() -> StyleBoxFlat:
 	style.bg_color = PAPER
 	style.border_color = PAPER_EDGE
 	style.set_border_width_all(2)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(2)
+	return style
+
+
+func _column_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(1, 1, 1, 0.035)
+	style.border_color = Color(PAPER_EDGE, 0.35)
+	style.set_border_width_all(1)
 	style.set_content_margin_all(10)
 	style.set_corner_radius_all(2)
 	return style
@@ -7381,6 +7401,8 @@ func _show_main_menu() -> void:
 	menu_root.visible = true
 	menu_settings.visible = false
 	menu_credits.visible = false
+	menu_picture.visible = true
+	menu_dim.visible = false
 	menu_layer.visible = true
 	Sound.bed("hub")
 
@@ -7471,18 +7493,12 @@ func _open_settings(from_game: bool) -> void:
 		_close_card()
 	_ensure_menu()
 	_fill_settings()
-	menu_root.visible = false
-	menu_credits.visible = false
-	menu_settings.visible = true
-	menu_layer.visible = true
+	_show_sheet(menu_settings)
 
 
 func _open_credits() -> void:
 	_ensure_menu()
-	menu_root.visible = false
-	menu_settings.visible = false
-	menu_credits.visible = true
-	menu_layer.visible = true
+	_show_sheet(menu_credits)
 
 
 func _menu_back() -> void:
@@ -7516,9 +7532,19 @@ func _ensure_menu() -> void:
 	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wash.color = Color(0.04, 0.03, 0.02, 0.28)
 	layer.add_child(wash)
+	var shade := ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.color = dim.color if dim != null else Color(0, 0, 0, 0.62)
+	shade.visible = false
+	layer.add_child(shade)
+	menu_picture = picture
+	menu_dim = shade
 	menu_root = _menu_page()
-	menu_settings = _menu_page()
-	menu_credits = _menu_page()
+	settings_body = VBoxContainer.new()
+	credits_body = VBoxContainer.new()
+	menu_settings = _menu_sheet(settings_body)
+	menu_credits = _menu_sheet(credits_body)
 	layer.add_child(menu_root)
 	layer.add_child(menu_settings)
 	layer.add_child(menu_credits)
@@ -7537,6 +7563,73 @@ func _menu_page() -> VBoxContainer:
 	page.add_theme_constant_override("separation", 8)
 	page.visible = false
 	return page
+
+
+## Settings and Credits sit in a framed card over the dimmed screen, like the other modals.
+func _menu_sheet(body: VBoxContainer) -> CenterContainer:
+	var holder := CenterContainer.new()
+	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	holder.offset_left = 12.0
+	holder.offset_top = 12.0
+	holder.offset_right = -12.0
+	holder.offset_bottom = -12.0
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.visible = false
+	var frame := PanelContainer.new()
+	frame.add_theme_stylebox_override("panel", _paper_style())
+	frame.mouse_filter = Control.MOUSE_FILTER_STOP
+	holder.add_child(frame)
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_right"]:
+		margin.add_theme_constant_override(side, 16)
+	for side in ["margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 12)
+	frame.add_child(margin)
+	body.add_theme_constant_override("separation", 10)
+	margin.add_child(body)
+	return holder
+
+
+func _sheet_head(heading: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var title := _label(heading, 32, true)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(title)
+	var back := _button("Back", _menu_back)
+	back.custom_minimum_size = Vector2(120, 44)
+	back.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	back.set_meta("sheet_back", true)
+	row.add_child(back)
+	return row
+
+
+func _sheet_open() -> bool:
+	return menu_layer != null and menu_layer.visible and (menu_settings.visible or menu_credits.visible)
+
+
+func _show_sheet(page: Control) -> void:
+	menu_root.visible = false
+	menu_settings.visible = page == menu_settings
+	menu_credits.visible = page == menu_credits
+	menu_picture.visible = not settings_from_game
+	menu_dim.visible = true
+	menu_layer.visible = true
+	_place_sheet()
+	_place_sheet.call_deferred()
+
+
+## Below the top bar like the other cards when the station shows behind; higher only if it would not fit.
+func _place_sheet() -> void:
+	if not _sheet_open():
+		return
+	var over_station := not menu_picture.visible or menu_picture.texture == null
+	var top := _card_top_limit() if over_station else 12.0
+	for page in [menu_settings, menu_credits]:
+		if page.visible:
+			var tall: float = (page.get_child(0) as Control).get_combined_minimum_size().y
+			page.offset_top = clampf(size.y - 12.0 - tall, 12.0, top)
 
 
 func _fill_menu_root() -> void:
@@ -8145,17 +8238,15 @@ func _fill_settings() -> void:
 	if menu_settings == null:
 		return
 	filling_settings = true
-	_wipe(menu_settings)
-	on_paper = false
-	var title := _label("Settings", 40, true)
-	title.add_theme_color_override("font_color", Color("f4efe4"))
-	menu_settings.add_child(title)
+	_wipe(settings_body)
+	on_paper = true
+	settings_body.add_child(_sheet_head("Settings"))
 	var cards := HBoxContainer.new()
 	cards.add_theme_constant_override("separation", 16)
-	menu_settings.add_child(cards)
+	settings_body.add_child(cards)
 	var col_w := clampf((size.x - 112.0) * 0.5, 440.0, 500.0)
 	var sound_card := PanelContainer.new()
-	sound_card.add_theme_stylebox_override("panel", _paper_style())
+	sound_card.add_theme_stylebox_override("panel", _column_style())
 	sound_card.custom_minimum_size = Vector2(col_w, 0)
 	sound_card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var sound := VBoxContainer.new()
@@ -8163,14 +8254,13 @@ func _fill_settings() -> void:
 	sound_card.add_child(sound)
 	cards.add_child(sound_card)
 	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _paper_style())
+	card.add_theme_stylebox_override("panel", _column_style())
 	card.custom_minimum_size = Vector2(col_w, 0)
 	card.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	card.add_child(box)
 	cards.add_child(card)
-	on_paper = true
 	var inner := col_w - 20.0
 	sound.add_child(_label("Volume", 18, true))
 	sound.add_child(_volume_row("Master", Settings.master, _set_master))
@@ -8239,27 +8329,19 @@ func _fill_settings() -> void:
 	quiet_hint.add_theme_color_override("font_color", PAPER_MUTED)
 	box.add_child(quiet_hint)
 	on_paper = false
-	var back := _menu_choice("Back", _menu_back, false)
-	menu_settings.add_child(back)
 	filling_settings = false
 
 
 func _fill_credits() -> void:
 	if menu_credits == null:
 		return
-	_wipe(menu_credits)
-	var title := _label("Credits", 40, true)
-	title.add_theme_color_override("font_color", Color("f4efe4"))
-	menu_credits.add_child(title)
-	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _paper_style())
-	card.custom_minimum_size = Vector2(640, 0)
-	card.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
-	card.add_child(box)
-	menu_credits.add_child(card)
+	_wipe(credits_body)
 	on_paper = true
+	credits_body.add_child(_sheet_head("Credits"))
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(640, 0)
+	box.add_theme_constant_override("separation", 6)
+	credits_body.add_child(box)
 	box.add_child(_label("Fonts", 20, true))
 	var fonts := _label("Courier Prime, Big Shoulders Display, Oswald, and PT Mono. SIL Open Font License 1.1.", 16)
 	fonts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -8298,9 +8380,8 @@ func _fill_credits() -> void:
 		missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		missing.custom_minimum_size = Vector2(600, 0)
 		box.add_child(missing)
+	box.add_child(_version_label())
 	on_paper = false
-	menu_credits.add_child(_menu_choice("Back", _menu_back, false))
-	menu_credits.add_child(_version_label())
 
 
 func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:

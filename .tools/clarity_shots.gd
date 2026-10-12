@@ -52,6 +52,11 @@ func _run() -> void:
 	st._close_howto()
 	st._open_settings(false)
 	await _shot("settings_hints")
+	_sheet_fit("settings_hints", st.menu_settings)
+	st._menu_back()
+	st._open_credits()
+	await _shot("credits")
+	_sheet_fit("credits", st.menu_credits)
 	st._show_main_menu()
 
 	st._begin_new_game(false)
@@ -64,6 +69,33 @@ func _run() -> void:
 	st._refresh()
 	st._sync_waiting()
 	await _shot("end_turn_ready")
+	st._open_settings(true)
+	await _shot("settings_in_game")
+	_sheet_fit("settings_in_game", st.menu_settings)
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	st._unhandled_key_input(esc)
+	print("ESC closes settings: %s" % ("yes" if not st.menu_layer.visible else "NO"))
+
+	var housed: int = st.game.housing()
+	var extra := 0
+	while st.game.residents.size() <= housed + 1:
+		var twin: Dictionary = st.game.residents[0].duplicate(true)
+		twin.id = "%s_shot%d" % [str(twin.id), extra]
+		st.game.residents.append(twin)
+		extra += 1
+	st._refresh()
+	print("CROWD ticker: %s | tip: %s" % [st.ticker_label.text, st.ticker_label.tooltip_text])
+	print("CROWD people tip: %s" % st.people_head.tooltip_text)
+	await _shot("crowd_ticker")
+	st._show_crowd()
+	await _shot("crowd_card", true)
+	st._close_card()
+	for _i in extra:
+		st.game.residents.pop_back()
+	st._refresh()
+
 	st.hints_in_shots = true
 	st._tick_hints()
 	await _shot("hint_" + st.hint_id)
@@ -133,6 +165,15 @@ func _run() -> void:
 	st.network_view.close_sheet()
 	st._toggle_network()
 	quit(0)
+
+
+func _sheet_fit(name: String, page: Control) -> void:
+	var frame: Control = page.get_child(0)
+	var box := frame.get_global_rect()
+	var view := Rect2(Vector2.ZERO, st.size)
+	var bar: float = st.hud.get_global_rect().end.y if st.hud != null and st.hud.visible else 0.0
+	print("FIT %s sheet %s, below top bar %s, dim %s %s" % [name, "inside" if view.grow(1.0).encloses(box) else "OUTSIDE",
+		"yes" if box.position.y >= bar else "no (bar %d)" % bar, "on" if st.menu_dim.visible else "OFF", box])
 
 
 func _shot(name: String, card := false) -> void:
