@@ -5751,6 +5751,12 @@ func _dossier_line(person: Dictionary, key: String) -> String:
 	return game.line_of(dossier, key)
 
 
+## Profession before the Silence: the Coney cast's from their dossier, everyone else's from the profile.
+func _person_title(person: Dictionary) -> String:
+	var title := _dossier_line(person, "title")
+	return title if title != "" else game.profile_line(person, "title")
+
+
 func _show_person(person_id: String) -> void:
 	if not game.people.has(person_id):
 		return
@@ -5763,7 +5769,7 @@ func _show_person(person_id: String) -> void:
 	row.add_child(_portrait_box(person_id, 64))
 	var text := VBoxContainer.new()
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var title := _dossier_line(person, "title")
+	var title := _person_title(person)
 	if title != "":
 		text.add_child(_label(title, 14))
 	text.add_child(_label(_skill_line(person), 14))
@@ -5953,7 +5959,7 @@ func _show_dossier(person_id: String) -> void:
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(who)
 	card_body.add_child(row)
-	var title := _dossier_line(person, "title")
+	var title := _person_title(person)
 	if title != "":
 		card_body.add_child(_label(title, 16))
 	card_body.add_child(_label(_check_line(person), 15))
@@ -5973,17 +5979,12 @@ func _show_dossier(person_id: String) -> void:
 		_heading(str(Lore.TITLES[dossier_tab]))
 		_placeholder(Lore.text(lore_id, dossier_tab), "Not written yet.")
 	elif person.has("dossier"):
-		_heading("Look")
-		_placeholder(_dossier_line(person, "look"), "Not written yet.")
-		_heading("Bio")
-		_placeholder(_dossier_line(person, "bio"), "Not written yet.")
-		_heading("Hook")
-		_placeholder(_dossier_line(person, "hook"), "Not written yet.")
+		_section("Look", _dossier_line(person, "look"))
+		_section("Bio", _dossier_line(person, "bio"))
+		_section("Hook", _dossier_line(person, "hook"))
 	else:
-		_heading("Before the Silence")
-		_placeholder(str(person.get("before_silence", "")), "Not written yet.")
-		_heading("Keepsake")
-		_placeholder(str(person.get("keepsake", "")), "Not written yet.")
+		_section("Before the Silence", game.profile_line(person, "before"))
+		_section("Keepsake", game.profile_line(person, "keepsake"))
 		_heading("Album")
 		var album: Array = person.get("album", [])
 		if album.is_empty():
@@ -6012,6 +6013,14 @@ func _show_dossier(person_id: String) -> void:
 	if has_lore and dossier_tab == "profile":
 		_story_text(person_id)
 	card_body.add_child(_button("Back", _show_person.bind(person_id)))
+
+
+## A dossier section that is left out when it has no text.
+func _section(caption: String, value: String) -> void:
+	if value.strip_edges() == "":
+		return
+	_heading(caption)
+	_placeholder(value, "")
 
 
 func _placeholder(value: String, fallback: String) -> void:

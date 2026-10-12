@@ -135,6 +135,19 @@ func _legacy() -> void:
 	_expect(loaded and game.story_queue.is_empty() and game.proof_extra == 0 and game.seed == 1,
 		"Schema 5 save migrates with no scene queued and no extra proofs",
 		"schema 5 loaded=%s %s queue=%s proofs=%d" % [loaded, game.load_error, game.story_queue, game.proof_extra])
+	var sixth := source.export_state()
+	sixth["schema"] = 6
+	for id in sixth.people:
+		sixth.people[id].erase("sex")
+		sixth.people[id].erase("face")
+	game = _busy_game()
+	loaded = game.import_state(sixth)
+	var dressed := loaded
+	for id in source.people:
+		dressed = dressed and game.people.has(id) and game.people[id].sex == source.people[id].sex and game.people[id].face == source.people[id].face
+	_expect(dressed and game.people["tess"].sex == "f" and game.people["kim"].sex == "m",
+		"Schema 6 save migrates with every person's sex and face as a new run gives them",
+		"schema 6 loaded=%s %s dressed=%s" % [loaded, game.load_error, dressed])
 	var oldest := source.export_state()
 	oldest.erase("schema")
 	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED + Game.V3_ADDED + Game.V4_ADDED + Game.V5_ADDED:
@@ -189,6 +202,11 @@ func _rejects() -> void:
 		"queue not a list": _with(good, "story_queue", "st3_floor"),
 		"proof_extra negative": _with(good, "proof_extra", -1),
 		"proof_extra text": _with(good, "proof_extra", "2"),
+		"v7 person without sex": _person_with(good, "tess", "sex", null),
+		"person sex unknown": _person_with(good, "tess", "sex", "x"),
+		"v7 person without face": _person_with(good, "tess", "face", null),
+		"woman in a man's face": _person_with(good, "tess", "face", "portrait_01"),
+		"face unknown": _person_with(good, "tess", "face", "portrait_99"),
 	}
 	for name in cases:
 		var game := _busy_game()
@@ -340,6 +358,15 @@ func _with(data: Dictionary, key: String, value) -> Dictionary:
 func _without(data: Dictionary, key: String) -> Dictionary:
 	var out := data.duplicate(true)
 	out.erase(key)
+	return out
+
+
+func _person_with(data: Dictionary, id: String, key: String, value) -> Dictionary:
+	var out := data.duplicate(true)
+	if value == null:
+		out.people[id].erase(key)
+	else:
+		out.people[id][key] = value
 	return out
 
 

@@ -27,6 +27,9 @@ var endings: Dictionary = {}
 var coney: Dictionary = {}
 ## Cast id to the resident portrait it keeps, e.g. "bait": "portrait_05" (data/cast_portraits.json).
 var cast_portraits: Dictionary = {}
+## Resident profiles (data/resident_profiles.json): "residents" by id (sex, portrait pin, title, before,
+## keepsake), "cast" sex by Coney cast id, "portrait_sex" by portrait stem, "generated_names" sex by first name.
+var profiles: Dictionary = {}
 var residents: Array = []
 var names: Dictionary = {}
 var grid: Dictionary = {}
@@ -56,6 +59,7 @@ func load_all() -> bool:
 	check_events = _obj("events_checks.json")
 	coney = _obj("characters_coney.json")
 	cast_portraits = _obj("cast_portraits.json").get("pins", {})
+	profiles = _obj("resident_profiles.json")
 	residents = _arr("residents.json")
 	names = _obj("names.json")
 	grid = _obj("start_grid.json")
@@ -90,6 +94,58 @@ func _keep_ru(node: Dictionary, keys: Array, own: Dictionary, base_ru: Dictionar
 			if not node.has("ru_own"):
 				node["ru_own"] = {}
 			node.ru_own[key] = str(own[en])
+
+
+## What is wrong with data/resident_profiles.json against the residents, the cast pins and the portrait files.
+func profile_problems() -> PackedStringArray:
+	var bad := PackedStringArray()
+	var rows: Dictionary = profiles.get("residents", {})
+	var faces: Dictionary = profiles.get("portrait_sex", {})
+	var owner := {}
+	for face in faces:
+		if not ["m", "f"].has(str(faces[face])):
+			bad.append("portrait %s has sex %s" % [face, faces[face]])
+		if not ResourceLoader.exists("res://assets/portraits/%s.webp" % face):
+			bad.append("portrait %s has no file" % face)
+	for cast in cast_portraits:
+		var face := str(cast_portraits[cast])
+		if owner.has(face):
+			bad.append("%s pinned to %s and %s" % [face, owner[face], cast])
+		owner[face] = str(cast)
+		var sex := str(profiles.get("cast", {}).get(cast, {}).get("sex", ""))
+		if not ["m", "f"].has(sex):
+			bad.append("cast %s has no sex" % cast)
+		elif faces.get(face, "") != sex:
+			bad.append("cast %s (%s) pinned to %s (%s)" % [cast, sex, face, faces.get(face, "missing")])
+	for row in residents:
+		if not rows.has(str(row.get("id", ""))):
+			bad.append("resident %s has no profile" % str(row.get("id", "")))
+	for id in rows:
+		var row: Dictionary = rows[id]
+		var sex := str(row.get("sex", ""))
+		if not ["m", "f"].has(sex):
+			bad.append("%s has sex %s" % [id, sex])
+		if row.has("portrait"):
+			var face := str(row.portrait)
+			if not faces.has(face):
+				bad.append("%s pinned to unknown %s" % [id, face])
+			elif str(faces[face]) != sex:
+				bad.append("%s (%s) pinned to %s (%s)" % [id, sex, face, faces[face]])
+			if owner.has(face):
+				bad.append("%s pinned to %s and %s" % [face, owner[face], id])
+			owner[face] = str(id)
+		for key in ["title", "before", "keepsake"]:
+			var pack = row.get(key)
+			if not (pack is Dictionary) or str(pack.get("en", "")).strip_edges() == "" or str(pack.get("ru", "")).strip_edges() == "":
+				bad.append("%s %s needs en and ru" % [id, key])
+				continue
+			for lang in ["en", "ru"]:
+				if str(pack[lang]).contains("\u2014") or str(pack[lang]).contains("\u2013"):
+					bad.append("%s %s %s has a dash" % [id, key, lang])
+	for first in names.get("first", []):
+		if not ["m", "f"].has(str(profiles.get("generated_names", {}).get(str(first), ""))):
+			bad.append("first name %s has no sex" % first)
+	return bad
 
 
 func _read(name: String) -> Variant:

@@ -1,14 +1,14 @@
 extends SceneTree
 
-## Resident portraits (data/cast_portraits.json): the five Coney cast members always wear their pinned
-## portrait, nobody else ever wears a pinned one, and the others take the remaining faces in arrival order, so
-## no two share a face while the pool lasts. Played through real bot runs, reading Game.portrait_name, the same
-## call station.gd makes for every portrait it draws.
+## Resident portraits (data/resident_profiles.json, data/cast_portraits.json): the profiles are valid, the Coney
+## cast and the core residents always wear their pins, everyone else a face of their own sex picked when they
+## arrive and kept for the run, and nobody ever wears a face of the other sex. Played through real bot runs,
+## reading Game.portrait_name, the same call station.gd makes for every portrait it draws.
 ##   godot --headless --path . -s res://sim/check_portraits.gd
 
 const SEEDS := [1, 2, 3, 4, 5, 6]
 const PORTRAITS := 28
-const SLOTS := {"chris": "old_man_coney", "mina": "salty_maggie", "kim": "bait", "drew": "barnum", "ann": "sylvia"}
+const GENERATED := 400
 
 
 func _init() -> void:
@@ -26,96 +26,97 @@ func _init() -> void:
 			names.append(name)
 	if names.size() != PORTRAITS:
 		bad.append("generic portraits %d of %d" % [names.size(), PORTRAITS])
+	var problems := catalog.profile_problems()
+	bad.append_array(problems)
+	print("Profiles: %d residents, %d problems" % [catalog.profiles.get("residents", {}).size(), problems.size()])
+	var faces: Dictionary = catalog.profiles.get("portrait_sex", {})
 	var pins: Dictionary = catalog.cast_portraits
-	var pinned: Array = pins.values()
-	var cast_ids: Array = []
-	for row in catalog.coney.get("characters", []):
-		cast_ids.append(str(row.get("id", "")))
-	for cast in cast_ids:
-		if not pins.has(cast):
-			bad.append("%s has no pin" % cast)
-	for cast in pins:
-		if not cast_ids.has(str(cast)):
-			bad.append("pin for unknown cast id %s" % cast)
-		if not names.has(str(pins[cast])):
-			bad.append("%s pinned to missing %s" % [cast, pins[cast]])
-		if pinned.count(pins[cast]) > 1:
-			bad.append("%s shared by two cast members" % pins[cast])
-	var free := names.size() - pinned.size()
-	print("Pins: %s; %d faces left for everyone else" % [str(pins), free])
 
 	var start := Game.new()
 	start.setup(catalog, 1, 40)
-	var others: Array = []
-	for person in start.residents:
-		if start.cast_of(str(person.id)) == "":
-			others.append(str(person.id))
-	var faces := {}
-	for id in others:
-		var face := start.portrait_name(id, names)
-		faces[face] = int(faces.get(face, 0)) + 1
-	var most := 0
+	var pinned := start.pinned_faces()
+	var free := {"m": 0, "f": 0}
 	for face in faces:
-		most = maxi(most, int(faces[face]))
-	var fair := ceili(float(others.size()) / float(maxi(free, 1)))
-	print("Start: %d residents outside the cast, %d distinct faces, at most %d people per face" % [others.size(), faces.size(), most])
-	if faces.size() != mini(others.size(), free) or most != fair:
-		bad.append("start faces %d distinct, %d per face; the pool allows %d and %d" % [faces.size(), most, mini(others.size(), free), fair])
-	if others.size() > free:
-		print("NOTE: the pool is short: %d people outside the cast share %d faces from week 1." % [others.size(), free])
+		if not pinned.has(face):
+			free[str(faces[face])] += 1
+	print("Pinned faces %d of %d; free for everyone else: %d men, %d women" % [pinned.size(), faces.size(), free.m, free.f])
+	for person in start.residents:
+		var id := str(person.id)
+		var cast := start.cast_of(id)
+		var want := str(pins.get(cast, "")) if cast != "" else str(catalog.profiles.residents.get(id, {}).get("portrait", ""))
+		if want != "" and start.portrait_name(id, names) != want:
+			bad.append("start: %s (%s) wears %s, pinned %s" % [id, cast, start.portrait_name(id, names), want])
 
-	var ranks := {}
 	var seen := 0
-	var worst_excess := 0
+	var shared_weeks := 0
+	var first_shared := ""
+	var most_shared := 0
 	for run_seed in SEEDS:
 		var bot := Bot.new()
 		bot.profile = "careful"
 		var game := Game.new()
 		game.setup(catalog, run_seed, 40)
 		var guard := 0
+		var keyed := {}
 		while game.over == "" and guard < 42:
 			guard += 1
 			var used := {}
-			var living := 0
 			for person in game.residents:
 				var id := str(person.id)
 				var face := game.portrait_name(id, names)
-				var cast := game.cast_of(id)
 				seen += 1
-				if cast != "":
-					if face != str(pins.get(cast, "")):
-						bad.append("seed %d W%d: %s (%s) wears %s" % [run_seed, game.week, id, cast, face])
-					continue
-				if pinned.has(face):
-					bad.append("seed %d W%d: %s wears the pinned %s" % [run_seed, game.week, id, face])
-				var rank := game.arrival_rank(id)
-				if rank < 0:
-					bad.append("seed %d: %s has no arrival rank" % [run_seed, id])
-				elif ranks.has(rank) and str(ranks[rank]) != face:
-					bad.append("rank %d wears %s and %s" % [rank, ranks[rank], face])
-				ranks[rank] = face
-				used[face] = int(used.get(face, 0)) + 1
-				living += 1
+				if str(faces.get(face, "")) != str(person.get("sex", "")):
+					bad.append("seed %d W%d: %s (%s) wears %s (%s)" % [run_seed, game.week, id, person.get("sex", "?"), face, faces.get(face, "?")])
+				if keyed.has(id) and keyed[id] != face:
+					bad.append("seed %d W%d: %s changed face %s to %s" % [run_seed, game.week, id, keyed[id], face])
+				keyed[id] = face
+				used[face] = used.get(face, []) + [id]
 			var shared := 0
 			for face in used:
-				shared += int(used[face]) - 1
-			worst_excess = maxi(worst_excess, shared - maxi(0, living - free))
+				if used[face].size() > 1:
+					shared += used[face].size() - 1
+					if first_shared == "":
+						first_shared = "seed %d week %d: %s share %s" % [run_seed, game.week, ", ".join(used[face]), face]
+			if shared > 0:
+				shared_weeks += 1
+			most_shared = maxi(most_shared, shared)
 			bot._act(game)
 			game.end_week()
-	var keys := ranks.keys()
-	keys.sort()
-	for rank in keys:
-		for step in range(1, free):
-			if ranks.has(int(rank) + step) and ranks[int(rank) + step] == ranks[rank]:
-				bad.append("ranks %d and %d share %s" % [rank, int(rank) + step, ranks[rank]])
-	print("Bot runs: %d seeds, %d resident-weeks, %d arrival ranks; any %d arrivals in a row have distinct faces" % [SEEDS.size(), seen, keys.size(), free])
-	print("Living residents sharing a face beyond what the pool forces: at most %d in any week" % worst_excess)
+			if game.week == 20 and game.over == "":
+				var copy := Game.new()
+				copy.setup(catalog, 99, 40)
+				var data := game.export_state()
+				data["schema"] = Game.SAVE_SCHEMA
+				if not copy.import_state(data):
+					bad.append("seed %d: reload failed %s" % [run_seed, copy.load_error])
+				else:
+					for person in game.residents:
+						if copy.portrait_name(str(person.id), names) != game.portrait_name(str(person.id), names):
+							bad.append("seed %d: %s changes face across load" % [run_seed, person.id])
+	print("Bot runs: %d seeds, %d resident-weeks, every face of the wearer's sex and kept for the run" % [SEEDS.size(), seen])
+	print("Weeks with living residents sharing a face: %d of the runs' weeks, at most %d extra wearers in a week" % [shared_weeks, most_shared])
+	if first_shared != "":
+		print("First shared face: " + first_shared)
+
+	var crowd := Game.new()
+	crowd.setup(catalog, 7, 40)
+	crowd._hire(GENERATED)
+	var sexes := {"m": 0, "f": 0}
+	for person in crowd.residents:
+		var face := crowd.portrait_name(str(person.id), names)
+		sexes[str(person.sex)] = int(sexes.get(str(person.sex), 0)) + 1
+		if str(faces.get(face, "")) != str(person.sex):
+			bad.append("crowd: %s %s (%s) wears %s" % [person.id, person.name, person.sex, face])
+		var first := str(person.name).get_slice(" ", 0)
+		if str(person.id).begins_with("n") and str(catalog.profiles.generated_names.get(first, person.sex)) != str(person.sex):
+			bad.append("crowd: %s named %s is %s" % [person.id, person.name, person.sex])
+	print("Generated crowd: %d newcomers joined the residents (%d men, %d women in all), all in faces of their sex" % [GENERATED, sexes.m, sexes.f])
 
 	var legacy: Dictionary = start.people["kim"].duplicate(true)
 	legacy.erase("cast_id")
-	start.people["kim"] = legacy
-	if start.portrait_name("kim", names) != str(pins.get("bait", "")):
-		bad.append("a save without cast_id loses Bait's portrait")
+	legacy.erase("face")
+	if start.portrait_pin(legacy) != str(pins.get("bait", "")) or start.sex_of(legacy) != "m":
+		bad.append("a save without cast_id loses Bait's portrait or sex")
 	for id in ["southdepot", "depot", "", "nobody"]:
 		if pinned.has(start.portrait_name(id, names)):
 			bad.append("non-resident %s wears a pinned face" % id)
@@ -131,12 +132,13 @@ func _init() -> void:
 		var distinct := {}
 		for person in other.residents:
 			var id := str(person.id)
+			var face := other.portrait_name(id, names)
 			if other.cast_of(id) != "":
 				bad.append("%s capital %s: %s is cast" % [plain, other.capital_id, id])
-			distinct[other.portrait_name(id, names)] = true
-		print("Capital without the cast (%s): %d residents, all %d faces in use, none pinned" % [other.capital_id, other.residents.size(), distinct.size()])
-		if distinct.size() != mini(other.residents.size(), names.size()):
-			bad.append("capital without the cast uses %d faces" % distinct.size())
+			if str(faces.get(face, "")) != str(person.sex):
+				bad.append("capital without the cast: %s (%s) wears %s" % [id, person.sex, face])
+			distinct[face] = true
+		print("Capital without the cast (%s): %d residents, %d distinct faces" % [other.capital_id, other.residents.size(), distinct.size()])
 	if bad.is_empty():
 		print("PORTRAIT CHECK OK")
 		quit(0)

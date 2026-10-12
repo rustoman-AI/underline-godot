@@ -3832,6 +3832,7 @@ func _hire(n: int) -> void:
 		_stamp_checks(person)
 		residents.append(person)
 		people[id] = person
+		_dress([person])
 
 
 func _kill(n: int, why: String) -> void:
@@ -5773,6 +5774,7 @@ func _init_people() -> void:
 		if str(person.get("council", "")) != "":
 			council.append({"role": str(person.council), "id": str(person.id), "loyalty": 80})
 	_apply_coney_cast()
+	_dress(residents)
 
 
 const CONEY_SLOTS := ["chris", "mina", "kim", "drew", "ann"]
@@ -5833,48 +5835,110 @@ func has_coney_cast() -> bool:
 	return capital_id == "southdepot" or capital_id == "coney"
 
 
-## The portrait a resident wears, out of `names` (portrait_01, portrait_02...). A Coney cast member keeps the
-## pin from data/cast_portraits.json; nobody else wears a pinned face. The others take the remaining faces in
-## arrival order, so any run of arrivals as long as that pool has no two alike, and a face never moves when
-## someone dies or leaves. Ids that are not residents get a face from the same pool by hash.
+## The portrait a resident wears, out of `names` (portrait_01, portrait_02...): the face chosen when they
+## arrived (see _dress), kept for the whole game and across load. Ids that are not residents, or whose face is
+## not among `names`, get an unpinned face by hash.
 func portrait_name(id: String, names: Array) -> String:
 	if names.is_empty():
 		return ""
-	var pins: Dictionary = catalog.cast_portraits if catalog != null and has_coney_cast() else {}
-	var pin := str(pins.get(cast_of(id), ""))
-	if pin != "" and names.has(pin):
-		return pin
-	var rest: Array = []
-	for name in names:
-		if not pins.values().has(name):
-			rest.append(name)
+	if people.has(id) and names.has(str(people[id].get("face", ""))):
+		return str(people[id].face)
+	var pinned := pinned_faces() if catalog != null else {}
+	var rest: Array = names.filter(func(name): return not pinned.has(name))
 	if rest.is_empty():
 		rest = names
-	var rank := arrival_rank(id)
-	if rank < 0:
-		rank = 0
-		for i in id.length():
-			rank = (rank * 33 + id.unicode_at(i)) % rest.size()
-	return str(rest[rank % rest.size()])
+	return str(rest[_stable_hash(id) % rest.size()])
 
 
-## Place of a resident among the people who do not wear a cast face: the starting residents in
-## data/residents.json order, then newcomers n1, n2... in the order they came. -1 for anyone else.
-func arrival_rank(id: String) -> int:
-	if catalog == null:
-		return -1
-	var cast_slots: Array = CONEY_SLOTS if has_coney_cast() and not catalog.cast_portraits.is_empty() else []
-	var rank := 0
-	for row in catalog.residents:
-		var rid := str(row.get("id", ""))
-		if cast_slots.has(rid):
+## Faces pinned to somebody: the profile pins of the core residents and, in a Coney game, the cast pins.
+func pinned_faces() -> Dictionary:
+	var out := {}
+	var rows: Dictionary = catalog.profiles.get("residents", {})
+	for id in rows:
+		if rows[id].has("portrait"):
+			out[str(rows[id].portrait)] = true
+	if has_coney_cast():
+		for cast in catalog.cast_portraits:
+			out[str(catalog.cast_portraits[cast])] = true
+	return out
+
+
+## The pinned face of a person: the cast pin for a Coney cast member, the profile pin for a core resident who
+## keeps their own name, "" for everyone else.
+func portrait_pin(person: Dictionary) -> String:
+	var id := str(person.get("id", ""))
+	var cast := cast_id_of(person)
+	if cast != id:
+		return str(catalog.cast_portraits.get(cast, ""))
+	return str(catalog.profiles.get("residents", {}).get(id, {}).get("portrait", ""))
+
+
+## "m" or "f": a Coney cast member's from the cast, a core resident's from the profile, anyone else's from the
+## first name (data/resident_profiles.json generated_names), or by a stable hash of the id for an unknown name.
+func sex_of(person: Dictionary) -> String:
+	var id := str(person.get("id", ""))
+	var cast := cast_id_of(person)
+	var prof: Dictionary = catalog.profiles
+	if cast != id and prof.get("cast", {}).has(cast):
+		return str(prof.cast[cast].get("sex", "m"))
+	var row: Dictionary = prof.get("residents", {}).get(id, {})
+	if row.has("sex"):
+		return str(row.sex)
+	var first := str(person.get("name", "")).get_slice(" ", 0)
+	var names: Dictionary = prof.get("generated_names", {})
+	if names.has(first):
+		return str(names[first])
+	return "f" if _stable_hash(id) % 2 == 1 else "m"
+
+
+## Gives `rows` (already among the residents) their sex and face. Pinned people take their pin; the others a
+## face of their own sex, by id: first one pinned to nobody and worn by no living resident, then any of their
+## sex nobody living wears, then any of their sex.
+func _dress(rows: Array) -> void:
+	var worn := {}
+	for person in residents:
+		if str(person.get("face", "")) != "":
+			worn[str(person.face)] = true
+	var later: Array = []
+	for person in rows:
+		if not person.has("sex"):
+			person["sex"] = sex_of(person)
+		if str(person.get("face", "")) != "":
 			continue
-		if rid == id:
-			return rank
-		rank += 1
-	if id.begins_with("n") and id.substr(1).is_valid_int() and int(id.substr(1)) > 0:
-		return rank + int(id.substr(1)) - 1
-	return -1
+		var pin := portrait_pin(person)
+		if pin != "":
+			person["face"] = pin
+			worn[pin] = true
+		else:
+			later.append(person)
+	var faces: Dictionary = catalog.profiles.get("portrait_sex", {})
+	var pinned := pinned_faces()
+	for person in later:
+		var own: Array = faces.keys().filter(func(face): return str(faces[face]) == str(person.sex))
+		own.sort()
+		var pick := ""
+		for pool in [own.filter(func(face): return not pinned.has(face) and not worn.has(face)), own.filter(func(face): return not worn.has(face)), own]:
+			if not pool.is_empty():
+				pick = str(pool[_stable_hash(str(person.id)) % pool.size()])
+				break
+		person["face"] = pick
+		worn[pick] = true
+
+
+static func _stable_hash(text: String) -> int:
+	var n := 0
+	for i in text.length():
+		n = (n * 33 + text.unicode_at(i)) % 1000003
+	return n
+
+
+## Profession, before-the-Silence line or keepsake from a resident's profile in the game language; "" for the
+## Coney cast (their dossier has its own) and for people without a profile.
+func profile_line(person: Dictionary, key: String) -> String:
+	var id := str(person.get("id", ""))
+	if cast_id_of(person) != id:
+		return ""
+	return line_of(catalog.profiles.get("residents", {}).get(id, {}), key)
 
 
 func _init_grid() -> void:
@@ -6855,8 +6919,9 @@ const PERSIST := [
 
 ## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
-## Adding a PERSIST key needs a new schema number and its own migration list.
-const SAVE_SCHEMA := 6
+## Adding a PERSIST key needs a new schema number and its own migration list. Version 7 added sex and face to
+## every person; older saves get them from the profiles and names on load (_dress_legacy).
+const SAVE_SCHEMA := 7
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -6955,6 +7020,8 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 		if not data.has("check_state"):
 			state.check_state = rebuilt.state
 	state = state.duplicate(true)
+	if int(schema) <= 6:
+		_dress_legacy(state, cat)
 	var why := _state_problem(state, cat)
 	if why != "":
 		return {"error": why, "state": {}}
@@ -6974,6 +7041,23 @@ static func _v1_checks(cat: Catalog, run_seed: int) -> Dictionary:
 	game.check_rng.seed = run_seed * 29 + 11
 	game._schedule_checks()
 	return {"schedule": game.check_schedule, "state": game.check_rng.state}
+
+
+## A version 1 to 6 save has people without sex and face: dress them in resident order as a new run would.
+## Malformed records are left for _state_problem to refuse.
+static func _dress_legacy(state: Dictionary, cat: Catalog) -> void:
+	if not (state.people is Dictionary) or not (state.residents is Array):
+		return
+	var game := Game.new()
+	game.catalog = cat
+	game.capital_id = str(state.capital_id)
+	var rows: Array = []
+	for row in state.residents:
+		if row is Dictionary and state.people.get(str(row.get("id", ""))) is Dictionary:
+			rows.append(state.people[str(row.id)])
+	game.people = state.people
+	game.residents = rows
+	game._dress(rows)
 
 
 static func _v1_stream(key: String, run_seed: int) -> int:
@@ -7000,6 +7084,11 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 		var person = state.people[id]
 		if not (person is Dictionary) or str(person.get("id", "")) != str(id):
 			return "person %s malformed" % str(id)
+		var faces: Dictionary = cat.profiles.get("portrait_sex", {})
+		if not ["m", "f"].has(person.get("sex")):
+			return "person %s sex %s" % [str(id), str(person.get("sex"))]
+		if str(faces.get(person.get("face", ""), "")) != str(person.sex):
+			return "person %s (%s) wears %s" % [str(id), str(person.sex), str(person.get("face"))]
 	var seen := {}
 	for person in state.residents:
 		if not (person is Dictionary) or not state.people.has(str(person.get("id", ""))):
