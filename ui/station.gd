@@ -12,6 +12,7 @@ const PAPER_BUTTON := Color("3a3126")
 const PAPER_BUTTON_HOVER := Color("4a3f32")
 const PAPER_BUTTON_DOWN := Color("1a140e")
 const PAPER_EDGE := Color("b89a6a")
+const ALERT_INK := Color("e07a62")
 const DELTA_UP := Color("b6e38a")
 const DELTA_DOWN := Color("ff9b8a")
 const STEEL := Color(0.07, 0.08, 0.09, 0.88)
@@ -3369,7 +3370,7 @@ func _show_journal() -> void:
 		if kind == "radio":
 			text.add_theme_color_override("font_color", PAPER_MUTED)
 		elif kind in ["flood", "deaths", "war", "ultimatum", "handed_over", "papers_burned", "false_way"] or (kind == "season" and not bool(row.get("soon", false))):
-			text.add_theme_color_override("font_color", Color("8a2f22"))
+			text.add_theme_color_override("font_color", ALERT_INK)
 		card_body.add_child(text)
 		shown += 1
 		if shown >= 150:
@@ -4184,7 +4185,7 @@ func _chip(text: String, alert: bool, cb: Callable) -> Button:
 	chip.add_theme_font_size_override("font_size", 14)
 	if body_font != null:
 		chip.add_theme_font_override("font", body_font)
-	var ink := Color("8a2f22") if alert else PAPER_INK
+	var ink := ALERT_INK if alert else PAPER_INK
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
 		chip.add_theme_color_override(state, ink)
 	for state in ["normal", "hover", "pressed", "disabled"]:

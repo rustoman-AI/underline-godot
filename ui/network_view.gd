@@ -1561,6 +1561,11 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	button.custom_minimum_size = Vector2(0, 36)
 	button.add_child(row)
 	button.disabled = why != ""
+	if button.disabled:
+		var locked := StyleBoxFlat.new()
+		locked.bg_color = Color(0.24, 0.16, 0.08, 0.7)
+		locked.set_content_margin_all(4)
+		button.add_theme_stylebox_override("disabled", locked)
 	if game != null:
 		button.tooltip_text = _order_tip(game, kind, sid, why)
 	button.set_meta("order_kind", kind)
