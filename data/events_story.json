@@ -1,0 +1,255 @@
+{
+  "_note": "Story events, act I (docs/STORY.md), written by the project lead. Same schema as data/events_leaders.json. Needs keys used here: week, no_flag. Effects used here: artifacts, flag (see docs/briefs/cursor_story_engine.txt). 'ru' maps each English string to its Russian text. Numbers are first-pass.",
+  "events": [
+    {
+      "id": "st1_first_paper",
+      "title": "The first paper",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          3,
+          14
+        ]
+      },
+      "text": "Scavengers bring a damp folder from the ruins. One page is a memo dated three months before the Silence. The heading says reserve procurement. The figures make no sense for a place this size.",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read it aloud on the platform",
+          "hope": -1,
+          "discontent": 0,
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "keep",
+          "label": "Keep it quiet in the workshop",
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "burn",
+          "label": "Burn it for warmth",
+          "hope": -1,
+          "food": 0,
+          "discontent": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_counting",
+      "title": "Someone is counting",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          4,
+          20
+        ],
+        "no_flag": "counting_heard"
+      },
+      "text": "At night the old pipe along the platform taps. It is regular: forty-one, then a pause, then forty-one again. The engineer says it is only metal cooling. The old man in quarters says metal does not count.",
+      "choices": [
+        {
+          "id": "listen",
+          "label": "Sit up and listen",
+          "hope": 1,
+          "flag": "counting_heard"
+        },
+        {
+          "id": "trace",
+          "label": "Send someone to trace the pipe",
+          "cost": {
+            "materials": 3
+          },
+          "flag": "counting_heard",
+          "artifacts": {
+            "iron": 1
+          }
+        },
+        {
+          "id": "forbid",
+          "label": "Tell people it is only metal",
+          "discontent": 0,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_names",
+      "title": "Those who went up",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          8,
+          26
+        ]
+      },
+      "text": "A woman from the hydroponics crew has a list of the people who went up on the first day. Eleven names. She asks that somebody read it on the platform, in front of everyone, once.",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read the names aloud",
+          "hope": -1,
+          "discontent": -2
+        },
+        {
+          "id": "private",
+          "label": "Let her read them to herself",
+          "discontent": 0,
+          "hope": -1
+        },
+        {
+          "id": "no",
+          "label": "Say now is not the time",
+          "discontent": 1,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_floor_rumor",
+      "title": "A meeting that never ended",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          6,
+          24
+        ],
+        "no_flag": "floor_rumor"
+      },
+      "text": "A courier from the north swears that the lights are still on at City Hall. People inside shout minutes at each other at all hours. Nobody has seen the door open.",
+      "choices": [
+        {
+          "id": "send",
+          "label": "Pay a scout to look",
+          "cost": {
+            "tokens": 4
+          },
+          "flag": "floor_rumor",
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "ignore",
+          "label": "Dismiss it as a tale",
+          "hope": 0,
+          "flag": "floor_rumor"
+        }
+      ]
+    },
+    {
+      "id": "st1_story_night",
+      "title": "Story night",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          4,
+          22
+        ]
+      },
+      "text": "After the shift, a resident asks to tell what happened to them on the first day. Not for anyone in particular. Just so it is said once, out loud, in this place.",
+      "choices": [
+        {
+          "id": "listen",
+          "label": "Gather the platform and listen",
+          "hope": 1,
+          "discontent": 0,
+          "artifacts": {
+            "words": 1
+          }
+        },
+        {
+          "id": "short",
+          "label": "Give them five minutes",
+          "hope": 1
+        },
+        {
+          "id": "skip",
+          "label": "Ask them to wait until the work is done",
+          "discontent": 0,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_child",
+      "title": "A child's question",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          7,
+          26
+        ]
+      },
+      "text": "A child of nine asks you at the water point whether the surface will come back. She asks it like she asks for a cup. The adults pretend not to listen.",
+      "choices": [
+        {
+          "id": "truth",
+          "label": "Tell her you do not know",
+          "hope": -2,
+          "discontent": -1
+        },
+        {
+          "id": "lie",
+          "label": "Tell her yes, soon",
+          "hope": 1,
+          "discontent": 0
+        },
+        {
+          "id": "dorothy",
+          "label": "Tell her the Synod keeps a quiet room for such questions",
+          "hope": 0,
+          "standing": {
+            "synod": 3
+          }
+        }
+      ]
+    }
+  ],
+  "ru": {
+    "The first paper": "Первая бумага",
+    "Scavengers bring a damp folder from the ruins. One page is a memo dated three months before the Silence. The heading says reserve procurement. The figures make no sense for a place this size.": "Сборщики приносят из руин отсыревшую папку. На одной странице записка за три месяца до Тишины. В заголовке «резервная закупка». Для места такого размера цифры не имеют смысла.",
+    "Read it aloud on the platform": "Прочесть вслух на платформе",
+    "Keep it quiet in the workshop": "Тихо припрятать в мастерской",
+    "Burn it for warmth": "Сжечь ради тепла",
+    "Someone is counting": "Кто-то считает",
+    "At night the old pipe along the platform taps. It is regular: forty-one, then a pause, then forty-one again. The engineer says it is only metal cooling. The old man in quarters says metal does not count.": "Ночью старая труба вдоль платформы стучит. Ровно: сорок один, пауза, снова сорок один. Инженер говорит, что это остывает металл. Старик из жилых отсеков отвечает, что металл не считает.",
+    "Sit up and listen": "Просидеть ночь и слушать",
+    "Send someone to trace the pipe": "Послать кого-нибудь проследить трубу",
+    "Tell people it is only metal": "Сказать людям, что это просто металл",
+    "Those who went up": "Те, кто поднялся",
+    "A woman from the hydroponics crew has a list of the people who went up on the first day. Eleven names. She asks that somebody read it on the platform, in front of everyone, once.": "У женщины из гидропоники есть список тех, кто поднялся в первый день. Одиннадцать имён. Она просит, чтобы кто-нибудь прочёл его на платформе при всех, один раз.",
+    "Read the names aloud": "Прочесть имена вслух",
+    "Let her read them to herself": "Пусть прочтёт про себя",
+    "Say now is not the time": "Сказать, что сейчас не время",
+    "A meeting that never ended": "Совещание, которое не кончилось",
+    "A courier from the north swears that the lights are still on at City Hall. People inside shout minutes at each other at all hours. Nobody has seen the door open.": "Курьер с севера клянётся, что в Сити-холле до сих пор горит свет. Люди внутри в любое время суток перекрикиваются протоколами. Никто не видел, чтобы дверь открывалась.",
+    "Pay a scout to look": "Заплатить разведчику, чтобы посмотрел",
+    "Dismiss it as a tale": "Отмахнуться, как от байки",
+    "Story night": "Вечер историй",
+    "After the shift, a resident asks to tell what happened to them on the first day. Not for anyone in particular. Just so it is said once, out loud, in this place.": "После смены житель просит рассказать, что с ним было в первый день. Не для кого-то. Просто чтобы это было сказано один раз вслух, в этом месте.",
+    "Gather the platform and listen": "Собрать платформу и послушать",
+    "Give them five minutes": "Дать им пять минут",
+    "Ask them to wait until the work is done": "Попросить подождать до конца работы",
+    "A child's question": "Вопрос ребёнка",
+    "A child of nine asks you at the water point whether the surface will come back. She asks it like she asks for a cup. The adults pretend not to listen.": "Девятилетняя девочка спрашивает тебя у водяного поста, вернётся ли поверхность. Спрашивает так, как просят кружку. Взрослые делают вид, что не слушают.",
+    "Tell her you do not know": "Сказать, что не знаешь",
+    "Tell her yes, soon": "Сказать, что да, скоро",
+    "Tell her the Synod keeps a quiet room for such questions": "Сказать, что у Синода есть тихая комната для таких вопросов"
+  }
+}

@@ -3,12 +3,12 @@ extends RefCounted
 ## Leader consequence events (data/events_leaders.json): data validation and the rules that make them fire.
 ## Pure sim, no UI. Run by sim/audience_checks.gd, so check_audience.gd and bot_run.gd both cover it.
 
-const EVENT_KEYS := ["id", "title", "major", "weight", "cooldown", "needs", "text", "choices", "ru_own"]
-const NEEDS_KEYS := ["leader", "answer", "after_weeks"]
+const EVENT_KEYS := ["id", "title", "major", "weight", "cooldown", "needs", "forced", "text", "choices", "ru_own"]
 ## What Game._apply_deltas and _apply_standing_choice understand on a plain choice.
 const CHOICE_KEYS := ["id", "label", "cost", "food", "air", "power", "materials", "tokens", "influence", "hope",
 	"discontent", "people", "sick", "efficiency", "papers", "synod", "opinion_exchange", "opinion_directorate",
-	"trait_hope", "trait_absent", "power_double", "hydro_down", "shop_down", "gen_down", "standing", "ru_own"]
+	"trait_hope", "trait_absent", "power_double", "hydro_down", "shop_down", "gen_down", "standing",
+	"artifacts", "fragment", "how", "flag", "ru_own"]
 const STOCK := ["food", "air", "power", "materials", "tokens", "influence"]
 
 var catalog: Catalog
@@ -37,7 +37,7 @@ func _expect(ok: bool, good: String, bad: String) -> void:
 
 
 func _leader_events() -> Array:
-	return catalog.events.filter(func(ev): return ev.has("needs"))
+	return catalog.events.filter(func(ev): return ev.get("needs") is Dictionary and ev.needs.has("leader"))
 
 
 func _leaders() -> Dictionary:
@@ -67,7 +67,7 @@ func _validate() -> void:
 			bad.append("%s: needs is not an object" % id)
 			continue
 		for key in needs:
-			if not NEEDS_KEYS.has(str(key)):
+			if not Game.NEEDS_KEYS.has(str(key)):
 				bad.append("%s: unknown needs key %s" % [id, key])
 		if not leaders.has(str(needs.get("leader", ""))):
 			bad.append("%s: needs.leader %s is not a leader" % [id, needs.get("leader", "")])
@@ -208,11 +208,11 @@ func _windows() -> void:
 		"Five due at once: one per dawn, closest window first (%s)" % " ".join(seen), "queue %s" % " ".join(seen))
 
 
-## Leader event offer exactly as at dawn: the random pool never offers it, only _offer_leader_event.
+## Leader event offer exactly as at dawn: the random pool never offers it, only _offer_forced_event.
 func _dawn_offer(game: Game) -> String:
 	var before := game.pending.size()
 	game.week_event_ids = {}
-	game._offer_leader_event()
+	game._offer_forced_event()
 	if game.pending.size() == before:
 		return ""
 	return str(game.pending.back().id)
@@ -237,7 +237,7 @@ func _deferral() -> void:
 	var next := _dawn_offer(game)
 	var pooled := false
 	for row in game._event_pool(false) + game._event_pool(true):
-		if row.has("needs"):
+		if Game.needs_forced(row):
 			pooled = true
 	_expect(held == "" and next == str(ev.id) and not pooled,
 		"Major event waiting defers it a week; cooldowns and caps do not; never in the random pool", "held=%s next=%s pooled=%s" % [held, next, pooled])
@@ -321,5 +321,5 @@ func _saves() -> void:
 	missing.erase("leader_answers")
 	copy = _game()
 	if copy.import_state(missing):
-		bad.append("schema 3 without leader_answers")
+		bad.append("current schema without leader_answers")
 	_expect(bad.is_empty(), "Rejects malformed leader answers", "accepted: " + ", ".join(bad))

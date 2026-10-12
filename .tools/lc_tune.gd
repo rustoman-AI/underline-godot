@@ -18,7 +18,7 @@ class TuneGame extends Game:
 	var off := false
 	var picks: Array = []
 
-	func leader_event_window(ev: Dictionary) -> int:
+	func needs_window(ev: Dictionary) -> int:
 		if off or (not only.is_empty() and not only.has(str(ev.get("id", "")))):
 			return -1
 		return super(ev)

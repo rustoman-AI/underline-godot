@@ -60,6 +60,8 @@ func _busy_game() -> Game:
 	game.audience_last["synod"] = 19
 	game.audience_due["exchange"] = 3
 	game.leader_answers["synod"] = {"answer": "refused", "week": 19}
+	game.fragments["depot_order"] = {"known": true, "how": "dirty", "week": 18}
+	game.story_words = 3
 	return game
 
 
@@ -86,7 +88,8 @@ func _legacy() -> void:
 		and empty_memory and game.standing_memory.size() == _start_standing().size() and game.seed == 1,
 		"Legacy audience fixture loads to defaults",
 		"legacy fixture loaded=%s deals=%s standing=%s audience=%s memory=%s" % [loaded, game.audience_deals, game.standing, game.audience, game.standing_memory])
-	_expect(loaded and game.leader_answers.is_empty(), "Legacy save starts with no leader answers", "legacy answers %s" % [game.leader_answers])
+	_expect(loaded and game.leader_answers.is_empty() and game.fragments.is_empty() and game.story_words == 0,
+		"Legacy save starts with no leader answers, fragments or testimonies", "legacy answers %s fragments %s" % [game.leader_answers, game.fragments])
 	var second := source.export_state()
 	second["schema"] = 2
 	for key in Game.V2_ADDED:
@@ -95,9 +98,20 @@ func _legacy() -> void:
 	loaded = game.import_state(second)
 	_expect(loaded and game.leader_answers.is_empty() and game.seed == 1,
 		"Schema 2 save migrates with no leader answers", "schema 2 loaded=%s %s answers=%s" % [loaded, game.load_error, game.leader_answers])
+	var third := source.export_state()
+	third["schema"] = 3
+	for key in Game.V3_ADDED + Game.V3_RNG_ADDED:
+		third.erase(key)
+	game = _busy_game()
+	loaded = game.import_state(third)
+	var story_stream := RandomNumberGenerator.new()
+	story_stream.seed = 1 * 41 + 5
+	_expect(loaded and game.fragments.is_empty() and game.story_words == 0 and game.seed == 1 and game.story_rng.state == story_stream.state,
+		"Schema 3 save migrates with no fragments, no testimonies and the story stream from the seed",
+		"schema 3 loaded=%s %s fragments=%s words=%d story stream %s" % [loaded, game.load_error, game.fragments, game.story_words, game.story_rng.state == story_stream.state])
 	var oldest := source.export_state()
 	oldest.erase("schema")
-	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED:
+	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED + Game.V3_ADDED:
 		oldest.erase(key)
 	game = _busy_game()
 	loaded = game.import_state(oldest)
@@ -130,6 +144,14 @@ func _rejects() -> void:
 		"v3 missing leader_answers": _without(good, "leader_answers"),
 		"leader answer unknown": _with(good, "leader_answers", {"depot": {"answer": "maybe", "week": 1}}),
 		"leader answer future week": _with(good, "leader_answers", {"depot": {"answer": "accepted", "week": 39}}),
+		"v4 missing fragments": _without(good, "fragments"),
+		"v4 missing story_words": _without(good, "story_words"),
+		"v4 missing story_state": _without(good, "story_state"),
+		"fragment unknown": _with(good, "fragments", {"the_moon": {"known": true, "how": "found", "week": 1}}),
+		"fragment learned oddly": _with(good, "fragments", {"depot_order": {"known": true, "how": "stolen", "week": 1}}),
+		"fragment future week": _with(good, "fragments", {"depot_order": {"known": true, "how": "honest", "week": 39}}),
+		"story_words negative": _with(good, "story_words", -2),
+		"story_words text": _with(good, "story_words", "3"),
 	}
 	for name in cases:
 		var game := _busy_game()
@@ -163,7 +185,7 @@ func _staffed_by(data: Dictionary, id: String) -> Dictionary:
 ## Plays a seed through, saving to disk at many points; each save is resumed in a different live run
 ## and must reach exactly the same states and ending as the uninterrupted run.
 func _resume() -> void:
-	var covered := {"pending": 0, "white_pending": 0, "queued_orders": 0, "audience": 0, "leader_answers": 0, "after_load_rng": 0}
+	var covered := {"pending": 0, "white_pending": 0, "queued_orders": 0, "audience": 0, "leader_answers": 0, "fragments": 0, "after_load_rng": 0}
 	var points := 0
 	var mismatches: PackedStringArray = []
 	for run_seed in SEEDS:
@@ -186,7 +208,7 @@ func _resume() -> void:
 			if not marked and at % 7 != 0:
 				continue
 			points += 1
-			for key in ["pending", "white_pending", "queued_orders", "audience", "leader_answers"]:
+			for key in ["pending", "white_pending", "queued_orders", "audience", "leader_answers", "fragments"]:
 				if not snap[key].is_empty():
 					covered[key] += 1
 			var why := _resume_from(snap, bots[at], states, at, run_seed)
@@ -227,8 +249,14 @@ func _resume_from(snap: Dictionary, memory: Dictionary, states: Array, at: int, 
 
 
 ## The player's half of a week: take every second leader's deal, queue a council order every third
-## week the way the UI does, then let the bot play.
+## week the way the UI does, hear a resident story every fourth week and learn a fragment in week 9, then let
+## the bot play.
 func _drive(game: Game, bot: Bot) -> void:
+	if game.week % 4 == 0:
+		var stories := Voice.of_type("story")
+		game.hear_story(str(stories[(game.week / 4) % stories.size()].id))
+	if game.week == 9:
+		game.know_fragment("synod_recording", "honest")
 	if not game.audience.is_empty() and game.week % 2 == 0 and game.audience_reason() == "":
 		game.apply({"kind": "audience", "accept": true})
 	if game.week % 3 == 0:

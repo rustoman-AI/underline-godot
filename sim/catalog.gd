@@ -16,6 +16,10 @@ var events: Array = []
 var check_events: Dictionary = {}
 ## English -> Russian for the leader consequence events, as written in data/events_leaders.json.
 var leader_ru: Dictionary = {}
+## English -> Russian for the story events, as written in data/events_story.json.
+var story_ru: Dictionary = {}
+## Truth fragments by id (data/truth.json): title, hint and text, each {en, ru}.
+var truth: Dictionary = {}
 var coney: Dictionary = {}
 var residents: Array = []
 var names: Dictionary = {}
@@ -37,7 +41,10 @@ func load_all() -> bool:
 	stations = _arr("stations.json")
 	tunnels = _arr("tunnels.json")
 	events = _arr("events.json")
-	_add_leader_events(_obj("events_leaders.json"), _obj("ru.json"))
+	var base_ru := _obj("ru.json")
+	leader_ru = add_events(_obj("events_leaders.json"), base_ru)
+	story_ru = add_events(_obj("events_story.json"), base_ru)
+	truth = _index(_obj("truth.json").get("fragments", []), "id")
 	check_events = _obj("events_checks.json")
 	coney = _obj("characters_coney.json")
 	residents = _arr("residents.json")
@@ -49,12 +56,12 @@ func load_all() -> bool:
 	return error == ""
 
 
-## Leader consequence events (data/events_leaders.json) join the event list. Their "ru" map joins the Russian
-## lookup in Copy; where ru.json already words the same English string differently, the event keeps its own
-## Russian in "ru_own" (read by Game.line_of) so neither text changes the other.
-func _add_leader_events(data: Dictionary, base_ru: Dictionary) -> void:
+## Leader consequence and story events (data/events_leaders.json, data/events_story.json) join the event list.
+## Their "ru" map joins the Russian lookup in Copy; where ru.json already words the same English string
+## differently, the event keeps its own Russian in "ru_own" (read by Game.line_of) so neither text changes the
+## other. Returns the file's "ru" map.
+func add_events(data: Dictionary, base_ru: Dictionary) -> Dictionary:
 	var own: Dictionary = data.get("ru", {})
-	leader_ru = own
 	for ev in data.get("events", []):
 		if not (ev is Dictionary):
 			continue
@@ -63,6 +70,7 @@ func _add_leader_events(data: Dictionary, base_ru: Dictionary) -> void:
 			if choice is Dictionary:
 				_keep_ru(choice, ["label"], own, base_ru)
 		events.append(ev)
+	return own
 
 
 func _keep_ru(node: Dictionary, keys: Array, own: Dictionary, base_ru: Dictionary) -> void:

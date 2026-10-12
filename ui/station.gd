@@ -3239,6 +3239,10 @@ func _journal_line(row: Dictionary) -> String:
 			return Copy.t("%s took the lantern toll and gave nothing back.") % _leader_text(game.leader_name("black_flag", "leader"))
 		"regard":
 			return _regard_text({str(row.get("faction", "")): int(row.get("delta", 0))}) + "."
+		"truth":
+			return Copy.t("Truth learned: %s.") % _fragment_title(str(row.get("id", "")))
+		"testimony":
+			return Copy.t("Testimony gathered: Words +1 (%d stories heard).") % int(row.get("stories", 0))
 	return kind
 
 
@@ -3250,7 +3254,7 @@ func _journal_group(kind: String) -> String:
 			return "decisions"
 		"order", "cancel", "order_done", "station", "war", "ultimatum":
 			return "map"
-		"news", "radio", "season", "flood", "deaths", "born":
+		"news", "radio", "season", "flood", "deaths", "born", "truth", "testimony":
 			return "news"
 	return ""
 
@@ -3284,7 +3288,7 @@ func _show_journal() -> void:
 	var flow := HFlowContainer.new()
 	flow.add_theme_constant_override("h_separation", 6)
 	flow.add_theme_constant_override("v_separation", 6)
-	for pair in [["", "All"], ["builds", "Builds"], ["decisions", "Decisions"], ["map", "Map"], ["news", "News"]]:
+	for pair in [["", "All"], ["builds", "Builds"], ["decisions", "Decisions"], ["map", "Map"], ["news", "News"], ["truth", "Truth"]]:
 		var key := str(pair[0])
 		var button := _button(str(pair[1]), _pick_journal_filter.bind(key), "card")
 		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -3295,6 +3299,9 @@ func _show_journal() -> void:
 			_style_primary(button)
 		flow.add_child(button)
 	card_body.add_child(flow)
+	if journal_filter == "truth":
+		_truth_page()
+		return
 	var shown := 0
 	var week_seen := -1
 	for i in range(game.journal.size() - 1, -1, -1):
@@ -3328,6 +3335,86 @@ func _show_journal() -> void:
 func _pick_journal_filter(key: String) -> void:
 	journal_filter = key
 	_show_journal()
+
+
+const SLIP_PAPER := Color("efe4c8")
+const SLIP_UNKNOWN := Color("cfc3a6")
+const SLIP_INK := Color("2b2118")
+const SLIP_MUTED := Color("5f4f3c")
+const FRAGMENT_HOW := {"honest": "Learned honestly, week %d", "dirty": "Learned the dirty way, week %d", "found": "Found, week %d"}
+
+
+## The journal's Truth page: the five fragments as paper slips, then the artifact counts and the Words source.
+func _truth_page() -> void:
+	var known := 0
+	for id in Game.FRAGMENTS:
+		if game.fragment_known(str(id)):
+			known += 1
+	_body(Copy.t("Truth fragments known: %d of %d.") % [known, Game.FRAGMENTS.size()])
+	for id in Game.FRAGMENTS:
+		card_body.add_child(_truth_slip(str(id)))
+	var counts := _label(Copy.t("Papers %d · Iron %d · Words %d") % [int(game.artifacts.get("papers", 0)),
+		int(game.artifacts.get("iron", 0)), int(game.artifacts.get("words", 0))], 17, true)
+	card_body.add_child(counts)
+	var words := _label(Copy.t("Words: stories heard %d, next testimony in %s.") % [game.stories_heard(),
+		Words.count(game.stories_to_testimony(), "story", "stories")], 15)
+	words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.add_theme_color_override("font_color", PAPER_MUTED)
+	card_body.add_child(words)
+
+
+func _truth_slip(id: String) -> PanelContainer:
+	var fid := str(Game.FRAGMENTS[id])
+	var row = game.fragments.get(id, {})
+	var known := game.fragment_known(id)
+	var slip := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = SLIP_PAPER if known else SLIP_UNKNOWN
+	style.border_color = Color(0, 0, 0, 0.35)
+	style.set_border_width_all(1)
+	style.shadow_color = Color(0, 0, 0, 0.35)
+	style.shadow_size = 3
+	style.shadow_offset = Vector2(1, 2)
+	style.set_content_margin_all(10)
+	slip.add_theme_stylebox_override("panel", style)
+	slip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 10)
+	slip.add_child(line)
+	var mark := _faction_mark(game.leader(fid), 32)
+	mark.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	line.add_child(mark)
+	var words := VBoxContainer.new()
+	words.add_theme_constant_override("separation", 2)
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.add_child(words)
+	var holder := Copy.t("Held by %s, %s.") % [_leader_text(game.leader_name(fid, "leader")), _leader_text(game.leader_name(fid, "title"))]
+	if known:
+		words.add_child(_slip_label(_fragment_title(id), 17, SLIP_INK, true))
+		words.add_child(_slip_label(game.fragment_text(id, "text"), 15, SLIP_INK))
+		var how := str(row.get("how", "found"))
+		words.add_child(_slip_label(Copy.t(str(FRAGMENT_HOW.get(how, FRAGMENT_HOW.found))) % int(row.get("week", 0)), 13, SLIP_MUTED))
+	else:
+		words.add_child(_slip_label("?", 22, SLIP_INK, true))
+		var hint := game.fragment_text(id, "hint")
+		if hint != "":
+			words.add_child(_slip_label(hint, 15, SLIP_INK))
+		words.add_child(_slip_label(holder, 13, SLIP_MUTED))
+	return slip
+
+
+func _slip_label(text: String, size: int, ink: Color, display := false) -> Label:
+	var lab := _label(text, size, display)
+	lab.add_theme_color_override("font_color", ink)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return lab
+
+
+func _fragment_title(id: String) -> String:
+	var title: String = game.fragment_text(id, "title")
+	return title if title != "" else id
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -4071,7 +4158,7 @@ func _morning_lines() -> PackedStringArray:
 		var text := str(entry.text)
 		if w == game.week and _starts(text, ["INTENT", "SEASON", "ULTIMATUM", "PRESSURE", "No warning"]):
 			lines.append(text)
-		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH", "WARN"]):
+		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH", "WARN", "TRUTH", "TESTIMONY"]):
 			lines.append(text)
 	return lines
 
@@ -5521,9 +5608,8 @@ func _stories_heard() -> Vector2i:
 func _finish_story(person_id: String) -> void:
 	if vo_story_progress < 0.9:
 		return
-	var id := _story_id(person_id)
-	if id != "":
-		game.vo_heard[id] = true
+	if game.hear_story(_story_id(person_id)) > 0:
+		_toast(Copy.t("Testimony gathered"), 2.6)
 	_fill_people()
 
 

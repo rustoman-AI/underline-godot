@@ -14,6 +14,7 @@ const NOUNS := {
 	"people": ["человек", "человека", "человек"],
 	"worker": ["рабочий", "рабочих", "рабочих"],
 	"crew": ["бригада", "бригады", "бригад"],
+	"story": ["историю", "истории", "историй"],
 }
 const STOCK := {
 	"power": ["энергия", "энергии", "энергий"],
@@ -158,6 +159,8 @@ static func gloss(line: String) -> String:
 		["REVOLT ", "Бунт. "],
 		["DEAL ", "Сделка. "],
 		["PREACH ", "Проповедь. "],
+		["TRUTH ", "Правда. "],
+		["TESTIMONY ", "Свидетельство. "],
 		["ROT ", ""],
 	]
 	for pair in tags:
@@ -229,9 +232,10 @@ static func _load() -> bool:
 		push_error("Underline: bad data/ru.json")
 		return false
 	map = data
-	var extra = JSON.parse_string(FileAccess.get_file_as_string("res://data/events_leaders.json"))
-	if extra is Dictionary and extra.get("ru", null) is Dictionary:
-		for en in extra.ru:
-			if not map.has(en):
-				map[en] = extra.ru[en]
+	for file in ["events_leaders.json", "events_story.json"]:
+		var extra = JSON.parse_string(FileAccess.get_file_as_string("res://data/" + file))
+		if extra is Dictionary and extra.get("ru", null) is Dictionary:
+			for en in extra.ru:
+				if not map.has(en):
+					map[en] = extra.ru[en]
 	return true

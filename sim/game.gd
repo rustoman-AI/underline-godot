@@ -75,6 +75,11 @@ var audience_deals := {}
 ## Each leader's first audience answer this run: {faction: {"answer": "accepted"|"refused"|"silence", "week"}}.
 ## Set once, never overwritten; leader consequence events read it.
 var leader_answers := {}
+## Truth fragments learned this run (docs/STORY.md): {id: {"known": true, "how": "honest"|"dirty"|"found", "week"}}.
+## Set once by know_fragment(), never overwritten.
+var fragments := {}
+## Testimonies already granted for resident stories heard, one per STORY_WORDS_EVERY distinct stories.
+var story_words := 0
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -121,6 +126,7 @@ var rally_lock := 0
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
 var net_rng := RandomNumberGenerator.new()
+var story_rng := RandomNumberGenerator.new()
 var bal := {}
 
 
@@ -131,6 +137,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	max_weeks = weeks
 	rng.seed = run_seed
 	net_rng.seed = run_seed * 17 + 3
+	story_rng.seed = run_seed * 41 + 5
 	week = 1
 	over = ""
 	player_lean = str(cat.factions[player].lean)
@@ -744,9 +751,10 @@ func _dawn() -> void:
 	_season_clock()
 	_queue_crunch()
 	_roll_events()
-	_offer_leader_event()
+	_offer_forced_event()
 	_release_white_checks()
 	_offer_checks()
+	_offer_story_event()
 	_note_dawn_afford()
 	_log("DAWN food %d air %d power %d mat %d tok %d inf %d hope %d dis %d pop %d" % [
 		int(stock.food), int(stock.air), int(stock.power), int(stock.materials), int(stock.tokens), int(stock.influence), hope, discontent, residents.size()])
@@ -3032,6 +3040,11 @@ func _order_focus(sid: String, focus: String) -> bool:
 	return true
 
 
+## Set when the South Ferry expedition walks back: the hook for story events ("needs": {"flag": ...}) that grant
+## what it found, such as "artifacts": {"iron": 1}.
+const EXPEDITION_FLAG := "expedition_ferry_back"
+
+
 func _order_expedition() -> bool:
 	if not can_expedition():
 		return false
@@ -3078,6 +3091,7 @@ func _tick_expedition() -> void:
 	stock.materials = int(stock.materials) + 10
 	_hire(2)
 	expedition = {}
+	flags[EXPEDITION_FLAG] = true
 	_log("South Ferry is open. Two people walk back with the squad.", true)
 
 
@@ -4011,18 +4025,20 @@ func _roll_events() -> void:
 	_present_event(_weighted(pool))
 
 
-## Leader consequence events ("needs") never enter the random pool. At dawn, once that leader's first answer
-## matches ("refused" also matches silence) and the weeks since it are inside after_weeks, the event is shown
-## unless a major event is already waiting; then it tries again next dawn until its window closes. One per week
-## at most, the one whose window closes first; each shows once a run. Draws nothing from the random streams.
-func _offer_leader_event() -> void:
+## Events with "needs" show once a run, only while every condition in it holds, and never enter the random
+## pool (_event_ok). A forced one (needs_forced) is shown at dawn unless a major event is already waiting, then
+## it tries again next dawn until its window closes; one per week at most, the one whose window closes first.
+## Draws nothing from the random streams. The others are story beats (_offer_story_event).
+func _offer_forced_event() -> void:
 	for ev in pending:
 		if bool(ev.get("major", false)):
 			return
 	var pick := {}
 	var pick_left := 1 << 30
 	for ev in catalog.events:
-		var left := leader_event_window(ev)
+		if not needs_forced(ev):
+			continue
+		var left := needs_window(ev)
 		if left >= 0 and left < pick_left:
 			pick = ev
 			pick_left = left
@@ -4030,19 +4046,115 @@ func _offer_leader_event() -> void:
 		_present_event(pick)
 
 
-## Weeks left in the event's window this dawn, or -1 when it cannot show now.
-func leader_event_window(ev: Dictionary) -> int:
+## The story slot: at most one story beat a week, on top of whatever the random pool brought, weighted among
+## the beats whose window is open, drawn only from story_rng so the pool's stream and order stay as they were.
+## Outside the pool's cooldown and minor cap. A busy week (story_slot_free) passes; a beat whose window holds no
+## free week does not show this run.
+func _offer_story_event() -> void:
+	if not story_slot_free():
+		return
+	var open: Array = []
+	for ev in catalog.events:
+		if story_beat(ev) and not _has_event(pending, str(ev.id)) and needs_window(ev) >= 0:
+			open.append(ev)
+	if not open.is_empty():
+		_present_event(_weighted(open, story_rng))
+
+
+## No story beat in a week that already brought 3 or more other events, a leader consequence, a season, or a
+## food or air crisis (a shortage last night, or stock plus a night's output short of a night's need).
+func story_slot_free() -> bool:
+	var others := 0
+	for id in week_event_ids:
+		var ev := _event_by_id(str(id))
+		if ev.has("needs"):
+			if needs_forced(ev):
+				return false
+			continue
+		others += 1
+	if others >= 3 or not active_season.is_empty():
+		return false
+	var causes: Array = stats.get("shortage_causes", [])
+	if not causes.is_empty() and int(causes[-1].week) == week - 1 and str(causes[-1].cause) != "power":
+		return false
+	return int(stock.food) + output_of("food") >= food_need() and int(stock.air) + output_of("air") >= air_need()
+
+
+static func story_beat(ev: Dictionary) -> bool:
+	return ev.has("needs") and not needs_forced(ev) and not bool(ev.get("chain_only", false)) \
+		and not bool(ev.get("check_only", false))
+
+
+const NEEDS_KEYS := ["leader", "answer", "after_weeks", "standing_min", "standing_max", "band", "fragment",
+	"no_fragment", "flag", "no_flag", "artifacts_min", "week", "season", "ending_blocked"]
+## Weeks a window stays open when nothing in "needs" closes it.
+const OPEN_WINDOW := 1 << 20
+
+## "forced": true, or by default any leader consequence (needs.leader), as data/events_leaders.json has none.
+static func needs_forced(ev: Dictionary) -> bool:
+	var needs = ev.get("needs", null)
+	if not (needs is Dictionary):
+		return false
+	return bool(ev.get("forced", needs.has("leader")))
+
+
+## Weeks left in the event's window this dawn (OPEN_WINDOW when nothing closes it), or -1 when it cannot show
+## now: it has shown already or a condition in "needs" does not hold. Every key is optional; all must hold.
+func needs_window(ev: Dictionary) -> int:
 	var needs = ev.get("needs", null)
 	if not (needs is Dictionary) or events_seen.has(str(ev.id)):
 		return -1
-	var row: Dictionary = leader_answers.get(str(needs.get("leader", "")), {})
-	if row.is_empty() or not answer_matches(str(needs.get("answer", "")), str(row.answer)):
-		return -1
-	var span: Array = needs.get("after_weeks", [0, 0])
-	var since := week - int(row.week)
-	if since < int(span[0]) or since > int(span[1]):
-		return -1
-	return int(span[1]) - since
+	var left := OPEN_WINDOW
+	if needs.has("leader"):
+		var row: Dictionary = leader_answers.get(str(needs.leader), {})
+		if row.is_empty() or not answer_matches(str(needs.get("answer", "")), str(row.answer)):
+			return -1
+		if needs.has("after_weeks"):
+			var span: Array = needs.after_weeks
+			var since := week - int(row.week)
+			if since < int(span[0]) or since > int(span[1]):
+				return -1
+			left = mini(left, int(span[1]) - since)
+	if needs.has("week"):
+		var weeks: Array = needs.week
+		if week < int(weeks[0]) or week > int(weeks[1]):
+			return -1
+		left = mini(left, int(weeks[1]) - week)
+	return left if needs_hold(needs) else -1
+
+
+## The conditions in "needs" that do not depend on a window.
+func needs_hold(needs: Dictionary) -> bool:
+	for fid in needs.get("standing_min", {}):
+		if int(standing.get(str(fid), 0)) < int(needs.standing_min[fid]):
+			return false
+	for fid in needs.get("standing_max", {}):
+		if int(standing.get(str(fid), 0)) > int(needs.standing_max[fid]):
+			return false
+	for fid in needs.get("band", {}):
+		if standing_band(str(fid)) != str(needs.band[fid]):
+			return false
+	if needs.has("fragment") and not fragment_known(str(needs.fragment)):
+		return false
+	if needs.has("no_fragment") and fragment_known(str(needs.no_fragment)):
+		return false
+	if needs.has("flag") and not flags.has(str(needs.flag)):
+		return false
+	if needs.has("no_flag") and flags.has(str(needs.no_flag)):
+		return false
+	for key in needs.get("artifacts_min", {}):
+		if int(artifacts.get(str(key), 0)) < int(needs.artifacts_min[key]):
+			return false
+	if needs.has("season") and not _season_is(str(needs.season)):
+		return false
+	if needs.has("ending_blocked") and ending_blocked() != bool(needs.ending_blocked):
+		return false
+	return true
+
+
+## Whether every ending path is closed. Endings arrive in story phase S2; until then no path is ever closed.
+func ending_blocked() -> bool:
+	return false
 
 
 static func answer_matches(wanted: String, given: String) -> bool:
@@ -4096,7 +4208,7 @@ func _schedule_follow(ev: Dictionary, choice: Dictionary) -> void:
 	var follow := str(ev.get("follow", ""))
 	if follow == "":
 		return
-	var gap := rng.randi_range(2, 6)
+	var gap := (story_rng if story_beat(ev) else rng).randi_range(2, 6)
 	var due := week + gap
 	var earliest := 0
 	if event_last.has(follow):
@@ -4198,7 +4310,9 @@ func _event_pool(major_only: bool) -> Array:
 
 func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
-	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)) or ev.has("needs"):
+	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
+		return false
+	if ev.has("needs"):
 		return false
 	if id == "lamps" and week == crunch_week:
 		return false
@@ -4961,6 +5075,94 @@ func _apply_deltas(choice: Dictionary) -> void:
 		workshop_down = true
 	if bool(choice.get("gen_down", false)):
 		gen_down = true
+	_apply_story_effects(choice)
+
+
+## Story effects (docs/briefs/cursor_story_engine.txt): "artifacts" {papers|iron|words: n}, "fragment" (learned
+## the choice's "how" way, "found" by default) and "flag" (set for "needs" to read).
+func _apply_story_effects(choice: Dictionary) -> void:
+	var found = choice.get("artifacts", {})
+	if found is Dictionary:
+		for key in found:
+			if not ARTIFACTS.has(str(key)) or int(found[key]) == 0:
+				continue
+			artifacts[str(key)] = maxi(0, int(artifacts.get(str(key), 0)) + int(found[key]))
+			_log("ARTIFACT %s %+d" % [str(key), int(found[key])], true)
+	if choice.has("fragment"):
+		know_fragment(str(choice.fragment), str(choice.get("how", "found")))
+	var flag := str(choice.get("flag", ""))
+	if flag != "":
+		flags[flag] = true
+		_log("FLAG %s" % flag, true)
+
+
+const FRAGMENTS := {
+	"depot_order": "depot", "directorate_ledger": "directorate", "synod_recording": "synod",
+	"exchange_papers": "exchange", "quarantine_path": "black_flag",
+}
+const FRAGMENT_HOWS := ["honest", "dirty", "found"]
+const ARTIFACTS := ["papers", "iron", "words"]
+const STORY_WORDS_EVERY := 3
+
+
+## Learns a truth fragment once: a "truth" journal row and a line in the next dawn report. Returns false when
+## the id is unknown or the fragment is already known; the first way it was learned stays.
+func know_fragment(id: String, how: String = "found") -> bool:
+	if not FRAGMENTS.has(id) or fragment_known(id):
+		return false
+	if not FRAGMENT_HOWS.has(how):
+		how = "found"
+	fragments[id] = {"known": true, "how": how, "week": week}
+	_journal("truth", {"id": id, "how": how})
+	var title := fragment_text(id, "title")
+	_note("TRUTH Learned: %s." % title, "TRUTH Узнано: %s." % title)
+	return true
+
+
+func fragment_known(id: String) -> bool:
+	var row = fragments.get(id, null)
+	return row is Dictionary and bool(row.get("known", false))
+
+
+## A fragment's "title", "hint" or "text" from data/truth.json in the current language, "" when unwritten.
+func fragment_text(id: String, key: String) -> String:
+	var pair = catalog.truth.get(id, {}).get(key, {})
+	if not (pair is Dictionary):
+		return str(pair) if pair != null else ""
+	var out := str(pair.get("ru", "")) if Copy.ru() else ""
+	return out if out != "" else str(pair.get("en", ""))
+
+
+## A resident's recorded story played to the end. Every STORY_WORDS_EVERY distinct stories heard (vo_heard
+## true, any language) grant one Words artifact, each threshold once. Returns how many were granted now.
+func hear_story(id: String) -> int:
+	if id == "":
+		return 0
+	vo_heard[id] = true
+	var due := stories_heard() / STORY_WORDS_EVERY
+	var granted := 0
+	while story_words < due:
+		story_words += 1
+		granted += 1
+		artifacts.words = int(artifacts.get("words", 0)) + 1
+		_journal("testimony", {"stories": story_words * STORY_WORDS_EVERY})
+		_note("TESTIMONY Gathered from the stories heard: Words +1.", "TESTIMONY Собрано из услышанных историй: «Слова» +1.")
+	return granted
+
+
+## Distinct resident stories heard to the end this run.
+func stories_heard() -> int:
+	var n := 0
+	for row in Voice.of_type("story"):
+		var mark = vo_heard.get(str(row.get("id", "")), null)
+		if mark is bool and mark:
+			n += 1
+	return n
+
+
+## Stories still to hear before the next Words artifact.
+func stories_to_testimony() -> int:
+	return maxi(1, (story_words + 1) * STORY_WORDS_EVERY - stories_heard())
 
 
 # --- map ---
@@ -5742,13 +5944,13 @@ func _drop_id(rows: Array, id: String) -> Array:
 	return keep
 
 
-func _weighted(pool: Array) -> Dictionary:
+func _weighted(pool: Array, stream: RandomNumberGenerator = null) -> Dictionary:
 	var total := 0
 	for ev in pool:
 		total += int(ev.get("weight", 1))
 	if total <= 0:
 		return pool[0]
-	var roll := rng.randi_range(1, total)
+	var roll := (stream if stream != null else rng).randi_range(1, total)
 	var acc := 0
 	for ev in pool:
 		acc += int(ev.get("weight", 1))
@@ -6120,15 +6322,15 @@ const PERSIST := [
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
-	"audience_due", "audience_deals", "vo_cues", "leader_answers",
+	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words",
 ]
 
 
 ## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
 ## Adding a PERSIST key needs a new schema number and its own migration list.
-const SAVE_SCHEMA := 3
-const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state"]
+const SAVE_SCHEMA := 4
+const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
 const V1_ADDED := [
@@ -6141,6 +6343,11 @@ const V1_RNG_ADDED := ["net_state", "check_state"]
 ## Fields a version 1 or 2 save may lack; they start empty like a fresh Game (no answers recorded yet).
 const V2_ADDED := ["leader_answers"]
 const ANSWERS := ["accepted", "refused", "silence"]
+## Fields a version 1 to 3 save may lack: no fragment known, no testimony granted yet (stories already heard
+## count toward the next one when a story ends).
+const V3_ADDED := ["fragments", "story_words"]
+## Version 1 to 3 saves predate the story slot; its stream restarts from the seed the way setup() seeds it.
+const V3_RNG_ADDED := ["story_state"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -6149,7 +6356,7 @@ var load_error := ""
 func export_state() -> Dictionary:
 	var data := {
 		"rng_state": rng.state, "crunch_state": crunch_rng.state,
-		"net_state": net_rng.state, "check_state": check_rng.state,
+		"net_state": net_rng.state, "check_state": check_rng.state, "story_state": story_rng.state,
 	}
 	for key in PERSIST:
 		var value = get(key)
@@ -6170,6 +6377,7 @@ func import_state(data: Dictionary) -> bool:
 	crunch_rng.state = int(state.crunch_state)
 	net_rng.state = int(state.net_state)
 	check_rng.state = int(state.check_state)
+	story_rng.state = int(state.story_state)
 	last_check = {}
 	_init_standing()
 	return true
@@ -6190,7 +6398,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -6203,7 +6411,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 			if typeof(data[key]) != TYPE_INT:
 				return {"error": "%s is not an int" % key, "state": {}}
 			state[key] = data[key]
-		elif int(schema) == 1 and V1_RNG_ADDED.has(key):
+		elif (int(schema) == 1 and V1_RNG_ADDED.has(key)) or (int(schema) <= 3 and V3_RNG_ADDED.has(key)):
 			state[key] = _v1_stream(key, int(state.seed))
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -6236,7 +6444,13 @@ static func _v1_checks(cat: Catalog, run_seed: int) -> Dictionary:
 
 static func _v1_stream(key: String, run_seed: int) -> int:
 	var stream := RandomNumberGenerator.new()
-	stream.seed = run_seed * 17 + 3 if key == "net_state" else run_seed * 29 + 11
+	match key:
+		"net_state":
+			stream.seed = run_seed * 17 + 3
+		"story_state":
+			stream.seed = run_seed * 41 + 5
+		_:
+			stream.seed = run_seed * 29 + 11
 	return stream.state
 
 
@@ -6298,6 +6512,19 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 			return "leader answer %s is %s" % [str(fid), str(row.get("answer", ""))]
 		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
 			return "leader answer %s week %s" % [str(fid), str(row.get("week"))]
+	for key in ARTIFACTS:
+		if typeof(state.artifacts.get(key)) != TYPE_INT or int(state.artifacts[key]) < 0:
+			return "artifact %s is %s" % [key, str(state.artifacts.get(key))]
+	for id in state.fragments:
+		var row = state.fragments[id]
+		if not FRAGMENTS.has(str(id)) or not (row is Dictionary) or typeof(row.get("known")) != TYPE_BOOL:
+			return "fragment %s malformed" % str(id)
+		if not FRAGMENT_HOWS.has(str(row.get("how", ""))):
+			return "fragment %s learned %s" % [str(id), str(row.get("how", ""))]
+		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
+			return "fragment %s week %s" % [str(id), str(row.get("week"))]
+	if int(state.story_words) < 0:
+		return "story_words %d" % int(state.story_words)
 	return ""
 
 
