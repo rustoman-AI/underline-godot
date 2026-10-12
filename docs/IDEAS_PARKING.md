@@ -61,3 +61,5 @@
 
 - Station toast ("Станция/Station" corner message) draws over open modal cards (seen on the generator card, covers the Demolish button edge). Layer it under modals. (12 Oct, numbers clarity screenshots)
 - Design note: switching the workshop off lowers materials storage and the surplus burns (about -12 in one night). Now visible in the forecast as "Store full". Decide after playtest data whether the rule needs a warning on the switch. (12 Oct, Cursor)
+
+- Upgrades: part B (one per week, cost x1.5, optional 1 week of work) waits for the owner yes, see docs/briefs/cursor_upgrade_visible.txt. Related older F12/F13 (cooldown, build tiers) stay parked. (12 Oct, owner playtest)

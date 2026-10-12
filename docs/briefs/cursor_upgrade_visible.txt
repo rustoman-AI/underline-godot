@@ -1,0 +1,33 @@
+CURSOR: UPGRADES YOU CAN SEE (build 0.1.0-playtest5 -> 0.1.0-playtest6). STATUS: PART A is GO (owner, 12 Oct 2026). PART B is a proposal and waits for the owner's yes.
+Source: the owner's own playtest: "rooms look the same after an upgrade, people should feel satisfaction from upgrading; two rooms of the same type should show upgraded versus not upgraded at a glance". Local only. No push, nothing uploaded. NO NEW ART FILES (code and existing sprites only). Do not change balance, room numbers, costs or the map in PART A. Do not touch data/howto.json or data/hints.json.
+
+How upgrades work now (sim/game.gd 2109-2164, 995, 2305): instant, costs upgrade_materials (6 to 10), room.upgrade goes up by 1, output per tier x(1 + 0.25 * tier). Nothing changes on screen except a small number.
+
+PART A: SHOW IT (UI only)
+U1 Yard view: an upgraded room is visibly different from the same room not upgraded. Without new art, use layered effects on the existing room image: a warmer lamp glow and slight brightness lift per tier, a brass plate on the room sign with the tier as a Roman numeral (I, II), and a thin brass frame on the room card. Tier 0 stays as it is today. Two hydroponics rooms, one upgraded, must be told apart at 1280x720 from one screenshot.
+U2 Room card: show the change as before and after: "Tier II: Dynamo. Power +16 -> +20 a week." and the upgrade's name in plain words (what it is: a rooms.json "what" style line if missing: write only from the table in the lead's text below). Under the upgrade button: what you get ("+25% output") and the exact numbers the game will apply.
+U3 Moment of reward: when an upgrade is bought, play a short confirm (existing "built" or "confirm" cue, no new audio), a brief brass flash on the room, a one-line toast "Generator upgraded: Dynamo (+4 power a week)", and a line in the journal.
+U4 Build menu and room list: if two rooms of one type exist, the card header says "Hydroponics, tier II" vs "Hydroponics".
+Upgrade names to explain (EN / RU, lead's text, use as is):
+ bunks: "Bunks: more beds in the same space." / "Нары: больше коек на том же месте."
+ family: "Family corners: calmer people, a little more hope." / "Семейные углы: люди спокойнее, чуть больше надежды."
+ grow_lamps: "Grow lamps: more food from the same beds." / "Лампы для грядок: больше еды с тех же грядок."
+ mushroom_beds: "Mushroom beds: food that needs little light." / "Грибные грядки: еда, которой почти не нужен свет."
+ charcoal: "Charcoal filters: cleaner air." / "Угольные фильтры: чище воздух."
+ pressure_seals: "Pressure seals: fewer leaks." / "Герметизация: меньше утечек."
+ dynamo: "Dynamo: more power from the same crew." / "Динамо: больше энергии от той же бригады."
+ substation: "Substation: steadier power." / "Подстанция: ровнее энергия."
+ drill_heads: "Drill heads: digging goes faster." / "Буровые головки: копать быстрее."
+ armor: "Armour plates: the workshop survives raids." / "Бронелисты: мастерская переживёт налёт."
+ quarantine_ward: "Quarantine ward: the sick are kept apart." / "Карантинная палата: больных держат отдельно."
+ loudspeakers: "Loudspeakers: the hall reaches the whole platform." / "Громкоговорители: зал слышит вся платформа."
+ antenna: "Antenna: the radio hears farther." / "Антенна: радио слышит дальше."
+Check each line against what the upgrade really does in the sim and REPORT any line that is wrong; do not change the sim to fit the text.
+
+PART A CHECKS: all 8 gates green; bot output identical to HEAD line by line (UI only, no numbers change). Test: tier shows on the sign and the card for tiers 0, 1, 2; the before/after numbers equal the applied change after buying. Screenshots EN and RU at 1280x720 and 1024x768: two same rooms (one upgraded), room card before and after, the toast. Commit: "Upgrades you can see: tier plate, glow, before and after". Do not build.
+
+PART B (PROPOSAL, DO NOT START without the owner's yes; it changes balance and needs the 30-seed gates rerun with a documented decision)
+B1 One upgrade per station per week (a player was able to buy two in one week).
+B2 Upgrade cost x1.5 (rounded): quarters 9, workshop 9, hydroponics 12, air filter 12, generator 15, infirmary 12, meeting hall 12, radio 12.
+B3 Optionally the upgrade takes a week of crew work like a build, and the room runs at the old tier meanwhile.
+Report with PART B: the bot's upgrade counts per run before and after, and the gates.
