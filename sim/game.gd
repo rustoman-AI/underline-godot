@@ -2963,7 +2963,7 @@ func order_risk(kind: String, sid: String = "") -> String:
 			var odds := 100
 			if attack > 0.0:
 				odds = int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
-			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [station_text(nxt, "community") if station_text(nxt, "community") != "" else str(st.name), odds]
+			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [station_text(nxt, "community") if station_text(nxt, "community") != "" else Copy.t(str(st.name)), odds]
 			if not bool(at_war.get(owner, false)):
 				line += " " + Copy.t("Their opinion of you drops by 20.")
 			return line
