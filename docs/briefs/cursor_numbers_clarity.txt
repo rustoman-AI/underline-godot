@@ -1,4 +1,4 @@
-CURSOR: NUMBERS CLARITY (build 0.1.0-playtest3 -> 0.1.0-playtest4). STATUS: DRAFT, waits for the owner's "go".
+CURSOR: NUMBERS CLARITY (build 0.1.0-playtest3 -> 0.1.0-playtest4). STATUS: GO given by the owner 12 Oct 2026. Active package.
 Source: docs/playtest/feedback_log.md F28, F29, F34 (and F23). Tester Nicholas, PDF "Underline playtest", 12 Oct 2026. Local only. No push, nothing uploaded. Do NOT change balance, room numbers, the map, art, audio, or any wording in data/howto.json and data/hints.json.
 
 Problem: testers cannot tell where resource numbers come from. F28: "it says 20 power generated, but 10 is being generated, and it does not say where from". F34: "not getting the right amount of materials per turn". F29: hope and discontent have no description, and nobody knows what happens at 0 or 100.
