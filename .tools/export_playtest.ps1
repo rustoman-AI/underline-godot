@@ -6,7 +6,7 @@
 # 3. exports the release exe with the pack embedded;
 # 4. zips Underline.exe, README_RU.txt, README_EN.txt and CREDITS.txt into
 #    build/playtest/Underline-<version>-windows.zip.
-param([string]$Version = "0.1.0-playtest1")
+param([string]$Version = "0.1.0-playtest2")
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
