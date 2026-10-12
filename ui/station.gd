@@ -7442,6 +7442,8 @@ class Yard extends Control:
 	var room_figs := {}
 	var body_figs: Array = []
 	var fig_variants := {}
+	var soft_figs := {}
+	var fig_tint_mix := 0.0
 	const FIG_DIR := "res://assets/figures/poses"
 	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
@@ -7538,10 +7540,16 @@ class Yard extends Control:
 		_load_incoming_figures()
 
 	## body_figs and room_figs hold pose stems; fig_variants maps a stem to its base texture followed by every
-	## palette in FIG_DIR/palettes/<name>/ that has the same stem.
+	## palette in FIG_DIR/palettes/<name>/ that has the same stem. FIG_DIR/figures.json comes with the drawn
+	## resident set and sets how far their tint is lightened (soft_figs); without it every pose keeps the full tint.
 	func _load_incoming_figures() -> void:
 		if not DirAccess.dir_exists_absolute(FIG_DIR):
 			return
+		var manifest = null
+		if FileAccess.file_exists(FIG_DIR.path_join("figures.json")):
+			manifest = JSON.parse_string(FileAccess.get_file_as_string(FIG_DIR.path_join("figures.json")))
+		if manifest is Dictionary:
+			fig_tint_mix = clampf(float(manifest.get("tint_mix", 0.0)), 0.0, 1.0)
 		var base := _fig_textures(FIG_DIR)
 		var stems: Array = base.keys()
 		stems.sort()
@@ -7558,6 +7566,9 @@ class Yard extends Control:
 				if palette.has(stem):
 					variants.append(palette[stem])
 			fig_variants[stem] = variants
+			if manifest is Dictionary:
+				for texture in variants:
+					soft_figs[texture] = true
 			if str(stem).begins_with("body_"):
 				body_figs.append(stem)
 				continue
@@ -8732,6 +8743,8 @@ class Yard extends Control:
 			clampf(shade * 1.75, 0.6, 0.78),
 			clampf(shade * 1.5, 0.52, 0.66),
 			clampf(shade * 1.2, 0.42, 0.54))
+		if soft_figs.has(sprite):
+			tint = tint.lerp(Color.WHITE, fig_tint_mix)
 		draw_texture_rect(sprite, dest, false, tint)
 
 	func _idle_ids() -> Array:

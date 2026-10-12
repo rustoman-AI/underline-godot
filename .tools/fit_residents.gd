@@ -13,9 +13,14 @@ extends SceneTree
 ##   SOLE_MIN of nominal_src is opaque, so a cane tip, a dangling strap or a bench leg below the shoes does not
 ##   count. "baseline fix" is how far the lowest pixel sits below the soles (source px).
 ## - One scale for every standing figure: nominal_src source px -> nominal_px game px, so each person keeps
-##   the height they were drawn at relative to the others. A seated stem ("seated": true in "stems") is scaled
+##   the height they were drawn at relative to the others. Anyone taller than HEIGHT_MAX is scaled down to it;
+##   shorter than HEIGHT_MIN is flagged, not stretched. A seated stem ("seated": true in "stems") is scaled
 ##   so its head-to-floor height is SEATED of nominal_px * standing_ratio.
-## - Soles land on BASELINE in a CANVAS_H canvas. The torso (ink centroid of the chest band, searched around the
+## - Soles land on BASELINE in a CANVAS_H canvas, so with the EDGE border they sit where the old poses touch the
+##   canvas bottom and the game's floor line does not move. Ink below the soles (a cane tip) that reaches the
+##   border is trimmed and noted.
+## - figures.json in the output folder marks the set for the game (ui/station.gd, _load_incoming_figures):
+##   when it is installed with the sprites, those sprites get the lighter tint "tint_mix" from the settings. The torso (ink centroid of the chest band, searched around the
 ##   head) sits on the canvas centre line. The canvas is CANVAS_W wide unless a prop reaches further, then it is
 ##   widened symmetrically so the torso stays centred. EDGE px of transparent border all round.
 ## - Resampling: Lanczos on premultiplied alpha (no dark or light fringe), alpha <= 8/255 cleared. The outline
@@ -41,11 +46,11 @@ const OUT_DIR := "res://incoming-art/residents_v2/game"
 const SETTINGS := "res://.tools/fit_residents.json"
 const CANVAS_W := 212
 const CANVAS_H := 660
-const BASELINE := 636
+const BASELINE := 656
 const EDGE := 2
 const SOLE_MIN := 0.03
 const SEATED := 0.78
-const HEIGHT_MIN := 540
+const HEIGHT_MIN := 520
 const HEIGHT_MAX := 600
 const WEBP_QUALITY := 0.8
 const INK_V := 0.22
@@ -86,6 +91,9 @@ func _init() -> void:
 		print(row.line)
 		if not row.warnings.is_empty():
 			failed.append(stem)
+	var manifest := FileAccess.open(ProjectSettings.globalize_path(OUT_DIR.path_join("figures.json")), FileAccess.WRITE)
+	manifest.store_string(JSON.stringify({"set": "residents_v2", "tint_mix": float(settings.get("tint_mix", 0.0))}, "\t") + "\n")
+	manifest.close()
 	print("FIT done, %d stems, flagged: %s" % [settings.get("accepted", []).size(), "none" if failed.is_empty() else ", ".join(failed)])
 	quit(0)
 
@@ -141,6 +149,9 @@ func _fit(stem: String, path: String, nominal_src: float, nominal_px: float, ove
 	var target := nominal_px * body / nominal_src
 	if seated:
 		target = nominal_px * float(over.get("standing_ratio", 1.0)) * SEATED
+	if not seated and target > HEIGHT_MAX:
+		notes.append("capped from %.0f" % target)
+		target = HEIGHT_MAX
 	var k := target / body
 	var torso := float(over.get("torso_x", -1))
 	if torso < 0.0:
@@ -163,8 +174,10 @@ func _fit(stem: String, path: String, nominal_src: float, nominal_px: float, ove
 	window.premultiply_alpha()
 	window.resize(width, CANVAS_H, Image.INTERPOLATE_LANCZOS)
 	var out := _unpremultiply(window)
-	var touched := _clear_edge(out)
-	if touched:
+	var cut := _clear_edge(out)
+	if cut.below:
+		notes.append("ink under the soles trimmed at the canvas edge")
+	if cut.other:
 		warnings.append("ink cut by the %d px edge" % EDGE)
 	var fitted: Image = out.duplicate()
 	out.save_webp(ProjectSettings.globalize_path(OUT_DIR.path_join(stem + ".webp")), true, WEBP_QUALITY)
@@ -238,9 +251,10 @@ func _unpremultiply(img: Image) -> Image:
 	return Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
 
 
-## Clears the transparent border; true when it had to remove visible ink.
-func _clear_edge(img: Image) -> bool:
-	var touched := false
+## Clears the transparent border and says whether visible ink was removed under the soles (a cane tip, a bench
+## leg) or anywhere else.
+func _clear_edge(img: Image) -> Dictionary:
+	var cut := {"below": false, "other": false}
 	var w := img.get_width()
 	var h := img.get_height()
 	for y in h:
@@ -248,9 +262,9 @@ func _clear_edge(img: Image) -> bool:
 			if x >= EDGE and x < w - EDGE and y >= EDGE and y < h - EDGE:
 				continue
 			if img.get_pixel(x, y).a > 0.25:
-				touched = true
+				cut["below" if y >= BASELINE else "other"] = true
 			img.set_pixel(x, y, Color(0, 0, 0, 0))
-	return touched
+	return cut
 
 
 ## Top row of ink and the row under the soles (lowest row with at least `need` opaque pixels).

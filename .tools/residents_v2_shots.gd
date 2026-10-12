@@ -4,13 +4,14 @@ extends SceneTree
 ## Nothing is installed: the textures are loaded from the incoming folder and handed to the station view in memory.
 ##   godot --path . -s res://.tools/residents_v2_shots.gd -- --size=1280x720
 ## Writes shots/residents_v2/<size>/:
-##   station.png        new game; hydroponics, air filter, generator and quarters show the new body stems as their
+##   station_<a|b|c>.png new game, tint A / half strength / none on the new figures (fig_tint_mix 0 / 0.5 / 1); hydroponics, air filter, generator and quarters show the new body stems as their
 ##                      room figures, the workshop its workshop stems, the platform two idle residents, so every
 ##                      accepted figure is on screen once. Palettes are picked per resident as in the game.
-##   room_<type>.png    2x crops of those rooms.
-##   wall.png           figures on the platform wall with the game tint: current assets, new at game scale, new at 0.5x.
+##   compare_<view>.png the three tints side by side, for the station and 2x crops of the staged rooms.
+##   The log ends with CLEARANCE: head room between the tallest new figure and the top of each room cell.
+##   wall.png           figures on the platform wall: current assets with tint A, new with each tint, new at 0.5x.
 ## and once (size independent) under shots/residents_v2/:
-##   fit_native.png     each sprite 1:1 with the baseline (636, red) and the 540..600 height band (green).
+##   fit_native.png     each sprite 1:1 with the baseline (656, red) and the 520..600 height band (green).
 ##   palettes.png       base and every palette, untinted; palettes_tinted.png the same with the game tint.
 
 const GAME := "res://incoming-art/residents_v2/game"
@@ -18,6 +19,9 @@ const OUT := "res://shots/residents_v2"
 const SETTINGS := "res://.tools/fit_residents.json"
 const STAGED_ROOMS := ["hydroponics", "air_filter", "generator", "quarters"]
 const CROPS := ["workshop", "hydroponics", "air_filter", "generator", "platform", "quarters"]
+## How far _paint_sprite lightens the tint toward white for the new figures (fig_tint_mix).
+const TINTS := {"a": 0.0, "b": 0.5, "c": 1.0}
+const TINT_NAMES := {"a": "tint A (current)", "b": "tint at half strength", "c": "no tint"}
 
 var view
 var stems: Array = []
@@ -94,25 +98,33 @@ func _run() -> void:
 	var placed := _stage(st)
 
 	await create_timer(1.0).timeout
-	await st._frame()
-	await st._frame()
 	var dir := OUT.path_join(size)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
-	var img: Image = st.get_viewport().get_texture().get_image()
-	img.save_png(ProjectSettings.globalize_path(dir.path_join("station.png")))
 	var origin: Vector2 = view.get_global_rect().position
-	for type in CROPS:
-		for room in st.game.rooms:
-			if str(room.type) != type:
-				continue
-			var box: Rect2 = view.cell_screen(int(room.level), int(room.cell))
-			box.position += origin
-			var cut := Rect2i(box).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
-			if cut.size.x >= 8 and cut.size.y >= 8:
-				var crop := img.get_region(cut)
-				crop.resize(crop.get_width() * 2, crop.get_height() * 2, Image.INTERPOLATE_NEAREST)
-				crop.save_png(ProjectSettings.globalize_path(dir.path_join("room_%s.png" % type)))
-			break
+	var shots := {}
+	for variant in TINTS:
+		view.fig_tint_mix = float(TINTS[variant])
+		view.queue_redraw()
+		await st._frame()
+		await st._frame()
+		var img: Image = st.get_viewport().get_texture().get_image()
+		img.save_png(ProjectSettings.globalize_path(dir.path_join("station_%s.png" % variant)))
+		shots["station"] = shots.get("station", []) + [img]
+		for type in CROPS:
+			for room in st.game.rooms:
+				if str(room.type) != type:
+					continue
+				var box: Rect2 = view.cell_screen(int(room.level), int(room.cell))
+				box.position += origin
+				var cut := Rect2i(box).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
+				if cut.size.x >= 8 and cut.size.y >= 8:
+					var crop := img.get_region(cut)
+					crop.resize(crop.get_width() * 2, crop.get_height() * 2, Image.INTERPOLATE_NEAREST)
+					shots[type] = shots.get(type, []) + [crop]
+				break
+	for view_name in shots:
+		await _save_sheet(_compare_sheet(shots[view_name], view_name == "station"), dir.path_join("compare_%s.png" % view_name))
+	var clearance := _clearance(st)
 
 	var wall := _wall_sheet(old)
 	st.visible = false
@@ -128,7 +140,64 @@ func _run() -> void:
 		await _save_sheet(_palette_sheet(false), OUT.path_join("palettes.png"))
 		await _save_sheet(_palette_sheet(true), OUT.path_join("palettes_tinted.png"))
 	print("SHOTS %s %d stems in %d slots: %s" % [size, stems.size(), placed.size(), ", ".join(placed)])
+	print("CLEARANCE %s\n  %s" % [size, "\n  ".join(clearance)])
 	quit(0)
+
+
+## Tint variants side by side with their labels; the station at half size, room crops as they are.
+func _compare_sheet(imgs: Array, halve: bool) -> Sheet:
+	var sheet := Sheet.new()
+	var texs: Array = []
+	for img in imgs:
+		var copy: Image = img.duplicate()
+		if halve:
+			copy.resize(copy.get_width() / 2, copy.get_height() / 2, Image.INTERPOLATE_LANCZOS)
+		texs.append(ImageTexture.create_from_image(copy))
+	var w: float = texs[0].get_width()
+	var h: float = texs[0].get_height()
+	sheet.size = Vector2(w * texs.size() + 8.0 * (texs.size() - 1), h + 26.0)
+	sheet.ops.append({"kind": "rect", "rect": Rect2(Vector2.ZERO, sheet.size), "color": Color(0.1, 0.1, 0.1)})
+	var labels: Array = TINTS.keys()
+	for i in texs.size():
+		var x := i * (w + 8.0)
+		sheet.ops.append({"kind": "text", "pos": Vector2(x + 6.0, 18.0), "text": "%s: %s" % [labels[i], TINT_NAMES[labels[i]]], "size": 15, "color": Color.WHITE})
+		sheet.ops.append({"kind": "tex", "tex": texs[i], "rect": Rect2(x, 26.0, w, h), "color": Color.WHITE})
+	return sheet
+
+
+## Room-top clearance with the drawn sizes: for every staged room, the tallest of the new figures at the largest
+## per-resident scale (1.06), drawn as _draw_people / _draw_sleepers / _draw_platform would; screen px between
+## the head and the top of the room cell, and whether the sprite runs past the cell.
+func _clearance(st) -> PackedStringArray:
+	var out: PackedStringArray = []
+	var geo: Dictionary = view._geo()
+	var zoom: float = view.zoom
+	for room in st.game.rooms:
+		var type := str(room.type)
+		if not type in CROPS:
+			continue
+		var rect: Rect2 = view._rect(geo, int(room.level), int(room.cell))
+		var floor: Rect2 = rect if type == "platform" else view._art_rect(type, rect)
+		var foot := floor.end.y - 2.0
+		var pool: Array = stems.filter(func(s): return str(s).begins_with("workshop_") == (type == "workshop"))
+		var worst := INF
+		var worst_stem := ""
+		for stem in pool:
+			var tex: Texture2D = base[stem]
+			var body_h := floor.size.y
+			if type == "workshop" or type in STAGED_ROOMS and type != "quarters":
+				var fitted: Vector2 = view._pose_size(tex, body_h)
+				if fitted.x > floor.size.x * 0.34:
+					body_h *= floor.size.x * 0.34 / fitted.x
+			var drawn: Vector2 = view._pose_size(tex, body_h) * 1.06
+			var head := foot - drawn.y + drawn.y * float(tex.get_image().get_used_rect().position.y) / 660.0
+			var margin := (head - rect.position.y) * zoom
+			if margin < worst:
+				worst = margin
+				worst_stem = stem
+		var top_px: float = (foot - view._pose_size(base[worst_stem], floor.size.y).y * 1.06 - rect.position.y) * zoom
+		out.append("%-12s tallest %s head %.0f px below the room top (sprite top %.0f px)%s" % [type, worst_stem, worst, top_px, "" if top_px >= 0.0 else " CUT"])
+	return out
 
 
 ## Hands the new figures to the view and maps each visible resident to its own stem, through the same
@@ -140,6 +209,8 @@ func _stage(st) -> PackedStringArray:
 			if palettes[name].has(stem):
 				variants.append(palettes[name][stem])
 		view.fig_variants[stem] = variants
+		for texture in variants:
+			view.soft_figs[texture] = true
 	var body: Array = stems.filter(func(s): return str(s).begins_with("body_"))
 	var work: Array = stems.filter(func(s): return not str(s).begins_with("body_"))
 	var groups := {}
@@ -196,9 +267,9 @@ func _lookup(table: Dictionary, pool: Array) -> Array:
 	return pool
 
 
-func _tint(id: String) -> Color:
+func _tint(id: String, mix := 0.0) -> Color:
 	var shade: float = 0.36 + fmod(view._id_hash(id), 5.0) * 0.02
-	return Color(clampf(shade * 1.75, 0.6, 0.78), clampf(shade * 1.5, 0.52, 0.66), clampf(shade * 1.2, 0.42, 0.54))
+	return Color(clampf(shade * 1.75, 0.6, 0.78), clampf(shade * 1.5, 0.52, 0.66), clampf(shade * 1.2, 0.42, 0.54)).lerp(Color.WHITE, mix)
 
 
 ## Rows of platform cells at the station's current zoom (and half of it) with figures standing on the floor,
@@ -213,9 +284,11 @@ func _wall_sheet(old: Array) -> Sheet:
 	var zoom: float = view.zoom
 	var y := 8.0
 	var rows := [
-		["current assets/figures/poses at game scale", old, 1.0],
-		["new, game scale", stems.map(func(s): return [s, base[s]]), 1.0],
-		["new, 0.5x", stems.map(func(s): return [s, base[s]]), 0.5],
+		["current assets/figures/poses, tint A", old, 1.0, 0.0],
+		["new, tint A", stems.map(func(s): return [s, base[s]]), 1.0, 0.0],
+		["new, tint at half strength", stems.map(func(s): return [s, base[s]]), 1.0, 0.5],
+		["new, no tint", stems.map(func(s): return [s, base[s]]), 1.0, 1.0],
+		["new, 0.5x, tint at half strength", stems.map(func(s): return [s, base[s]]), 0.5, 0.5],
 	]
 	for row in rows:
 		var cell := Vector2(float(geo.w), float(geo.h)) * zoom * float(row[2])
@@ -236,7 +309,7 @@ func _wall_sheet(old: Array) -> Sheet:
 			var w := h * tex.get_width() / float(tex.get_height())
 			var cx := 20.0 + step * (i + 0.5)
 			var foot := floor.end.y - 2.0 * zoom * float(row[2])
-			sheet.ops.append({"kind": "tex", "tex": tex, "rect": Rect2(cx - w * 0.5, foot - h, w, h), "color": _tint(str(items[i][0]))})
+			sheet.ops.append({"kind": "tex", "tex": tex, "rect": Rect2(cx - w * 0.5, foot - h, w, h), "color": _tint(str(items[i][0]), float(row[3]))})
 			if row[2] == 1.0:
 				sheet.ops.append({"kind": "text", "pos": Vector2(cx - step * 0.45, foot + 13), "text": str(items[i][0]), "size": 10, "color": Color(0.75, 0.72, 0.66)})
 		y = floor.end.y + 22.0
@@ -252,15 +325,15 @@ func _native_sheet() -> Sheet:
 		total += base[stem].get_width() + 10.0
 	sheet.size = Vector2(total, top + 660 + 30)
 	sheet.ops.append({"kind": "rect", "rect": Rect2(Vector2.ZERO, sheet.size), "color": Color(0.36, 0.36, 0.38)})
-	sheet.ops.append({"kind": "rect", "rect": Rect2(0, top + 636 - 600, total, 60), "color": Color(0.30, 0.45, 0.30)})
-	sheet.ops.append({"kind": "line", "a": Vector2(0, top + 636), "b": Vector2(total, top + 636), "color": Color(0.9, 0.2, 0.2), "width": 1.0})
+	sheet.ops.append({"kind": "rect", "rect": Rect2(0, top + 656 - 600, total, 80), "color": Color(0.30, 0.45, 0.30)})
+	sheet.ops.append({"kind": "line", "a": Vector2(0, top + 656), "b": Vector2(total, top + 656), "color": Color(0.9, 0.2, 0.2), "width": 1.0})
 	for stem in stems:
 		var tex: Texture2D = base[stem]
 		sheet.ops.append({"kind": "rect", "rect": Rect2(x, top, tex.get_width(), 660), "color": Color(0.40, 0.40, 0.42)})
 		sheet.ops.append({"kind": "tex", "tex": tex, "rect": Rect2(x, top, tex.get_width(), 660), "color": Color.WHITE})
 		sheet.ops.append({"kind": "text", "pos": Vector2(x, 18), "text": "%s %d" % [stem, tex.get_width()], "size": 14, "color": Color.WHITE})
 		x += tex.get_width() + 10.0
-	sheet.ops.append({"kind": "text", "pos": Vector2(10, top + 660 + 22), "text": "red: baseline y=636   green band: head top for 540..600 px body height   canvas outlined in lighter grey", "size": 14, "color": Color.WHITE})
+	sheet.ops.append({"kind": "text", "pos": Vector2(10, top + 660 + 22), "text": "red: baseline y=656   green band: head top for 520..600 px body height   canvas outlined in lighter grey", "size": 14, "color": Color.WHITE})
 	return sheet
 
 

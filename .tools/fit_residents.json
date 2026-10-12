@@ -1,6 +1,7 @@
 {
 	"nominal_src": 2400,
 	"nominal_px": 570,
+	"tint_mix": 0.5,
 	"accepted": [
 		"body_01", "body_02", "workshop_01",
 		"body_03", "body_04", "body_05", "body_06", "body_07", "body_08",
