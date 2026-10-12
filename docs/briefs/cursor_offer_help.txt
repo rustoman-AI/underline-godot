@@ -1,0 +1,24 @@
+CURSOR: HONEST WAY TO EARN A LEADER'S TRUST ("Offer help")
+Audit finding (act II coverage): the honest-path truth events for Directorate, Synod, Exchange and Lamplighters never fired in any bot run. Leader standing only rises through a deal (the dirty path) or luck in an event; "pact" (50) is unreachable without a deal. There is no honest way to build trust. This brief adds one. Local only. No push. Base balance (rooms, map, laws, old events) unchanged; the deal terms and Game.audience_effects() unchanged.
+
+1. THE ACTION
+On the audience card, after "Hear them out" shows the pitch, add a third button next to Accept/Refuse (or equivalent): the leader's "help.offer" text from data/leader_lines.json (new field per leader: offer and reply, EN and RU, already written). Pressing it pays the cost, raises that leader's standing by +10 (clamped), shows "help.reply" as the leader's answer line, plays lead_*? NO voice (no recording exists), and closes the audience with answer "helped".
+2. COSTS (mechanics, put them in data/faction_leaders.json as "help": {resource, amount, standing})
+- depot: materials 6, standing +10
+- directorate: tokens 8, standing +10
+- synod: food 6, standing +10
+- exchange: tokens 8, standing +10
+- black_flag: food 4, standing +10
+The button shows its cost and effect truthfully (follow how deal terms are shown: "Cost: ... Regard +10 / Отношение +10"). Disabled with the missing-resource reason when the player cannot pay. The numbers are first-pass; tune only inside this block if gates need it.
+3. ANSWER "helped"
+New audience answer value, stored like the others (leader_answers: first answer and week; follow save rules for any schema change). It is NOT a refusal and NOT a deal: it does not open the leader consequence events (lc_*), it does not stop that leader from coming back (the deal is still available at the next audience after the normal 6-week cooldown), and it does not set a deal flag. A leader who was helped may still be asked for a deal later, and then the first-answer rule applies as today (a later deal answer overrides "helped"; check the code path so leader_answers stays consistent and migrate old saves with no change).
+4. EVENTS NEEDS
+data/events_story.json: the honest-path events already read standing_min (depot 15, directorate 30, synod 30, exchange 15, black_flag 15; I lowered directorate and synod from 50). Nothing else to change there. If a lc_* consequence event keyed on "refused" must also treat "helped" as not matching, make sure it does not match.
+5. BOT
+Add an audience style "helper": at each audience, offers help if affordable, otherwise silence (never accepts deals). Add "helper_mixed": offers help to every leader and accepts the deals of Synod and Exchange only. Include both in the content audit and in the act II coverage tool (.tools/story_act2_cover.gd).
+6. REPORT (facts only, do not tune unless a gate is red)
+- Per leader, per style: standing at week 14, 20, 30 and the weeks when each honest-path event fires; coverage of the five honest events and five dirty events; honest / dirty / found fragment counts per run.
+- Also: why st2_exchange_honest never fired although the maximum standing reported was 28 against a threshold of 15 (week window, slot busy, a flag, or the condition syntax?). Explain, and fix it if it is a bug.
+- Mean resources spent on help per run, and the change of hope, discontent, food and materials at week 40 against the no-help styles (gates stay green).
+7. CHECKS: bot_run, check_audience (add: helped does not trigger lc_* events, does not close the leader's deal; costs shown equal costs charged), check_save (round trip with the new answer), check_network, check_slice. Screenshots EN and RU 1280x720 of all five cards with the third button, one disabled case, and the reply line.
+8. COMMIT: "Audience: offer help raises a leader's trust honestly". Local, no push.

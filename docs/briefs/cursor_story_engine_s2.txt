@@ -1,0 +1,27 @@
+CURSOR: STORY ENGINE, PHASE S2 (bunkers, final decision, endings, epilogue)
+Read docs/STORY.md. Content is written: data/events_story.json (new events st3_floor, st3_quarantine, st3_observatory, st3_decision), data/endings.json (8 endings, leader lines, truth lines), data/truth.json. Local only. No push. Base balance unchanged. Save rules apply to every new persisted field.
+
+1. BUNKER SCENES FIRE FROM ORDERS (event field "trigger", these events are NOT in the random or story slot pool)
+- st3_floor: the existing approach order (papers >= 1, tunnel to_floor dug) now queues this event for the next dawn instead of only logging a line; keep floor_met.
+- st3_quarantine: when the existing expedition to South Ferry completes (its tick), if fragment quarantine_path is known and iron >= 1, queue this event; otherwise the expedition behaves as today. The Ferry station opens as today in both cases.
+- st3_observatory: NEW order "Approach the Observatory / Подойти к Обсерватории", available when words >= 2 and fragment synod_recording is known; costs one council order; queues the event for the next dawn. Locked state shows the reason ("Needs 2 testimonies and the recording / Нужны 2 свидетельства и запись"). Station oldcommand is revealed on success.
+Each runs once per run.
+2. CHOICE-LEVEL "requires"
+Same keys as "needs" plus: proofs_min, hope_min, any_flag (list), any_of (list of condition objects). A choice that does not meet "requires" is shown disabled with a one-line reason built from the unmet condition, EN and RU ("Needs 3 proofs, you have 1 / Нужно 3 доказательства, у вас 1"; "Needs the Directorate's trust / Нужно доверие Дирекции"; similar for flags, fragments, artifacts, hope). Never hide a choice silently. Event cards must still fit 1280x720 with 4 choices (st3_floor, st3_decision).
+3. NEW EFFECTS (choice level)
+- "proof": n adds to a persisted proof_extra; game.proofs() = honest fragments + proof_extra.
+- "flag": name (exists), "tokens"/"materials"/"people" as gains (check existing semantics), "cost" may include artifact keys (words, iron, papers).
+- "ending": id ends the run with that ending (open_door, exodus, order). The run shows the epilogue at once (no extra end-of-turn).
+4. st3_decision
+Forced, weeks 34 to 38, once. Fire only if at least one choice other than "hold" is available (all of door, climb, order may be disabled but visible, as in point 2; if none of them is enabled then skip the event and the run ends as "winter" at week 40). Choosing "hold" does nothing (the event does not repeat). The game over reasons already in the game map to ending ids: time -> winter, collapse -> collapse, hope -> hope, revolt -> revolt, capital -> capital.
+5. EPILOGUE SCREEN (replaces or extends the current end card)
+From data/endings.json: title, text (language of the game), then five short lines, one per leader, picked by that leader's recorded answer: accepted -> accepted; refused or silence -> refused; helped -> helped; no answer -> none. Then one truth line: proofs() >= 3 -> proof; any fragment known -> some; else none. Then a stats block: weeks played, population, stations held, hope and discontent at the end, fragments known (and how many with proof), stories heard N of M, deals made and refused. Buttons: New run, Main menu. Paper/journal style like the Truth page; scroll if long; fits 1280x720 in EN and RU without clipping. No audio hooks.
+6. BOTS AND REACH
+Add bot style "storyteller": helper audiences, approach orders as soon as available, and in st3_decision picks door over climb over order over hold. Report over 30 seeds per style (silence, helper, helper_mixed, accept_all, mixed, storyteller): ending reached counts, how many runs trigger each bunker scene and each choice, how many fragments (honest/dirty) and proofs. Acceptance: each of open_door, exodus and order is reached by at least one style in at least one seed; none of the three exceeds 90 percent of the storyteller runs. If an ending is unreachable for every style, report why (which condition is never met) and do not tune.
+7. VALIDATION
+data/endings.json: all 8 endings, 5 leaders x 4 states, 3 truth lines, EN and RU non-empty, no em dash. Events: trigger names valid, requires keys valid, ending ids valid, every English string has Russian.
+8. CHECKS
+bot_run, check_audience, check_save (round trip at the decision event and after an ending; migration default empty), check_network, check_slice. If a balance gate turns red from the new events: tune only numbers inside events_story.json, up to three iterations, otherwise report without committing (same rule as before).
+9. SCREENSHOTS EN and RU at 1280x720: the three bunker scenes, a disabled choice with its reason, the locked and unlocked Observatory order, st3_decision with some choices disabled, and the epilogue for all eight endings (use a test harness to force each ending).
+10. COMMITS
+First commit docs/STORY.md, docs/EA_PLAN.md, docs/MARKETING.md, and the new briefs as "Docs: story, plan, marketing, briefs". Then the engine as "Story engine S2: bunker scenes, final decision, endings and epilogue". Do not commit incoming-art/, shots/.
