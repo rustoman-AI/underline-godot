@@ -58,3 +58,6 @@
 - F22 update: Ruslan also says the map should be bigger (two testers now, with Nicholas). Candidate NEXT package after numbers clarity, once we know which view (station or network) and what is too small. Network view today: min zoom = fit to the area, max = 3.5x fit (ui/network_view.gd:36,380).
 
 - Intro (about 45 s, 5 to 6 cards): in-engine slideshow of existing art with slow pan, text from data (EN/RU), optional narrator via Muse on "go". No AI video. Candidate after numbers clarity and map size, if playtest data still says "I do not understand the goal". (12 Oct, owner)
+
+- Station toast ("Станция/Station" corner message) draws over open modal cards (seen on the generator card, covers the Demolish button edge). Layer it under modals. (12 Oct, numbers clarity screenshots)
+- Design note: switching the workshop off lowers materials storage and the surplus burns (about -12 in one night). Now visible in the forecast as "Store full". Decide after playtest data whether the rule needs a warning on the switch. (12 Oct, Cursor)
