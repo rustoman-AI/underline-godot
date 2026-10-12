@@ -1133,9 +1133,20 @@ func _layout() -> void:
 func _place_chrome() -> void:
 	if res_grid != null:
 		res_grid.columns = 6
-	if meter_box != null and title_row != null and meter_box.get_parent() != title_row:
-		meter_box.get_parent().remove_child(meter_box)
-		title_row.add_child(meter_box)
+	if meter_box != null and title_row != null and hud_box != null:
+		var row_w := title_row.get_combined_minimum_size().x
+		if meter_box.get_parent() != title_row:
+			row_w += meter_box.get_combined_minimum_size().x + float(title_row.get_theme_constant("separation"))
+		var narrow := row_w + 24.0 > size.x
+		if narrow and meter_box.get_parent() == title_row:
+			title_row.remove_child(meter_box)
+			hud_box.add_child(meter_box)
+			hud_box.move_child(meter_box, 1)
+		elif not narrow and meter_box.get_parent() != title_row:
+			meter_box.get_parent().remove_child(meter_box)
+			title_row.add_child(meter_box)
+			if menu_button != null and menu_button.get_parent() == title_row:
+				title_row.move_child(meter_box, menu_button.get_index())
 	var short: bool = size.y < 520.0
 	var margin := 8.0 if short else 12.0
 	var tool_w := 76.0 if short else 64.0
