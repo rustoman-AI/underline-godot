@@ -298,7 +298,7 @@
           36
         ],
         "standing_min": {
-          "directorate": 50
+          "directorate": 30
         },
         "no_flag": "collaborator",
         "no_fragment": "directorate_ledger"
@@ -373,7 +373,7 @@
           34
         ],
         "standing_min": {
-          "synod": 50
+          "synod": 30
         },
         "no_flag": "stayed_down",
         "no_fragment": "synod_recording"

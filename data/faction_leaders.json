@@ -19,6 +19,7 @@
       "arrival": "radio_built_or_week_6",
       "holds": "burned_order_at_stillwell",
       "fear": "people_abandon_tunnels",
+      "help": {"resource": "materials", "amount": 6, "standing": 10},
       "dirty_deal": {
         "id": "burn_papers",
         "flag": "buried_papers",
@@ -36,6 +37,7 @@
       "arrival": "directorate_intent_or_food_critical",
       "holds": "bunker_admission_lists",
       "fear": "the_schedule_stops_being_feared",
+      "help": {"resource": "tokens", "amount": 8, "standing": 10},
       "dirty_deal": {
         "id": "the_list",
         "flag": "collaborator",
@@ -54,6 +56,7 @@
       "arrival": "first_season_or_week_10",
       "holds": "surface_recording_of_wind",
       "fear": "the_surface_is_empty_not_damned",
+      "help": {"resource": "food", "amount": 6, "standing": 10},
       "dirty_deal": {
         "id": "stay_down",
         "flag": "stayed_down",
@@ -71,6 +74,7 @@
       "arrival": "first_caravan",
       "holds": "papers_bought_twice",
       "fear": "the_truth_becomes_free",
+      "help": {"resource": "tokens", "amount": 8, "standing": 10},
       "dirty_deal": {
         "id": "open_books",
         "flag": "open_books",
@@ -88,6 +92,7 @@
       "arrival": "first_sealed_tunnel",
       "holds": "path_to_quarantine_bunker",
       "fear": "becoming_a_legal_tax",
+      "help": {"resource": "food", "amount": 4, "standing": 10},
       "dirty_deal": {
         "id": "lantern_toll",
         "flag": "lantern_toll",

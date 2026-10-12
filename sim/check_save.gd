@@ -60,6 +60,8 @@ func _busy_game() -> Game:
 	game.audience_last["synod"] = 19
 	game.audience_due["exchange"] = 3
 	game.leader_answers["synod"] = {"answer": "refused", "week": 19}
+	game.leader_answers["depot"] = {"answer": "helped", "week": 17}
+	game.stats["help_spent"] = {"materials": 6}
 	game.fragments["depot_order"] = {"known": true, "how": "dirty", "week": 18}
 	game.story_words = 3
 	return game
@@ -185,7 +187,7 @@ func _staffed_by(data: Dictionary, id: String) -> Dictionary:
 ## Plays a seed through, saving to disk at many points; each save is resumed in a different live run
 ## and must reach exactly the same states and ending as the uninterrupted run.
 func _resume() -> void:
-	var covered := {"pending": 0, "white_pending": 0, "queued_orders": 0, "audience": 0, "leader_answers": 0, "fragments": 0, "after_load_rng": 0}
+	var covered := {"pending": 0, "white_pending": 0, "queued_orders": 0, "audience": 0, "leader_answers": 0, "fragments": 0, "helped": 0, "after_load_rng": 0}
 	var points := 0
 	var mismatches: PackedStringArray = []
 	for run_seed in SEEDS:
@@ -211,6 +213,8 @@ func _resume() -> void:
 			for key in ["pending", "white_pending", "queued_orders", "audience", "leader_answers", "fragments"]:
 				if not snap[key].is_empty():
 					covered[key] += 1
+			if snap.leader_answers.values().any(func(row): return str(row.answer) == "helped"):
+				covered.helped += 1
 			var why := _resume_from(snap, bots[at], states, at, run_seed)
 			if why != "":
 				mismatches.append("seed %d point %d: %s" % [run_seed, at, why])
@@ -259,6 +263,8 @@ func _drive(game: Game, bot: Bot) -> void:
 		game.know_fragment("synod_recording", "honest")
 	if not game.audience.is_empty() and game.week % 2 == 0 and game.audience_reason() == "":
 		game.apply({"kind": "audience", "accept": true})
+	elif not game.audience.is_empty() and game.week % 2 == 1 and game.help_reason() == "":
+		game.apply({"kind": "audience", "help": true})
 	if game.week % 3 == 0:
 		var queued := false
 		for order in ["envoy", "propaganda"]:

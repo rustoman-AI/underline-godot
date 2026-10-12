@@ -323,7 +323,7 @@ func apply(action: Dictionary) -> bool:
 		"order":
 			ok = _apply_order(action)
 		"audience":
-			ok = _apply_audience(bool(action.get("accept", false)))
+			ok = _apply_help() if bool(action.get("help", false)) else _apply_audience(bool(action.get("accept", false)))
 		_:
 			ok = false
 	if ok and not entry.is_empty():
@@ -6221,10 +6221,73 @@ func _audience_refuse(how: String) -> void:
 
 ## The week is the audience's own: a leader left waiting is counted at the next dawn but was answered by
 ## silence the week they came.
+## "helped" answers no deal: the first answer to the deal itself, coming later, takes its place.
 func _record_answer(fid: String, answer: String) -> void:
-	if fid == "" or leader_answers.has(fid):
+	if fid == "":
+		return
+	if leader_answers.has(fid) and not (str(leader_answers[fid].get("answer", "")) == "helped" and answer != "helped"):
 		return
 	leader_answers[fid] = {"answer": answer, "week": int(audience.get("week", week))}
+
+
+## The leader at the door's honest favour from faction_leaders.json: {resource, amount, standing}, or {}.
+func help_terms() -> Dictionary:
+	if audience.is_empty():
+		return {}
+	var help = leader(str(audience.faction)).get("help", {})
+	if not (help is Dictionary) or not stock.has(str(help.get("resource", ""))):
+		return {}
+	return help
+
+
+## What offering help changes this turn: the stock it takes and the regard it gives, already clamped.
+func help_effects() -> Dictionary:
+	var help := help_terms()
+	if help.is_empty():
+		return {}
+	var fid := str(audience.faction)
+	var now := int(standing.get(fid, 0))
+	return {"resource": str(help.resource), "amount": int(help.amount),
+		"standing": clampi(now + int(help.get("standing", 0)), -100, 100) - now}
+
+
+## Why help cannot be offered now; "" when it can.
+func help_reason() -> String:
+	var help := help_terms()
+	if help.is_empty():
+		return Copy.t("Nobody is waiting.")
+	var key := str(help.resource)
+	if int(stock.get(key, 0)) < int(help.amount):
+		return Copy.t("Needs %s, the stores have %s.") % [Copy.stock(int(help.amount), key), Copy.stock(int(stock.get(key, 0)), key)]
+	return ""
+
+
+## The favour line on the card ("offer") or the leader's thanks ("reply") from leader_lines.json.
+func help_line(fid: String, part: String) -> Dictionary:
+	var pair = catalog.lines.get("factions", {}).get(fid, {}).get("help", {}).get(part, {})
+	return pair if line_written(pair) else {}
+
+
+## Offer help: pay the stock, earn the regard, close the audience with "helped". No deal, no deal flag, no
+## consequence events; the leader comes back after the usual cooldown with the deal still on the table.
+func _apply_help() -> bool:
+	if help_reason() != "":
+		return false
+	var fid := str(audience.faction)
+	var fx := help_effects()
+	var key := str(fx.resource)
+	stock[key] = int(stock[key]) - int(fx.amount)
+	_add_standing(fid, int(help_terms().get("standing", 0)), {"deed": "helped"})
+	var spent: Dictionary = stats.get("help_spent", {})
+	spent[key] = int(spent.get(key, 0)) + int(fx.amount)
+	stats["help_spent"] = spent
+	_record_answer(fid, "helped")
+	audience_last[fid] = week
+	_journal("audience", {"faction": fid, "result": "helped", "resource": key, "amount": int(fx.amount), "standing": int(fx.standing)})
+	_log("STANDING %s %s" % [fid, "+%d" % int(fx.standing) if int(fx.standing) >= 0 else str(fx.standing)], true)
+	audience = {}
+	decisions += 1
+	return true
 
 
 func _apply_audience(accept: bool) -> bool:
@@ -6352,6 +6415,9 @@ const V1_RNG_ADDED := ["net_state", "check_state"]
 ## Fields a version 1 or 2 save may lack; they start empty like a fresh Game (no answers recorded yet).
 const V2_ADDED := ["leader_answers"]
 const ANSWERS := ["accepted", "refused", "silence"]
+## What leader_answers may hold: the deal answers, or "helped" until the deal itself is answered. Consequence
+## events key on ANSWERS only, so "helped" opens none of them.
+const SAVED_ANSWERS := ["accepted", "refused", "silence", "helped"]
 ## Fields a version 1 to 3 save may lack: no fragment known, no testimony granted yet (stories already heard
 ## count toward the next one when a story ends).
 const V3_ADDED := ["fragments", "story_words"]
@@ -6517,7 +6583,7 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 		var row = state.leader_answers[fid]
 		if not leaders.has(str(fid)) or not (row is Dictionary):
 			return "leader answer %s malformed" % str(fid)
-		if not ANSWERS.has(str(row.get("answer", ""))):
+		if not SAVED_ANSWERS.has(str(row.get("answer", ""))):
 			return "leader answer %s is %s" % [str(fid), str(row.get("answer", ""))]
 		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
 			return "leader answer %s week %s" % [str(fid), str(row.get("week"))]

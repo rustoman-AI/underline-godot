@@ -3225,6 +3225,8 @@ func _journal_line(row: Dictionary) -> String:
 					return Copy.t("%s: deal taken, %s.") % [leader_name, Copy.t(str(DEAL_NAMES.get(str(row.get("deal", "")), ""))).to_lower()]
 				"silence":
 					return Copy.t("%s was left waiting. They count it as a refusal.") % leader_name
+				"helped":
+					return Copy.t("%s: you brought help, %s.") % [leader_name, Copy.stock(int(row.get("amount", 0)), str(row.get("resource", "")))]
 			return Copy.t("%s was turned away.") % leader_name
 		"handed_over":
 			var given := str(row.get("name_ru", "")) if Copy.ru() else ""
@@ -3736,7 +3738,7 @@ const MARK_NAMES := {
 const DEED_LINES := {
 	"burn_papers": "You burned the papers.", "stay_down": "You agreed to stay below.",
 	"open_books": "You let the Exchange into your books.", "lantern_toll": "You paid the lantern toll.",
-	"refused": "You turned them away.", "silence": "You left them waiting.",
+	"refused": "You turned them away.", "silence": "You left them waiting.", "helped": "You brought help.",
 }
 
 
@@ -3831,10 +3833,35 @@ func _show_audience() -> void:
 	var why: String = game.audience_reason()
 	if why != "":
 		_body(why)
+	var help: Dictionary = game.help_effects()
+	var offer := _leader_text(game.help_line(fid, "offer"))
+	var help_why := ""
+	if not help.is_empty() and offer != "":
+		_heading(Copy.t("Help"))
+		var cost := _label("· %s: %s. %s" % [Copy.t("Cost"), Copy.stock(int(help.amount), str(help.resource)), Copy.t("Regard %s") % _signed(int(help.standing))], 15)
+		cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cost.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(cost)
+		help_why = game.help_reason()
+		if help_why != "":
+			_body(help_why)
 	var take := _audience_buttons("Take the deal", _answer_audience.bind(true), "Refuse")
 	if why != "":
 		take.disabled = true
 		take.tooltip_text = why
+	if not help.is_empty() and offer != "":
+		var give := _button(offer, _offer_help, "confirm")
+		_style_choice(give)
+		give.custom_minimum_size.y = 48
+		give.add_theme_font_size_override("font_size", 18)
+		give.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		give.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		give.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		take.get_parent().add_child(give)
+		take.get_parent().move_child(give, 1)
+		if help_why != "":
+			give.disabled = true
+			give.tooltip_text = help_why
 
 
 ## Yes and no side by side; returns the yes button. No always turns the leader away.
@@ -3925,6 +3952,28 @@ func _answer_audience(accept: bool) -> void:
 	if reply != "":
 		_toast(reply, 4.5)
 		_leader_voice(fid, "accepted" if accept else "declined", "%s:reply" % audience_key)
+
+
+## The honest favour: the leader answers with their help reply, unvoiced, and the audience closes.
+func _offer_help() -> void:
+	var snapshot := _tally_snapshot()
+	var fid := str(game.audience.get("faction", ""))
+	if not game.apply({"kind": "audience", "help": true}):
+		footer.text = Copy.t("That choice did not take.")
+		footer.visible = true
+		return
+	audience_heard = false
+	var changes := _tally_changes(snapshot)
+	_refresh()
+	note_change(changes)
+	if card != null and dim.visible:
+		_fly_changes(changes, card.get_global_rect().get_center())
+	_fill_people()
+	_close_card()
+	_show_dawn()
+	var reply := _leader_said(fid, game.help_line(fid, "reply"))
+	if reply != "":
+		_toast(reply, 4.5)
 
 
 ## Plays lead_<faction>_<key>_<lang>.ogg for a line that has just appeared, once per `token`. A new line

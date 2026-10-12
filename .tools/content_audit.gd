@@ -18,7 +18,7 @@ extends SceneTree
 
 const STYLES := ["careful", "expander", "follower"]
 ## Bot.audience_style values; sections 1 to 6 use "silence" runs only, section 7 compares all of them.
-const AUDIENCE := ["silence", "accept_all", "refuse_all", "mixed"]
+const AUDIENCE := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed"]
 const WEEKS := 40
 const FACTIONS := ["depot", "directorate", "synod", "exchange", "black_flag"]
 ## Seconds per decision (brief, section 3), and how much longer or shorter each player type takes.
@@ -82,7 +82,7 @@ class AuditGame extends Game:
 
 	func _apply_event(action: Dictionary) -> bool:
 		var front: Dictionary = pending[0] if not pending.is_empty() else {}
-		var watch: bool = front.has("needs") and str(front.id) == str(action.get("event_id", ""))
+		var watch: bool = front.get("needs", {}) is Dictionary and front.get("needs", {}).has("leader") and str(front.id) == str(action.get("event_id", ""))
 		var h := hope
 		var d := discontent
 		var was: Dictionary = standing.duplicate()
@@ -800,18 +800,18 @@ func _leaders(runs: Array, forks: Array) -> void:
 ## Leader consequence events (data/events_leaders.json) under each audience style.
 func _consequences(all_runs: Array) -> void:
 	var cat: Catalog = _new_game(1).catalog
-	var events: Array = cat.events.filter(func(ev): return ev.has("needs"))
+	var events: Array = cat.events.filter(func(ev): return ev.get("needs", {}) is Dictionary and ev.get("needs", {}).has("leader"))
 	md.append("## 7. Leader consequences by audience style")
 	md.append("")
-	md.append("Audience styles (`Bot.audience_style`): silence leaves every leader waiting; accept_all takes every deal it can pay for (a deal it cannot pay for is left waiting, which counts as silence); refuse_all turns everyone away; mixed accepts the Synod and the Exchange and refuses the others. Event choices are the bot style's own (careful, expander, follower), unchanged. %d runs per audience style." % (seeds * STYLES.size()))
+	md.append("Audience styles (`Bot.audience_style`): silence leaves every leader waiting; accept_all takes every deal it can pay for (a deal it cannot pay for is left waiting, which counts as silence); refuse_all turns everyone away; mixed accepts the Synod and the Exchange and refuses the others; helper offers help whenever it can pay and never takes a deal; helper_mixed offers help to everyone and takes the Synod's and the Exchange's deal after helping them. Event choices are the bot style's own (careful, expander, follower), unchanged. %d runs per audience style." % (seeds * STYLES.size()))
 	md.append("")
 	md.append("First answer per leader (`leader_answers`), runs out of %d per audience style. \"none\" = the leader never came or was never answered before the run ended:" % (seeds * STYLES.size()))
 	md.append("")
-	md.append("| Leader | Audience style | accepted | refused | silence | none | Mean answer week |")
-	md.append("| --- | --- | --- | --- | --- | --- | --- |")
+	md.append("| Leader | Audience style | accepted | refused | silence | helped | none | Mean answer week |")
+	md.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
 	for fid in FACTIONS:
 		for answer in AUDIENCE:
-			var counts := {"accepted": 0, "refused": 0, "silence": 0, "none": 0}
+			var counts := {"accepted": 0, "refused": 0, "silence": 0, "helped": 0, "none": 0}
 			var weeks := 0.0
 			var n := 0
 			for run in all_runs:
@@ -824,7 +824,7 @@ func _consequences(all_runs: Array) -> void:
 				counts[str(row.answer)] += 1
 				weeks += float(row.week)
 				n += 1
-			md.append("| %s | %s | %d | %d | %d | %d | %s |" % [fid if answer == AUDIENCE[0] else "", answer, counts.accepted, counts.refused, counts.silence, counts.none, "%.1f" % (weeks / n) if n > 0 else "-"])
+			md.append("| %s | %s | %d | %d | %d | %d | %d | %s |" % [fid if answer == AUDIENCE[0] else "", answer, counts.accepted, counts.refused, counts.silence, counts.helped, counts.none, "%.1f" % (weeks / n) if n > 0 else "-"])
 	md.append("")
 	md.append("How often each consequence fires. Due = runs where the matching answer (refused also matches silence) was given in week %d or earlier, the brief's \"at least 3 weeks before week 40\"; cut short = due runs that ended before the window opened. Target: fired in at least 95 percent of due runs. Fired late = shown with fewer weeks left in its window than it had when it opened (held by a major event)." % (WEEKS - 3))
 	md.append("")

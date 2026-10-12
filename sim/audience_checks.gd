@@ -20,6 +20,7 @@ static func run(cat: Catalog) -> Dictionary:
 	checks._refusals()
 	checks._list_target()
 	checks._deals()
+	checks._help()
 	checks._save_reload()
 	checks._leader_lines()
 	checks._leader_text_source()
@@ -182,6 +183,84 @@ func _deals() -> void:
 	var took := game.apply({"kind": "audience", "accept": true})
 	_expect(not took and game.audience_reason() != "" and var_to_bytes(game.export_state()) == before,
 		"Unaffordable toll is refused without changes", "unaffordable toll took=%s" % took)
+
+
+## Offering help: the stock and regard it moves match what the card shows; the answer is "helped", which opens
+## no consequence event, sets no deal flag, and leaves the leader to come back after the cooldown with the deal.
+func _help() -> void:
+	for fid in ALL:
+		var help: Dictionary = {}
+		for row in catalog.leaders.get("factions", []):
+			if str(row.get("id", "")) == fid:
+				help = row.get("help", {})
+		var offer: Dictionary = catalog.lines.factions.get(fid, {}).get("help", {}).get("offer", {})
+		var reply: Dictionary = catalog.lines.factions.get(fid, {}).get("help", {}).get("reply", {})
+		_expect(not help.is_empty() and str(offer.get("en", "")) != "" and str(offer.get("ru", "")) != ""
+			and str(reply.get("en", "")) != "" and str(reply.get("ru", "")) != "",
+			"Help for %s has a cost and an offer and reply in EN and RU" % fid, "help data for %s" % fid)
+		if help.is_empty():
+			continue
+		var key := str(help.resource)
+		var game := _waiting({fid: 0}, {fid: DUE[fid]})
+		game.week = 21
+		game._audience_dawn()
+		game.stock[key] = int(help.amount) + 3
+		var fx := game.help_effects()
+		var stock_before := int(game.stock[key])
+		var regard_before := int(game.standing[fid])
+		var flags_before := game.flags.duplicate()
+		var gave := game.apply({"kind": "audience", "help": true})
+		var bad: PackedStringArray = []
+		if not gave:
+			bad.append("not taken: %s" % game.help_reason())
+		if stock_before - int(game.stock[key]) != int(fx.amount) or int(fx.amount) != int(help.amount):
+			bad.append("charged %d, shown %d" % [stock_before - int(game.stock[key]), int(fx.amount)])
+		if int(game.standing[fid]) - regard_before != int(fx.standing) or int(fx.standing) != int(help.standing):
+			bad.append("regard %d, shown %d" % [int(game.standing[fid]) - regard_before, int(fx.standing)])
+		if str(game.leader_answers.get(fid, {}).get("answer", "")) != "helped" or not game.audience.is_empty():
+			bad.append("answer %s" % str(game.leader_answers.get(fid, {})))
+		if game.audience_deals.has(fid) or game.flags.size() != flags_before.size():
+			bad.append("deal closed or flag set")
+		var rows := game.journal.filter(func(r): return str(r.kind) == "audience")
+		if rows.is_empty() or str(rows.back().get("result", "")) != "helped" or int(rows.back().get("amount", 0)) != int(fx.amount):
+			bad.append("journal")
+		_expect(bad.is_empty(), "Help for %s charges what it shows (%s %d, regard %+d)" % [fid, key, int(fx.amount), int(fx.standing)],
+			"help %s: %s" % [fid, ", ".join(bad)])
+
+		var opened: PackedStringArray = []
+		var keep := game.week
+		for at in range(21, 61):
+			game.week = at
+			for ev in catalog.events:
+				var needs = ev.get("needs", null)
+				if needs is Dictionary and str(needs.get("leader", "")) == fid and game.needs_window(ev) >= 0:
+					opened.append("%s@%d" % [str(ev.id), at])
+		game.week = keep
+		_expect(opened.is_empty(), "Helped %s opens no consequence event" % fid, "helped %s opens %s" % [fid, ", ".join(opened)])
+
+		var seen := _dawns(game, 22, 27)
+		_expect(seen == PackedStringArray(["", "", "", "", "", fid]),
+			"Helped %s returns six weeks later" % fid, "helped %s return %s" % [fid, " ".join(seen)])
+		game.stock.food = 100
+		game.stock.tokens = 100
+		game.stock.materials = 100
+		var took := game.apply({"kind": "audience", "accept": true})
+		var answer: Dictionary = game.leader_answers.get(fid, {})
+		_expect(took and str(answer.get("answer", "")) == "accepted" and int(answer.get("week", 0)) == 27 and game.audience_deals.has(fid),
+			"After help the %s deal is still on the table and overrides the answer" % fid,
+			"%s deal after help took=%s answer=%s" % [fid, took, answer])
+
+	var top := _door("depot", func(g: Game): g.standing.depot = 95)
+	var fx_top := top.help_effects()
+	top.apply({"kind": "audience", "help": true})
+	_expect(int(fx_top.standing) == 5 and int(top.standing.depot) == 100, "Help regard clamps at 100 and shows the clamped step",
+		"help clamp shown %d, now %d" % [int(fx_top.standing), int(top.standing.depot)])
+
+	var poor := _door("synod", func(g: Game): g.stock.food = 2)
+	var before := var_to_bytes(poor.export_state())
+	var gave_poor := poor.apply({"kind": "audience", "help": true})
+	_expect(not gave_poor and poor.help_reason() != "" and var_to_bytes(poor.export_state()) == before,
+		"Unaffordable help is refused without changes (%s)" % poor.help_reason(), "unaffordable help took=%s" % gave_poor)
 
 
 func _max_rooms(game: Game, type: String) -> void:

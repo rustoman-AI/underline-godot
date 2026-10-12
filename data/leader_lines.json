@@ -61,6 +61,16 @@
       "declined": {
         "en": "Your call. Don't complain when the signature comes up.",
         "ru": "Твоё дело. Только не жалуйся, когда подпись всплывёт."
+      },
+      "help": {
+        "offer": {
+          "en": "Bring parts for the yard",
+          "ru": "Принести детали для депо"
+        },
+        "reply": {
+          "en": "Put it on the bench. I don't write it down. I remember.",
+          "ru": "Положи на верстак. Записывать не буду. Запомню."
+        }
       }
     },
     "directorate": {
@@ -123,6 +133,16 @@
       "declined": {
         "en": "Refusal noted. I can strike it from the ledger next quarter.",
         "ru": "Отказ внесён. Вычеркнуть его я смогу в следующем квартале."
+      },
+      "help": {
+        "offer": {
+          "en": "Hand over a clean report",
+          "ru": "Передать чистый отчёт"
+        },
+        "reply": {
+          "en": "Received. It will be filed as reliable. That is rarer than you think.",
+          "ru": "Принято. Будет подшито как надёжное. Это встречается реже, чем вы думаете."
+        }
       }
     },
     "synod": {
@@ -185,6 +205,16 @@
       "declined": {
         "en": "Then let them ask for themselves. Only don't promise what you don't have.",
         "ru": "Тогда пусть спрашивают сами. Только не обещайте того, чего у вас нет."
+      },
+      "help": {
+        "offer": {
+          "en": "Bring bread for the quiet room",
+          "ru": "Принести хлеб для тихой комнаты"
+        },
+        "reply": {
+          "en": "Thank you. I will not say whose it was. Someone ate it. That is enough.",
+          "ru": "Спасибо. Я не скажу, чей он был. Его съели. Этого достаточно."
+        }
       }
     },
     "exchange": {
@@ -247,6 +277,16 @@
       "declined": {
         "en": "Suit yourself. The store isn't going anywhere. Neither is the price.",
         "ru": "Как знаешь. Склад никуда не денется. Цена тоже."
+      },
+      "help": {
+        "offer": {
+          "en": "Settle an old tab",
+          "ru": "Закрыть старый долг"
+        },
+        "reply": {
+          "en": "Good. One number fewer on my arm.",
+          "ru": "Хорошо. Одним числом на руке меньше."
+        }
       }
     },
     "black_flag": {
@@ -309,6 +349,16 @@
       "declined": {
         "en": "Then they walk without light. I'll remember you chose that.",
         "ru": "Тогда они пойдут без света. Я запомню, что ты это выбрал."
+      },
+      "help": {
+        "offer": {
+          "en": "Leave water and bread at the stone",
+          "ru": "Оставить воду и хлеб на камне"
+        },
+        "reply": {
+          "en": "Someone will drink it tonight. They will not know your name. I will.",
+          "ru": "Сегодня ночью кто-то это выпьет. Он не узнает твоего имени. Я узнаю."
+        }
       }
     }
   }

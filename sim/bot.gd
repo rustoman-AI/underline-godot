@@ -7,9 +7,12 @@ var profile := "careful"
 ## How the bot answers a leader at the door, separate from how it plays events:
 ## "silence" leaves every leader waiting (the old behaviour), "accept_all" takes every deal it can pay for,
 ## "refuse_all" turns everyone away, "mixed" accepts the Synod and the Exchange and refuses the others.
+## "helper" offers help whenever it can pay for it and otherwise stays silent, never taking a deal;
+## "helper_mixed" offers help to everyone, and takes the Synod's and the Exchange's deal once it has helped them
+## (or when it cannot pay for the help).
 ## A deal the bot cannot pay for is left waiting, which the game counts as silence.
 var audience_style := "silence"
-const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed"]
+const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed"]
 const MIXED_ACCEPTS := ["synod", "exchange"]
 var _did_aid := false
 var _did_talk := false
@@ -85,6 +88,15 @@ func _answer_audience(game: Game) -> void:
 	if game.audience.is_empty() or audience_style == "silence":
 		return
 	var fid := str(game.audience.get("faction", ""))
+	if audience_style == "helper" or audience_style == "helper_mixed":
+		var deal_now := audience_style == "helper_mixed" and MIXED_ACCEPTS.has(fid) \
+			and (str(game.leader_answers.get(fid, {}).get("answer", "")) == "helped" or game.help_reason() != "")
+		if deal_now:
+			if game.audience_reason() == "":
+				game.apply({"kind": "audience", "accept": true})
+		elif game.help_reason() == "":
+			game.apply({"kind": "audience", "help": true})
+		return
 	var accept := audience_style == "accept_all" or (audience_style == "mixed" and MIXED_ACCEPTS.has(fid))
 	if not accept:
 		game.apply({"kind": "audience", "accept": false})
