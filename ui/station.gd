@@ -8348,30 +8348,43 @@ class Yard extends Control:
 			out.append(variants[pick])
 		return out
 
+	## Clears every pixel with a near-clear pixel (alpha byte 20 or less) or the image edge within `radius` in a
+	## square window, and greys the rest.
 	func _erode_alpha(image: Image, radius: int) -> Image:
-		var src := image.duplicate()
+		var src: Image = image.duplicate()
 		src.convert(Image.FORMAT_RGBA8)
-		var out := src.duplicate()
+		var out: Image = src.duplicate()
 		var w: int = src.get_width()
 		var h: int = src.get_height()
+		var data: PackedByteArray = src.get_data()
+		var near := PackedByteArray()
+		near.resize(w * h)
+		var sums := PackedInt32Array()
+		sums.resize(maxi(w, h) + 1)
 		for y in h:
+			var row := y * w
 			for x in w:
-				var c: Color = src.get_pixel(x, y)
-				if c.a < 0.02:
+				sums[x + 1] = sums[x] + (1 if data[(row + x) * 4 + 3] <= 20 else 0)
+			for x in w:
+				if x < radius or x + radius >= w or sums[x + radius + 1] - sums[x - radius] > 0:
+					near[row + x] = 1
+		var cleared := PackedByteArray()
+		cleared.resize(w * h)
+		for x in w:
+			for y in h:
+				sums[y + 1] = sums[y] + near[y * w + x]
+			for y in h:
+				if y < radius or y + radius >= h or sums[y + radius + 1] - sums[y - radius] > 0:
+					cleared[y * w + x] = 1
+		for y in h:
+			var row := y * w
+			for x in w:
+				if data[(row + x) * 4 + 3] <= 5:
 					continue
-				var clear := false
-				for dy in range(-radius, radius + 1):
-					for dx in range(-radius, radius + 1):
-						var xx: int = x + dx
-						var yy: int = y + dy
-						if xx < 0 or yy < 0 or xx >= w or yy >= h or src.get_pixel(xx, yy).a < 0.08:
-							clear = true
-							break
-					if clear:
-						break
-				if clear:
+				if cleared[row + x] == 1:
 					out.set_pixel(x, y, Color(0, 0, 0, 0))
 					continue
+				var c: Color = src.get_pixel(x, y)
 				var v := c.r * 0.299 + c.g * 0.587 + c.b * 0.114
 				out.set_pixel(x, y, Color(v, v, v, c.a))
 		return out
