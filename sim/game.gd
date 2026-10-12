@@ -80,6 +80,8 @@ var leader_answers := {}
 var fragments := {}
 ## Testimonies already granted for resident stories heard, one per STORY_WORDS_EVERY distinct stories.
 var story_words := 0
+## Week each leader was last helped; help waits audience_cooldown_weeks whatever the regard band.
+var help_last := {}
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -6251,11 +6253,23 @@ func help_effects() -> Dictionary:
 		"standing": clampi(now + int(help.get("standing", 0)), -100, 100) - now}
 
 
+## Weeks before this leader can be helped again; 0 when help is open. Counts from the last help, in every band.
+func help_wait(fid: String) -> int:
+	if not help_last.has(fid):
+		return 0
+	return maxi(0, int(help_last[fid]) + int(catalog.leaders.audience_cooldown_weeks) - week)
+
+
 ## Why help cannot be offered now; "" when it can.
 func help_reason() -> String:
 	var help := help_terms()
 	if help.is_empty():
 		return Copy.t("Nobody is waiting.")
+	var wait := help_wait(str(audience.faction))
+	if wait == 1:
+		return Copy.t("You helped recently, 1 week left")
+	if wait > 1:
+		return Copy.t("You helped recently, %d weeks left") % wait
 	var key := str(help.resource)
 	if int(stock.get(key, 0)) < int(help.amount):
 		return Copy.t("Needs %s, the stores have %s.") % [Copy.stock(int(help.amount), key), Copy.stock(int(stock.get(key, 0)), key)]
@@ -6283,6 +6297,7 @@ func _apply_help() -> bool:
 	stats["help_spent"] = spent
 	_record_answer(fid, "helped")
 	audience_last[fid] = week
+	help_last[fid] = week
 	_journal("audience", {"faction": fid, "result": "helped", "resource": key, "amount": int(fx.amount), "standing": int(fx.standing)})
 	_log("STANDING %s %s" % [fid, "+%d" % int(fx.standing) if int(fx.standing) >= 0 else str(fx.standing)], true)
 	audience = {}
@@ -6394,14 +6409,14 @@ const PERSIST := [
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
-	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words",
+	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 ]
 
 
 ## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
 ## Adding a PERSIST key needs a new schema number and its own migration list.
-const SAVE_SCHEMA := 4
+const SAVE_SCHEMA := 5
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -6423,6 +6438,8 @@ const SAVED_ANSWERS := ["accepted", "refused", "silence", "helped"]
 const V3_ADDED := ["fragments", "story_words"]
 ## Version 1 to 3 saves predate the story slot; its stream restarts from the seed the way setup() seeds it.
 const V3_RNG_ADDED := ["story_state"]
+## Fields a version 1 to 4 save may lack: no leader helped yet, so help is open to everyone.
+const V4_ADDED := ["help_last"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -6473,7 +6490,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -6587,6 +6604,10 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 			return "leader answer %s is %s" % [str(fid), str(row.get("answer", ""))]
 		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
 			return "leader answer %s week %s" % [str(fid), str(row.get("week"))]
+	for fid in state.help_last:
+		var at = state.help_last[fid]
+		if not leaders.has(str(fid)) or typeof(at) != TYPE_INT or int(at) < 1 or int(at) > int(state.week):
+			return "help %s week %s" % [str(fid), str(at)]
 	for key in ARTIFACTS:
 		if typeof(state.artifacts.get(key)) != TYPE_INT or int(state.artifacts[key]) < 0:
 			return "artifact %s is %s" % [key, str(state.artifacts.get(key))]

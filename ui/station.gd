@@ -3843,8 +3843,6 @@ func _show_audience() -> void:
 		cost.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_body.add_child(cost)
 		help_why = game.help_reason()
-		if help_why != "":
-			_body(help_why)
 	var take := _audience_buttons("Take the deal", _answer_audience.bind(true), "Refuse")
 	if why != "":
 		take.disabled = true
@@ -3862,6 +3860,7 @@ func _show_audience() -> void:
 		if help_why != "":
 			give.disabled = true
 			give.tooltip_text = help_why
+			_body(help_why)
 
 
 ## Yes and no side by side; returns the yes button. No always turns the leader away.

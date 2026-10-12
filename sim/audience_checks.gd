@@ -250,6 +250,60 @@ func _help() -> void:
 			"After help the %s deal is still on the table and overrides the answer" % fid,
 			"%s deal after help took=%s answer=%s" % [fid, took, answer])
 
+	var pact := _waiting({"depot": 80}, {"depot": 6})
+	pact.week = 21
+	pact._audience_dawn()
+	pact.stock.materials = 100
+	var first := pact.apply({"kind": "audience", "help": true})
+	var waits: PackedStringArray = []
+	var open_at := 0
+	for at in range(22, 29):
+		pact.week = at
+		pact.audience = {}
+		pact._audience_dawn()
+		if str(pact.audience.get("faction", "")) != "depot":
+			waits.append("%d nobody" % at)
+			continue
+		if pact.help_reason() == "":
+			if open_at == 0:
+				open_at = at
+		else:
+			waits.append("%d %d" % [at, pact.help_wait("depot")])
+	pact.week = 22
+	pact.audience = {"faction": "depot", "week": 22, "target": ""}
+	var before_pact := var_to_bytes(pact.export_state())
+	var again := pact.apply({"kind": "audience", "help": true})
+	_expect(first and open_at == 27 and not again and var_to_bytes(pact.export_state()) == before_pact
+		and waits == PackedStringArray(["22 5", "23 4", "24 3", "25 2", "26 1"]),
+		"Pact leader returns every dawn but help waits six weeks (open again week %d)" % open_at,
+		"pact help first=%s open_at=%d again=%s waits=%s" % [first, open_at, again, " ".join(waits)])
+
+	for style in ["helper", "helper_mixed"]:
+		var too_soon: PackedStringArray = []
+		var helps := 0
+		for run_seed in range(1, 4):
+			var bot := Bot.new()
+			bot.audience_style = style
+			var game := Game.new()
+			game.setup(catalog, run_seed, 40)
+			game.audit = true
+			var guard := 0
+			while game.over == "" and guard < 42:
+				guard += 1
+				bot._act(game)
+				game.end_week()
+			var last := {}
+			for row in game.journal:
+				if str(row.get("kind", "")) != "audience" or str(row.get("result", "")) != "helped":
+					continue
+				helps += 1
+				var fid := str(row.faction)
+				if last.has(fid) and int(row.week) - int(last[fid]) < 6:
+					too_soon.append("seed %d %s %d->%d" % [run_seed, fid, int(last[fid]), int(row.week)])
+				last[fid] = int(row.week)
+		_expect(too_soon.is_empty() and helps > 0, "Bot %s helps each leader at most once per six weeks (%d helps in 3 runs)" % [style, helps],
+			"bot %s helps too soon: %s" % [style, ", ".join(too_soon)])
+
 	var top := _door("depot", func(g: Game): g.standing.depot = 95)
 	var fx_top := top.help_effects()
 	top.apply({"kind": "audience", "help": true})

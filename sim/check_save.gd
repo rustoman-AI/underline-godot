@@ -62,6 +62,7 @@ func _busy_game() -> Game:
 	game.leader_answers["synod"] = {"answer": "refused", "week": 19}
 	game.leader_answers["depot"] = {"answer": "helped", "week": 17}
 	game.stats["help_spent"] = {"materials": 6}
+	game.help_last["depot"] = 17
 	game.fragments["depot_order"] = {"known": true, "how": "dirty", "week": 18}
 	game.story_words = 3
 	return game
@@ -111,9 +112,17 @@ func _legacy() -> void:
 	_expect(loaded and game.fragments.is_empty() and game.story_words == 0 and game.seed == 1 and game.story_rng.state == story_stream.state,
 		"Schema 3 save migrates with no fragments, no testimonies and the story stream from the seed",
 		"schema 3 loaded=%s %s fragments=%s words=%d story stream %s" % [loaded, game.load_error, game.fragments, game.story_words, game.story_rng.state == story_stream.state])
+	var fourth := source.export_state()
+	fourth["schema"] = 4
+	for key in Game.V4_ADDED:
+		fourth.erase(key)
+	game = _busy_game()
+	loaded = game.import_state(fourth)
+	_expect(loaded and game.help_last.is_empty() and game.seed == 1,
+		"Schema 4 save migrates with no help given yet", "schema 4 loaded=%s %s help=%s" % [loaded, game.load_error, game.help_last])
 	var oldest := source.export_state()
 	oldest.erase("schema")
-	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED + Game.V3_ADDED:
+	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED + Game.V3_ADDED + Game.V4_ADDED:
 		oldest.erase(key)
 	game = _busy_game()
 	loaded = game.import_state(oldest)
@@ -154,6 +163,10 @@ func _rejects() -> void:
 		"fragment future week": _with(good, "fragments", {"depot_order": {"known": true, "how": "honest", "week": 39}}),
 		"story_words negative": _with(good, "story_words", -2),
 		"story_words text": _with(good, "story_words", "3"),
+		"v5 missing help_last": _without(good, "help_last"),
+		"help unknown leader": _with(good, "help_last", {"nobody": 1}),
+		"help future week": _with(good, "help_last", {"depot": 39}),
+		"help week text": _with(good, "help_last", {"depot": "1"}),
 	}
 	for name in cases:
 		var game := _busy_game()

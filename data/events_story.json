@@ -226,7 +226,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "standing_min": {
           "depot": 15
@@ -265,7 +265,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "flag": "buried_papers",
         "no_fragment": "depot_order"
@@ -295,7 +295,7 @@
       "needs": {
         "week": [
           16,
-          36
+          38
         ],
         "standing_min": {
           "directorate": 30
@@ -335,7 +335,7 @@
       "needs": {
         "week": [
           16,
-          36
+          38
         ],
         "flag": "collaborator",
         "no_fragment": "directorate_ledger"
@@ -370,7 +370,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "standing_min": {
           "synod": 30
@@ -410,7 +410,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "flag": "stayed_down",
         "no_fragment": "synod_recording"
@@ -444,7 +444,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "standing_min": {
           "exchange": 15
@@ -494,7 +494,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "flag": "open_books",
         "no_fragment": "exchange_papers"
@@ -529,10 +529,10 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "standing_min": {
-          "black_flag": 15
+          "black_flag": 10
         },
         "no_flag": "lantern_toll",
         "no_fragment": "quarantine_path"
@@ -574,7 +574,7 @@
       "needs": {
         "week": [
           14,
-          34
+          38
         ],
         "flag": "lantern_toll",
         "no_fragment": "quarantine_path"

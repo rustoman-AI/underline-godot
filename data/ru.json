@@ -949,6 +949,8 @@
   "You brought help.": "Вы помогли.",
   "Help": "Помощь",
   "Regard %s": "Отношение %s",
+  "You helped recently, 1 week left": "Вы помогли недавно, ещё 1 нед.",
+  "You helped recently, %d weeks left": "Вы помогли недавно, ещё %d нед.",
   "Handed %s to the Directorate.": "Выдали Дирекции: %s.",
   "Burned the papers. One Papers clue is gone.": "Сожгли бумаги. Одной улики больше нет.",
   "Burned the papers before any clue was found.": "Сожгли бумаги, пока улик ещё не нашли.",

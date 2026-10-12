@@ -4,7 +4,7 @@ extends SceneTree
 ## event shows in, the fragments learned by kind, and the flags and standing the honest and dirty paths wait on.
 ## Also: mean standing per leader at weeks 14, 20 and 30, the weeks each honest event fired, the stock spent on
 ## help, and hope, discontent, food and materials at week 40.
-##   godot --headless --path . -s res://.tools/story_act2_cover.gd
+##   godot --headless --path . -s res://.tools/story_act2_cover.gd [-- --styles=helper,mixed]
 
 const PROFILES := ["careful", "expander", "follower"]
 const WEEKS := 40
@@ -20,8 +20,12 @@ func _initialize() -> void:
 	for ev in probe.events:
 		if str(ev.id).begins_with("st2_"):
 			ids.append(str(ev.id))
+	var styles: Array = Bot.AUDIENCE_STYLES.duplicate()
+	for arg in OS.get_cmdline_user_args():
+		if str(arg).begins_with("--styles="):
+			styles = Array(str(arg).trim_prefix("--styles=").split(","))
 	var ends := {}
-	for style in Bot.AUDIENCE_STYLES:
+	for style in styles:
 		var shown := {}
 		var fired_at := {}
 		var kinds := {"honest": 0, "dirty": 0, "found": 0}
@@ -100,6 +104,8 @@ func _initialize() -> void:
 		print("  week 40 means: hope %.1f, discontent %.1f, food %.1f, materials %.1f" % [end_row.hope, end_row.discontent, end_row.food, end_row.materials])
 	print("== help against no-help (week 40 mean deltas)")
 	for pair in [["helper", "silence"], ["helper", "refuse_all"], ["helper_mixed", "mixed"]]:
+		if not ends.has(pair[0]) or not ends.has(pair[1]):
+			continue
 		var a: Dictionary = ends[pair[0]]
 		var b: Dictionary = ends[pair[1]]
 		print("  %-12s vs %-10s hope %+.1f, discontent %+.1f, food %+.1f, materials %+.1f" % [pair[0], pair[1],
