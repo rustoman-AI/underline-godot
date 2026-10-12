@@ -25,9 +25,21 @@ Conditions the sim raises: `food_critical` (food under one week of meals), `powe
 
 Radio count: 14 of 26 bulletins voiced (`radio_news_001` to `radio_news_010` and pilot 04); 12 still text only, all in `data/vo/cable_radio.json`.
 
+## Leader lines
+
+Leader lines are voiced EN/RU: 55 lines per language, 110 files, named `lead_<faction>_<key>_<lang>.ogg` with keys `first_contact`, `band_hostile`, `band_cold`, `band_wary`, `band_useful`, `band_pact`, `territory`, `trade`, `pitch`, `accepted`, `declined`. They are not rows in `data/vo/`: the text is `data/leader_lines.json` and the game plays the file whose key matches the line on screen (the audience card's opening or band line, the pitch after Hear them out, the reply after accepting or refusing, and territory and trade lines in order reports), on the Voice bus, one at a time, without subtitles. A missing file plays nothing. Generated with ElevenLabs (eleven_v4), normalized to -23 LUFS. Not auditioned; ear review deferred until funding.
+
+| Leader | Faction | Voice | Voice ID |
+| --- | --- | --- | --- |
+| Bernie Shaw | depot | Matthew Schmitz | Q4oILuo4P8VeXtE6FMLI |
+| Lionel Abelard | directorate | Ryan T | KrzS8SPOhDLAQ1kPsDxL |
+| Dorothy Chen | synod | Annabel | tiLGT9eftokjCKvXtgmt |
+| Marcel Toussaint | exchange | Adam | mwSotaX4JZvDBLkikIUZ |
+| Niki Ortega | black_flag | Oraya | nRQT5qZlz63KgulRymWq |
+
 ## Loudness
 
-Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Event and system lines were also normalized in a later pass, targeting -23 LUFS with a -2.5 dBTP limiter target to allow for Vorbis overshoot; untouched backups are in `_originals_short/`. Radio is normalized the same way to -23 LUFS with a -2.5 dBTP limiter target (radio_news_003_ru and 010_ru at -3.0 to stay under -2.5 after Vorbis); the delivered mix (-22.3 to -20.7 LUFS) is kept in `_originals_radio/`, ignored by git and Godot. Measured after: -23.1 to -22.6 LUFS, true peak at most -2.5 dBTP. `.tools/measure_vo.ps1` prints min/median/max per group.
+Stories are normalized to -23 LUFS integrated, true peak under -1.5 dBTP, by `.tools/normalize_vo.ps1` (two-pass ffmpeg loudnorm from the untouched originals in `_originals_story/`, which git and Godot ignore). Event and system lines were also normalized in a later pass, targeting -23 LUFS with a -2.5 dBTP limiter target to allow for Vorbis overshoot; untouched backups are in `_originals_short/`. Radio is normalized the same way to -23 LUFS with a -2.5 dBTP limiter target (radio_news_003_ru and 010_ru at -3.0 to stay under -2.5 after Vorbis); the delivered mix (-22.3 to -20.7 LUFS) is kept in `_originals_radio/`, ignored by git and Godot. Measured after: -23.1 to -22.6 LUFS, true peak at most -2.5 dBTP. `.tools/measure_vo.ps1` prints min/median/max per group. Leader lines use the same two-pass loudnorm to -23 LUFS with a -2.5 dBTP ceiling (`.tools/normalize_leaders.ps1`); a short line that lands outside 0.4 dB of the target or over the ceiling after Vorbis is encoded again from the original with the target moved by the miss. Gain only, no EQ, though the five voices are different people. Delivered files (-31.0 to -17.2 LUFS) are kept in `_originals_leaders/`, ignored by git and Godot. Measured after: -23.3 to -22.6 LUFS (spread 0.7 dB), true peak at most -2.6 dBTP; `.tools/measure_leaders.ps1` prints min/median/max per faction.
 
 Event files may arrive as `event_<id>_resolve_resolve_<lang>.ogg` (the index spreadsheet's spelling); the game accepts that as well as `event_<id>_resolve_<lang>.ogg` from `underline_vo.json`.
 

@@ -36,4 +36,6 @@ assets/audio/drone.ogg and assets/audio/ambient.ogg are original 60 second loops
 
 assets/audio/drip.ogg (one water drop, played at random by the game), assets/audio/radio.ogg (static burst before a cable radio item) and the room loops in assets/audio/rooms/ (12 second loops for each room type) are original sounds made for this game with tools/synth_audio.gd.
 
-Voiceover lives in assets/audio/vo/ (resident stories, cable radio, event and action lines), named as listed in assets/audio/vo/INDEX.md. The installed pack contains 112 audio files: 30 resident stories, 10 radio bulletins, 8 event resolves and 8 system lines, each in English and Russian. The 16 additional cable bulletins remain text only.
+Voiceover lives in assets/audio/vo/ (resident stories, cable radio, event and action lines, leader lines), named as listed in assets/audio/vo/INDEX.md. The installed pack contains 230 audio files: 30 resident stories, 14 radio bulletins, 8 event resolves, 8 system lines and 55 leader lines, each in English and Russian. The 12 remaining cable bulletins are text only.
+
+Leader voices were generated with ElevenLabs (eleven_v4): Matthew Schmitz (Q4oILuo4P8VeXtE6FMLI) for Bernie Shaw, Ryan T (KrzS8SPOhDLAQ1kPsDxL) for Lionel Abelard, Annabel (tiLGT9eftokjCKvXtgmt) for Dorothy Chen, Adam (mwSotaX4JZvDBLkikIUZ) for Marcel Toussaint, Oraya (nRQT5qZlz63KgulRymWq) for Niki Ortega.
