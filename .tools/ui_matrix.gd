@@ -3,6 +3,7 @@ extends SceneTree
 ## UI matrix: one language and one window size per run (windowed, not headless):
 ##   godot --path . -s res://.tools/ui_matrix.gd -- --lang=ru --size=1366x768
 ## Shots go to shots/qa/<lang>_<WxH>/, findings to build/ui_matrix/<lang>_<WxH>.json.
+## The window gets the default Auto interface scale; rects are in UI units, contrast is sampled in shot pixels.
 ## On every screen each visible control is checked: outside the window, squeezed below its minimum size, text cut
 ## (trimmed or lines hidden), poking out of its container, and text contrast measured on the shot's pixels.
 ## All visible text is also checked for language: Latin words in Russian, Cyrillic in English, raw ids, dashes.
@@ -41,6 +42,10 @@ func _run() -> void:
 	await process_frame
 	size = st._shot_size()
 	await st._settle(size)
+	Settings.apply_scale(st.get_window())
+	for _i in 4:
+		await process_frame
+	st._layout()
 	out = "qa/%s_%dx%d" % [Copy.lang, size.x, size.y]
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots/" + out))
 	var t0 := Time.get_ticks_msec()
@@ -138,6 +143,7 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/ui_matrix"))
 	var f := FileAccess.open("res://build/ui_matrix/%s_%dx%d.json" % [Copy.lang, size.x, size.y], FileAccess.WRITE)
 	f.store_string(JSON.stringify({"lang": Copy.lang, "size": "%dx%d" % [size.x, size.y], "window": str(st.get_window().size),
+		"scale": st.get_window().content_scale_factor, "ui": str(st.get_viewport().get_visible_rect().size.round()),
 		"ms": Time.get_ticks_msec() - t0, "findings": findings, "texts": texts.keys()}, "\t"))
 	f.close()
 	print("MATRIX %s %dx%d findings %d" % [Copy.lang, size.x, size.y, findings.size()])
@@ -156,7 +162,8 @@ func _shot(screen: String) -> void:
 
 
 func _audit(screen: String, img: Image) -> void:
-	var window := Rect2(Vector2.ZERO, Vector2(img.get_width(), img.get_height()))
+	var window: Rect2 = st.get_viewport().get_visible_rect()
+	var px: float = float(img.get_width()) / window.size.x
 	var top := _top_layer()
 	for node in st.find_children("*", "Control", true, false):
 		var c := node as Control
@@ -197,7 +204,8 @@ func _audit(screen: String, img: Image) -> void:
 			if not room.encloses(rect):
 				_note(screen, c, "outside_parent", "%s in %s %s" % [_r(rect), parent.get_class(), _r(parent.get_global_rect())])
 		if text.strip_edges().length() >= 3 and shown.has_area() and shown.size.y >= rect.size.y * 0.8 and window.encloses(shown) and (c is Label or c is Button):
-			var ratio := _contrast(img, _ink_rect(c, shown))
+			var ink := _ink_rect(c, shown)
+			var ratio := _contrast(img, Rect2(ink.position * px, ink.size * px))
 			if ratio > 0.0 and ratio < 2.2:
 				_note(screen, c, "low_contrast", "%.2f:1" % ratio)
 

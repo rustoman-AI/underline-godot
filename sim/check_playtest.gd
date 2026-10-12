@@ -41,6 +41,7 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SaveGame.root))
 	PlaytestLog.dir = SCRATCH.path_join("log")
 
+	_ui_scale()
 	_build_info()
 	_log_and_report()
 	await _station()
@@ -54,6 +55,37 @@ func _run() -> void:
 		print("  " + line)
 	print("PLAYTEST CHECK FAILED")
 	quit(1)
+
+
+## Auto is the default; a manual pick survives a reload; files from before Auto keep a non-default pick.
+func _ui_scale() -> void:
+	if not Settings.ui_scale_auto:
+		bad.append("ui scale: fresh settings are not on Auto")
+	for pair in [[720, 0.9], [768, 0.9], [900, 0.9], [1080, 1.0], [1200, 1.1], [1440, 1.35], [2160, 1.6]]:
+		if absf(Settings.auto_scale(int(pair[0])) - float(pair[1])) > 0.001:
+			bad.append("ui scale: auto at %d is %.3f, want %.2f" % [int(pair[0]), Settings.auto_scale(int(pair[0])), float(pair[1])])
+	for case in [["manual", 1.0, false], ["manual", 1.25, false], ["auto", 1.25, true], ["", 1.0, true], ["", 1.5, false]]:
+		var cfg := ConfigFile.new()
+		cfg.set_value("game", "ui_scale", float(case[1]))
+		if str(case[0]) != "":
+			cfg.set_value("game", "ui_scale_mode", str(case[0]))
+		cfg.save(Settings.path)
+		Settings.loaded = false
+		Settings.load_file()
+		if Settings.ui_scale_auto != bool(case[2]) or absf(Settings.ui_scale - float(case[1])) > 0.001:
+			bad.append("ui scale: file %s loads as auto=%s scale=%.2f" % [str(case), Settings.ui_scale_auto, Settings.ui_scale])
+		if not Settings.ui_scale_auto and absf(Settings.scale_for(1440) - float(case[1])) > 0.001:
+			bad.append("ui scale: manual %s loses to Auto at 1440" % str(case))
+	Settings.ui_scale = 1.25
+	Settings.ui_scale_auto = false
+	Settings.save()
+	Settings.loaded = false
+	Settings.load_file()
+	if Settings.ui_scale_auto or absf(Settings.ui_scale - 1.25) > 0.001:
+		bad.append("ui scale: a manual 125% did not survive a save")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	Settings.ui_scale = 1.0
+	Settings.ui_scale_auto = true
 
 
 func _build_info() -> void:

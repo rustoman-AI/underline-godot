@@ -21,6 +21,8 @@ static var radio_every := 1
 static var language := ""
 static var fullscreen := false
 static var ui_scale := 1.0
+## Auto scale follows the window height; a manual pick in Settings turns it off.
+static var ui_scale_auto := true
 static var reduce_motion := false
 static var people_free_only := false
 ## Playtest log: "" until the player answers the consent card, then "yes" or "no".
@@ -52,6 +54,9 @@ static func load_file() -> void:
 	language = str(cfg.get_value("game", "language", ""))
 	fullscreen = bool(cfg.get_value("game", "fullscreen", false))
 	ui_scale = clampf(float(cfg.get_value("game", "ui_scale", 1.0)), 0.75, 1.5)
+	## Files written before Auto existed always held ui_scale; only a value other than the old 100% default was a pick.
+	var mode := str(cfg.get_value("game", "ui_scale_mode", "auto" if absf(ui_scale - 1.0) < 0.01 else "manual"))
+	ui_scale_auto = mode != "manual"
 	reduce_motion = bool(cfg.get_value("game", "reduce_motion", false))
 	people_free_only = bool(cfg.get_value("game", "people_free_only", false))
 	log_consent = str(cfg.get_value("playtest", "log", ""))
@@ -74,6 +79,7 @@ static func save() -> void:
 	cfg.set_value("game", "language", language)
 	cfg.set_value("game", "fullscreen", fullscreen)
 	cfg.set_value("game", "ui_scale", ui_scale)
+	cfg.set_value("game", "ui_scale_mode", "auto" if ui_scale_auto else "manual")
 	cfg.set_value("game", "reduce_motion", reduce_motion)
 	cfg.set_value("game", "people_free_only", people_free_only)
 	cfg.set_value("playtest", "log", log_consent)
@@ -93,9 +99,29 @@ static func apply_display(win: Window) -> void:
 	else:
 		win.mode = Window.MODE_WINDOWED
 		win.size = Vector2i(1280, 720)
-	win.content_scale_factor = ui_scale
-	if absf(ui_scale - 1.0) < 0.01:
+	apply_scale(win)
+
+
+static func auto_scale(height: int) -> float:
+	return snappedf(clampf(float(height) / 1080.0, 0.9, 1.6), 0.05)
+
+
+static func scale_for(height: int) -> float:
+	load_file()
+	return auto_scale(height) if ui_scale_auto else ui_scale
+
+
+## The base size follows the window, so the factor is the size on screen: 1.35 means 35% larger than 1:1 pixels.
+static func apply_scale(win: Window) -> void:
+	var scale := scale_for(win.size.y)
+	var plain := absf(scale - 1.0) < 0.01
+	var mode := Window.CONTENT_SCALE_MODE_DISABLED if plain else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	if absf(win.content_scale_factor - scale) < 0.001 and win.content_scale_mode == mode and (plain or win.content_scale_size == win.size):
+		return
+	win.content_scale_factor = scale
+	if plain:
 		win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	else:
 		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+		win.content_scale_size = win.size

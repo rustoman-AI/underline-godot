@@ -244,6 +244,7 @@ func _ready() -> void:
 		hub_button.visible = _hub_texture() != null
 	if not shot_mode:
 		Settings.apply_display(get_window())
+		get_window().size_changed.connect(_rescale)
 		Sound.apply_buses()
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
@@ -7804,9 +7805,11 @@ func _fill_settings() -> void:
 	box.add_child(_label("UI scale", 18, true))
 	var scales := HBoxContainer.new()
 	scales.add_theme_constant_override("separation", 8)
+	var scale_w := minf(112.0, (inner - 32.0) * 0.2)
+	scales.add_child(_pick_button("Auto", Settings.ui_scale_auto, _pick_auto_scale, scale_w))
 	for pair in [[0.75, "75%"], [1.0, "100%"], [1.25, "125%"], [1.5, "150%"]]:
 		var scale := float(pair[0])
-		scales.add_child(_pick_button(str(pair[1]), absf(Settings.ui_scale - scale) < 0.02, _pick_scale.bind(scale), minf(112.0, (inner - 24.0) * 0.25)))
+		scales.add_child(_pick_button(str(pair[1]), not Settings.ui_scale_auto and absf(Settings.ui_scale - scale) < 0.02, _pick_scale.bind(scale), scale_w))
 	box.add_child(scales)
 	var motion := Copy.t("Reduce motion") + ": " + Copy.t("On" if Settings.reduce_motion else "Off")
 	box.add_child(_pick_button(motion, Settings.reduce_motion, _toggle_motion, minf(420.0, inner)))
@@ -8005,10 +8008,23 @@ func _pick_window(full: bool) -> void:
 
 func _pick_scale(scale: float) -> void:
 	Settings.ui_scale = scale
+	Settings.ui_scale_auto = false
 	Settings.save()
 	if not shot_mode:
-		Settings.apply_display(get_window())
+		Settings.apply_scale(get_window())
 	_fill_settings()
+
+
+func _pick_auto_scale() -> void:
+	Settings.ui_scale_auto = true
+	Settings.save()
+	if not shot_mode:
+		Settings.apply_scale(get_window())
+	_fill_settings()
+
+
+func _rescale() -> void:
+	Settings.apply_scale(get_window())
 
 
 func _toggle_motion() -> void:
