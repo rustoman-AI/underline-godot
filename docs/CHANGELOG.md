@@ -2,14 +2,14 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 152. Первый: 2026-10-02. Последний: 2026-10-12 5ae2e12.
+Коммитов: 162. Первый: 2026-10-02. Последний: 2026-10-12 60a4d4a.
 
 ## Этапы
 
 - **2026-10-02.** Старт: симуляция станции, разрез, экономика, GDD v2
 - **2026-10-10.** Карта сети (стол надзирателя), проверки событий, меню и сохранения, экспорт
 - **2026-10-11.** Лидеры и аудиенции, озвучка 112 + 110 строк, сюжетный костяк (осколки, бункеры, 8 концовок), первая закрытая сборка
-- **2026-10-12.** Ночной QA, портреты по полу и досье, вторая и третья сборки (0.1.0-playtest2, 0.1.0-playtest3), первый внешний отзыв
+- **2026-10-12.** Ночной QA, портреты по полу и досье, вторая и третья сборки (0.1.0-playtest2, 3, 4), первый внешний отзыв
 
 ## Сборки для плейтеста
 
@@ -19,8 +19,18 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-12 (33)
+### 2026-10-12 (43)
 
+- `60a4d4a` Docs: park toast layering and workshop storage notes
+- `3afc7a4` Numbers clarity: weekly in and out on resource cards
+- `191f700` Docs: park intro idea
+- `b743898` Docs: F22 map size raised by a second tester
+- `41f9414` Docs: numbers clarity brief is go
+- `c2641d8` Docs: draft Cursor brief for numbers clarity (F28, F29, F34)
+- `1540f29` Docs: log PDF playtest feedback F23-F34
+- `cc0387e` Docs: log Taiga card F22 (station map scale) and park it
+- `fc31ffe` Docs: park stale quiet-sound hint wording
+- `80723b3` Docs: changelog after playtest3 clarity pass
 - `5ae2e12` Settings and Credits as framed cards over a dim
 - `f039afb` Clarity: explain overcrowding on the people line and ticker
 - `0523634` Docs: central index, decisions log, changelog, parking, design frame, feedback log
