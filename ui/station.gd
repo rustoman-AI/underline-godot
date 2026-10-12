@@ -29,10 +29,48 @@ const ROOM_COLOR := {
 }
 const URGENT_WEEKS := 2
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
+const STOCK_WHAT := {
+	"power": "Keeps the rooms running. Rooms without power go dark.",
+	"food": "Everyone eats every week. Running short costs hope, and people can die.",
+	"air": "Everyone breathes every week. Running short costs hope, and people can die.",
+	"materials": "Spent on building, upgrades and filter upkeep.",
+}
+const LINE_NAMES := {
+	"quarantine": "Quarantine",
+	"harvest": "Harvest",
+	"vent": "Vent cut",
+	"outposts": "Outposts",
+	"outpost_upkeep": "Outpost upkeep",
+	"flood": "Flood",
+	"full": "Storage full",
+	"spoil": "Spoilage",
+	"rot": "Rot in the stores",
+	"meals": "Meals",
+	"breathing": "Breathing",
+	"filter_upkeep": "Filter upkeep",
+}
+const YIELD_ZERO := {
+	"off": "switched off",
+	"flooded": "flooded",
+	"broken": "out of order",
+	"dark": "no power, browned out",
+	"unstaffed": "no crew",
+	"event": "stopped by an event",
+	"mold": "mold in the beds",
+}
+const YIELD_STEP := {
+	"skill": "crew skill",
+	"half_crew": "short crew",
+	"wear": "filter wear",
+	"double_shifts": "double shifts",
+	"event": "event",
+	"quarantine": "quarantine",
+}
 const ModalDeck = preload("res://ui/modals.gd")
 const NetworkViewScript = preload("res://ui/network_view.gd")
 const ArtPack = preload("res://ui/art_pack.gd")
 const Brief = preload("res://sim/brief.gd")
+const WeekForecast = preload("res://sim/week_forecast.gd")
 const WAITING := "Someone is still waiting. Choose before the week ends."
 const ORDER_DONE := {
 	"propaganda": "agitation completed",
@@ -182,6 +220,9 @@ var at_menu := false
 var hold_dawn := false
 var menu_layer: Control
 var menu_root: Control
+var week_fc := {}
+var dark_now := {}
+var room_out := {}
 var menu_settings: Control
 var menu_credits: Control
 var settings_body: VBoxContainer
@@ -1509,6 +1550,7 @@ func _refresh() -> void:
 	_paint_stocks(roll)
 	stock_week = game.week
 	_sync_resource_names()
+	_sync_numbers()
 	var hold_deltas := Time.get_ticks_msec() < delta_hold_until
 	for key in STOCK_KEYS:
 		var keep_delta: bool = hold_deltas and chips[key].delta.text != ""
@@ -1525,10 +1567,17 @@ func _refresh() -> void:
 		if not keep_delta:
 			chips[key].delta.text = delta_text
 			chips[key].delta.add_theme_color_override("font_color", color)
-		var outlook: Dictionary = game.resource_outlook(str(key))
-		chips[key].box.tooltip_text = "%s. %s" % [Copy.res(str(key)), str(outlook.text)]
+		var hit := false
+		if week_fc.has(key):
+			var row: Dictionary = week_fc[key]
+			chips[key].box.tooltip_text = _stock_tip(str(key))
+			hit = int(row.stock) <= 0 or int(row.after) <= 0 or int(row.short) > 0
+		else:
+			var outlook: Dictionary = game.resource_outlook(str(key))
+			chips[key].box.tooltip_text = "%s. %s" % [Copy.res(str(key)), str(outlook.text)]
+			hit = bool(outlook.hit)
 		var value_color := INK
-		if bool(outlook.hit):
+		if hit:
 			value_color = Color("e0a15a")
 		chips[key].value.add_theme_color_override("font_color", value_color)
 	power_loss = {}
@@ -1538,6 +1587,8 @@ func _refresh() -> void:
 	dis_label.text = Copy.t("Discontent %d  %s") % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
 	dis_fill.anchor_right = clampf(float(game.discontent) / 100.0, 0.0, 1.0)
+	hope_label.get_parent().tooltip_text = _meter_rule("hope")
+	dis_label.get_parent().tooltip_text = _meter_rule("discontent")
 	end_button.text = Copy.t("End turn") if game.over == "" else _ending()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
@@ -2105,9 +2156,19 @@ func _fill_source(key: String, pin: bool) -> void:
 	var info: Dictionary = Brief.source(game, key)
 	var inner := _source_width() - 28.0
 	on_paper = true
-	source_body.add_child(_source_label(str(info.headline), 18, true, inner))
-	source_body.add_child(_source_label(str(info.made), 15, false, inner))
-	source_body.add_child(_source_label(str(info.used), 15, false, inner))
+	if week_fc.has(key):
+		source_body.add_child(_source_label(_stock_head(key), 18, true, inner))
+		for line in _stock_lines(key, 99):
+			source_body.add_child(_source_label(line, 15, false, inner))
+		for note in _stock_notes(key):
+			source_body.add_child(_source_label(note, 15, false, inner))
+		source_body.add_child(_source_label(Copy.t(STOCK_WHAT[key]), 14, false, inner))
+	else:
+		source_body.add_child(_source_label(str(info.headline), 18, true, inner))
+		source_body.add_child(_source_label(str(info.made), 15, false, inner))
+		source_body.add_child(_source_label(str(info.used), 15, false, inner))
+		if key == "hope" or key == "discontent":
+			source_body.add_child(_source_label(_meter_rule(key), 14, false, inner))
 	var build_type := str(info.get("build_type", ""))
 	if build_type != "":
 		var room_name := Copy.t(str(game.catalog.rooms[build_type].name))
@@ -2123,6 +2184,153 @@ func _fill_source(key: String, pin: bool) -> void:
 		yard.glow = glow
 		yard.queue_redraw()
 	_place_source()
+
+
+## The week's numbers for the top bar, the resource panel, room cards and yard badges.
+func _sync_numbers() -> void:
+	week_fc = WeekForecast.week(game)
+	dark_now = WeekForecast.dark_rooms(game)
+	room_out = {}
+	for room in game.rooms:
+		var row := {}
+		for key in game.catalog.rooms[room.type].get("base", {}):
+			var info: Dictionary = WeekForecast.room_yield(game, room, str(key), dark_now)
+			row[str(key)] = _room_cut(str(key), int(info.amount))
+		room_out[str(room.uid)] = row
+
+
+## Quarantine and the curfew cut the yard's total; a room shows its own share.
+func _room_cut(key: String, amount: int) -> int:
+	var n := amount
+	if game.quarantine and key != "tokens":
+		n = int(round(float(n) * WeekForecast.QUARANTINE_CUT))
+	if key == "influence" and game._law_on("curfew"):
+		n = int(round(float(n) * float(game.catalog.laws.curfew.influence_mult)))
+	return n
+
+
+func _room_amount(uid: String, key: String) -> int:
+	return int(room_out.get(uid, {}).get(key, 0))
+
+
+func _stock_head(key: String) -> String:
+	var row: Dictionary = week_fc[key]
+	var net := "%+d" % int(row.net)
+	if bool(row.random):
+		net = Copy.t("%+d (expected, ±%d)") % [int(row.net), int(row.swing)]
+	return Copy.t("%s: %d in store. This week: +%d made, -%d used, net %s.") % [Copy.res(key), int(row.stock), int(row.made), int(row.used), net]
+
+
+## Sources and sinks merged by name, biggest first.
+func _stock_lines(key: String, most: int) -> PackedStringArray:
+	var sums := {}
+	var counts := {}
+	var order: Array = []
+	for row in week_fc[key].lines:
+		var name := _line_name(str(row.what))
+		var sign := "+" if int(row.amount) > 0 else "-"
+		var id := sign + name
+		if not sums.has(id):
+			order.append(id)
+		sums[id] = int(sums.get(id, 0)) + int(row.amount)
+		counts[id] = int(counts.get(id, 0)) + 1
+	order.sort_custom(func(a, b): return absi(int(sums[a])) > absi(int(sums[b])))
+	var out: PackedStringArray = []
+	for id in order:
+		if out.size() >= most:
+			break
+		var name := str(id).substr(1)
+		if int(counts[id]) > 1:
+			name = "%s (%d)" % [name, int(counts[id])]
+		out.append("%s %+d" % [name, int(sums[id])])
+	return out
+
+
+func _line_name(what: String) -> String:
+	if LINE_NAMES.has(what):
+		return Copy.t(LINE_NAMES[what])
+	return Copy.t(what)
+
+
+func _stock_notes(key: String) -> PackedStringArray:
+	var row: Dictionary = week_fc[key]
+	var notes: PackedStringArray = []
+	if int(row.short) > 0:
+		notes.append(Copy.t("Short by %d.") % int(row.short))
+	if bool(row.get("cold", false)):
+		notes.append(Copy.t("This week the rooms draw double."))
+	if key == "power" and not dark_now.is_empty():
+		var names: PackedStringArray = []
+		for uid in dark_now:
+			var room = game._room(str(uid))
+			if room != null:
+				names.append(Copy.t(str(game.catalog.rooms[room.type].name)))
+		notes.append(Copy.t("Not enough power: %s go dark tonight.") % ", ".join(names))
+	if game._season_is("cough") and not game.quarantine:
+		notes.append(Copy.t("Cough season: sick workers leave their rooms at night, so output can fall."))
+	return notes
+
+
+func _stock_tip(key: String) -> String:
+	var parts: PackedStringArray = [_stock_head(key)]
+	parts.append_array(_stock_lines(key, 3))
+	if _stock_lines(key, 99).size() > 3:
+		parts.append(Copy.t("Click for every line."))
+	parts.append_array(_stock_notes(key))
+	parts.append(Copy.t(STOCK_WHAT[key]))
+	return "\n".join(parts)
+
+
+## The lead's lines for the meters; the numbers come from the game's rules.
+func _meter_rule(key: String) -> String:
+	if key == "discontent":
+		return Copy.t("How angry people are. At 100 the platform turns on you and the run ends at once.")
+	var leave := Game.HOPE_ZERO_LEAVE
+	var weeks := Game.HOPE_ZERO_WEEKS
+	if Copy.ru():
+		return "Насколько станция верит, что выдержит. При 0 каждую неделю уходят %s, а %s на нуле заканчивают игру." % [_ru_people(leave), _ru_weeks(weeks)]
+	var who := "one person" if leave == 1 else "%s people" % _en_number(leave)
+	var span := "one week" if weeks == 1 else "%s weeks" % _en_number(weeks)
+	return "How much the station believes it will last. At 0, %s leave every week, and %s at 0 end the run." % [who, span]
+
+
+func _en_number(n: int) -> String:
+	var words := ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+	return words[n] if n >= 0 and n < words.size() else str(n)
+
+
+func _ru_people(n: int) -> String:
+	var words := {1: "один человек", 2: "двое", 3: "трое", 4: "четверо", 5: "пятеро", 6: "шестеро"}
+	return str(words.get(n, Words.count(n, "person", "people")))
+
+
+func _ru_weeks(n: int) -> String:
+	var words := {1: "одна неделя", 2: "две недели", 3: "три недели", 4: "четыре недели", 5: "пять недель"}
+	return str(words.get(n, Words.count(n, "week")))
+
+
+## N2: the room's own weekly output, the multipliers that made it, or why it makes nothing.
+func _yield_line(uid: String, key: String) -> String:
+	var room = game._room(uid)
+	if room == null:
+		return ""
+	var info: Dictionary = WeekForecast.room_yield(game, room, key, dark_now)
+	var res := Copy.res(key)
+	if str(info.zero) != "":
+		return Copy.t("%s: nothing this week, %s.") % [res, Copy.t(YIELD_ZERO[str(info.zero)])]
+	var parts: PackedStringArray = [Copy.t("base %s") % _short_num(float(info.base))]
+	for step in info.steps:
+		parts.append("%s x%s" % [Copy.t(YIELD_STEP[str(step[0])]), _short_num(float(step[1]))])
+	if game.quarantine and key != "tokens":
+		parts.append("%s x%s" % [Copy.t(YIELD_STEP["quarantine"]), _short_num(WeekForecast.QUARANTINE_CUT)])
+	return Copy.t("%s %+d a week: %s") % [res, _room_amount(uid, key), ", ".join(parts)]
+
+
+func _short_num(value: float) -> String:
+	var text := "%.2f" % value
+	while text.contains(".") and (text.ends_with("0") or text.ends_with(".")):
+		text = text.substr(0, text.length() - 1)
+	return text
 
 
 func _source_width() -> float:
@@ -2544,20 +2752,30 @@ func _room_header(detail: Dictionary) -> void:
 		var defin: Dictionary = game.catalog.rooms[str(detail.type)]
 		var makes := _makes_line(str(detail.type), defin)
 		row.add_child(makes)
+	var uid := str(detail.uid)
+	_sync_numbers()
 	for out in outputs:
 		row.add_child(_mini_glyph(str(out.key), 20))
-		var amount := 0 if bool(detail.offline) else int(out.amount)
-		var lab := _label(Copy.t("%s %+d/wk") % [Copy.res(str(out.key)), amount], 18, true)
+		var lab := _label(Copy.t("%s %+d/wk") % [Copy.res(str(out.key)), _room_amount(uid, str(out.key))], 18, true)
 		row.add_child(lab)
 	var draw := int(detail.power)
 	if draw > 0:
+		if game._season_is("cold") or game.crunch_power:
+			draw *= 2
 		row.add_child(_dot())
 		row.add_child(_mini_glyph("power", 20))
 		var power_text := Copy.t("Power −%d/wk") % draw
-		if bool(game._room(str(detail.uid)).get("switched_off", false)):
+		if bool(detail.offline) or dark_now.has(uid):
 			power_text = Copy.t("Power 0/wk")
 		row.add_child(_label(power_text, 18, true))
 	card_body.add_child(row)
+	for out in outputs:
+		var why := _label(_yield_line(uid, str(out.key)), 14)
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		why.add_theme_color_override("font_color", PAPER_MUTED)
+		why.set_meta("yield_line", str(out.key))
+		card_body.add_child(why)
 	if bool(game._room(str(detail.uid)).get("switched_off", false)):
 		_body("Switched off. The crew went back to the platform.")
 	elif bool(detail.offline):
@@ -9910,7 +10128,7 @@ class Yard extends Control:
 		if outputs.is_empty():
 			return
 		var defin: Dictionary = station.game.catalog.rooms[str(room.type)]
-		var dimmed := bool(room.get("browned", false)) or bool(room.get("offline", false))
+		var dimmed: bool = bool(room.get("browned", false)) or bool(room.get("offline", false)) or station.dark_now.has(str(room.uid))
 		if station.power_loss.has(str(room.uid)):
 			dimmed = true
 		if int(defin.get("staff_min", 0)) > 0 and room.staff.size() < int(defin.staff_min):
@@ -9918,14 +10136,14 @@ class Yard extends Control:
 		var ink := Color(0.96, 0.93, 0.86, 0.38 if dimmed else 0.96)
 		var width := 8.0
 		for out in outputs:
-			width += 16.0 + font.get_string_size("+%d" % int(out.amount), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 6.0
+			width += 16.0 + font.get_string_size("+%d" % station._room_amount(str(room.uid), str(out.key)), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 6.0
 		var plate := Rect2(screen.position.x + screen.size.x - width - 4.0, screen.position.y + screen.size.y - 22.0, width, 18.0)
 		draw_rect(plate, Color(0.05, 0.04, 0.03, 0.55 if dimmed else 0.72))
 		var x := plate.position.x + 4.0
 		for out in outputs:
 			_paint_mini(Vector2(x, plate.position.y + 2.0), str(out.key), ink)
 			x += 16.0
-			var text := "+%d" % int(out.amount)
+			var text := "+%d" % station._room_amount(str(room.uid), str(out.key))
 			draw_string(font, Vector2(x, plate.position.y + 14.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ink)
 			x += font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 6.0
 
@@ -10010,7 +10228,7 @@ class Yard extends Control:
 		if outputs.is_empty():
 			return
 		var defin: Dictionary = station.game.catalog.rooms[str(room.type)]
-		var dim := bool(room.get("browned", false)) or bool(room.get("offline", false))
+		var dim: bool = bool(room.get("browned", false)) or bool(room.get("offline", false)) or station.dark_now.has(str(room.uid))
 		if int(defin.get("staff_min", 0)) > 0 and room.staff.size() < int(defin.staff_min):
 			dim = true
 		var font: Font = ThemeDB.fallback_font
@@ -10022,7 +10240,7 @@ class Yard extends Control:
 		for out in outputs:
 			_paint_mini(Vector2(x, y), str(out.key), ink)
 			x += 16.0
-			var text := "+%d" % int(out.amount)
+			var text := "+%d" % station._room_amount(str(room.uid), str(out.key))
 			draw_string(font, Vector2(x, y + 12.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ink)
 			x += font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 8.0
 

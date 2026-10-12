@@ -2,6 +2,9 @@ class_name Game
 extends RefCounted
 const Brief = preload("res://sim/brief.gd")
 const JOURNAL_MAX := 200
+## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
+const HOPE_ZERO_LEAVE := 2
+const HOPE_ZERO_WEEKS := 3
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -950,8 +953,8 @@ func _finish_checks() -> void:
 		_log("COLLAPSE the yard is empty", true)
 	if hope <= 0:
 		hope_zero += 1
-		_shed(2)
-		if hope_zero >= 3 and over == "":
+		_shed(HOPE_ZERO_LEAVE)
+		if hope_zero >= HOPE_ZERO_WEEKS and over == "":
 			over = "hope"
 			_log("HOPE the station stops working", true)
 	else:

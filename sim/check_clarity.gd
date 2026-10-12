@@ -19,6 +19,7 @@ const SIZES := [Vector2(1280, 720), Vector2(1024, 768), Vector2(1920, 1080)]
 
 var bad: PackedStringArray = []
 var catalog: Catalog
+var numbers_done := false
 var st
 
 
@@ -57,6 +58,9 @@ func _run() -> void:
 	_event_words()
 	_audience_words()
 	_crowd_words()
+	_week_numbers()
+	if not numbers_done:
+		bad.append("N1: the week check stopped on a script error")
 	await _settings_sheet()
 	await _hint_flow()
 	st._end_log()
@@ -152,6 +156,120 @@ func _crowd_words() -> void:
 		game.residents.pop_back()
 	st._refresh()
 	print("C8 crowd tip: %s" % want)
+
+
+## N1: the resource card's week (WeekForecast) against what End turn really does to the stock, careful and
+## expander bots, 5 seeds x 40 weeks each. Power, air and materials must match exactly; food must fall inside the harvest range.
+## Skipped and counted: weeks where the day's End turn work (pending events, the rival phase) changes the stock or
+## the rooms before the night, and cough weeks (the night moves and sickens workers before counting output).
+func _week_numbers() -> void:
+	var total := 0
+	var skipped := 0
+	var wrong := 0
+	var runs := []
+	for profile in ["careful", "expander"]:
+		for run_seed in [1, 2, 3, 4, 5]:
+			runs.append([profile, run_seed])
+	for run in runs:
+		var run_seed := int(run[1])
+		var game := Game.new()
+		game.setup(catalog, run_seed, 40)
+		var bot := Bot.new()
+		bot.profile = str(run[0])
+		var seen := 0
+		var skip_day := 0
+		var skip_cough := 0
+		while game.over == "" and game.week <= 40:
+			bot._act(game)
+			seen += 1
+			var fc: Dictionary = WeekForecast.week(game)
+			var before := _rooms_state(game)
+			game._resolve_pending()
+			game._rival_phase()
+			var day_moved := _rooms_state(game) != before
+			var cough := game._season_is("cough")
+			game._night()
+			if day_moved:
+				skip_day += 1
+			elif cough:
+				skip_cough += 1
+			else:
+				for key in WeekForecast.KEYS:
+					var row: Dictionary = fc[key]
+					var net := int(game.last_net.get(key, 0))
+					var ok := net == int(row.net)
+					if key == "food":
+						ok = net >= int(row.low) and net <= int(row.high)
+					if not ok:
+						wrong += 1
+						if wrong <= 8:
+							bad.append("N1 seed %d week %d %s: card net %+d (food %+d..%+d), stock moved %+d" % [run_seed, game.week, key, int(row.net), int(row.get("low", 0)), int(row.get("high", 0)), net])
+			game._finish_checks()
+			game._invariants()
+			if game.over != "":
+				break
+			game.week += 1
+			game.decisions = 0
+			game._dawn()
+			game._vo_watch()
+		total += seen
+		skipped += skip_day + skip_cough
+		print("N1 %s seed %d: %d weeks, checked %d, skipped %d (day work %d, cough %d)" % [str(run[0]), run_seed, seen, seen - skip_day - skip_cough, skip_day + skip_cough, skip_day, skip_cough])
+	for case in ["brownout", "generator_half", "workshop_down", "belt_down", "quarantine", "cold", "filter_broke", "switched_off"]:
+		var game := Game.new()
+		game.setup(catalog, 7, 40)
+		match case:
+			"brownout":
+				for room in game.rooms:
+					if str(room.type) == "generator":
+						for id in room.staff.duplicate():
+							game._unassign(str(id))
+				game.stock.power = 3
+			"generator_half":
+				game.gen_down = true
+			"workshop_down":
+				game.workshop_down = true
+			"belt_down":
+				game.belt_down = true
+			"quarantine":
+				game.quarantine = true
+			"cold":
+				game.crunch_power = true
+				game.stock.power = 5
+			"filter_broke":
+				for room in game.rooms:
+					if str(room.type) == "air_filter":
+						room.disabled = 2
+			"switched_off":
+				for room in game.rooms:
+					if str(room.type) == "workshop":
+						game.apply({"kind": "switch", "room": str(room.uid), "on": false})
+		var fc: Dictionary = WeekForecast.week(game)
+		game._night()
+		for key in WeekForecast.KEYS:
+			var net := int(game.last_net.get(key, 0))
+			var row: Dictionary = fc[key]
+			var ok := net == int(row.net) if key != "food" else (net >= int(row.low) and net <= int(row.high))
+			if not ok:
+				bad.append("N1 case %s %s: card net %+d, stock moved %+d" % [case, key, int(row.net), net])
+		print("N1 case %s: power %+d air %+d materials %+d food %+d..%+d" % [case, int(fc.power.net), int(fc.air.net), int(fc.materials.net), int(fc.food.low), int(fc.food.high)])
+	numbers_done = true
+	print("N1 total: %d weeks, skipped %d (%.0f%%), mismatches %d" % [total, skipped, 100.0 * skipped / maxf(1.0, total), wrong])
+	if skipped * 3 > total:
+		bad.append("N1: %d of %d weeks skipped, more than a third; the check is too weak" % [skipped, total])
+
+
+func _rooms_state(game: Game) -> String:
+	var parts: PackedStringArray = []
+	for key in WeekForecast.KEYS:
+		parts.append("%s=%d" % [key, int(game.stock[key])])
+	for room in game.rooms:
+		parts.append("%s:%s:%s:%s" % [str(room.uid), str(room.staff), str(room.offline), str(room.get("disabled", 0))])
+	for person in game.residents:
+		parts.append("%s:%d:%d" % [str(person.id), int(person.sick), int(person.absent)])
+	parts.append(str(game.laws_on.keys()) + str(game.active_season.get("id", "")))
+	parts.append(str(game.quarantine) + str(game.belt_down) + str(game.workshop_down) + str(game.gen_down) + str(game.crunch_power) + str(game.vent_cut))
+	return "|".join(parts)
 
 
 ## C9: Settings from the game sits in a framed card over a dark overlay, below the top bar, Back inside; Esc closes.
