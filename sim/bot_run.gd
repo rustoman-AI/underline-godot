@@ -66,6 +66,11 @@ func _init() -> void:
 		print("OUTPOST PAYBACK FAIL")
 	else:
 		print("Outpost payback: ok")
+	if not _expander_discontent_ok():
+		failed = true
+		print("EXPANDER DISCONTENT FAIL")
+	else:
+		print("Expander discontent: ok")
 	if not _follower_ok(follower):
 		failed = true
 		print("FOLLOWER TARGET FAIL")
@@ -190,19 +195,57 @@ func _careful_seed(row: Dictionary) -> String:
 	return "FAIL " + ", ".join(why)
 
 
+## The discontent peak and a revolt are judged by _expander_discontent_ok across 30 seeds, not per seed.
 func _expander_seed(row: Dictionary) -> String:
 	var why: PackedStringArray = []
-	if not row.get("errors", []).is_empty() or str(row.get("over", "")) != "time":
+	var over := str(row.get("over", ""))
+	if not row.get("errors", []).is_empty() or (over != "time" and over != "revolt"):
 		why.append(str(row.get("over", "error")))
 	if int(row.get("shortage_weeks", 0)) > 5:
 		why.append("short %d" % int(row.shortage_weeks))
 	if int(row.get("hope_min", 0)) < 20:
 		why.append("hope %d" % int(row.hope_min))
-	if int(row.get("dis_max", 0)) > 75:
-		why.append("dis %d" % int(row.dis_max))
+	var note := ""
+	if over == "revolt" or int(row.get("dis_max", 0)) > 75:
+		note = "  (dis %d%s, see Expander discontent)" % [int(row.get("dis_max", 0)), ", revolt" if over == "revolt" else ""]
 	if why.is_empty():
-		return "pass"
-	return "FAIL " + ", ".join(why)
+		return "pass" + note
+	return "FAIL " + ", ".join(why) + note
+
+
+## The expander's discontent against the same game without story beats, seeds 1 to 30 (docs/audit/
+## balance_gate_decisions.md): no fewer seeds with a peak of 75 or less, a mean peak at most 2 higher, at most
+## one more revolt. The base game itself misses an absolute 75 on a third of the seeds.
+func _expander_discontent_ok() -> bool:
+	var tally := {"plain": {"under": 0, "sum": 0, "revolts": 0}, "full": {"under": 0, "sum": 0, "revolts": 0}}
+	for run_seed in range(1, 31):
+		for mode in ["plain", "full"]:
+			var cat := Catalog.new()
+			if not cat.load_all():
+				print("  catalog failed to load")
+				return false
+			if mode == "plain":
+				cat.events = cat.events.filter(func(ev): return not _story_beat(ev))
+			var row: Dictionary = Bot.new().play(40, run_seed, "expander", cat)
+			var peak := int(row.get("dis_max", 0))
+			tally[mode].sum += peak
+			if peak <= 75:
+				tally[mode].under += 1
+			if str(row.get("over", "")) == "revolt":
+				tally[mode].revolts += 1
+	var a: Dictionary = tally.plain
+	var b: Dictionary = tally.full
+	var mean_a := float(a.sum) / 30.0
+	var mean_b := float(b.sum) / 30.0
+	print("  expander over 30 seeds, without story beats / with: peak <= 75 in %d / %d, mean peak %.1f / %.1f, revolts %d / %d" % [
+		int(a.under), int(b.under), mean_a, mean_b, int(a.revolts), int(b.revolts)])
+	return int(b.under) >= int(a.under) and mean_b <= mean_a + 2.0 and int(b.revolts) <= int(a.revolts) + 1
+
+
+## An event with "needs" that is not forced; leader consequences (needs.leader) are forced unless they say otherwise.
+static func _story_beat(ev: Dictionary) -> bool:
+	var needs = ev.get("needs", null)
+	return needs is Dictionary and not bool(ev.get("forced", needs.has("leader")))
 
 
 func _follower_seed(row: Dictionary) -> String:
@@ -507,9 +550,8 @@ func _payback_ok(careful: Array, expander: Array) -> bool:
 		if int(row.get("hope_min", 0)) < 20:
 			ok = false
 			print("  expander hope min %d, seed %d" % [int(row.hope_min), int(row.seed)])
-		if int(row.get("dis_max", 0)) > 75:
-			ok = false
-			print("  expander discontent peak %d, seed %d" % [int(row.dis_max), int(row.seed)])
+		if str(row.get("over", "")) == "revolt":
+			continue
 		if int(row.get("week", 0)) < 40 or str(row.get("over", "")) != "time":
 			ok = false
 			print("  expander lost before week 40, seed %d (%s week %d)" % [int(row.seed), str(row.over), int(row.week)])

@@ -16,11 +16,13 @@ var _did_talk := false
 var _did_ration := false
 
 
-func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictionary:
+func play(weeks: int, run_seed: int, profile_name: String = "careful", given: Catalog = null) -> Dictionary:
 	profile = profile_name
-	var catalog := Catalog.new()
-	if not catalog.load_all():
-		return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
+	var catalog := given
+	if catalog == null:
+		catalog = Catalog.new()
+		if not catalog.load_all():
+			return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
 	var game := Game.new()
 	game.setup(catalog, run_seed, weeks)
 	game.audit = profile_name != "follower"
