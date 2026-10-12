@@ -7,12 +7,40 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "depot", "answer": "accepted", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "depot",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "A Depot apprentice finds a scorched corner of paper in the workshop ash and asks what it was. The whole crew is listening. Bernie Shaw is not in the room.",
       "choices": [
-        {"id": "copy", "label": "Tell her it was an old copy", "hope": -1, "standing": {"depot": 5}},
-        {"id": "truth", "label": "Tell her the truth", "hope": 2, "discontent": 2, "standing": {"depot": -10}},
-        {"id": "bernie", "label": "Send her to Bernie", "standing": {"depot": 2}}
+        {
+          "id": "copy",
+          "label": "Tell her it was an old copy",
+          "hope": -1,
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "truth",
+          "label": "Tell her the truth",
+          "hope": 2,
+          "discontent": 2,
+          "standing": {
+            "depot": -10
+          }
+        },
+        {
+          "id": "bernie",
+          "label": "Send her to Bernie",
+          "standing": {
+            "depot": 2
+          }
+        }
       ]
     },
     {
@@ -21,12 +49,39 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "depot", "answer": "refused", "after_weeks": [3, 10]},
-      "text": "The platform lamp relay fails. Bernie's crew has stopped lending parts since you turned her down. A Depot driver stands at the gate and waits to be asked.",
+      "needs": {
+        "leader": "depot",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "The platform lamp relay fails. Bernie's crew has stopped lending parts since you turned him down. A Depot driver stands at the gate and waits to be asked.",
       "choices": [
-        {"id": "ask", "label": "Ask Bernie for a hand", "cost": {"tokens": 5}, "standing": {"depot": 5}},
-        {"id": "strip", "label": "Strip your own workshop for the part", "cost": {"materials": 10}},
-        {"id": "dark", "label": "Leave the platform dark", "discontent": 3, "hope": -1}
+        {
+          "id": "ask",
+          "label": "Ask Bernie for a hand",
+          "cost": {
+            "tokens": 5
+          },
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "strip",
+          "label": "Strip your own workshop for the part",
+          "cost": {
+            "materials": 10
+          }
+        },
+        {
+          "id": "dark",
+          "label": "Leave the platform dark",
+          "discontent": 3,
+          "hope": -1
+        }
       ]
     },
     {
@@ -35,12 +90,35 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "directorate", "answer": "accepted", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "directorate",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "The person you handed over is gone. The bunk is still made, and someone has left a spoon on it. In the quarters people ask whether the Directorate keeps names the way it keeps trains.",
       "choices": [
-        {"id": "silence", "label": "Hold a minute of silence", "discontent": -2, "hope": -1},
-        {"id": "necessary", "label": "Say it was necessary", "discontent": 2, "standing": {"directorate": 5}},
-        {"id": "nothing", "label": "Say nothing", "discontent": 1}
+        {
+          "id": "silence",
+          "label": "Hold a minute of silence",
+          "discontent": -2,
+          "hope": -1
+        },
+        {
+          "id": "necessary",
+          "label": "Say it was necessary",
+          "discontent": 2,
+          "standing": {
+            "directorate": 5
+          }
+        },
+        {
+          "id": "nothing",
+          "label": "Say nothing",
+          "discontent": 1
+        }
       ]
     },
     {
@@ -49,12 +127,38 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "directorate", "answer": "refused", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "directorate",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "A Directorate clerk arrives with a measuring tape and a clipboard to count your beds \"for the ledger\". He is polite. He counts twice.",
       "choices": [
-        {"id": "count", "label": "Let him count", "discontent": 1, "standing": {"directorate": 5}},
-        {"id": "refuse", "label": "Turn him away", "standing": {"directorate": -12}},
-        {"id": "coin", "label": "Offer a coin and a smaller number", "cost": {"tokens": 8}}
+        {
+          "id": "count",
+          "label": "Let him count",
+          "discontent": 1,
+          "standing": {
+            "directorate": 5
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Turn him away",
+          "standing": {
+            "directorate": -12
+          }
+        },
+        {
+          "id": "coin",
+          "label": "Offer a coin and a smaller number",
+          "cost": {
+            "tokens": 8
+          }
+        }
       ]
     },
     {
@@ -63,12 +167,37 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "synod", "answer": "accepted", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "synod",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "Your people sleep without dreams since you told them there is nothing to climb for. A woman from hydroponics asks to go to the grate and only listen. She does not ask to climb.",
       "choices": [
-        {"id": "let", "label": "Let her go", "hope": -3},
-        {"id": "forbid", "label": "Forbid it", "discontent": 3, "standing": {"synod": 5}},
-        {"id": "dorothy", "label": "Send her to Dorothy", "hope": 1, "standing": {"synod": 5}}
+        {
+          "id": "let",
+          "label": "Let her go",
+          "hope": -3
+        },
+        {
+          "id": "forbid",
+          "label": "Forbid it",
+          "discontent": 3,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "dorothy",
+          "label": "Send her to Dorothy",
+          "hope": 1,
+          "standing": {
+            "synod": 5
+          }
+        }
       ]
     },
     {
@@ -77,11 +206,33 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "synod", "answer": "refused", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "synod",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "The sermon hall is half empty. Some of your people eat at the Synod kitchens now, where the soup is hot and the talk is short. Dorothy sends word that she keeps a list, and that it is only a list of who is hungry.",
       "choices": [
-        {"id": "soup", "label": "Match the soup", "food": -6, "hope": 1, "standing": {"synod": 5}},
-        {"id": "go", "label": "Let them go", "discontent": 1, "standing": {"synod": 2}}
+        {
+          "id": "soup",
+          "label": "Match the soup",
+          "food": -6,
+          "hope": 1,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "go",
+          "label": "Let them go",
+          "discontent": 1,
+          "standing": {
+            "synod": 2
+          }
+        }
       ]
     },
     {
@@ -90,12 +241,38 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "exchange", "answer": "accepted", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "exchange",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "Marcel's clerks arrive with a printed rate card for your station: bread, kerosene, bandages. The numbers are uncomfortably well informed. They know what you eat.",
       "choices": [
-        {"id": "accept", "label": "Accept the card", "tokens": 10, "discontent": 2},
-        {"id": "haggle", "label": "Haggle line by line", "tokens": 5, "standing": {"exchange": -3}},
-        {"id": "tear", "label": "Tear it up", "hope": 1, "standing": {"exchange": -10}}
+        {
+          "id": "accept",
+          "label": "Accept the card",
+          "tokens": 10,
+          "discontent": 2
+        },
+        {
+          "id": "haggle",
+          "label": "Haggle line by line",
+          "tokens": 5,
+          "standing": {
+            "exchange": -3
+          }
+        },
+        {
+          "id": "tear",
+          "label": "Tear it up",
+          "hope": 1,
+          "standing": {
+            "exchange": -10
+          }
+        }
       ]
     },
     {
@@ -104,12 +281,41 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "exchange", "answer": "refused", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "exchange",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "A boy brings a note. Someone from your station owes Marcel's market for a loaf, two months old. The note says it is written on his arm, and that he does not forget.",
       "choices": [
-        {"id": "pay", "label": "Pay it", "cost": {"tokens": 8}, "standing": {"exchange": 3}},
-        {"id": "refuse", "label": "Refuse", "standing": {"exchange": -10}},
-        {"id": "work", "label": "Let the debtor work it off at the market", "discontent": 2, "standing": {"exchange": 3}}
+        {
+          "id": "pay",
+          "label": "Pay it",
+          "cost": {
+            "tokens": 8
+          },
+          "standing": {
+            "exchange": 3
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Refuse",
+          "standing": {
+            "exchange": -10
+          }
+        },
+        {
+          "id": "work",
+          "label": "Let the debtor work it off at the market",
+          "discontent": 2,
+          "standing": {
+            "exchange": 3
+          }
+        }
       ]
     },
     {
@@ -118,12 +324,39 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "black_flag", "answer": "accepted", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "black_flag",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "At night you hear them: tapping on pipes, small lights moving in the tunnel. The Lamplighters lead a family through your station. A child asks for water.",
       "choices": [
-        {"id": "give", "label": "Give water and bread", "food": -4, "hope": 2, "standing": {"black_flag": 5}},
-        {"id": "toll", "label": "Ask for the toll", "tokens": 6, "discontent": 1, "standing": {"black_flag": -5}},
-        {"id": "look", "label": "Look away", "discontent": 1}
+        {
+          "id": "give",
+          "label": "Give water and bread",
+          "food": -4,
+          "hope": 2,
+          "standing": {
+            "black_flag": 5
+          }
+        },
+        {
+          "id": "toll",
+          "label": "Ask for the toll",
+          "tokens": 6,
+          "discontent": 1,
+          "standing": {
+            "black_flag": -5
+          }
+        },
+        {
+          "id": "look",
+          "label": "Look away",
+          "discontent": 1
+        }
       ]
     },
     {
@@ -132,12 +365,41 @@
       "major": false,
       "weight": 6,
       "cooldown": 99,
-      "needs": {"leader": "black_flag", "answer": "refused", "after_weeks": [3, 10]},
+      "needs": {
+        "leader": "black_flag",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
       "text": "A group tried the dark tunnel without a lamp. Two came back. One did not. Niki's people say nothing. Your people say a great deal.",
       "choices": [
-        {"id": "search", "label": "Send a search party", "cost": {"materials": 4}, "hope": 1, "standing": {"black_flag": 3}},
-        {"id": "food", "label": "Send food to the camp", "food": -8, "standing": {"black_flag": 10}},
-        {"id": "choice", "label": "Say it was their choice", "discontent": 2, "hope": -2}
+        {
+          "id": "search",
+          "label": "Send a search party",
+          "cost": {
+            "materials": 4
+          },
+          "hope": 1,
+          "standing": {
+            "black_flag": 3
+          }
+        },
+        {
+          "id": "food",
+          "label": "Send food to the camp",
+          "food": -8,
+          "standing": {
+            "black_flag": 10
+          }
+        },
+        {
+          "id": "choice",
+          "label": "Say it was their choice",
+          "discontent": 2,
+          "hope": -2
+        }
       ]
     }
   ],
@@ -148,7 +410,6 @@
     "Tell her the truth": "Сказать правду",
     "Send her to Bernie": "Отправить её к Берни",
     "The switch that did not throw": "Стрелка, которая не перевелась",
-    "The platform lamp relay fails. Bernie's crew has stopped lending parts since you turned her down. A Depot driver stands at the gate and waits to be asked.": "Реле лампы на платформе отказывает. Бригада Берни перестала одалживать детали с тех пор, как ты ей отказал. Машинист Депо стоит у ворот и ждёт, когда его попросят.",
     "Ask Bernie for a hand": "Попросить Берни о помощи",
     "Strip your own workshop for the part": "Снять деталь со своей мастерской",
     "Leave the platform dark": "Оставить платформу тёмной",
@@ -190,6 +451,7 @@
     "A group tried the dark tunnel without a lamp. Two came back. One did not. Niki's people say nothing. Your people say a great deal.": "Группа пошла по тёмному тоннелю без лампы. Двое вернулись. Один нет. Люди Ники молчат. Твои люди говорят очень много.",
     "Send a search party": "Отправить поисковую группу",
     "Send food to the camp": "Отправить еду в лагерь",
-    "Say it was their choice": "Сказать, что это был их выбор"
+    "Say it was their choice": "Сказать, что это был их выбор",
+    "The platform lamp relay fails. Bernie's crew has stopped lending parts since you turned him down. A Depot driver stands at the gate and waits to be asked.": "Реле лампы на платформе отказывает. Бригада Берни перестала одалживать детали с тех пор, как ты ему отказал. Машинист Депо стоит у ворот и ждёт, когда его попросят."
   }
 }

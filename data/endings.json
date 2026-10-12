@@ -85,34 +85,34 @@
   "leaders": {
     "depot": {
       "accepted": {
-        "en": "Bernie burned the copy with you, and the Depot kept its crew whole. The yard still does not say what was in the stove.",
-        "ru": "Берни сожгла копию вместе с тобой, и Депо сохранило бригаду целой. Двор до сих пор не говорит, что было в печи."
+        "en": "He burned the copy with you, and the Depot kept its crew whole. The yard still does not say what was in the stove.",
+        "ru": "Он сжёг копию вместе с тобой, и Депо сохранило бригаду целой. Двор до сих пор не говорит, что было в печи."
       },
       "refused": {
-        "en": "Bernie never asked again. The yard kept its parts for itself, and the switch at the platform stayed dark through the winter.",
-        "ru": "Берни больше не просила. Двор оставил детали себе, и стрелка на платформе всю зиму оставалась тёмной."
+        "en": "He never asked again. The yard kept its parts for itself, and the switch at the platform stayed dark through the winter.",
+        "ru": "Он больше не просил. Двор оставил детали себе, и стрелка на платформе всю зиму оставалась тёмной."
       },
       "helped": {
-        "en": "Bernie kept the tea hot on the platform bench. Whatever you carried to her yard, she remembered.",
-        "ru": "Берни держала чай горячим на платформенной скамье. Что бы ты ни приносил в её двор, она запомнила."
+        "en": "He kept the tea hot on the platform bench. Whatever you carried to his yard, he remembered.",
+        "ru": "Он держал чай горячим на платформенной скамье. Что бы ты ни приносил в его двор, он запомнил."
       },
       "none": {
-        "en": "Bernie Shaw never came to your platform. The Depot ran the line without you.",
-        "ru": "Берни Шоу так и не пришла на твою платформу. Депо вело линию без тебя."
+        "en": "He never came to your platform. The Depot ran the line without you.",
+        "ru": "Он так и не пришёл на твою платформу. Депо вело линию без тебя."
       }
     },
     "directorate": {
       "accepted": {
-        "en": "Lionel Abelard filed the name you gave him and signed under it. He did not thank you. He did not need to.",
-        "ru": "Лайонел Абелард подшил имя, которое ты ему дал, и расписался под ним. Он не поблагодарил. Ему не требовалось."
+        "en": "He filed the name you gave him and signed under it. He did not thank you. He did not need to.",
+        "ru": "Он подшил имя, которое ты ему дал, и расписался под ним. Он не поблагодарил. Ему не требовалось."
       },
       "refused": {
-        "en": "Lionel Abelard recorded your refusal and said it would be struck next quarter. It never was.",
-        "ru": "Лайонел Абелард внёс твой отказ и сказал, что вычеркнет его в следующем квартале. Не вычеркнул."
+        "en": "He recorded your refusal and said it would be struck next quarter. It never was.",
+        "ru": "Он внёс твой отказ и сказал, что вычеркнет его в следующем квартале. Не вычеркнул."
       },
       "helped": {
-        "en": "Lionel Abelard filed your reports as reliable. It is the kindest word he has ever written.",
-        "ru": "Лайонел Абелард подшил твои отчёты как надёжные. Это самое доброе слово, какое он когда-либо написал."
+        "en": "He filed your reports as reliable. It is the kindest word he has ever written.",
+        "ru": "Он подшил твои отчёты как надёжные. Это самое доброе слово, какое он когда-либо написал."
       },
       "none": {
         "en": "The Directorate counted your station in its ledger without ever having met you.",
@@ -121,52 +121,52 @@
     },
     "synod": {
       "accepted": {
-        "en": "Dorothy Chen kept the surface quiet for your people. They sleep well. She does not.",
-        "ru": "Дороти Чен сохранила поверхность тихой для твоих людей. Они спят хорошо. Она нет."
+        "en": "She kept the surface quiet for your people. They sleep well. She does not.",
+        "ru": "Она сохранила поверхность тихой для твоих людей. Они спят хорошо. Она нет."
       },
       "refused": {
-        "en": "Dorothy Chen kept a list of your people who ate at the Synod kitchens. She still has it.",
-        "ru": "Дороти Чен вела список твоих людей, которые ели на кухнях Синода. Он у неё до сих пор."
+        "en": "She kept a list of your people who ate at the Synod kitchens. She still has it.",
+        "ru": "Она вела список твоих людей, которые ели на кухнях Синода. Он у неё до сих пор."
       },
       "helped": {
-        "en": "Dorothy Chen remembered the bread. When your people were sick, the quiet room was open to them.",
-        "ru": "Дороти Чен запомнила хлеб. Когда твои люди болели, тихая комната была для них открыта."
+        "en": "She remembered the bread. When your people were sick, the quiet room was open to them.",
+        "ru": "Она запомнила хлеб. Когда твои люди болели, тихая комната была для них открыта."
       },
       "none": {
-        "en": "Dorothy Chen's quiet room stayed a story you heard from other stations.",
-        "ru": "Тихая комната Дороти Чен так и осталась историей, которую ты слышал от других станций."
+        "en": "The quiet room stayed a story you heard from other stations.",
+        "ru": "Тихая комната так и осталась историей, которую ты слышал от других станций."
       }
     },
     "exchange": {
       "accepted": {
-        "en": "Marcel Toussaint read your books once and returned them. He never sold what he learned. He never said he would not.",
-        "ru": "Марсель Туссен прочёл твои тетради один раз и вернул. Он не продал того, что узнал. Он ни разу не сказал, что не продаст."
+        "en": "He read your books once and returned them. He never sold what he learned. He never said he would not.",
+        "ru": "Он прочёл твои тетради один раз и вернул. Он не продал того, что узнал. Он ни разу не сказал, что не продаст."
       },
       "refused": {
         "en": "A boy with a note still comes to your gate for a loaf from two months back.",
         "ru": "Мальчик с запиской всё ещё приходит к твоим воротам за буханкой двухмесячной давности."
       },
       "helped": {
-        "en": "Marcel Toussaint rubbed your name off his arm. It is the only one he ever rubbed out.",
-        "ru": "Марсель Туссен стёр твоё имя со своей руки. Это единственное, которое он когда-либо стёр."
+        "en": "He rubbed your name off his arm. It is the only one he ever rubbed out.",
+        "ru": "Он стёр твоё имя со своей руки. Это единственное, которое он когда-либо стёр."
       },
       "none": {
-        "en": "Marcel Toussaint priced your station without ever visiting it.",
-        "ru": "Марсель Туссен назначил цену твоей станции, ни разу её не посетив."
+        "en": "He priced your station without ever visiting it.",
+        "ru": "Он назначил цену твоей станции, ни разу её не посетив."
       }
     },
     "black_flag": {
       "accepted": {
-        "en": "Niki Ortega's lamps pass through your station on the nights you do not look. Someone leaves a stone on the sill.",
-        "ru": "Лампы Ники Ортеги проходят через твою станцию в те ночи, когда ты не смотришь. Кто-то оставляет камень на подоконнике."
+        "en": "Her lamps pass through your station on the nights you do not look. Someone leaves a stone on the sill.",
+        "ru": "Её лампы проходят через твою станцию в те ночи, когда ты не смотришь. Кто-то оставляет камень на подоконнике."
       },
       "refused": {
-        "en": "Niki Ortega's people no longer come through your tunnel. The dark there has a different weight.",
-        "ru": "Люди Ники Ортеги больше не ходят по твоему тоннелю. У темноты там другой вес."
+        "en": "Her people no longer come through your tunnel. The dark there has a different weight.",
+        "ru": "Её люди больше не ходят по твоему тоннелю. У темноты там другой вес."
       },
       "helped": {
-        "en": "Niki Ortega left water at your gate. It was the last thing anyone expected from the dark.",
-        "ru": "Ники Ортега оставила воду у твоих ворот. Этого меньше всего ждали от темноты."
+        "en": "She left water at your gate. It was the last thing anyone expected from the dark.",
+        "ru": "Она оставила воду у твоих ворот. Этого меньше всего ждали от темноты."
       },
       "none": {
         "en": "You never met the Lamplighters. You only heard the tapping on the pipes.",

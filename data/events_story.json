@@ -834,6 +834,125 @@
       "major": true,
       "weight": 8,
       "cooldown": 99
+    },
+    {
+      "id": "st1_dosimeter",
+      "title": "The dosimeter in the mud",
+      "requires": "digging",
+      "needs": {
+        "week": [
+          6,
+          34
+        ]
+      },
+      "text": "The dig crew breaks into a flooded service room. On a rack above the waterline hang eleven dosimeters, their needles stuck at the same number. Someone left them here in a hurry, or in order.",
+      "choices": [
+        {
+          "id": "carry",
+          "label": "Carry them out and clean them",
+          "cost": {
+            "materials": 2
+          },
+          "artifacts": {
+            "iron": 2
+          },
+          "hope": 0
+        },
+        {
+          "id": "sell",
+          "label": "Sell the lot to the Exchange",
+          "tokens": 8,
+          "hope": 0
+        },
+        {
+          "id": "leave",
+          "label": "Leave them where they hang",
+          "hope": 1
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st1_substation",
+      "title": "The dead substation",
+      "needs": {
+        "week": [
+          10,
+          28
+        ]
+      },
+      "text": "A scout reports a substation two stations north with its doors rusted open. Relays, copper bus bars, and one cabinet still sealed. It is also the sort of place where scouts disappear.",
+      "choices": [
+        {
+          "id": "strip",
+          "label": "Send a crew to strip it",
+          "cost": {
+            "materials": 3
+          },
+          "artifacts": {
+            "iron": 2
+          },
+          "hope": -1
+        },
+        {
+          "id": "scout",
+          "label": "Send one scout to look and come back",
+          "artifacts": {
+            "iron": 1
+          }
+        },
+        {
+          "id": "no",
+          "label": "Mark it on the map and stay away",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_scrap_iron",
+      "title": "A peddler with a sled",
+      "needs": {
+        "week": [
+          12,
+          32
+        ]
+      },
+      "text": "A peddler drags a sled of pipe sections and old instrument housings through your tunnel. He does not say where he got them. He says the price is fixed, and that it does not matter who you are.",
+      "choices": [
+        {
+          "id": "buy",
+          "label": "Buy all of it",
+          "cost": {
+            "tokens": 5
+          },
+          "artifacts": {
+            "iron": 2
+          }
+        },
+        {
+          "id": "half",
+          "label": "Buy half",
+          "cost": {
+            "tokens": 3
+          },
+          "artifacts": {
+            "iron": 1
+          }
+        },
+        {
+          "id": "pass",
+          "label": "Let him pass",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
     }
   ],
   "ru": {
@@ -928,6 +1047,21 @@
     "Hold the line one more week": "Продержаться ещё одну неделю",
     "Bernie Shaw asks you to sit in the stove room and shuts the door. He takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" he says. \"Lock the gates. Admit no one to the tunnel.\" He does not look up.": "Берни Шоу просит тебя сесть в печной комнате и закрывает дверь. Из сапога он достаёт обгоревший угол бумаги. Он говорит: «Уцелела только первая строка. Запереть створки. Никого не пускать в тоннель». Он не поднимает глаз.",
     "Take the scrap and ask what he wants for it": "Взять обрывок и спросить, чего он хочет за него",
-    "Tell him to keep it": "Сказать, чтобы оставил себе"
+    "Tell him to keep it": "Сказать, чтобы оставил себе",
+    "The dosimeter in the mud": "Дозиметр в грязи",
+    "The dig crew breaks into a flooded service room. On a rack above the waterline hang eleven dosimeters, their needles stuck at the same number. Someone left them here in a hurry, or in order.": "Копатели пробивают затопленную служебную комнату. На стойке над уровнем воды висят одиннадцать дозиметров, стрелки застыли на одной и той же цифре. Кто-то оставил их здесь в спешке или по порядку.",
+    "Carry them out and clean them": "Вынести и почистить их",
+    "Sell the lot to the Exchange": "Продать всё Бирже",
+    "Leave them where they hang": "Оставить висеть на месте",
+    "The dead substation": "Мёртвая подстанция",
+    "A scout reports a substation two stations north with its doors rusted open. Relays, copper bus bars, and one cabinet still sealed. It is also the sort of place where scouts disappear.": "Разведчик докладывает о подстанции в двух станциях к северу, двери которой заржавели открытыми. Реле, медные шины и один шкаф, всё ещё запечатанный. Это ещё и такое место, где разведчики пропадают.",
+    "Send a crew to strip it": "Отправить бригаду её разобрать",
+    "Send one scout to look and come back": "Отправить одного разведчика посмотреть и вернуться",
+    "Mark it on the map and stay away": "Отметить на карте и держаться подальше",
+    "A peddler with a sled": "Торговец с санками",
+    "A peddler drags a sled of pipe sections and old instrument housings through your tunnel. He does not say where he got them. He says the price is fixed, and that it does not matter who you are.": "Торговец тащит через твой тоннель санки с отрезками труб и старыми корпусами приборов. Он не говорит, откуда они. Он говорит, что цена твёрдая и что неважно, кто ты.",
+    "Buy all of it": "Купить всё",
+    "Buy half": "Купить половину",
+    "Let him pass": "Дать ему пройти"
   }
 }

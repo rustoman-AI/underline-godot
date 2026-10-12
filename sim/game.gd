@@ -4242,6 +4242,8 @@ func needs_window(ev: Dictionary) -> int:
 		left = mini(left, int(weeks[1]) - week)
 	if offers_ending(ev) and not _ending_open(ev):
 		return -1
+	if str(ev.get("requires", "")) == "digging" and dig.is_empty():
+		return -1
 	return left if needs_hold(needs) else -1
 
 

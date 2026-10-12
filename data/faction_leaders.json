@@ -89,7 +89,7 @@
       "start_opinion": -10,
       "symbol": "res://assets/factions/black_flag_symbol.png",
       "color": "#B5ABA0",
-      "arrival": "first_sealed_tunnel",
+      "arrival": "first_sealed_tunnel_or_week_14",
       "holds": "path_to_quarantine_bunker",
       "fear": "becoming_a_legal_tax",
       "help": {"resource": "food", "amount": 4, "standing": 10},

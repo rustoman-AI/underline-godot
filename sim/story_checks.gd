@@ -250,6 +250,8 @@ func _validate() -> void:
 		for key in ev:
 			if not LeaderEventChecks.EVENT_KEYS.has(str(key)):
 				bad.append("%s: unknown key %s" % [id, key])
+		if ev.has("requires") and str(ev.requires) != "digging":
+			bad.append("%s: event requires %s (only \"digging\")" % [id, str(ev.requires)])
 		for key in ["fragment", "no_fragment"]:
 			if ev.get("needs", {}).has(key) and not catalog.truth.has(str(ev.needs[key])):
 				bad.append("%s: needs.%s %s is not in truth.json" % [id, key, str(ev.needs[key])])
@@ -441,6 +443,13 @@ func _conditions() -> void:
 	season_game.active_season = {"id": "flood", "start": flood_week, "until": flood_week + 1}
 	if season_game.needs_window(_probe({"season": "flood"})) < 0 or season_game.needs_window(_probe({"season": "cold"})) >= 0:
 		bad.append("season")
+	var digging := _probe({"week": [1, 40]})
+	digging["requires"] = "digging"
+	var idle := game.needs_window(digging)
+	game.dig = {"0:2": {"left": 1}}
+	if idle >= 0 or game.needs_window(digging) < 0:
+		bad.append("requires digging")
+	game.dig = {}
 	game.events_seen["probe"] = 4
 	if game.needs_window(_probe({"week": [1, 40]})) >= 0:
 		bad.append("shown twice")
