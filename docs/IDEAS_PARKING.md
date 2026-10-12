@@ -54,3 +54,5 @@
 - Settings text "No hover ticks or drips..." (ui/station.gd:8326, data/ru.json:909) is stale: hover ticks no longer exist. Reword with the next code pass. (12 Oct, from Cursor playtest3 report)
 
 - F22: station view scale and width ("increase map scale, make it wider", Taiga). Needs a clarifying answer from the author first: station cross-section or network map, and what is too small. Check against the B2 camera clamp and the 0.75 to 1.5 zoom limits before any change.
+
+- F22 update: Ruslan also says the map should be bigger (two testers now, with Nicholas). Candidate NEXT package after numbers clarity, once we know which view (station or network) and what is too small. Network view today: min zoom = fit to the area, max = 3.5x fit (ui/network_view.gd:36,380).
