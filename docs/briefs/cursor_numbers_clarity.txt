@@ -1,0 +1,18 @@
+CURSOR: NUMBERS CLARITY (build 0.1.0-playtest3 -> 0.1.0-playtest4). STATUS: DRAFT, waits for the owner's "go".
+Source: docs/playtest/feedback_log.md F28, F29, F34 (and F23). Tester Nicholas, PDF "Underline playtest", 12 Oct 2026. Local only. No push, nothing uploaded. Do NOT change balance, room numbers, the map, art, audio, or any wording in data/howto.json and data/hints.json.
+
+Problem: testers cannot tell where resource numbers come from. F28: "it says 20 power generated, but 10 is being generated, and it does not say where from". F34: "not getting the right amount of materials per turn". F29: hope and discontent have no description, and nobody knows what happens at 0 or 100.
+
+STEP 0 (diagnose first, report before changing anything)
+For power, food, air, materials: take a fresh game and a game at week 8 from the bot. Write down (a) the number the top bar shows (stock), (b) the number each room card shows as output, (c) what the week actually adds and spends (output_of, _weekly_draw, season doublers like cold and crunch_power, offline and browned rooms, skill multipliers). If any displayed number differs from what the sim applies, that is a BUG: report the exact case and fix the display, never the sim. If all numbers are right, the fix is labelling only.
+
+PART 1 (labels only, numbers from the game)
+N1 Top bar resource tooltip and tap card: "Power: 30 in store. This week: +10 made, -12 used, net -2." Then up to three lines of sources and sinks by room ("Generator +10", "Hydroponics -2"). Same for food, air, materials. Use the same functions the week uses; add a test that the card's net equals the stock change after End turn on 5 seeds.
+N2 Room card: the output line says per week and names the multiplier ("+10 power a week: base 8, crew skill x1.25"). Say when a room makes nothing because it is off, unstaffed, or browned out.
+N3 Hope and Discontent: one-line tooltip each. Text to use, EN/RU, written by the lead:
+   Hope: "How much the station believes it will last. At 0 people start leaving and the end comes close." / "Насколько станция верит, что выдержит. При 0 люди уходят, и конец близок."
+   Discontent: "How angry people are. At 100 the platform turns on you." / "Насколько люди злы. При 100 платформа обращается против вас."
+   Check these against the actual rules in sim/game.gd (what really happens at hope 0 and discontent 100) and report any mismatch BEFORE using the text; the lead will adjust.
+N4 Add a "what" line for resources in the top-bar tooltips if missing (one line each, no new mechanics).
+
+CHECKS: all 8 gates green; bot output identical to HEAD line by line (UI only); screenshots EN and RU at 1280x720 and 1024x768 of the power card, materials card, hope and discontent tooltips. New test sim/check_clarity.gd additions for N1 (net equals applied change). Commit separately: "Numbers clarity: weekly in and out on resource cards". Then build 0.1.0-playtest4 only if the owner says so.
