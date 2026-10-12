@@ -4125,6 +4125,10 @@ func _alert_text(line: String) -> String:
 	var stop := text.find(". ")
 	if stop > 0 and stop <= 12:
 		text = text.substr(stop + 2)
+	else:
+		var tag := text.get_slice(" ", 0)
+		if tag.length() >= 3 and tag == tag.to_upper() and tag != tag.to_lower():
+			text = text.substr(tag.length() + 1)
 	return text
 
 
