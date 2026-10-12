@@ -1572,6 +1572,13 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 		button.pressed.connect(_issue.bind(kind, sid))
 	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 52)
 	parent.add_child(button)
+	if game != null and why == "":
+		var effect: String = game.order_risk(kind, sid)
+		if effect != "":
+			var line := _lab(effect, 13, false)
+			line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			line.set_meta("effect_line", true)
+			parent.add_child(line)
 
 
 func _order_tip(game, kind: String, sid: String, why: String) -> String:
@@ -1772,11 +1779,16 @@ func _ships_text(game, st: Dictionary, sid: String) -> String:
 	return "%s: %s" % [Copy.t("Ships home"), ", ".join(bits)]
 
 
-func _add_actions(sid: String, own: bool, parent: Node) -> void:
-	var open_b := Button.new()
-	open_b.text = Copy.t("Open station")
-	open_b.pressed.connect(_open_station.bind(sid))
-	parent.add_child(open_b)
+func _add_actions(sid: String, own: bool, parent: Node, with_visit: bool = true) -> void:
+	var game_now = _game()
+	var home: bool = game_now != null and str(sid) == str(game_now.capital_id)
+	if with_visit:
+		var open_b := Button.new()
+		open_b.text = Copy.t("Back to your station") if home else Copy.t("Visit station")
+		open_b.tooltip_text = Copy.t("Close the map and return to your own station.") if home else Copy.t("See the station up close: its people, leader and needs. Spends nothing.")
+		open_b.set_meta("visit_station", sid)
+		open_b.pressed.connect(_open_station.bind(sid))
+		parent.add_child(open_b)
 	if own:
 		_order_button("move", "Garrison", sid, parent)
 		return
@@ -1911,7 +1923,7 @@ func _fill_visit(sid: String) -> void:
 	var art: String = game.station_text(sid, "art")
 	if art != "":
 		_visit_body.add_child(_lab(art, 14, false))
-	_add_actions(sid, str(st.owner) == str(game.player), _visit_body)
+	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, false)
 	var back := Button.new()
 	back.text = Copy.t("Back to map")
 	back.pressed.connect(close_visit)

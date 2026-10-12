@@ -5183,6 +5183,62 @@ func _apply_event(action: Dictionary) -> bool:
 	return true
 
 
+## What picking this event choice changes right now, already clamped the way _apply_event applies it, so the
+## button can say it in words: {stock: {key: delta}, hope, discontent, people, sick, papers, standing: {fid: delta},
+## check, bet}. A check or a bet only pays its cost up front; the rest is decided by the roll.
+func choice_effects(choice: Dictionary) -> Dictionary:
+	var fx := {"stock": {}, "hope": 0, "discontent": 0, "people": 0, "sick": 0, "papers": 0, "standing": {},
+		"check": choice.has("check"), "bet": choice.has("bet")}
+	var after: Dictionary = stock.duplicate()
+	var cost = choice.get("cost", {})
+	if cost is Dictionary:
+		for key in cost:
+			if ARTIFACTS.has(str(key)):
+				if str(key) == "papers":
+					fx.papers = -int(cost[key])
+			else:
+				after[key] = int(after.get(key, 0)) - int(cost[key])
+	if not fx.check and not fx.bet:
+		for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+			if choice.has(key):
+				after[key] = maxi(0, int(after[key]) + int(choice[key]))
+		var h := clampi(hope + int(choice.get("hope", 0)), 0, 100)
+		var lifts = choice.get("trait_hope", {})
+		if lifts is Dictionary:
+			for trait_name in lifts:
+				if _any_trait(str(trait_name)):
+					h = clampi(h + int(lifts[trait_name]), 0, 100)
+		var away = choice.get("trait_absent", {})
+		if away is Dictionary:
+			for trait_name in away:
+				for person in residents:
+					if _has_trait(person, str(trait_name)):
+						h = clampi(h - 2, 0, 100)
+		fx.hope = h - hope
+		fx.discontent = clampi(discontent + int(choice.get("discontent", 0)), 0, 100) - discontent
+		fx.people = int(choice.get("people", 0))
+		fx.sick = maxi(0, int(choice.get("sick", 0)))
+		fx.papers = int(fx.papers) + int(choice.get("papers", 0))
+		var shifts = choice.get("standing", {})
+		if shifts is Dictionary:
+			for fid in shifts:
+				var now := 0
+				if standing.has(str(fid)):
+					now = int(standing[str(fid)])
+				elif not leader(str(fid)).is_empty():
+					now = clampi(int(leader(str(fid)).get("start_opinion", 0)), -100, 100)
+				else:
+					continue
+				var moved := clampi(now + int(shifts[fid]), -100, 100) - now
+				if moved != 0:
+					fx.standing[str(fid)] = moved
+	for key in after:
+		var delta := int(after[key]) - int(stock.get(key, 0))
+		if delta != 0:
+			fx.stock[key] = delta
+	return fx
+
+
 ## Choice effect "standing": {faction: delta} moves that leader's regard (clamped -100..100). The leader
 ## remembers the event as a deed, and the journal gets a "regard" row with the change that actually happened.
 func _apply_standing_choice(ev: Dictionary, choice: Dictionary) -> void:

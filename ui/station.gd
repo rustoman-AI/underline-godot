@@ -108,6 +108,7 @@ var card_fit_tries := 0
 var card_fit_last := -1.0
 ## Card buttons ignore presses until this tick (msec), set by each card press.
 var card_click_guard := 0
+var help_unfold := false
 const CARD_CLICK_GUARD_MS := 350
 ## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
 var card_roomy := false
@@ -1842,10 +1843,21 @@ func _sync_shelf() -> void:
 		shelved_event = ""
 
 
+## "waiting" while a dawn choice is open (End turn stays dark), "over" after the ending, else "ready" (lit).
+func _end_state() -> String:
+	if game == null or game.over != "":
+		return "over"
+	if not game.pending.is_empty():
+		return "waiting"
+	return "ready"
+
+
 func _sync_waiting() -> void:
 	_sync_shelf()
-	var waiting := game.over == "" and not game.pending.is_empty()
+	var waiting := _end_state() == "waiting"
 	end_button.disabled = game.over != "" or waiting
+	end_button.add_theme_stylebox_override("normal", _brass_ready() if _end_state() == "ready" else _brass_style(false))
+	end_button.add_theme_stylebox_override("hover", _brass_ready() if _end_state() == "ready" else _brass_style(false))
 	if end_cover != null:
 		end_cover.mouse_filter = Control.MOUSE_FILTER_STOP if waiting else Control.MOUSE_FILTER_IGNORE
 		end_cover.tooltip_text = Copy.t(WAITING) if waiting else ""
@@ -2447,6 +2459,13 @@ func _show_room(uid: String) -> void:
 		var icon := _room_icon(str(detail.type), 48)
 		title_row.add_child(icon)
 		title_row.move_child(icon, 0)
+		if room_what(str(detail.type)) != "":
+			var line := _help_line(str(detail.type), help_unfold)
+			var badge := _help_badge(str(detail.type), line)
+			title_row.add_child(badge)
+			title_row.move_child(badge, 2)
+			card_body.add_child(line)
+	help_unfold = false
 	_room_header(detail)
 	if notice != "":
 		_body(notice)
@@ -2454,7 +2473,7 @@ func _show_room(uid: String) -> void:
 	if int(detail.staff_max) > 0:
 		_seat_row(uid, detail)
 	if str(detail.skill) != "":
-		_body(Copy.t("%s from crew skill.") % _mult(float(detail.multiplier)))
+		_body(Copy.t("Crew skill bonus: %s") % _mult(float(detail.multiplier)))
 	var up: Dictionary = game.upgrade_preview(uid)
 	if str(up.get("name", "")) != "" or str(up.get("reason", "")) != "":
 		card_body.add_child(_upgrade_card(uid, false))
@@ -2528,10 +2547,19 @@ func _seat_row(uid: String, detail: Dictionary) -> void:
 		seats.add_child(_seat_empty(uid, not dark))
 	row.add_child(seats)
 	var plus := _seat_step("+", _seat_plus.bind(uid))
-	plus.disabled = full or free.is_empty() or dark
-	plus.tooltip_text = Copy.t("Assign the best free resident")
+	var why := _seat_block(full, free.is_empty(), dark)
+	plus.disabled = why != ""
+	plus.tooltip_text = Copy.t(why) if why != "" else Copy.t("Assign the best free resident")
+	plus.set_meta("blocked", why)
 	row.add_child(plus)
 	card_body.add_child(row)
+	if why != "":
+		var block := _label(why, 15, true)
+		block.add_theme_color_override("font_color", PAPER_MUTED)
+		block.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		block.set_meta("seat_block", why)
+		card_body.add_child(block)
 	var each := _per_worker_text(uid, free)
 	if each != "":
 		var lab := _label(each, 16)
@@ -2541,7 +2569,18 @@ func _seat_row(uid: String, detail: Dictionary) -> void:
 		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		card_body.add_child(lab)
 	if not full and not dark and free.is_empty():
-		_body("No free residents. Open a seat to take someone off other work.")
+		_body("Open a seat to take someone off other work.")
+
+
+## Why the + button cannot add a worker, as the player reads it. Empty when it can.
+func _seat_block(full: bool, none_free: bool, dark: bool) -> String:
+	if dark:
+		return "Room is off"
+	if full:
+		return "Room is full"
+	if none_free:
+		return "No free people"
+	return ""
 
 
 func _seat_step(text: String, cb: Callable) -> Button:
@@ -2597,7 +2636,7 @@ func _seat_empty(uid: String, open: bool) -> Control:
 	slot.custom_minimum_size = Vector2(120, 150)
 	slot.ink = PAPER_EDGE
 	slot.open = open
-	slot.tooltip_text = Copy.t("Choose who works here")
+	slot.tooltip_text = Copy.t("Choose who works here") if open else Copy.t("Room is off")
 	if open:
 		slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		slot.picked.connect(_open_picker.bind(uid))
@@ -2642,6 +2681,8 @@ func _per_worker_text(uid: String, free: Array) -> String:
 		return ""
 	var key := str(row.get("out_key", ""))
 	if key != "":
+		if int(row.delta) == 0:
+			return ""
 		var word := Copy.res(key)
 		word = word.substr(0, 1).to_lower() + word.substr(1)
 		return Copy.t("Each worker: %+d %s/wk") % [int(row.delta), word]
@@ -2685,20 +2726,30 @@ func _room_switch(uid: String) -> void:
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var on := bool(info.on)
 	var saves := int(info.saves)
-	var off_text := Copy.t("Switched off (saves 1 power)") if saves == 1 else Copy.t("Switched off (saves %d power)") % saves
-	var run := _pick_button(Copy.t("Room is running"), on, _switch_room.bind(uid, true), 0.0)
-	var stop := _pick_button(off_text, not on, _switch_room.bind(uid, false), 0.0)
-	run.disabled = not bool(info.can) and not on
-	stop.disabled = not bool(info.can) and on
-	for button in [run, stop]:
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.custom_minimum_size.y = 48
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.add_theme_font_size_override("font_size", 17)
-		row.add_child(button)
+	var state := _label(_switch_state(on, saves), 17)
+	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(state)
+	var flip := _button("Switch off" if on else "Switch on", _switch_room.bind(uid, not on))
+	flip.disabled = not bool(info.can)
+	flip.custom_minimum_size = Vector2(170, 48)
+	flip.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	flip.add_theme_font_size_override("font_size", 17)
+	flip.set_meta("switch_to", not on)
+	row.add_child(flip)
 	card_body.add_child(row)
 	if str(info.reason) != "":
 		_body(str(info.reason))
+
+
+## The room's current state first; the button next to it says what pressing it does.
+func _switch_state(on: bool, saves: int) -> String:
+	if on:
+		return Copy.t("State: Working")
+	if saves == 1:
+		return Copy.t("State: Off, saving 1 power")
+	return Copy.t("State: Off, saving %d power") % saves
 
 
 func _switch_room(uid: String, on: bool) -> void:
@@ -3608,7 +3659,7 @@ func _show_dawn() -> void:
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	if game.pending.is_empty():
-		_open_card(Copy.t("Dawn, week %d") % game.week)
+		_open_card(Copy.t("Dawn of week %d") % game.week)
 		_choice_tally()
 		var urgent: PackedStringArray = []
 		var rest: PackedStringArray = []
@@ -3628,7 +3679,7 @@ func _paint_dawn() -> void:
 		return
 	Sound.play("card")
 	var ev: Dictionary = game.front_event()
-	_open_card(game.line_of(ev, "title"), false)
+	_open_card(game.line_of(ev, "title"), false, "Event")
 	var banner := _event_banner(ev)
 	if banner != null:
 		card_body.add_child(banner)
@@ -3672,6 +3723,9 @@ func _paint_dawn() -> void:
 			if why == "":
 				why = Copy.t("That cost cannot be paid.")
 		card_body.add_child(pick)
+		var words := _choice_words(game.choice_effects(choice))
+		if words != "":
+			card_body.add_child(_effect_line(words))
 		if game.choice_locked(choice) or why != "":
 			pick.disabled = true
 			pick.tooltip_text = why
@@ -3894,7 +3948,7 @@ func _show_audience() -> void:
 		card_body.add_child(stain)
 	_choice_divider()
 	if not audience_heard:
-		_audience_buttons("Hear them out", _hear_audience, "Not today")
+		_audience_buttons("Hear them out", _hear_audience, "Not today", "", Copy.t("No change now"))
 		return
 	_audience_terms(fid, row.get("dirty_deal", {}))
 	var why: String = game.audience_reason()
@@ -3910,7 +3964,7 @@ func _show_audience() -> void:
 		cost.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_body.add_child(cost)
 		help_why = game.help_reason()
-	var take := _audience_buttons("Take the deal", _answer_audience.bind(true), "Refuse")
+	var take := _audience_buttons("Take the deal", _answer_audience.bind(true), "Refuse", _deal_words(game.audience_effects()), Copy.t("No change now"))
 	if why != "":
 		take.disabled = true
 		take.tooltip_text = why
@@ -3922,31 +3976,69 @@ func _show_audience() -> void:
 		give.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		give.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		give.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		take.get_parent().add_child(give)
-		take.get_parent().move_child(give, 1)
+		var help_words: PackedStringArray = ["%s %s" % [Copy.res(str(help.resource)), _signed(-int(help.amount))]]
+		help_words.append_array(_regard_words({str(game.audience.faction): int(help.standing)} if int(help.standing) != 0 else {}))
+		var column := _effect_column(give, " · ".join(help_words))
+		var answers := take.get_parent().get_parent()
+		answers.add_child(column)
+		answers.move_child(column, 1)
 		if help_why != "":
 			give.disabled = true
 			give.tooltip_text = help_why
 			_body(help_why)
 
 
-## Yes and no side by side; returns the yes button. No always turns the leader away.
-func _audience_buttons(yes_text: String, yes: Callable, no_text: String) -> Button:
+## Yes and no side by side, each with its effect line under it; returns the yes button. No always turns the
+## leader away.
+func _audience_buttons(yes_text: String, yes: Callable, no_text: String, yes_words: String = "", no_words: String = "") -> Button:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	var out: Button = null
-	for pair in [[yes_text, yes], [no_text, _answer_audience.bind(false)]]:
+	for pair in [[yes_text, yes, yes_words], [no_text, _answer_audience.bind(false), no_words]]:
 		var button := _button(str(pair[0]), pair[1], "confirm")
 		_style_choice(button)
 		button.custom_minimum_size.y = 48
 		button.add_theme_font_size_override("font_size", 18)
 		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(button)
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.add_child(_effect_column(button, str(pair[2])))
 		if out == null:
 			out = button
 	card_body.add_child(row)
 	return out
+
+
+func _effect_column(button: Button, words: String) -> VBoxContainer:
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 2)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_stretch_ratio = 1.0
+	column.add_child(button)
+	if words != "":
+		var lab := _effect_line(words)
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lab.custom_minimum_size.x = 60
+		column.add_child(lab)
+	return column
+
+
+## What taking the deal moves this turn, from Game.audience_effects, in one line.
+func _deal_words(fx: Dictionary) -> String:
+	var bits: PackedStringArray = []
+	for key in ["hope", "discontent", "food"]:
+		if int(fx[key]) != 0:
+			bits.append("%s %s" % [Copy.res(key), _signed(int(fx[key]))])
+	bits.append_array(_regard_words(fx.standing))
+	if str(fx.hand_over) != "":
+		bits.append((Copy.t("Handed over: %s.") % _resident_name(game.people[str(fx.hand_over)])).trim_suffix("."))
+	if str(fx.law) != "":
+		bits.append((Copy.t("Enacted %s.") % Copy.t(str(game.catalog.laws[str(fx.law)].name))).trim_suffix("."))
+	if not fx.tier.is_empty():
+		bits.append((Copy.t("%s: %s, free.") % [_room_type_name(str(fx.tier.type)), _upgrade_name(str(fx.tier.name))]).trim_suffix("."))
+	if str(fx.flag) != "":
+		bits.append((Copy.t("Mark: %s.") % Copy.t(str(MARK_NAMES.get(str(fx.flag), fx.flag)))).trim_suffix("."))
+	return " · ".join(bits)
 
 
 ## The dirty price with every number it moves, shown before the player can agree.
@@ -4761,94 +4853,52 @@ func _style_choice(button: Button) -> void:
 	button.add_theme_color_override("font_disabled_color", PAPER_MUTED)
 
 
-func _choice_button(label: String, choice: Dictionary, cb: Callable) -> Button:
+func _choice_button(label: String, _choice: Dictionary, cb: Callable) -> Button:
 	var button := _button(label, cb, "confirm")
 	_style_choice(button)
 	button.custom_minimum_size.y = 48
 	button.add_theme_font_size_override("font_size", 18)
-	var marks := _marks(choice)
-	if marks.get_child_count() == 0:
-		return button
-	var pad := 24 + marks.get_child_count() * 52
-	var faces := {
-		"normal": _button_face(false, false),
-		"hover": _button_face(false, true),
-		"pressed": _button_face(true, false),
-		"disabled": _button_face(false, false),
-	}
-	for state in faces:
-		var face: StyleBoxFlat = faces[state]
-		face.content_margin_left = 12
-		face.content_margin_right = pad
-		face.content_margin_top = 8
-		face.content_margin_bottom = 8
-		button.add_theme_stylebox_override(state, face)
-	marks.anchor_left = 1.0
-	marks.anchor_right = 1.0
-	marks.anchor_top = 0.0
-	marks.anchor_bottom = 1.0
-	marks.offset_left = float(-pad + 8)
-	marks.offset_right = -10.0
-	marks.offset_top = 0.0
-	marks.offset_bottom = 0.0
-	marks.alignment = BoxContainer.ALIGNMENT_CENTER
-	button.clip_contents = true
-	button.add_child(marks)
 	return button
 
 
-func _marks(choice: Dictionary) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 8)
-	row.size_flags_horizontal = Control.SIZE_SHRINK_END
-	if choice.has("cost"):
-		for key in choice.cost:
-			_add_mark(row, str(key), -int(choice.cost[key]))
-	for key in ["food", "air", "power", "materials", "tokens", "influence", "hope", "discontent"]:
-		if choice.has(key):
-			_add_mark(row, key, int(choice[key]))
-	var shifts = choice.get("standing", {})
-	if shifts is Dictionary:
-		for fid in shifts:
-			_add_regard_mark(row, str(fid), int(shifts[fid]))
-	return row
+## One line in plain words of what a choice changes right now, from Game.choice_effects: "Power -2 · Hope -1".
+func _choice_words(fx: Dictionary) -> String:
+	var bits: PackedStringArray = []
+	for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+		if fx.stock.has(key):
+			bits.append("%s %s" % [Copy.res(key), _signed(int(fx.stock[key]))])
+	for key in ["hope", "discontent"]:
+		if int(fx[key]) != 0:
+			bits.append("%s %s" % [Copy.res(key), _signed(int(fx[key]))])
+	if int(fx.people) != 0:
+		bits.append("%s %s" % [Copy.t("People"), _signed(int(fx.people))])
+	if int(fx.sick) != 0:
+		bits.append("%s %s" % [Copy.t("Sick people"), _signed(int(fx.sick))])
+	if int(fx.papers) != 0:
+		bits.append("%s %s" % [Copy.t("Papers"), _signed(int(fx.papers))])
+	bits.append_array(_regard_words(fx.standing))
+	if bool(fx.check):
+		bits.append(Copy.t("The rest depends on the check"))
+	return " · ".join(bits)
 
 
-## A leader's regard change on a choice: their faction sign and the signed amount.
-func _add_regard_mark(row: HBoxContainer, fid: String, amount: int) -> void:
-	if amount == 0 or game.leader(fid).is_empty():
-		return
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_theme_constant_override("separation", 2)
-	var sign := _faction_mark(game.leader(fid), 16)
-	box.add_child(sign)
-	var lab := _label(_signed(amount), 14)
-	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(lab)
-	row.add_child(box)
+func _regard_words(shifts: Dictionary) -> PackedStringArray:
+	var parts: PackedStringArray = []
+	for fid in shifts:
+		parts.append("%s %s" % [_leader_text(game.leader_name(str(fid), "name")), _signed(int(shifts[fid]))])
+	if parts.is_empty():
+		return PackedStringArray()
+	return PackedStringArray([Copy.t("Regard: %s") % ", ".join(parts)])
 
 
-func _add_mark(row: HBoxContainer, key: String, amount: int) -> void:
-	if amount == 0:
-		return
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_theme_constant_override("separation", 2)
-	var icon := Glyph.new()
-	icon.kind = key
-	icon.ink = PAPER_INK if on_paper else INK
-	icon.custom_minimum_size = Vector2(14, 14)
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(icon)
-	var lab := _label(_signed(amount), 14)
-	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(lab)
-	row.add_child(box)
-
+## The effect line under a choice, audience or order button.
+func _effect_line(text: String) -> Label:
+	var lab := _label(text, 15)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	lab.set_meta("effect_line", true)
+	return lab
 
 func _choice_bits(choice: Dictionary) -> String:
 	var bits: PackedStringArray = []
@@ -4905,7 +4955,8 @@ func _claim(priority: int, token: String, restore: Callable) -> bool:
 	return deck.top_token() == token
 
 
-func _open_card(heading: String, with_close: bool = true) -> void:
+## tag: a small word in front of the title saying what kind of card this is ("Event").
+func _open_card(heading: String, with_close: bool = true, tag: String = "") -> void:
 	_show_ahead(false)
 	if room_open != "":
 		room_open = ""
@@ -4916,6 +4967,9 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 	card_body.add_theme_constant_override("separation", 6)
 	dim.visible = true
 	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	if tag != "":
+		row.add_child(_card_tag(tag))
 	var lab := _label(heading, 28, true)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -4929,6 +4983,76 @@ func _open_card(heading: String, with_close: bool = true) -> void:
 	_fit_card()
 	_fit_card.call_deferred()
 	_reveal_modal()
+
+
+func _card_tag(text: String) -> PanelContainer:
+	var plate := PanelContainer.new()
+	plate.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color(0.89, 0.65, 0.23, 0.16)
+	face.border_color = Color("e2a63a")
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.content_margin_left = 8
+	face.content_margin_right = 8
+	face.content_margin_top = 2
+	face.content_margin_bottom = 2
+	plate.add_theme_stylebox_override("panel", face)
+	var word := _label(text, 14, true)
+	word.add_theme_color_override("font_color", Color("f0c070"))
+	plate.add_child(word)
+	plate.set_meta("card_tag", text)
+	return plate
+
+
+## One plain line on what a room is for, from rooms.json.
+func room_what(type: String) -> String:
+	var defin: Dictionary = game.catalog.rooms.get(type, {})
+	var pair = defin.get("what", {})
+	if not (pair is Dictionary):
+		return ""
+	var out := str(pair.get("ru", "")) if Copy.ru() else ""
+	return out if out != "" else str(pair.get("en", ""))
+
+
+func _help_line(type: String, open: bool) -> Label:
+	var line := _effect_line(room_what(type))
+	line.remove_meta("effect_line")
+	line.set_meta("room_what", type)
+	line.visible = open
+	return line
+
+
+## Hover shows the line as a tooltip; a click or tap unfolds it in the card.
+func _help_badge(type: String, line: Label) -> Button:
+	var badge := Button.new()
+	badge.text = "?"
+	badge.custom_minimum_size = Vector2(28, 28)
+	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	badge.size_flags_horizontal = Control.SIZE_SHRINK_END
+	badge.focus_mode = Control.FOCUS_NONE
+	badge.tooltip_text = room_what(type)
+	badge.mouse_default_cursor_shape = Control.CURSOR_HELP
+	badge.add_theme_font_size_override("font_size", 16)
+	if display_font != null:
+		badge.add_theme_font_override("font", display_font)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color(0.89, 0.65, 0.23, 0.34 if state == "hover" else 0.16)
+		face.border_color = Color("e2a63a")
+		face.set_border_width_all(1)
+		face.set_corner_radius_all(14)
+		face.set_content_margin_all(0)
+		badge.add_theme_stylebox_override(state, face)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		badge.add_theme_color_override(key, Color("f0c070"))
+	badge.set_meta("room_help", type)
+	badge.pressed.connect(func() -> void:
+		line.visible = not line.visible
+		_fit_card()
+	)
+	return badge
 
 
 func _close_card() -> void:
@@ -5083,6 +5207,15 @@ func _brass_style(pressed: bool, enabled: bool = true) -> StyleBoxFlat:
 	return style
 
 
+## End turn when nothing is waiting: the same brass with a pale rim and a soft glow.
+func _brass_ready() -> StyleBoxFlat:
+	var style := _brass_style(false)
+	style.border_color = Color("fff0c8")
+	style.shadow_color = Color(1.0, 0.8, 0.38, 0.5)
+	style.shadow_size = 10
+	return style
+
+
 func _paper_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = PAPER
@@ -5202,7 +5335,16 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 	text.add_theme_constant_override("separation", 4)
 	var title := _label(Copy.t(str(defin.name)), 18, true)
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	text.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var head := HBoxContainer.new()
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(title)
+	text.add_child(head)
+	if room_what(type) != "":
+		var line := _help_line(type, false)
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(_help_badge(type, line))
+		text.add_child(line)
 	text.add_child(_makes_line(type, defin))
 	text.add_child(_cost_line(info, defin, building))
 	if not enabled:
@@ -8204,6 +8346,8 @@ class Yard extends Control:
 	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
 	var more_hits: Array = []
+	## "?" discs next to room signs: {rect, type, uid} in screen space.
+	var help_hits: Array = []
 	var art_aspect := 1.6
 	var hover := Vector2i(-1, -1)
 	var drag_id := ""
@@ -8611,6 +8755,12 @@ class Yard extends Control:
 		queue_redraw()
 
 	func _note_tap(screen: Vector2) -> void:
+		var help := _help_at(screen)
+		if not help.is_empty():
+			pending_level = -1
+			station.help_unfold = true
+			station._show_room(str(help.uid))
+			return
 		for mark in more_hits:
 			var area: Rect2 = mark.rect
 			if area.has_point(screen) and str(mark.filter) != "":
@@ -8740,6 +8890,7 @@ class Yard extends Control:
 		if station == null or station.game == null:
 			return
 		more_hits.clear()
+		help_hits.clear()
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.06, 0.07))
 		draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
 		var geo := _geo()
@@ -9319,6 +9470,26 @@ class Yard extends Control:
 		for i in total:
 			var pip := Color("3a2610") if i < filled else Color("3a2610", 0.28)
 			draw_circle(Vector2(px + 4.0 + float(i) * 8.0, plate.position.y + 11.0), 2.2, pip)
+		var disc := Rect2(plate.end.x + 4.0, plate.position.y + 2.0, 18.0, 18.0)
+		if disc.end.x <= screen.end.x - 4.0 and station.room_what(str(room.type)) != "":
+			var mid := disc.get_center()
+			draw_circle(mid, 9.0, Color("efe6d2"))
+			draw_arc(mid, 9.0, 0.0, TAU, 24, Color("3a2610"), 1.5, true)
+			var q_w := font.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+			draw_string(font, Vector2(mid.x - q_w * 0.5, mid.y + 5.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("24180e"))
+			help_hits.append({"rect": disc.grow(4.0), "type": str(room.type), "uid": str(room.uid)})
+
+	func _help_at(at_position: Vector2) -> Dictionary:
+		for mark in help_hits:
+			if (mark.rect as Rect2).has_point(at_position):
+				return mark
+		return {}
+
+	func _get_tooltip(at_position: Vector2) -> String:
+		var mark := _help_at(at_position)
+		if mark.is_empty():
+			return tooltip_text
+		return station.room_what(str(mark.type))
 
 	func _draw_badge_screen(screen: Rect2, room: Dictionary, font: Font) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))
