@@ -104,6 +104,11 @@ var on_paper := false
 var turn_clear := false
 var card_fit_queued := false
 var card_fit_tries := 0
+## Content height at the last fit; the card is refitted every frame until two measures agree.
+var card_fit_last := -1.0
+## Card buttons ignore presses until this tick (msec), set by each card press.
+var card_click_guard := 0
+const CARD_CLICK_GUARD_MS := 350
 ## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
 var card_roomy := false
 var portraits: Array = []
@@ -1393,13 +1398,22 @@ func _fit_card() -> void:
 	card.anchor_right = 0.0
 	card.anchor_bottom = 0.0
 	card.offset_left = left
-	card.offset_top = top_limit
 	card.offset_right = left + max_w
-	card.offset_bottom = top_limit + max_h
-	if not card_fit_queued:
-		card_fit_tries = 0
-		card_fit_queued = true
-		_shrink_card.call_deferred()
+	if card.offset_bottom - card.offset_top < 96.0 or card.offset_bottom > top_limit + max_h + 0.5:
+		card.offset_top = top_limit
+		card.offset_bottom = top_limit + max_h
+	card_fit_tries = 0
+	card_fit_last = -1.0
+	_queue_shrink()
+
+
+## Containers settle over a few deferred passes after the body is rebuilt, so the fit is measured on the
+## next frame and again until the content height stops changing.
+func _queue_shrink() -> void:
+	if card_fit_queued:
+		return
+	card_fit_queued = true
+	get_tree().process_frame.connect(_shrink_card, CONNECT_ONE_SHOT)
 
 
 func _card_top_limit() -> float:
@@ -1420,38 +1434,31 @@ func _shrink_card() -> void:
 	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
 	var content_h := card_body.size.y
-	if content_h < 40.0:
-		if not card_fit_queued and card_fit_tries < 30:
-			card_fit_tries += 1
-			card_fit_queued = true
-			get_tree().process_frame.connect(_shrink_card, CONNECT_ONE_SHOT)
+	card_fit_tries += 1
+	if card_fit_tries > 30:
 		return
-	card_fit_tries = 0
 	var h := content_h + 52.0
+	if content_h < 40.0 or h < 96.0:
+		_queue_shrink()
+		return
 	if h > max_h and card_body.get_child_count() > 0:
 		var top_child := card_body.get_child(0)
 		if top_child is TextureRect and top_child.has_meta("banner") and top_child.visible:
 			top_child.visible = false
-			if not card_fit_queued:
-				card_fit_queued = true
-				_shrink_card.call_deferred()
+			_queue_shrink()
 			return
 		if card_body.get_theme_constant("separation") > 2:
 			card_body.add_theme_constant_override("separation", 2)
-			if not card_fit_queued:
-				card_fit_queued = true
-				_shrink_card.call_deferred()
+			_queue_shrink()
 			return
-	if h < 96.0:
-		if not card_fit_queued:
-			card_fit_queued = true
-			_shrink_card.call_deferred()
-		return
 	h = clampf(h, 96.0, max_h)
 	var top := clampf((size.y - h) / 2.0, top_limit, top_limit + maxf(0.0, max_h - h))
 	card.offset_top = top
 	card.offset_bottom = top + h
 	card.offset_right = card.offset_left + max_w
+	if absf(content_h - card_fit_last) > 0.5:
+		card_fit_last = content_h
+		_queue_shrink()
 
 
 func _refresh() -> void:
@@ -5010,13 +5017,26 @@ func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.mouse_entered.connect(_ui_hover)
 	button.set_meta("ui_sound", sound)
-	button.pressed.connect(_ui_pressed.bind(button))
-	button.pressed.connect(cb)
+	button.pressed.connect(_card_press.bind(button, cb) if on_paper else _plain_press.bind(button, cb))
 	return button
 
 
 func _ui_hover() -> void:
 	Sound.play("hover")
+
+
+func _plain_press(button: Button, cb: Callable) -> void:
+	_ui_pressed(button)
+	cb.call()
+
+
+## The second click of a double click lands on whatever the rebuilt card put under the cursor; it is dropped.
+func _card_press(button: Button, cb: Callable) -> void:
+	if Time.get_ticks_msec() < card_click_guard:
+		return
+	card_click_guard = Time.get_ticks_msec() + CARD_CLICK_GUARD_MS
+	_ui_pressed(button)
+	cb.call()
 
 
 func _ui_pressed(button: Button) -> void:
@@ -8157,6 +8177,8 @@ class Yard extends Control:
 	const BACKDROP_RAIL := 0.783
 	# Inner lip of each tunnel mouth, so the arches meet the station edges.
 	const BACKDROP_SIDE := 0.147
+	## Share of the view height the camera may show as sky above the station.
+	const SKY_SHARE := 0.2
 	const OPEN_WIDTH := 0.96
 	const PLATFORM_RAIL := 0.96
 	const SKYLINE_FRAC := 0.164
@@ -8219,6 +8241,7 @@ class Yard extends Control:
 		var base := _fit_zoom()
 		zoom = base * user_zoom
 		pan = area.get_center() - focus * zoom
+		_clamp_pan()
 		queue_redraw()
 
 	func _frame_station() -> void:
@@ -8229,7 +8252,44 @@ class Yard extends Control:
 		var pan_x := area.get_center().x - station_rect.get_center().x * zoom
 		var pan_y := area.position.y + area.size.y - 6.0 - (station_rect.position.y + station_rect.size.y) * zoom
 		pan = Vector2(pan_x, pan_y)
+		_clamp_pan()
 		queue_redraw()
+
+	## What the camera may show, on screen at the current pan and zoom: the station, the painted backdrop at
+	## its sides, a band of sky above it and a thin lip of rock below.
+	func view_bounds() -> Rect2:
+		var station_rect := _station_rect()
+		var side := 24.0 / maxf(zoom, 0.0001)
+		if backdrop_tex != null:
+			side = station_rect.size.x * BACKDROP_SIDE / (1.0 - BACKDROP_SIDE * 2.0)
+		var area := _content()
+		var sky := area.size.y * SKY_SHARE / maxf(zoom, 0.0001)
+		var lip := 6.0 / maxf(zoom, 0.0001)
+		var world := Rect2(station_rect.position.x - side, station_rect.position.y - sky,
+			station_rect.size.x + side * 2.0, station_rect.size.y + sky + lip)
+		return Rect2(pan + world.position * zoom, world.size * zoom)
+
+	## Keeps the dark void out of the view: content smaller than the view stays inside it, content larger than
+	## the view keeps covering it, on each axis.
+	func _clamp_pan() -> void:
+		var area := _content()
+		var shown := view_bounds()
+		var shift := Vector2.ZERO
+		for axis in 2:
+			var lo: float = shown.position[axis]
+			var hi: float = shown.end[axis]
+			var a_lo: float = area.position[axis]
+			var a_hi: float = area.end[axis]
+			if hi - lo <= a_hi - a_lo:
+				if lo < a_lo:
+					shift[axis] = a_lo - lo
+				elif hi > a_hi:
+					shift[axis] = a_hi - hi
+			elif lo > a_lo:
+				shift[axis] = a_lo - lo
+			elif hi < a_hi:
+				shift[axis] = a_hi - hi
+		pan += shift
 
 	func _fit_zoom() -> float:
 		var station_rect := _station_rect()
@@ -8458,6 +8518,7 @@ class Yard extends Control:
 			return
 		if event is InputEventPanGesture:
 			pan += event.delta
+			_clamp_pan()
 			queue_redraw()
 			accept_event()
 			return
@@ -8489,6 +8550,7 @@ class Yard extends Control:
 				if delta.length() > 5.0:
 					moved = true
 					pan = pan_from + delta
+					_clamp_pan()
 			if not moved:
 				var over: Dictionary = _hit(event.position)
 				var next := Vector2i(-1, -1)
@@ -8545,6 +8607,7 @@ class Yard extends Control:
 		if shift == Vector2.ZERO:
 			return
 		pan += shift
+		_clamp_pan()
 		queue_redraw()
 
 	func _note_tap(screen: Vector2) -> void:
@@ -8585,6 +8648,7 @@ class Yard extends Control:
 		zoom = base * user_zoom
 		var center := rect.get_center()
 		pan = area.get_center() - center * zoom
+		_clamp_pan()
 		queue_redraw()
 
 	func _zoom_to_rect(rect: Rect2) -> void:
@@ -8595,8 +8659,10 @@ class Yard extends Control:
 		user_zoom = clampf(minf(zx, zy) * 0.92 / maxf(base, 0.0001), 1.0, 8.0)
 		zoom = base * user_zoom
 		pan = area.get_center() - rect.get_center() * zoom
+		_clamp_pan()
 		queue_redraw()
 
+	## The point under the cursor stays under it; the view only moves further when the clamp needs it.
 	func _zoom_at(screen: Vector2, factor: float) -> void:
 		var world := _unview(screen)
 		var base := _fit_zoom()
@@ -8604,9 +8670,8 @@ class Yard extends Control:
 		zoom = base * user_zoom
 		if user_zoom <= 1.001:
 			focused = Vector2i(-1, -1)
-			_frame_station()
-			return
 		pan = screen - world * zoom
+		_clamp_pan()
 		queue_redraw()
 
 	func _unview(screen: Vector2) -> Vector2:

@@ -387,12 +387,10 @@ func _clamp_view() -> void:
 	var z := maxf(zoom, 0.001)
 	var mid := _center()
 	for axis in 2:
-		if box.size[axis] * z <= area.size[axis] + 0.5:
-			origin[axis] = box.get_center()[axis] - (area.get_center()[axis] - mid[axis]) / z
-		else:
-			var lo: float = box.position[axis] + (mid[axis] - area.position[axis]) / z
-			var hi: float = box.end[axis] - (area.end[axis] - mid[axis]) / z
-			origin[axis] = clampf(origin[axis], lo, hi)
+		## A map larger than the view keeps covering it; a smaller one stays inside it without snapping to the middle.
+		var lo: float = box.position[axis] + (mid[axis] - area.position[axis]) / z
+		var hi: float = box.end[axis] - (area.end[axis] - mid[axis]) / z
+		origin[axis] = clampf(origin[axis], minf(lo, hi), maxf(lo, hi))
 
 
 func _fit() -> void:
