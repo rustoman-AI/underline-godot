@@ -1,0 +1,501 @@
+extends SceneTree
+
+## Clarity pass (docs/briefs/cursor_clarity_pass.txt), headless on the real station:
+##   B1  a rebuilt card leaves no empty paper; a second press inside the guard window is dropped.
+##   B2  station and network cameras keep the dark void out at every zoom and window size.
+##   B3  wheel zoom keeps the point under the cursor unless the bounds need the view to move.
+##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
+##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
+##   Hints: shown in their weeks, hidden under a modal, dismissed by the action or a click, remembered in the
+##   player's settings file (not the save), off in shot runs and on saves loaded past week 6.
+## Settings, saves and logs go to user://check_clarity, never to the player's own files.
+##   godot --headless --path . -s res://sim/check_clarity.gd
+
+const SCRATCH := "user://check_clarity"
+const LEADERS := ["directorate", "depot", "synod", "exchange", "black_flag"]
+const SIZES := [Vector2(1280, 720), Vector2(1024, 768), Vector2(1920, 1080)]
+
+var bad: PackedStringArray = []
+var catalog: Catalog
+var st
+
+
+func _initialize() -> void:
+	_run.call_deferred()
+
+
+func _run() -> void:
+	Copy.set_lang("en")
+	_wipe(ProjectSettings.globalize_path(SCRATCH))
+	Settings.path = SCRATCH.path_join("settings.cfg")
+	Settings.loaded = false
+	Settings.load_file()
+	Settings.log_consent = "no"
+	Settings.howto_hidden = true
+	Settings.hints_on = true
+	Settings.hints_seen = []
+	SaveGame.root = SCRATCH + "/saves/"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SaveGame.root))
+	PlaytestLog.dir = SCRATCH.path_join("log")
+	catalog = Catalog.new()
+	if not catalog.load_all():
+		bad.append("catalog: " + catalog.error)
+	_hint_file()
+	st = load("res://ui/station.tscn").instantiate()
+	root.add_child(st)
+	for i in 3:
+		await process_frame
+	st._begin_new_game(false)
+	await _frames(4)
+	await _end_turn_logic()
+	await _card_gap()
+	_double_press()
+	_yard_bounds()
+	_network_bounds()
+	_event_words()
+	_audience_words()
+	await _hint_flow()
+	st._end_log()
+	st.queue_free()
+	await process_frame
+	for line in bad:
+		print("FAIL " + line)
+	print("CLARITY CHECK OK" if bad.is_empty() else "CLARITY CHECK FAILED (%d)" % bad.size())
+	quit(0 if bad.is_empty() else 1)
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+
+func _clear_modals() -> void:
+	st.game.pending.clear()
+	for i in 6:
+		if st.deck.is_empty() and not st.modal_open:
+			break
+		st._close_card()
+	st._refresh()
+
+
+## End turn: dark while the dawn choice waits, lit (brass ready face) when the week can end, off at the end.
+func _end_turn_logic() -> void:
+	var game: Game = st.game
+	if game.pending.is_empty():
+		game.pending.append(_plain_event())
+	st._show_dawn()
+	await process_frame
+	if st._end_state() != "waiting" or not st.end_button.disabled:
+		bad.append("end turn: pending choice gives %s, disabled %s" % [st._end_state(), st.end_button.disabled])
+	var tag := _find_meta(st.card_body, "card_tag")
+	if tag == null or str(tag.get_meta("card_tag")) != "Event":
+		bad.append("event card has no Event tag")
+	_clear_modals()
+	st._sync_waiting()
+	var face: StyleBoxFlat = st.end_button.get_theme_stylebox("normal")
+	if st._end_state() != "ready" or st.end_button.disabled or face.border_color != Color("fff0c8"):
+		bad.append("end turn: ready state %s, disabled %s, border %s" % [st._end_state(), st.end_button.disabled, face.border_color])
+	st._paint_dawn()
+	await process_frame
+	if not _shows(st.card_body, "Dawn of week %d" % game.week):
+		bad.append("new-week card title is not 'Dawn of week %d'" % game.week)
+	if _find_meta(st.card_body, "card_tag") != null:
+		bad.append("new-week card carries the Event tag")
+	_clear_modals()
+	game.over = "test"
+	if st._end_state() != "over":
+		bad.append("end turn: game over gives %s" % st._end_state())
+	game.over = ""
+	st._sync_waiting()
+
+
+func _plain_event() -> Dictionary:
+	for ev in catalog.events:
+		if ev.get("choices", []).size() >= 2 and not ev.has("trigger"):
+			return ev.duplicate(true)
+	return {}
+
+
+## B1: rebuilding an open room card (what a second click does) must not leave the card taller than its content.
+func _card_gap() -> void:
+	_clear_modals()
+	var uid := ""
+	for room in st.game.rooms:
+		if int(catalog.rooms[str(room.type)].get("staff_max", 0)) > 0:
+			uid = str(room.uid)
+			break
+	for round in 3:
+		st._show_room(uid)
+		await _frames(2)
+	await _frames(40)
+	var gap: float = st.card.size.y - (st.card_body.get_combined_minimum_size().y + 52.0)
+	if gap > 6.0:
+		bad.append("B1: room card rebuilt three times leaves %.0f px of empty paper" % gap)
+	print("B1 card gap after rebuilds: %.0f px" % gap)
+
+
+## B1: two presses inside the guard window run the action once; a later press runs it again.
+func _double_press() -> void:
+	var runs := [0]
+	st.on_paper = true
+	var button: Button = st._button("Probe", func() -> void: runs[0] += 1)
+	st.card_click_guard = 0
+	button.pressed.emit()
+	button.pressed.emit()
+	if runs[0] != 1:
+		bad.append("B1: double press ran the action %d times" % runs[0])
+	st.card_click_guard = 0
+	button.pressed.emit()
+	if runs[0] != 2:
+		bad.append("B1: press after the guard window was dropped")
+	button.free()
+	_clear_modals()
+
+
+## B2 and B3 on the station view.
+func _yard_bounds() -> void:
+	var yard = st.yard
+	var checked := 0
+	for view in SIZES:
+		yard.size = view
+		yard.fit()
+		var base: float = yard._fit_zoom()
+		for user_zoom in [1.0, 1.4, 2.5, 5.0, 8.0]:
+			yard.user_zoom = user_zoom
+			yard.zoom = base * user_zoom
+			for far in [Vector2(-1e5, -1e5), Vector2(1e5, 1e5), Vector2(-1e5, 1e5), Vector2(1e5, -1e5), Vector2.ZERO]:
+				yard.pan = far
+				yard._clamp_pan()
+				var why := _covers(yard.view_bounds(), yard._content())
+				checked += 1
+				if why != "":
+					bad.append("B2 station %s zoom x%.1f pan %s: %s" % [view, user_zoom, far, why])
+		yard.fit()
+		var area: Rect2 = yard._content()
+		var framed: Vector2 = yard.pan
+		var spot := area.position + area.size * Vector2(0.2, 0.35)
+		var other := area.position + area.size * Vector2(0.75, 0.6)
+		for step in 4:
+			_zoom_kept(yard, spot, 1.12, "in", view)
+		for step in 12:
+			_zoom_kept(yard, other, 1.0 / 1.12, "out", view)
+		if yard.user_zoom > 1.001:
+			bad.append("B3 station %s: zoom out did not reach the fit zoom" % view)
+		var why := _covers(yard.view_bounds(), area)
+		if why != "":
+			bad.append("B3 station %s after zoom out: %s" % [view, why])
+		if absf(yard.pan.x - framed.x) < 0.5 and absf(_free_span(yard)) > 2.0:
+			bad.append("B3 station %s: zooming out snapped back to the framed centre" % view)
+	print("B2 station: %d clamps checked over %d window sizes" % [checked, SIZES.size()])
+	yard.fit()
+
+
+## Room left for the content to slide on x at the current zoom (negative when it is pinned).
+func _free_span(yard) -> float:
+	return absf(yard.view_bounds().size.x - yard._content().size.x)
+
+
+## One wheel step at `spot`: the world point under it stays put, or the bounds forced the move.
+func _zoom_kept(yard, spot: Vector2, factor: float, way: String, view: Vector2) -> void:
+	var world: Vector2 = yard._unview(spot)
+	yard._zoom_at(spot, factor)
+	var drift: Vector2 = yard._unview(spot) - world
+	if drift.length() * yard.zoom <= 0.5:
+		return
+	var kept: Vector2 = yard.pan
+	yard.pan = spot - world * yard.zoom
+	var why := _covers(yard.view_bounds(), yard._content())
+	yard.pan = kept
+	if why == "":
+		bad.append("B3 station %s zoom %s moved the view %.1f px with no bounds reason" % [view, way, drift.length() * yard.zoom])
+
+
+## "" when `shown` keeps the void out of `area` on both axes: smaller content stays inside, larger covers it.
+func _covers(shown: Rect2, area: Rect2) -> String:
+	for axis in 2:
+		var lo: float = shown.position[axis]
+		var hi: float = shown.end[axis]
+		var a_lo: float = area.position[axis]
+		var a_hi: float = area.end[axis]
+		var name := "x" if axis == 0 else "y"
+		if hi - lo <= a_hi - a_lo:
+			if lo < a_lo - 0.5 or hi > a_hi + 0.5:
+				return "%s: content %.0f..%.0f leaves the view %.0f..%.0f" % [name, lo, hi, a_lo, a_hi]
+		elif lo > a_lo + 0.5 or hi < a_hi - 0.5:
+			return "%s: void shows, content %.0f..%.0f, view %.0f..%.0f" % [name, lo, hi, a_lo, a_hi]
+	return ""
+
+
+## B2 and B3 on the network map.
+func _network_bounds() -> void:
+	st._toggle_network()
+	var net = st.network_view
+	var checked := 0
+	for view in SIZES:
+		net.size = view
+		net._fit()
+		for factor in [1.0, 1.6, 3.0, 100.0]:
+			net.zoom = clampf(net._zoom_min * factor, net._zoom_min, net._zoom_max)
+			var box: Rect2 = net._map_box()
+			for far in [box.position - Vector2(1e4, 1e4), box.end + Vector2(1e4, 1e4), Vector2(box.position.x - 1e4, box.end.y + 1e4), box.get_center()]:
+				net.origin = far
+				net._clamp_view()
+				checked += 1
+				var why := _covers(_net_shown(net), net._open_area())
+				if why != "":
+					bad.append("B2 network %s zoom x%.1f: %s" % [view, factor, why])
+		net._fit()
+		var area: Rect2 = net._open_area()
+		var spot := area.position + area.size * Vector2(0.25, 0.3)
+		for step in 10:
+			var factor := 1.12 if step < 4 else 1.0 / 1.12
+			var world: Vector2 = net._world(spot)
+			net._zoom_at(spot, factor)
+			var drift: Vector2 = (net._world(spot) - world) * net.zoom
+			if drift.length() > 0.5:
+				var kept: Vector2 = net.origin
+				net.origin = world - (spot - net._center()) / net.zoom
+				var why := _covers(_net_shown(net), area)
+				net.origin = kept
+				if why == "":
+					bad.append("B3 network %s: zoom moved the view %.1f px with no bounds reason" % [view, drift.length()])
+	print("B2 network: %d clamps checked" % checked)
+	st._toggle_network()
+
+
+func _net_shown(net) -> Rect2:
+	var box: Rect2 = net._map_box()
+	return Rect2(net._screen(box.position), box.size * net.zoom)
+
+
+## Five plain event choices (no check, bet or people): the effect line built before the pick equals the line
+## built from what the pick actually changed.
+func _event_words() -> void:
+	var cases := 0
+	var hopes := [50, 99, 2, 60, 40]
+	for ev in catalog.events:
+		if cases >= 5:
+			break
+		if ev.has("trigger"):
+			continue
+		for choice in ev.get("choices", []):
+			if choice.has("check") or choice.has("bet") or choice.has("people") or choice.has("sick") or choice.has("papers"):
+				continue
+			var game := Game.new()
+			game.setup(catalog, 7 + cases, 40)
+			game.hope = int(hopes[cases])
+			game.pending = [ev.duplicate(true)]
+			if game.choice_locked(choice) or not game.choice_offered(choice) or not game._afford(choice.get("cost", {})):
+				continue
+			var fx := game.choice_effects(choice)
+			var words := _with_game(game, func(): return st._choice_words(fx))
+			if words == "":
+				continue
+			var before := _snap(game)
+			if not game.apply({"kind": "event", "event_id": str(ev.id), "choice_id": str(choice.id)}):
+				continue
+			var real := _moved(before, _snap(game))
+			var real_words := _with_game(game, func(): return st._choice_words(real))
+			if words != real_words:
+				bad.append("event %s/%s: button says '%s', the pick did '%s'" % [ev.id, choice.id, words, real_words])
+			cases += 1
+			print("event %s/%s: %s" % [ev.id, choice.id, words])
+			break
+	if cases < 5:
+		bad.append("only %d event choices checked" % cases)
+
+
+func _snap(game: Game) -> Dictionary:
+	return {"stock": game.stock.duplicate(), "hope": game.hope, "discontent": game.discontent,
+		"standing": game.standing.duplicate(), "papers": int(game.artifacts.get("papers", 0))}
+
+
+func _moved(was: Dictionary, now: Dictionary) -> Dictionary:
+	var fx := {"stock": {}, "hope": int(now.hope) - int(was.hope), "discontent": int(now.discontent) - int(was.discontent),
+		"people": 0, "sick": 0, "papers": int(now.papers) - int(was.papers), "standing": {}, "check": false, "bet": false}
+	for key in now.stock:
+		var delta := int(now.stock[key]) - int(was.stock.get(key, 0))
+		if delta != 0:
+			fx.stock[key] = delta
+	for fid in now.standing:
+		var delta := int(now.standing[fid]) - int(was.standing.get(fid, 0))
+		if delta != 0:
+			fx.standing[fid] = delta
+	return fx
+
+
+func _with_game(game: Game, call: Callable) -> String:
+	var kept = st.game
+	st.game = game
+	var out := str(call.call())
+	st.game = kept
+	return out
+
+
+## Five leaders at the door: the deal line equals the line built from what accepting changed; the help line
+## equals what offering help spent and moved.
+func _audience_words() -> void:
+	for fid in LEADERS:
+		var game := _door(fid)
+		var fx := game.audience_effects()
+		var words := _with_game(game, func(): return st._deal_words(fx))
+		var before := _snap(game)
+		var pop := game.residents.size()
+		var handed := str(fx.hand_over)
+		var handed_name := _with_game(game, func(): return st._resident_name(game.people[handed]) if handed != "" else "")
+		if not game.apply({"kind": "audience", "accept": true}):
+			bad.append("audience %s: deal refused (%s)" % [fid, game.audience_reason()])
+			continue
+		var real := _moved(before, _snap(game))
+		var real_fx := fx.duplicate(true)
+		real_fx.hope = real.hope
+		real_fx.discontent = real.discontent
+		real_fx.food = int(real.stock.get("food", 0))
+		var regard := {}
+		for other in fx.standing:
+			if real.standing.has(other):
+				regard[other] = real.standing[other]
+		for other in real.standing:
+			if not regard.has(other):
+				regard[other] = real.standing[other]
+		real_fx.standing = regard
+		if handed != "" and (game.residents.size() != pop - 1 or game.people.has(handed)):
+			bad.append("audience %s: %s was not handed over" % [fid, handed_name])
+		var real_words := _with_game(game, func(): return st._deal_words(real_fx) if handed == "" else words)
+		if words != real_words:
+			bad.append("audience %s: Take the deal says '%s', accepting did '%s'" % [fid, words, real_words])
+		print("audience %s deal: %s" % [fid, words])
+		var helper := _door(fid)
+		var help: Dictionary = helper.help_effects()
+		if help.is_empty() or helper.help_reason() != "":
+			continue
+		var stock_was := int(helper.stock[str(help.resource)])
+		var regard_was := int(helper.standing.get(fid, 0))
+		if not helper.apply({"kind": "audience", "help": true}):
+			bad.append("audience %s: help refused" % fid)
+			continue
+		if stock_was - int(helper.stock[str(help.resource)]) != int(help.amount) or int(helper.standing.get(fid, 0)) - regard_was != int(help.standing):
+			bad.append("audience %s: help line says %s %d, regard %d; applying spent %d, regard %d" % [fid, help.resource, int(help.amount),
+				int(help.standing), stock_was - int(helper.stock[str(help.resource)]), int(helper.standing.get(fid, 0)) - regard_was])
+
+
+func _door(fid: String) -> Game:
+	var game := Game.new()
+	game.setup(catalog, 1, 60)
+	game.week = 21
+	game.stock.food = maxi(int(game.stock.food), 20)
+	game.audience_last = {}
+	game.help_last = {}
+	var target := game.list_target() if fid == "directorate" else ""
+	game.audience = {"faction": fid, "week": game.week, "target": target}
+	return game
+
+
+## Settings round trip: hints on/off and the seen ids survive a reload; nothing about hints is in a save.
+func _hint_file() -> void:
+	Settings.hints_on = false
+	Settings.hints_seen = ["dig", "network"]
+	Settings.save()
+	Settings.hints_on = true
+	Settings.hints_seen = []
+	Settings.loaded = false
+	Settings.load_file()
+	if Settings.hints_on or Settings.hints_seen != ["dig", "network"]:
+		bad.append("hints settings did not survive a reload: on %s, seen %s" % [Settings.hints_on, Settings.hints_seen])
+	for key in Game.PERSIST:
+		if str(key).contains("hint"):
+			bad.append("save carries %s" % key)
+	Settings.hints_on = true
+	Settings.hints_seen = []
+	Settings.save()
+
+
+func _hint_flow() -> void:
+	_clear_modals()
+	st.shot_mode = false
+	st.hints_late = false
+	st._hide_hint()
+	st.game.week = 1
+	st._tick_hints()
+	if st.hint_id != "dig" or st.hint_box == null:
+		bad.append("week 1: dig hint not shown (got '%s'; allowed %s, modal %s, target %s, deck %d, dim %s, notice %s, menu %s)" % [
+			st.hint_id, st._hints_allowed(), st._modal_up(), st._hint_target("dark_cell"), st.deck.depth(), st.modal_open,
+			st.notice_layer != null, st.at_menu])
+		return
+	await process_frame
+	var box: Rect2 = st.hint_box.get_rect()
+	if box.position.x < 0.0 or box.end.x > st.size.x or box.position.y < 0.0 or box.end.y > st.size.y:
+		bad.append("dig hint callout %s leaves the window %s" % [box, st.size])
+	if st.hint_box.mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		bad.append("hint callout takes mouse input")
+	st._show_power()
+	st._tick_hints()
+	if st.hint_box != null or st.hint_id != "dig":
+		bad.append("hint stays on screen under a modal")
+	var dug := false
+	for level in 3:
+		for cell in 6:
+			if not dug and st.yard._kind(st.game.cells["%d:%d" % [level, cell]]) == "undug" and bool(st.game.dig_preview(level, cell).ok):
+				dug = st.game.apply({"kind": "dig", "level": level, "cell": cell})
+	_clear_modals()
+	st._tick_hints()
+	if not dug or not Settings.hints_seen.has("dig"):
+		bad.append("digging did not dismiss the dig hint (dug %s, seen %s)" % [dug, Settings.hints_seen])
+	st._tick_hints()
+	var next: String = st.hint_id
+	if next != "" and st.hint_box != null:
+		st.hint_box.dismissed.emit()
+		if not Settings.hints_seen.has(next):
+			bad.append("click did not dismiss the %s hint" % next)
+	Settings.loaded = false
+	Settings.load_file()
+	if not Settings.hints_seen.has("dig"):
+		bad.append("seen hints not written to the settings file")
+	Settings.hints_seen = []
+	st._hide_hint()
+	st.game.week = 7
+	st._loaded_hints()
+	st.game.week = 3
+	st._tick_hints()
+	if st.hint_id != "":
+		bad.append("save loaded past week 6 still shows hint %s" % st.hint_id)
+	st.hints_late = false
+	st.shot_mode = true
+	st._tick_hints()
+	if st.hint_id != "":
+		bad.append("shot mode shows hint %s" % st.hint_id)
+	st.shot_mode = false
+	Settings.hints_on = false
+	st._tick_hints()
+	if st.hint_id != "":
+		bad.append("Hints off still shows %s" % st.hint_id)
+	Settings.hints_on = true
+	st.game.week = 9
+	st._tick_hints()
+	if st.hint_id != "":
+		bad.append("week 9 shows hint %s outside every window" % st.hint_id)
+	print("Hints: shown, hidden under a modal, dismissed by the action and by a click, kept in settings; seen %s" % [Settings.hints_seen])
+
+
+func _find_meta(node: Node, key: String) -> Node:
+	for child in node.find_children("*", "", true, false):
+		if child.has_meta(key) and child.is_visible_in_tree():
+			return child
+	return null
+
+
+func _shows(node: Node, text: String) -> bool:
+	for child in node.find_children("*", "", true, false):
+		if (child is Label or child is Button) and child.is_visible_in_tree() and str(child.text).contains(text):
+			return true
+	return false
+
+
+func _wipe(path: String) -> void:
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for sub in DirAccess.get_directories_at(path):
+		_wipe(path.path_join(sub))
+	for file in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(file))
+	DirAccess.remove_absolute(path)

@@ -28,6 +28,9 @@ static var people_free_only := false
 ## Playtest log: "" until the player answers the consent card, then "yes" or "no".
 static var log_consent := ""
 static var howto_hidden := false
+## First-run hints: on by default; ids of the ones already dismissed, kept with the player, not the save.
+static var hints_on := true
+static var hints_seen: Array = []
 static var loaded := false
 static var resume := false
 static var reopen := ""
@@ -63,6 +66,12 @@ static func load_file() -> void:
 	if log_consent != "yes" and log_consent != "no":
 		log_consent = ""
 	howto_hidden = bool(cfg.get_value("playtest", "howto_hidden", false))
+	hints_on = bool(cfg.get_value("hints", "on", true))
+	hints_seen = []
+	var seen = cfg.get_value("hints", "seen", [])
+	if seen is Array or seen is PackedStringArray:
+		for id in seen:
+			hints_seen.append(str(id))
 
 
 static func save() -> void:
@@ -84,6 +93,8 @@ static func save() -> void:
 	cfg.set_value("game", "people_free_only", people_free_only)
 	cfg.set_value("playtest", "log", log_consent)
 	cfg.set_value("playtest", "howto_hidden", howto_hidden)
+	cfg.set_value("hints", "on", hints_on)
+	cfg.set_value("hints", "seen", hints_seen.duplicate())
 	cfg.save(path)
 
 

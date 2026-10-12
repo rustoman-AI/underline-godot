@@ -109,6 +109,15 @@ var card_fit_last := -1.0
 ## Card buttons ignore presses until this tick (msec), set by each card press.
 var card_click_guard := 0
 var help_unfold := false
+var hint_data: Array = []
+var hint_box: HintCallout
+var hint_id := ""
+var hint_mark := ""
+var hint_next := 0
+## Set by shot tools that want a callout on screen.
+var hints_in_shots := false
+## A save loaded past week 6 never shows hints.
+var hints_late := false
 const CARD_CLICK_GUARD_MS := 350
 ## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
 var card_roomy := false
@@ -260,6 +269,7 @@ func _ready() -> void:
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
 		at_menu = false
+		_loaded_hints()
 		Sound.bed("station")
 		_refresh()
 		_note_save_recovery()
@@ -784,6 +794,9 @@ func _process(_delta: float) -> void:
 	_watch_log()
 	_tick_radio()
 	_tick_voice()
+	if Time.get_ticks_msec() >= hint_next:
+		hint_next = Time.get_ticks_msec() + 200
+		_tick_hints()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -7368,6 +7381,8 @@ func _begin_new_game(intro: bool) -> void:
 	hold_dawn = false
 	stock_week = 0
 	stock_shown = {}
+	hints_late = false
+	_hide_hint()
 	_refresh()
 	if not shot_mode:
 		SaveGame.write_auto(game)
@@ -7390,6 +7405,7 @@ func _continue_game() -> void:
 	stock_week = 0
 	stock_shown = {}
 	hold_dawn = false
+	_loaded_hints()
 	Sound.play("confirm")
 	Sound.bed("station")
 	_refresh()
@@ -7418,6 +7434,7 @@ func _manual_load() -> void:
 		return
 	stock_week = 0
 	stock_shown = {}
+	_loaded_hints()
 	Sound.play("confirm")
 	_close_card()
 	_refresh()
@@ -7856,6 +7873,7 @@ func _show_howto(auto: bool) -> void:
 			var text := _label(str(line.get(lang, line.get("en", ""))), 18)
 			text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			text.set_meta("howto_line", true)
 			row.add_child(text)
 			box.add_child(row)
 		var check := CheckBox.new()
@@ -7873,6 +7891,10 @@ func _show_howto(auto: bool) -> void:
 		box.add_child(check)
 		howto_check = check
 		_notice_buttons(box, [["Close", _close_howto, true]]))
+	if notice_layer != null:
+		var panels := notice_layer.find_children("*", "PanelContainer", true, false)
+		if not panels.is_empty():
+			get_tree().process_frame.connect(_fit_notice.bind(panels[0]), CONNECT_ONE_SHOT)
 
 
 ## A 22 px box in the paper card's colours, ticked with a brass square.
@@ -7894,6 +7916,212 @@ func _close_howto() -> void:
 		Settings.howto_hidden = howto_check.button_pressed
 		Settings.save()
 	_close_notice()
+
+
+## Smaller how-to lines, a step at a time, until the card fits the window height.
+func _fit_notice(panel: Control, tries: int = 0) -> void:
+	if not is_instance_valid(panel) or tries > 8:
+		return
+	var tall := panel.get_combined_minimum_size().y
+	if tall < 1.0:
+		get_tree().process_frame.connect(_fit_notice.bind(panel, tries + 1), CONNECT_ONE_SHOT)
+		return
+	if tall <= size.y - 24.0:
+		return
+	var smaller := false
+	for lab in panel.find_children("*", "Label", true, false):
+		if lab.has_meta("howto_line"):
+			var now: int = lab.get_theme_font_size("font_size")
+			if now > 14:
+				lab.add_theme_font_size_override("font_size", now - 1)
+				smaller = true
+	for box in panel.find_children("*", "VBoxContainer", true, false):
+		var gap: int = box.get_theme_constant("separation")
+		if gap > 6:
+			box.add_theme_constant_override("separation", gap - 2)
+			smaller = true
+	if smaller:
+		get_tree().process_frame.connect(_fit_notice.bind(panel, tries + 1), CONNECT_ONE_SHOT)
+
+
+func _hints() -> Array:
+	if hint_data.is_empty():
+		var f := FileAccess.open("res://data/hints.json", FileAccess.READ)
+		var data = JSON.parse_string(f.get_as_text()) if f != null else null
+		if data is Dictionary and data.get("hints", null) is Array:
+			hint_data = data.hints
+	return hint_data
+
+
+## No hints in shot runs, on a loaded game past week 6, with the setting off, or after the game ends.
+func _hints_allowed() -> bool:
+	if shot_mode and not hints_in_shots:
+		return false
+	if not Settings.hints_on or hints_late or game == null or game.over != "":
+		return false
+	return true
+
+
+func _modal_up() -> bool:
+	if at_menu or showing_network or notice_layer != null or not deck.is_empty():
+		return true
+	if modal_open:
+		return true
+	return menu_layer != null and menu_layer.visible
+
+
+## A count that changes once the player does what the hint asks.
+func _hint_progress(id: String) -> String:
+	match id:
+		"dig":
+			var dug := 0
+			for key in game.cells:
+				if bool(game.cells[key].dug):
+					dug += 1
+			return "%d:%s" % [dug, str(not game.dig.is_empty())]
+		"build":
+			return "%d:%s" % [game.rooms.size(), str(not game.build.is_empty())]
+		"staff":
+			var staffed := 0
+			for room in game.rooms:
+				staffed += room.staff.size()
+			return str(staffed)
+		"end_turn":
+			return str(game.week)
+		"network":
+			return str(showing_network)
+	return ""
+
+
+## Screen rect of the element a hint points at; empty when it is not on screen now.
+func _hint_target(target: String) -> Rect2:
+	match target:
+		"end_turn":
+			return _local_rect(end_button)
+		"network_button":
+			return _local_rect(network_button)
+	if yard == null or not yard.visible:
+		return Rect2()
+	var view: Rect2 = yard._content()
+	for level in 3:
+		for cell in 6:
+			var spot: Dictionary = game.cells["%d:%d" % [level, cell]]
+			var fits := false
+			match target:
+				"dark_cell":
+					fits = yard._kind(spot) == "undug" and bool(game.dig_preview(level, cell).ok)
+				"open_floor":
+					fits = bool(spot.dug) and str(spot.room) == "" and not _job_here(level, cell)
+				"room":
+					var room = game._room(str(spot.room)) if str(spot.room) != "" else null
+					if room != null:
+						var defin: Dictionary = game.catalog.rooms[str(room.type)]
+						fits = int(defin.get("staff_max", 0)) > room.staff.size() and not bool(room.offline)
+			if not fits:
+				continue
+			var box: Rect2 = yard.cell_screen(level, cell)
+			if view.encloses(box.grow(-box.size.x * 0.25)):
+				return box
+	return Rect2()
+
+
+func _job_here(level: int, cell: int) -> bool:
+	for job in [game.dig, game.build]:
+		if not job.is_empty() and int(job.level) == level and int(job.cell) == cell:
+			return true
+	return false
+
+
+func _local_rect(node: Control) -> Rect2:
+	if node == null or not node.is_visible_in_tree():
+		return Rect2()
+	return get_global_transform().affine_inverse() * node.get_global_rect()
+
+
+## One hint at a time. While a modal is up the callout is taken down but the hint stays current, so doing the
+## action inside the modal still counts as done.
+func _tick_hints() -> void:
+	if game == null:
+		return
+	if hint_id != "":
+		var row := _hint_by_id(hint_id)
+		if _hint_progress(hint_id) != hint_mark:
+			_dismiss_hint()
+			return
+		if not _hints_allowed() or not _hint_week(row):
+			_hide_hint()
+			return
+		var spot := Rect2()
+		if not _modal_up():
+			spot = _hint_target(str(row.get("target", "")))
+		if spot.size == Vector2.ZERO:
+			_drop_callout()
+			return
+		if hint_box == null:
+			_make_callout(row)
+		hint_box.point_at(spot, size, hud.size.y + 8.0 if hud != null else 8.0)
+		return
+	if not _hints_allowed() or _modal_up():
+		return
+	for row in _hints():
+		var id := str(row.get("id", ""))
+		if id == "" or Settings.hints_seen.has(id) or not _hint_week(row):
+			continue
+		var spot := _hint_target(str(row.get("target", "")))
+		if spot.size == Vector2.ZERO:
+			continue
+		hint_id = id
+		hint_mark = _hint_progress(id)
+		_make_callout(row)
+		hint_box.point_at(spot, size, hud.size.y + 8.0 if hud != null else 8.0)
+		return
+
+
+func _hint_week(row: Dictionary) -> bool:
+	var weeks: Array = row.get("weeks", [1, 40])
+	return weeks.size() >= 2 and game.week >= int(weeks[0]) and game.week <= int(weeks[1])
+
+
+func _hint_by_id(id: String) -> Dictionary:
+	for row in _hints():
+		if str(row.get("id", "")) == id:
+			return row
+	return {}
+
+
+func _make_callout(row: Dictionary) -> void:
+	_drop_callout()
+	hint_box = HintCallout.new()
+	hint_box.text = str(row.get("ru" if Copy.ru() else "en", row.get("en", "")))
+	hint_box.font = body_font
+	hint_box.dismissed.connect(_dismiss_hint)
+	hint_box.set_meta("hint", str(row.get("id", "")))
+	add_child(hint_box)
+
+
+func _drop_callout() -> void:
+	if hint_box != null:
+		hint_box.queue_free()
+	hint_box = null
+
+
+## Forget the current hint without marking it seen (setting off, new game, week window over).
+func _hide_hint() -> void:
+	_drop_callout()
+	hint_id = ""
+	hint_mark = ""
+
+
+func _loaded_hints() -> void:
+	hints_late = game != null and game.week > 6
+	_hide_hint()
+
+
+func _dismiss_hint() -> void:
+	if hint_id != "" and not Settings.hints_seen.has(hint_id):
+		Settings.hints_seen.append(hint_id)
+		Settings.save()
+	_hide_hint()
 
 
 func _fill_settings() -> void:
@@ -7975,6 +8203,17 @@ func _fill_settings() -> void:
 	box.add_child(scales)
 	var motion := Copy.t("Reduce motion") + ": " + Copy.t("On" if Settings.reduce_motion else "Off")
 	box.add_child(_pick_button(motion, Settings.reduce_motion, _toggle_motion, minf(420.0, inner)))
+	var hint_row := HBoxContainer.new()
+	hint_row.add_theme_constant_override("separation", 8)
+	var hints := Copy.t("Hints") + ": " + Copy.t("On" if Settings.hints_on else "Off")
+	var hints_toggle := _pick_button(hints, Settings.hints_on, _toggle_hints, minf(200.0, (inner - 8.0) * 0.45))
+	hints_toggle.set_meta("hints_toggle", true)
+	hint_row.add_child(hints_toggle)
+	var again := _pick_button("Show hints again", false, _hints_again, minf(260.0, (inner - 8.0) * 0.55))
+	again.set_meta("hints_again", true)
+	again.disabled = Settings.hints_seen.is_empty() and Settings.hints_on
+	hint_row.add_child(again)
+	box.add_child(hint_row)
 	var quiet := Copy.t("Fewer audio cues") + ": " + Copy.t("On" if Settings.quiet_cues else "Off")
 	box.add_child(_pick_button(quiet, Settings.quiet_cues, _toggle_quiet_cues, minf(420.0, inner)))
 	var quiet_hint := _label("No hover ticks or drips. Room sounds only while a room is open.", 14)
@@ -8193,6 +8432,82 @@ func _toggle_motion() -> void:
 	Settings.reduce_motion = not Settings.reduce_motion
 	Settings.save()
 	_fill_settings()
+
+
+func _toggle_hints() -> void:
+	Settings.hints_on = not Settings.hints_on
+	Settings.save()
+	if not Settings.hints_on:
+		_hide_hint()
+	_fill_settings()
+
+
+func _hints_again() -> void:
+	Settings.hints_on = true
+	Settings.hints_seen = []
+	Settings.save()
+	_fill_settings()
+
+
+## A small paper callout beside the element it points at. It takes no mouse input, so the element under it
+## still works; a click on it dismisses it.
+class HintCallout extends PanelContainer:
+	signal dismissed
+	var text := ""
+	var font: Font
+	var target := Rect2()
+	var below := false
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		z_index = 40
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color("efe6d2")
+		face.border_color = Color("3a2610")
+		face.set_border_width_all(2)
+		face.set_corner_radius_all(4)
+		face.set_content_margin_all(10)
+		face.shadow_color = Color(0, 0, 0, 0.45)
+		face.shadow_size = 6
+		add_theme_stylebox_override("panel", face)
+		var words := Label.new()
+		words.text = text
+		words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		words.custom_minimum_size = Vector2(260, 0)
+		words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		words.add_theme_font_size_override("font_size", 15)
+		words.add_theme_color_override("font_color", Color("24180e"))
+		if font != null:
+			words.add_theme_font_override("font", font)
+		add_child(words)
+
+	## Above the target when there is room under `top`, else below it; always inside the view.
+	func point_at(spot: Rect2, view: Vector2, top: float = 8.0) -> void:
+		target = spot
+		var want := get_combined_minimum_size()
+		size = want
+		var gap := 14.0
+		var x := spot.get_center().x - want.x * 0.5
+		var y := spot.position.y - want.y - gap
+		below = y < top
+		if below:
+			y = spot.end.y + gap
+		position = Vector2(clampf(x, 8.0, maxf(8.0, view.x - want.x - 8.0)), clampf(y, top, maxf(top, view.y - want.y - 8.0)))
+		queue_redraw()
+
+	func _draw() -> void:
+		var tip := target.get_center() - position
+		var x := clampf(tip.x, 14.0, size.x - 14.0)
+		var edge := 0.0 if below else size.y
+		var out := -10.0 if below else 10.0
+		var tri := PackedVector2Array([Vector2(x - 9.0, edge), Vector2(x + 9.0, edge), Vector2(x, edge + out)])
+		draw_colored_polygon(tri, Color("efe6d2"))
+		draw_polyline(PackedVector2Array([tri[0], tri[2], tri[1]]), Color("3a2610"), 2.0, true)
+
+	func _input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			if get_global_rect().has_point(get_global_mouse_position()):
+				dismissed.emit()
 
 
 class Backdrop extends Control:

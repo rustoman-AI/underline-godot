@@ -1,0 +1,10 @@
+{
+  "_note": "First-run hints by the project lead. Each hint is shown once, near the named UI element, on the given weeks of a new game, and is dismissed by a click. A setting 'Hints' (on by default) turns them all off. Keys: id, weeks [min, max], target (ui element id), en, ru.",
+  "hints": [
+    {"id": "dig", "weeks": [1, 3], "target": "dark_cell", "en": "Tap a dark cell to dig a new space.", "ru": "Нажми на тёмную ячейку, чтобы выкопать новое место."},
+    {"id": "build", "weeks": [1, 3], "target": "open_floor", "en": "Tap an empty floor to build a room.", "ru": "Нажми на пустой пол, чтобы построить комнату."},
+    {"id": "staff", "weeks": [1, 4], "target": "room", "en": "Open a room, then tap a name to put someone to work.", "ru": "Открой комнату, затем нажми на имя, чтобы поставить человека на работу."},
+    {"id": "end_turn", "weeks": [1, 4], "target": "end_turn", "en": "When a card at dawn asks for a choice, End turn stays dark until you choose.", "ru": "Если карточка на рассвете требует выбора, «Конец хода» остаётся тёмным, пока ты не выберешь."},
+    {"id": "network", "weeks": [3, 6], "target": "network_button", "en": "Open the Network to meet the powers around you.", "ru": "Открой «Сеть», чтобы встретить силы вокруг тебя."}
+  ]
+}
