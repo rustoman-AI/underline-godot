@@ -686,11 +686,13 @@ func _system_cyrillic() -> Font:
 func _load_portraits() -> void:
 	portraits.clear()
 	portrait_names.clear()
-	for i in range(1, 17):
+	var i := 1
+	while ResourceLoader.exists("res://assets/portraits/portrait_%02d.webp" % i):
 		var tex := ArtPack.load_texture("res://assets/portraits/portrait_%02d.webp" % i)
 		if tex != null:
 			portraits.append(tex)
 			portrait_names.append("portrait_%02d" % i)
+		i += 1
 
 
 func _audit_art() -> void:

@@ -7,6 +7,7 @@ extends SceneTree
 ##   godot --headless --path . -s res://sim/check_portraits.gd
 
 const SEEDS := [1, 2, 3, 4, 5, 6]
+const PORTRAITS := 28
 const SLOTS := {"chris": "old_man_coney", "mina": "salty_maggie", "kim": "bait", "drew": "barnum", "ann": "sylvia"}
 
 
@@ -19,12 +20,12 @@ func _init() -> void:
 		quit(1)
 		return
 	var names: Array = []
-	for i in range(1, 17):
+	for i in range(1, PORTRAITS + 1):
 		var name := "portrait_%02d" % i
 		if ResourceLoader.exists("res://assets/portraits/%s.webp" % name):
 			names.append(name)
-	if names.size() != 16:
-		bad.append("generic portraits %d of 16" % names.size())
+	if names.size() != PORTRAITS:
+		bad.append("generic portraits %d of %d" % [names.size(), PORTRAITS])
 	var pins: Dictionary = catalog.cast_portraits
 	var pinned: Array = pins.values()
 	var cast_ids: Array = []
