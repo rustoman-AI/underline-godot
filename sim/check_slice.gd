@@ -223,7 +223,7 @@ func _check_events(catalog: Catalog) -> bool:
 	for ev in catalog.events:
 		if bool(ev.get("sasha", false)):
 			sasha += 1
-		if not bool(ev.get("check_only", false)) and not ev.has("needs"):
+		if not bool(ev.get("check_only", false)) and not ev.has("needs") and not ev.has("trigger"):
 			drawn += 1
 			if str(ev.get("follow", "")) != "":
 				chains += 1

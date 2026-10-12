@@ -17,6 +17,7 @@ static func run(cat: Catalog) -> Dictionary:
 	var checks = load("res://sim/story_checks.gd").new()
 	checks.catalog = cat
 	checks._validate()
+	checks._endings()
 	checks._truth()
 	checks._placeholders()
 	checks._conditions()
@@ -25,6 +26,10 @@ static func run(cat: Catalog) -> Dictionary:
 	checks._words()
 	checks._expedition()
 	checks._saves()
+	checks._scenes()
+	checks._choices()
+	checks._decision()
+	checks._epilogue()
 	checks._bot()
 	return {"ok": not checks.failed, "lines": checks.lines}
 
@@ -143,7 +148,79 @@ func effect_problems(where: String, choice: Dictionary) -> PackedStringArray:
 					bad.append("%s: artifacts %s=%s" % [where, key, str(choice.artifacts[key])])
 	if choice.has("flag") and (typeof(choice.flag) != TYPE_STRING or str(choice.flag).strip_edges() == ""):
 		bad.append("%s: flag is not a name" % where)
+	if choice.has("proof") and (not _is_number(choice.proof) or int(choice.proof) < 1):
+		bad.append("%s: proof %s is not a positive number" % [where, str(choice.proof)])
+	if choice.has("ending"):
+		var ending := str(choice.ending)
+		if not Game.STORY_ENDINGS.has(ending) or not catalog.endings.get("endings", {}).has(ending):
+			bad.append("%s: ending %s is not one of %s in endings.json" % [where, ending, ", ".join(Game.STORY_ENDINGS)])
+	if choice.has("requires"):
+		bad.append_array(requires_problems(where, choice.requires))
 	return bad
+
+
+## Problems with a choice's "requires": the "needs" keys plus Game.REQUIRES_EXTRA, "any_of" checked inside.
+func requires_problems(where: String, req) -> PackedStringArray:
+	var bad: PackedStringArray = []
+	if not (req is Dictionary) or req.is_empty():
+		bad.append("%s: requires is not a non-empty object" % where)
+		return bad
+	var plain := {}
+	for key in req:
+		if not Game.REQUIRES_EXTRA.has(str(key)):
+			plain[key] = req[key]
+	if not plain.is_empty():
+		for line in needs_problems(where, {"needs": plain}):
+			bad.append(line.replace("needs key", "requires key"))
+	if req.has("proofs_min") and (not _is_number(req.proofs_min) or int(req.proofs_min) < 1 or int(req.proofs_min) > 10):
+		bad.append("%s: proofs_min %s" % [where, str(req.proofs_min)])
+	if req.has("hope_min") and (not _is_number(req.hope_min) or int(req.hope_min) < 0 or int(req.hope_min) > 100):
+		bad.append("%s: hope_min %s" % [where, str(req.hope_min)])
+	if req.has("any_flag"):
+		if not (req.any_flag is Array) or req.any_flag.is_empty() \
+				or req.any_flag.any(func(f): return typeof(f) != TYPE_STRING or str(f).strip_edges() == ""):
+			bad.append("%s: any_flag is not a list of names" % where)
+	if req.has("any_of"):
+		if not (req.any_of is Array) or req.any_of.is_empty():
+			bad.append("%s: any_of is not a non-empty list" % where)
+		else:
+			for i in req.any_of.size():
+				bad.append_array(requires_problems("%s any_of[%d]" % [where, i], req.any_of[i]))
+	return bad
+
+
+## Problems with an event's "trigger": a known order, and "needs" keys that do not hang on a window.
+func trigger_problems(id: String, ev: Dictionary) -> PackedStringArray:
+	var bad: PackedStringArray = []
+	var trigger = ev.trigger
+	if not (trigger is Dictionary):
+		return PackedStringArray(["%s: trigger is not an object" % id])
+	for key in trigger:
+		if not ["order", "needs"].has(str(key)):
+			bad.append("%s: unknown trigger key %s" % [id, key])
+	if not Game.TRIGGER_ORDERS.has(str(trigger.get("order", ""))):
+		bad.append("%s: trigger order %s is not one of %s" % [id, str(trigger.get("order", "")), ", ".join(Game.TRIGGER_ORDERS)])
+	if trigger.has("needs"):
+		bad.append_array(needs_problems(id, {"needs": trigger.needs}))
+		for key in ["leader", "answer", "after_weeks", "week"]:
+			if trigger.needs is Dictionary and trigger.needs.has(key):
+				bad.append("%s: trigger needs %s (a scene comes when its order is done)" % [id, key])
+	if ev.has("needs") or ev.has("forced"):
+		bad.append("%s: a triggered scene has needs or forced" % id)
+	return bad
+
+
+## Flags named in any "requires" (also inside any_of): each must be set by some choice's "flag".
+func _required_flags(req, out: Dictionary) -> void:
+	if not (req is Dictionary):
+		return
+	for key in ["flag", "no_flag"]:
+		if req.has(key):
+			out[str(req[key])] = true
+	for flag in req.get("any_flag", []):
+		out[str(flag)] = true
+	for sub in req.get("any_of", []):
+		_required_flags(sub, out)
 
 
 ## Every event with "needs" in any file, every choice in data/events_story.json, the story text.
@@ -152,13 +229,22 @@ func _validate() -> void:
 	var with_needs := 0
 	var leaders := _leaders()
 	var story := _story_ids()
+	var triggered := 0
+	var flags_set := {Game.EXPEDITION_FLAG: true}
+	var flags_read := {}
 	for ev in catalog.events:
 		var id := str(ev.get("id", ""))
 		if ev.has("needs") or ev.has("forced"):
 			with_needs += 1
 			bad.append_array(needs_problems(id, ev))
+		if ev.has("trigger"):
+			triggered += 1
+			bad.append_array(trigger_problems(id, ev))
 		for choice in ev.get("choices", []):
 			bad.append_array(effect_problems("%s/%s" % [id, choice.get("id", "")], choice))
+			if str(choice.get("flag", "")) != "":
+				flags_set[str(choice.flag)] = true
+			_required_flags(choice.get("requires", {}), flags_read)
 		if not story.has(id):
 			continue
 		for key in ev:
@@ -186,7 +272,7 @@ func _validate() -> void:
 			var cost = choice.get("cost", {})
 			if cost is Dictionary:
 				for key in cost:
-					if not LeaderEventChecks.STOCK.has(str(key)):
+					if not LeaderEventChecks.STOCK.has(str(key)) and not Game.ARTIFACTS.has(str(key)):
 						bad.append("%s/%s: unknown cost %s" % [id, cid, key])
 			else:
 				bad.append("%s/%s: cost is not an object" % [id, cid])
@@ -199,8 +285,11 @@ func _validate() -> void:
 				bad.append("%s/%s: standing is not an object" % [id, cid])
 		for en in texts:
 			bad.append_array(_text_problems(id, en, str(catalog.story_ru.get(en, ""))))
+	for flag in flags_read:
+		if not flags_set.has(flag):
+			bad.append("requires reads flag %s that no choice sets" % flag)
 	_expect(bad.is_empty(),
-		"Event conditions and story effects valid: %d events with needs, %d story events, every story string has Russian, no dashes" % [with_needs, story.size()],
+		"Event conditions and story effects valid: %d events with needs, %d scenes by order, %d story events, every story string has Russian, no dashes" % [with_needs, triggered, story.size()],
 		"story data: " + "; ".join(bad))
 
 
@@ -235,6 +324,38 @@ func _truth() -> void:
 				continue
 			bad.append_array(_text_problems("%s.%s" % [id, key], str(pair.get("en", "")), str(pair.get("ru", ""))))
 	_expect(bad.is_empty(), "Truth fragments: %d written, title, hint and text in EN and RU" % catalog.truth.size(), "truth.json: " + "; ".join(bad))
+
+
+## data/endings.json: the eight endings with title and text, every leader's four epilogue lines, three truth
+## lines; EN and RU everywhere, no dashes.
+func _endings() -> void:
+	var bad: PackedStringArray = []
+	var data: Dictionary = catalog.endings
+	var endings: Dictionary = data.get("endings", {})
+	for id in endings:
+		if not Game.ENDINGS.has(str(id)):
+			bad.append("unknown ending %s" % id)
+	for id in Game.ENDINGS:
+		for key in ["title", "text"]:
+			bad.append_array(_pair_problems("endings.%s.%s" % [id, key], endings.get(id, {}).get(key, null)))
+	var leaders: Dictionary = data.get("leaders", {})
+	for fid in _leaders():
+		for state in ["accepted", "refused", "helped", "none"]:
+			bad.append_array(_pair_problems("leaders.%s.%s" % [fid, state], leaders.get(fid, {}).get(state, null)))
+	for fid in leaders:
+		if not _leaders().has(str(fid)):
+			bad.append("leaders.%s is not a leader" % fid)
+	for state in ["none", "some", "proof"]:
+		bad.append_array(_pair_problems("truth.%s" % state, data.get("truth", {}).get(state, null)))
+	_expect(bad.is_empty() and endings.size() == 8 and leaders.size() == 5,
+		"Endings: %d endings, %d leaders x 4 epilogue lines, 3 truth lines, EN and RU, no dashes" % [endings.size(), leaders.size()],
+		"endings.json: " + "; ".join(bad))
+
+
+func _pair_problems(where: String, pair) -> PackedStringArray:
+	if not (pair is Dictionary):
+		return PackedStringArray(["%s is not {en, ru}" % where])
+	return _text_problems(where, str(pair.get("en", "")), str(pair.get("ru", "")))
 
 
 ## Empty data/events_story.json and data/truth.json ({"events": []}, {"fragments": []}) load and play.
@@ -300,14 +421,21 @@ func _conditions() -> void:
 		[{"no_flag": "never_set"}, {"no_flag": "seen_lamps"}],
 		[{"artifacts_min": {"iron": 2}}, {"artifacts_min": {"iron": 3}}],
 		[{"week": [10, 12]}, {"week": [11, 12]}],
-		[{"ending_blocked": false}, {"ending_blocked": true}],
+		[{"ending_blocked": true}, {"ending_blocked": false}],
 		[{"week": [8, 12], "standing_min": {"synod": 20}, "flag": "seen_lamps"}, {"week": [8, 12], "standing_min": {"synod": 20}, "flag": "never_set"}],
 	]
+	var reasons: PackedStringArray = []
 	for pair in cases:
 		if game.needs_window(_probe(pair[0])) < 0:
 			bad.append("held: %s" % str(pair[0]))
 		if game.needs_window(_probe(pair[1])) >= 0:
 			bad.append("not held: %s" % str(pair[1]))
+		if game.requires_reason(pair[0]) != "":
+			bad.append("requires met but says %s" % game.requires_reason(pair[0]))
+		var why := game.requires_reason(pair[1])
+		if why == "" or why.contains("%"):
+			bad.append("requires %s unmet without a reason" % str(pair[1]))
+		reasons.append(why)
 	var season_game := _game()
 	season_game.week = flood_week
 	season_game.active_season = {"id": "flood", "start": flood_week, "until": flood_week + 1}
@@ -316,7 +444,7 @@ func _conditions() -> void:
 	game.events_seen["probe"] = 4
 	if game.needs_window(_probe({"week": [1, 40]})) >= 0:
 		bad.append("shown twice")
-	_expect(bad.is_empty(), "Every needs key holds and fails on its own, all keys together, once a run (%d cases)" % (cases.size() + 2),
+	_expect(bad.is_empty(), "Every needs key holds and fails on its own, all keys together, once a run; as \"requires\" each unmet key gives a reason (%d cases)" % (cases.size() + 2),
 		"conditions " + "; ".join(bad))
 	var invalid := {
 		"unknown key": {"weather": "rain"}, "standing range": {"standing_min": {"synod": 300}},
@@ -329,11 +457,20 @@ func _conditions() -> void:
 		if needs_problems("probe", _probe(invalid[name])).is_empty():
 			missed.append(name)
 	var effects := {"fragment id": {"fragment": "the_moon"}, "how": {"fragment": "depot_order", "how": "stolen"},
-		"how alone": {"how": "honest"}, "artifact kind": {"artifacts": {"gold": 1}}, "flag": {"flag": ""}}
+		"how alone": {"how": "honest"}, "artifact kind": {"artifacts": {"gold": 1}}, "flag": {"flag": ""},
+		"proof zero": {"proof": 0}, "ending id": {"ending": "winter"}, "requires empty": {"requires": {}},
+		"requires key": {"requires": {"luck": 3}}, "proofs_min": {"requires": {"proofs_min": "3"}},
+		"hope_min": {"requires": {"hope_min": 140}}, "any_flag": {"requires": {"any_flag": []}},
+		"any_of empty": {"requires": {"any_of": []}}, "any_of inner": {"requires": {"any_of": [{"standing_min": {"synod": 300}}]}}}
 	for name in effects:
 		if effect_problems("probe", effects[name]).is_empty():
 			missed.append("effect " + name)
-	_expect(missed.is_empty(), "Validation rejects every malformed needs key and story effect (%d cases)" % (invalid.size() + effects.size()),
+	var triggers := {"order": {"order": "approach_moon"}, "key": {"order": "approach_floor", "when": 3},
+		"week": {"order": "approach_floor", "needs": {"week": [1, 4]}}, "needs key": {"order": "approach_floor", "needs": {"weather": 1}}}
+	for name in triggers:
+		if trigger_problems("probe", {"id": "probe", "trigger": triggers[name]}).is_empty():
+			missed.append("trigger " + name)
+	_expect(missed.is_empty(), "Validation rejects every malformed needs key, story effect, requires and trigger (%d cases)" % (invalid.size() + effects.size() + triggers.size()),
 		"validation let through: " + ", ".join(missed))
 
 
@@ -506,6 +643,208 @@ func _saves() -> void:
 		if copy.import_state(missing):
 			bad.append("current schema without " + key)
 	_expect(bad.is_empty(), "Rejects malformed fragments, testimonies and artifacts", "accepted: " + ", ".join(bad))
+
+
+func _shown(game: Game, id: String) -> bool:
+	return game.pending.any(func(ev): return str(ev.id) == id)
+
+
+## Bunker scenes come from orders, never from the pool or the story slot: the Floor on its approach, the
+## Quarantine when the expedition comes back with the path known and iron, the Observatory on its own order.
+## Each comes at the next dawn, once a run.
+func _scenes() -> void:
+	var bad: PackedStringArray = []
+	var game := _game()
+	game.week = 20
+	if (game._event_pool(false) + game._event_pool(true)).any(func(ev): return ev.has("trigger")):
+		bad.append("a scene is in the pool")
+	game._tunnel_by_id("to_floor").dug = true
+	game.artifacts.papers = 1
+	if not game.apply({"kind": "order", "order": "approach"}):
+		bad.append("approach refused")
+	if not game.floor_met or game.story_queue != ["st3_floor"] or _shown(game, "st3_floor"):
+		bad.append("floor met %s queue %s" % [game.floor_met, game.story_queue])
+	if game.approach_block() == "":
+		bad.append("approach open twice")
+	game.end_week()
+	if not _shown(game, "st3_floor") or not game.story_queue.is_empty() or not game.floor_met:
+		bad.append("floor not at the next dawn: queue %s" % game.story_queue)
+	game.apply({"kind": "event", "event_id": "st3_floor", "choice_id": "leave"})
+	game._fire_trigger("approach_floor")
+	if not game.story_queue.is_empty():
+		bad.append("floor queued twice")
+	for known in [false, true]:
+		var trip := _game()
+		trip.week = 20
+		if known:
+			trip.fragments = {"quarantine_path": {"known": true, "how": "found", "week": 18}}
+			trip.artifacts.iron = 1
+		trip.expedition = {"left": 1, "tunnel": "to_ferry"}
+		trip.squads[trip.player].away = true
+		trip._tick_expedition()
+		var want: Array = ["st3_quarantine"] if known else []
+		if trip.story_queue != want or bool(trip.stations.vault.hidden) or not trip.flags.has(Game.EXPEDITION_FLAG):
+			bad.append("expedition path %s queue %s vault hidden %s" % [known, trip.story_queue, trip.stations.vault.hidden])
+	var obs := _game()
+	obs.week = 24
+	var locked := obs.observatory_block()
+	obs.artifacts.words = 2
+	var half := obs.observatory_block()
+	obs.fragments = {"synod_recording": {"known": true, "how": "honest", "week": 20}}
+	var open := obs.observatory_block()
+	var hidden_before := bool(obs.stations.oldcommand.hidden)
+	var orders := obs.orders_left
+	var queued := obs.queue_order({"kind": "order", "order": "approach_observatory"})
+	if locked != "Needs 2 testimonies and the recording" or half != locked or open != "" or not hidden_before:
+		bad.append("observatory locked '%s' half '%s' open '%s' hidden %s" % [locked, half, open, hidden_before])
+	if not queued or obs.orders_left != orders - 1:
+		bad.append("observatory order not queued for one order")
+	obs.end_week()
+	if not _shown(obs, "st3_observatory") or bool(obs.stations.oldcommand.hidden) or not bool(obs.stations.oldcommand.known):
+		bad.append("observatory not met at the next dawn")
+	if obs.observatory_block() != "The Observatory has already been met." or obs.can_approach_observatory():
+		bad.append("observatory open twice")
+	_expect(bad.is_empty(), "Bunker scenes come by order at the next dawn, once a run, never pooled; Observatory order locked with its reason, then reveals Court St",
+		"scenes: " + "; ".join(bad))
+
+
+## A choice with unmet "requires" stays on the card, closed, with its reason, and cannot be taken. "proof" adds
+## to proofs(), a cost may spend artifacts, "ending" ends the run at once.
+func _choices() -> void:
+	var bad: PackedStringArray = []
+	var game := _game()
+	game.week = 20
+	game.hope = 40
+	var ev := _probe({"week": [1, 40]})
+	ev.choices = [
+		{"id": "proof", "label": "P", "requires": {"proofs_min": 3}, "ending": "open_door"},
+		{"id": "hope", "label": "H", "requires": {"hope_min": 60}},
+		{"id": "any", "label": "A", "requires": {"any_flag": ["observatory_trusted", "observatory_sheltered"]}},
+		{"id": "either", "label": "E", "requires": {"any_of": [{"flag": "floor_to_directorate"}, {"standing_min": {"directorate": 50}}]}},
+		{"id": "spend", "label": "S", "cost": {"words": 2}, "proof": 1},
+		{"id": "free", "label": "F"},
+	]
+	game.proof_extra = 1
+	var wants := {
+		"proof": "Needs 3 proofs, you have 1",
+		"hope": "Needs hope 60, now 40",
+		"any": "Needs the Observatory's trust or the Observatory sheltered",
+		"either": "Needs the Floor handed over or %s's trust 50" % game._leader_display("directorate"),
+	}
+	for choice in ev.choices:
+		var why := game.lock_reason(choice)
+		if wants.has(str(choice.id)) and why != str(wants[choice.id]):
+			bad.append("%s says '%s'" % [choice.id, why])
+	var mixed := game.requires_reason({"any_of": [{"flag": "floor_to_directorate", "hope_min": 90}, {"proofs_min": 5}]})
+	if not mixed.contains("; or "):
+		bad.append("any_of with compound ways says '%s'" % mixed)
+	if not game.choice_locked(ev.choices[3]):
+		bad.append("any_of open while neither way holds")
+	game.standing.directorate = 50
+	if game.choice_locked(ev.choices[3]):
+		bad.append("any_of met but locked")
+	game._present_event(ev)
+	if game.apply({"kind": "event", "event_id": "probe", "choice_id": "proof"}) or game.over != "":
+		bad.append("took a closed choice")
+	if game.apply({"kind": "event", "event_id": "probe", "choice_id": "spend"}):
+		bad.append("spent words it did not have")
+	game.artifacts.words = 2
+	var before := game.proofs()
+	if not game.apply({"kind": "event", "event_id": "probe", "choice_id": "spend"}) or int(game.artifacts.words) != 0 or game.proofs() != before + 1:
+		bad.append("spend: words %d proofs %d" % [int(game.artifacts.words), game.proofs()])
+	var end := _game()
+	end.week = 30
+	end.proof_extra = 3
+	var door := _probe({"week": [1, 40]})
+	door.choices = [{"id": "door", "label": "D", "requires": {"proofs_min": 3}, "ending": "open_door"}, {"id": "b", "label": "B"}]
+	end._present_event(door)
+	end.apply({"kind": "event", "event_id": "probe", "choice_id": "door"})
+	var week_then := end.week
+	end.end_week()
+	if end.over != "open_door" or end.ending_id() != "open_door" or end.week != week_then:
+		bad.append("ending over '%s' id '%s' week %d" % [end.over, end.ending_id(), end.week])
+	_expect(bad.is_empty(), "Closed choices show why (proofs, hope, flags, either way) and cannot be taken; proof counts, words pay, an ending ends the run",
+		"choices: " + "; ".join(bad))
+
+
+## st3_decision: forced in weeks 34 to 38 only while one of its endings can be chosen, once; "hold" changes
+## nothing; the stewards and auto-resolve never pick an ending for the player. With every ending closed the run
+## ends as winter at week 40.
+func _decision() -> void:
+	var bad: PackedStringArray = []
+	var ev: Dictionary = {}
+	for row in catalog.events:
+		if str(row.get("id", "")) == "st3_decision":
+			ev = row
+	if ev.is_empty():
+		_expect(false, "", "st3_decision missing")
+		return
+	var shut := _game()
+	shut.week = 34
+	if not shut.ending_blocked() or shut.needs_window(ev) >= 0:
+		bad.append("shown with every ending closed")
+	var game := _game()
+	game.week = 34
+	game.proof_extra = 3
+	game.flags["floor_published"] = true
+	if game.ending_blocked() or game.needs_window(ev) < 0:
+		bad.append("not shown with the door open")
+	game.week = 33
+	if game.needs_window(ev) >= 0:
+		bad.append("shown before week 34")
+	game.week = 34
+	game.week_event_ids = {}
+	game._offer_forced_event()
+	if not _shown(game, "st3_decision"):
+		bad.append("not offered at dawn")
+	var auto := _game()
+	auto.week = 34
+	auto.proof_extra = 3
+	auto.flags["floor_published"] = true
+	auto._present_event(ev)
+	auto._resolve_pending()
+	if auto.over != "" or _shown(auto, "st3_decision") or not auto.events_seen.has("st3_decision"):
+		bad.append("auto-resolve over '%s' still pending %s" % [auto.over, _shown(auto, "st3_decision")])
+	var stock_before := game.stock.duplicate(true)
+	var hope_before := game.hope
+	if not game.apply({"kind": "event", "event_id": "st3_decision", "choice_id": "hold"}) or game.over != "" \
+			or game.stock != stock_before or game.hope != hope_before:
+		bad.append("hold changed the run")
+	game.week = 35
+	if game.needs_window(ev) >= 0:
+		bad.append("shown again after hold")
+	var winter := _game()
+	for over in Game.OVER_ENDINGS:
+		winter.over = str(over)
+		if winter.ending_id() != str(Game.OVER_ENDINGS[over]) or winter.ending_text(winter.ending_id(), "title") == "":
+			bad.append("%s maps to %s" % [over, winter.ending_id()])
+	_expect(bad.is_empty(), "Final decision: weeks 34 to 38 while an ending is open, once; hold changes nothing; auto-resolve holds; game overs map to their endings",
+		"decision: " + "; ".join(bad))
+
+
+## The epilogue's leader lines by answer and its truth line by proofs; deals made and turned away.
+func _epilogue() -> void:
+	var bad: PackedStringArray = []
+	var game := _game()
+	game.leader_answers = {"depot": {"answer": "accepted", "week": 3}, "synod": {"answer": "silence", "week": 4},
+		"exchange": {"answer": "refused", "week": 5}, "black_flag": {"answer": "helped", "week": 6}}
+	var states := {"depot": "accepted", "synod": "refused", "exchange": "refused", "black_flag": "helped", "directorate": "none"}
+	for fid in states:
+		if game.leader_epilogue_state(fid) != str(states[fid]) or game.leader_epilogue(fid) == "":
+			bad.append("%s state %s" % [fid, game.leader_epilogue_state(fid)])
+	var truths: Array = [game.truth_state()]
+	game.know_fragment("depot_order", "dirty")
+	truths.append(game.truth_state())
+	game.proof_extra = 3
+	truths.append(game.truth_state())
+	if truths != ["none", "some", "proof"] or game.truth_epilogue() == "":
+		bad.append("truth %s" % truths)
+	game.journal = [{"kind": "audience", "result": "deal"}, {"kind": "audience", "result": "refused"},
+		{"kind": "audience", "result": "silence"}, {"kind": "audience", "result": "helped"}]
+	if game.deals_tally() != {"made": 1, "refused": 2}:
+		bad.append("deals %s" % game.deals_tally())
+	_expect(bad.is_empty(), "Epilogue: leader lines by answer (silence reads as refused), truth line by proofs, deals tallied",
+		"epilogue: " + "; ".join(bad))
 
 
 ## Share of bot runs (percent) an act I story event (st1_*) must show in; COVERAGE_REST for any not listed.

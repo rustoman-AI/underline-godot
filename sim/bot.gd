@@ -11,8 +11,15 @@ var profile := "careful"
 ## "helper_mixed" offers help to everyone, and takes the Synod's and the Exchange's deal once it has helped them
 ## (or when it cannot pay for the help).
 ## A deal the bot cannot pay for is left waiting, which the game counts as silence.
+## "storyteller" answers like "helper", listens to one new resident story a week (as the player does in a
+## dossier), approaches the Floor and the Observatory as soon as it can, takes the choice with a proof (then a
+## flag) in bunker scenes, and takes an ending at the final decision.
 var audience_style := "silence"
-const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed"]
+const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed", "storyteller"]
+## At an event offering endings (st3_decision) the bot holds unless `take_endings` is set or it is a
+## storyteller, so the stewards in bot_run still play to week 40. Taking one, it prefers them in this order.
+var take_endings := false
+const ENDING_ORDER := ["door", "climb", "order", "hold"]
 const MIXED_ACCEPTS := ["synod", "exchange"]
 var _did_aid := false
 var _did_talk := false
@@ -43,6 +50,8 @@ func _act(game: Game) -> void:
 	if game.use_medkits():
 		pass
 	_answer_audience(game)
+	if audience_style == "storyteller":
+		_listen(game)
 	if profile == "follower":
 		_follow(game)
 		return
@@ -54,7 +63,11 @@ func _act(game: Game) -> void:
 		var ev: Dictionary = game.pending[0]
 		var best: Dictionary = {}
 		var best_score := -99999
-		if profile == "expander" and _all_checks(ev):
+		if Game.offers_ending(ev):
+			best = _decision_choice(game, ev)
+		elif audience_style == "storyteller" and ev.has("trigger"):
+			best = _scene_choice(game, ev)
+		elif profile == "expander" and _all_checks(ev):
 			best = _expander_check_choice(game, ev)
 		else:
 			for choice in ev.choices:
@@ -84,11 +97,51 @@ func _act(game: Game) -> void:
 		game.apply({"kind": "staff"})
 
 
+func _decision_choice(game: Game, ev: Dictionary) -> Dictionary:
+	var order: Array = ENDING_ORDER if take_endings or audience_style == "storyteller" else ["hold"]
+	for id in order:
+		for choice in ev.choices:
+			if str(choice.id) == id and _open(game, choice):
+				return choice
+	for choice in ev.choices:
+		if str(choice.get("ending", "")) == "" and _open(game, choice):
+			return choice
+	return {}
+
+
+func _scene_choice(game: Game, ev: Dictionary) -> Dictionary:
+	var best := {}
+	var best_score := -1
+	for choice in ev.choices:
+		if not _open(game, choice):
+			continue
+		var score := int(choice.get("proof", 0)) * 2 + (1 if str(choice.get("flag", "")) != "" else 0)
+		if score > best_score:
+			best_score = score
+			best = choice
+	return best
+
+
+func _listen(game: Game) -> void:
+	for person in game.residents:
+		var row: Dictionary = Voice.story(game.cast_id_of(person))
+		var id := str(row.get("id", ""))
+		var mark = game.vo_heard.get(id, null)
+		if id == "" or not Voice.has_audio(row) or (mark is bool and mark):
+			continue
+		game.hear_story(id)
+		return
+
+
+func _open(game: Game, choice: Dictionary) -> bool:
+	return not game.choice_locked(choice) and game.choice_offered(choice) and game.afford_choice(choice)
+
+
 func _answer_audience(game: Game) -> void:
 	if game.audience.is_empty() or audience_style == "silence":
 		return
 	var fid := str(game.audience.get("faction", ""))
-	if audience_style == "helper" or audience_style == "helper_mixed":
+	if audience_style == "helper" or audience_style == "helper_mixed" or audience_style == "storyteller":
 		var deal_now := audience_style == "helper_mixed" and MIXED_ACCEPTS.has(fid) \
 			and (str(game.leader_answers.get(fid, {}).get("answer", "")) == "helped" or game.help_reason() != "")
 		if deal_now:
@@ -119,6 +172,10 @@ func _follow(game: Game) -> void:
 		guard += 1
 		var ev: Dictionary = game.pending[0]
 		var choice := _visible_choice(game, ev, forecasts)
+		if Game.offers_ending(ev):
+			choice = _decision_choice(game, ev)
+		elif audience_style == "storyteller" and ev.has("trigger"):
+			choice = _scene_choice(game, ev)
 		if choice.is_empty():
 			break
 		if not game.apply(_event_action(game, ev, choice)):
@@ -467,6 +524,11 @@ func _project_expander(game: Game) -> Dictionary:
 
 
 func _order(game: Game) -> Dictionary:
+	if audience_style == "storyteller":
+		if game.can_approach():
+			return {"kind": "order", "order": "approach"}
+		if game.can_approach_observatory():
+			return {"kind": "order", "order": "approach_observatory"}
 	if profile == "expander":
 		return _order_expander(game)
 	for demand in game.demands:

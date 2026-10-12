@@ -20,6 +20,8 @@ var leader_ru: Dictionary = {}
 var story_ru: Dictionary = {}
 ## Truth fragments by id (data/truth.json): title, hint and text, each {en, ru}.
 var truth: Dictionary = {}
+## Endings and epilogue lines (data/endings.json): "endings", "leaders" by answer, "truth" by proofs.
+var endings: Dictionary = {}
 var coney: Dictionary = {}
 var residents: Array = []
 var names: Dictionary = {}
@@ -45,6 +47,7 @@ func load_all() -> bool:
 	leader_ru = add_events(_obj("events_leaders.json"), base_ru)
 	story_ru = add_events(_obj("events_story.json"), base_ru)
 	truth = _index(_obj("truth.json").get("fragments", []), "id")
+	endings = _obj("endings.json")
 	check_events = _obj("events_checks.json")
 	coney = _obj("characters_coney.json")
 	residents = _arr("residents.json")

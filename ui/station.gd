@@ -3245,6 +3245,10 @@ func _journal_line(row: Dictionary) -> String:
 			return Copy.t("Truth learned: %s.") % _fragment_title(str(row.get("id", "")))
 		"testimony":
 			return Copy.t("Testimony gathered: Words +1 (%d stories heard).") % int(row.get("stories", 0))
+		"proof":
+			return Copy.t("Proof gathered: %d.") % int(row.get("amount", 0))
+		"ending":
+			return Copy.t("The run ended: %s.") % game.ending_text(str(row.get("ending", "")), "title")
 	return kind
 
 
@@ -3256,7 +3260,7 @@ func _journal_group(kind: String) -> String:
 			return "decisions"
 		"order", "cancel", "order_done", "station", "war", "ultimatum":
 			return "map"
-		"news", "radio", "season", "flood", "deaths", "born", "truth", "testimony":
+		"news", "radio", "season", "flood", "deaths", "born", "truth", "testimony", "proof", "ending":
 			return "news"
 	return ""
 
@@ -3372,17 +3376,7 @@ func _truth_slip(id: String) -> PanelContainer:
 	var fid := str(Game.FRAGMENTS[id])
 	var row = game.fragments.get(id, {})
 	var known := game.fragment_known(id)
-	var slip := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = SLIP_PAPER if known else SLIP_UNKNOWN
-	style.border_color = Color(0, 0, 0, 0.35)
-	style.set_border_width_all(1)
-	style.shadow_color = Color(0, 0, 0, 0.35)
-	style.shadow_size = 3
-	style.shadow_offset = Vector2(1, 2)
-	style.set_content_margin_all(10)
-	slip.add_theme_stylebox_override("panel", style)
-	slip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var slip := _slip_panel(SLIP_PAPER if known else SLIP_UNKNOWN)
 	var line := HBoxContainer.new()
 	line.add_theme_constant_override("separation", 10)
 	slip.add_child(line)
@@ -3411,6 +3405,21 @@ func _truth_slip(id: String) -> PanelContainer:
 		if hint != "":
 			words.add_child(_slip_label(hint, 15, SLIP_INK))
 		words.add_child(_slip_label(holder, 13, SLIP_MUTED))
+	return slip
+
+
+func _slip_panel(paper: Color) -> PanelContainer:
+	var slip := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = paper
+	style.border_color = Color(0, 0, 0, 0.35)
+	style.set_border_width_all(1)
+	style.shadow_color = Color(0, 0, 0, 0.35)
+	style.shadow_size = 3
+	style.shadow_offset = Vector2(1, 2)
+	style.set_content_margin_all(10)
+	slip.add_theme_stylebox_override("panel", style)
+	slip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return slip
 
 
@@ -3606,19 +3615,19 @@ func _paint_dawn() -> void:
 		elif choice.has("bet"):
 			_body("The odds are hidden.")
 		var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
+		var why := ""
 		if game.choice_locked(choice):
-			var held := str(choice.get("lock_reason", ""))
-			pick.disabled = true
-			pick.tooltip_text = held
-			_body(held)
+			why = game.lock_reason(choice)
 		elif not game.afford_choice(choice):
-			var why := game.shortage_text(choice.get("cost", {}))
+			why = game.shortage_text(choice.get("cost", {}))
 			if why == "":
 				why = Copy.t("That cost cannot be paid.")
+		card_body.add_child(pick)
+		if game.choice_locked(choice) or why != "":
 			pick.disabled = true
 			pick.tooltip_text = why
-			_body(why)
-		card_body.add_child(pick)
+			if why != "":
+				card_body.add_child(_choice_reason(why))
 	if game.pending.size() > 1:
 		_body(Copy.t("%s waiting after this one.") % Words.count(game.pending.size() - 1, "other", "others"))
 	var later := _button("Not now", _close_card)
@@ -3626,6 +3635,15 @@ func _paint_dawn() -> void:
 	later.custom_minimum_size.y = 40
 	later.add_theme_font_size_override("font_size", 17)
 	card_body.add_child(later)
+
+
+## Why the choice above is closed: one small muted line right under its button.
+func _choice_reason(text: String) -> Label:
+	var lab := _label(text, 15)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	return lab
 
 
 func _show_order_report() -> void:
@@ -4276,6 +4294,10 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if check_flash:
 		footer.text = _check_result_line()
 		footer.visible = footer.text != ""
+	if game.over != "":
+		_close_card()
+		_show_ending()
+		return
 	_say(Voice.event_line(event_id, choice_id), title)
 	_advance_dawn(before)
 
@@ -4571,11 +4593,83 @@ func _advance_dawn(before: String) -> void:
 func _show_ending() -> void:
 	if not _claim(ModalDeck.NARRATIVE, "ending", _show_ending):
 		return
+	var id := game.ending_id()
+	if game.ending_text(id, "title") != "":
+		_epilogue(id)
+		return
 	_open_card(_ending())
 	_body(Copy.t("Week %d. Food %d, air %d, power %d, materials %d.") % [
 		game.week, int(game.stock.food), int(game.stock.air), int(game.stock.power), int(game.stock.materials)])
 	_body(Copy.t("Hope %d. Discontent %d. %s.") % [game.hope, game.discontent, Words.count(game.residents.size(), "person", "people")])
 	card_body.add_child(_button("Close", _close_card))
+
+
+## The epilogue from data/endings.json on paper: the ending, a line per leader by your answer, the truth line,
+## the run in numbers, then a new run or the main menu. Scrolls when it runs long.
+func _epilogue(id: String) -> void:
+	_open_card(game.ending_text(id, "title"), false)
+	card_roomy = true
+	_fit_card()
+	_body(game.ending_text(id, "text"))
+	_heading_small("The leaders")
+	for row in game.catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		var slip := _slip_panel(SLIP_PAPER)
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 10)
+		slip.add_child(line)
+		var mark := _faction_mark(game.leader(fid), 32)
+		mark.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		line.add_child(mark)
+		var words := VBoxContainer.new()
+		words.add_theme_constant_override("separation", 2)
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_child(words)
+		words.add_child(_slip_label(_leader_text(game.leader_name(fid, "leader")), 16, SLIP_INK, true))
+		words.add_child(_slip_label(game.leader_epilogue(fid), 15, SLIP_INK))
+		card_body.add_child(slip)
+	_heading_small("The truth")
+	var truth := _slip_panel(SLIP_PAPER if game.truth_state() != "none" else SLIP_UNKNOWN)
+	truth.add_child(_slip_label(game.truth_epilogue(), 15, SLIP_INK))
+	card_body.add_child(truth)
+	_heading_small("The run")
+	var known := 0
+	for fragment in Game.FRAGMENTS:
+		if game.fragment_known(str(fragment)):
+			known += 1
+	var deals := game.deals_tally()
+	for text in [
+		Copy.t("Week %d. %s. Stations held: %d.") % [game.week, Words.count(game.residents.size(), "person", "people"), game.owned_count()],
+		Copy.t("Hope %d. Discontent %d.") % [game.hope, game.discontent],
+		Copy.t("Truth fragments known: %d of %d, with proof %d.") % [known, Game.FRAGMENTS.size(), game.honest_fragments()],
+		Copy.t("Stories heard: %d of %d.") % [game.stories_heard(), Voice.of_type("story").size()],
+		Copy.t("Deals made: %d. Deals refused: %d.") % [int(deals.made), int(deals.refused)],
+	]:
+		var lab := _label(text, 16)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lab.add_theme_color_override("font_color", PAPER_MUTED)
+		card_body.add_child(lab)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 12)
+	for pair in [["New run", _new_run], ["Main menu", _back_to_menu]]:
+		var button := _button(str(pair[0]), pair[1])
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		buttons.add_child(button)
+	card_body.add_child(buttons)
+	card_scroll.scroll_vertical = 0
+	card_scroll.set_deferred("scroll_vertical", 0)
+
+
+func _heading_small(text: String) -> void:
+	var lab := _label(text, 19, true)
+	card_body.add_child(lab)
+
+
+func _new_run() -> void:
+	_close_card()
+	_begin_new_game(true)
 
 
 func _ending() -> String:

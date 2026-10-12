@@ -1063,6 +1063,8 @@ func _order_icon(kind: String) -> String:
 			return "squad"
 		"expedition":
 			return "artifact"
+		"approach", "approach_observatory":
+			return "envoy"
 		_:
 			return kind
 
@@ -1510,6 +1512,10 @@ func _fill_sheet_body(sid: String) -> void:
 	_sheet_body.add_child(back)
 
 
+## Orders aimed at a bunker rather than the station on the sheet; a locked one says why on its face.
+const APPROACHES := ["approach", "approach_observatory"]
+
+
 func _order_button(kind: String, label: String, sid: String, parent: Node = null) -> void:
 	if parent == null:
 		parent = _sheet_body
@@ -1524,12 +1530,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	row.offset_right = -8.0
 	row.add_theme_constant_override("separation", 8)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	var icon_name := kind
-	if kind == "move":
-		icon_name = "squad"
-	elif kind == "expedition":
-		icon_name = "artifact"
-	var tex := ArtPack.icon_texture(icon_name, 24.0)
+	var tex := ArtPack.icon_texture(_order_icon(kind), 24.0)
 	if tex != null:
 		var face := TextureRect.new()
 		face.texture = tex
@@ -1545,6 +1546,11 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 		if who.is_empty():
 			who_name = Copy.t("No councillor is free.")
 		detail = "%s · %s · %s" % [_cost_text(game.order_cost(kind, sid)), who_name, Copy.t("Next dawn")]
+	var why := ""
+	if game != null:
+		why = game.order_block(kind, sid)
+	if why != "" and APPROACHES.has(kind):
+		detail = why
 	var caption := Label.new()
 	caption.text = "%s\n%s" % [Copy.t(label), detail]
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1554,9 +1560,6 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	row.add_child(caption)
 	button.custom_minimum_size = Vector2(0, 36)
 	button.add_child(row)
-	var why := ""
-	if game != null:
-		why = game.order_block(kind, sid)
 	button.disabled = why != ""
 	if game != null:
 		button.tooltip_text = _order_tip(game, kind, sid, why)
@@ -1564,7 +1567,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
-	button.custom_minimum_size = Vector2(0, 52)
+	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 52)
 	parent.add_child(button)
 
 
@@ -1593,7 +1596,7 @@ func _issue(kind: String, sid: String) -> void:
 	var action := {"kind": "order", "order": kind}
 	if kind == "move":
 		action["dest"] = sid
-	elif kind == "expedition":
+	elif APPROACHES.has(kind) or kind == "expedition":
 		pass
 	else:
 		action["station"] = sid
@@ -1690,6 +1693,10 @@ func _order_title(kind: String) -> String:
 			return "Open trade"
 		"expedition":
 			return "Start expedition"
+		"approach":
+			return "Approach the Floor"
+		"approach_observatory":
+			return "Approach the Observatory"
 		_:
 			return kind.capitalize()
 
@@ -1773,6 +1780,11 @@ func _add_actions(sid: String, own: bool, parent: Node) -> void:
 	_order_button("move", "Move squad", sid, parent)
 	_order_button("trade", "Open trade", sid, parent)
 	_order_button("expedition", "Start expedition", sid, parent)
+	var game = _game()
+	if game != null and not game.floor_met:
+		_order_button("approach", "Approach the Floor", sid, parent)
+	if game != null and not game._scene_used("st3_observatory"):
+		_order_button("approach_observatory", "Approach the Observatory", sid, parent)
 
 
 func _open_station(sid: String) -> void:

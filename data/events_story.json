@@ -602,6 +602,238 @@
       "major": false,
       "weight": 6,
       "cooldown": 99
+    },
+    {
+      "id": "st3_floor",
+      "title": "The meeting that never ended",
+      "trigger": {
+        "order": "approach_floor"
+      },
+      "text": "The door of City Hall is open. Inside, forty people sit around a long table and nobody looks up. Helena Brook reads the quorum. She asks who speaks for Coney Island. Then she asks what you have come to change in the minutes.",
+      "choices": [
+        {
+          "id": "publish",
+          "label": "Ask her to read the minutes aloud, to everyone",
+          "proof": 1,
+          "flag": "floor_published",
+          "hope": -3,
+          "discontent": 3,
+          "standing": {
+            "depot": 10,
+            "directorate": -15
+          }
+        },
+        {
+          "id": "deal",
+          "label": "Trade your silence for a place on their list",
+          "requires": {
+            "no_flag": "floor_published"
+          },
+          "flag": "floor_deal",
+          "tokens": 20,
+          "hope": -1,
+          "standing": {
+            "directorate": 10,
+            "depot": -15
+          }
+        },
+        {
+          "id": "hand",
+          "label": "Hand the Floor to the Directorate",
+          "requires": {
+            "standing_min": {
+              "directorate": 15
+            },
+            "no_flag": "floor_published"
+          },
+          "flag": "floor_to_directorate",
+          "discontent": -2,
+          "hope": -2,
+          "standing": {
+            "directorate": 30,
+            "depot": -25,
+            "synod": -10
+          }
+        },
+        {
+          "id": "leave",
+          "label": "Leave without a word",
+          "hope": 0
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_quarantine",
+      "title": "The door that no one opens",
+      "trigger": {
+        "order": "expedition_to_ferry",
+        "needs": {
+          "fragment": "quarantine_path",
+          "artifacts_min": {
+            "iron": 1
+          }
+        }
+      },
+      "text": "The steel door is dry on this side. Captain Ray Dawson answers through a slot. He has orders not to open and no one left to ask to cancel them. His soldiers stand at attention behind him in a corridor with nothing to guard.",
+      "choices": [
+        {
+          "id": "order",
+          "label": "Carry the proof of the order the Depot burned",
+          "requires": {
+            "fragment": "depot_order"
+          },
+          "flag": "quarantine_open",
+          "proof": 1,
+          "people": 4,
+          "hope": 3,
+          "discontent": -2,
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "force",
+          "label": "Force the door with iron",
+          "requires": {
+            "artifacts_min": {
+              "iron": 3
+            }
+          },
+          "flag": "quarantine_forced",
+          "cost": {
+            "materials": 8
+          },
+          "people": -2,
+          "hope": -2,
+          "discontent": 2,
+          "tokens": 12
+        },
+        {
+          "id": "leave",
+          "label": "Leave them to the door",
+          "flag": "quarantine_left",
+          "hope": 0,
+          "standing": {
+            "black_flag": 5
+          }
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_observatory",
+      "title": "The count",
+      "trigger": {
+        "order": "approach_observatory",
+        "needs": {
+          "artifacts_min": {
+            "words": 2
+          },
+          "fragment": "synod_recording"
+        }
+      },
+      "text": "Dr. Theodor Reed has not slept in a room with the lights off for forty weeks. He shows you the log: a click every few seconds, grouped in forty-one. The surface will be safe to walk on at the forty-first week. He has counted since the first day. He asks only whether anyone is listening.",
+      "choices": [
+        {
+          "id": "testimony",
+          "label": "Bring him the testimonies your people told",
+          "cost": {
+            "words": 2
+          },
+          "flag": "observatory_trusted",
+          "proof": 1,
+          "hope": 6,
+          "standing": {
+            "synod": 10
+          }
+        },
+        {
+          "id": "shelter",
+          "label": "Offer your station as a shelter for his people",
+          "flag": "observatory_sheltered",
+          "people": 6,
+          "discontent": 2,
+          "hope": 2
+        },
+        {
+          "id": "instruments",
+          "label": "Demand the instruments",
+          "flag": "observatory_stripped",
+          "artifacts": {
+            "iron": 3
+          },
+          "materials": 5,
+          "hope": -2
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_decision",
+      "title": "The end of the line",
+      "needs": {
+        "week": [
+          34,
+          38
+        ]
+      },
+      "forced": true,
+      "text": "The pipe taps forty-one. Your people have stopped asking what the surface is and started asking when. Whatever you know, it is enough to do one thing with. The leaders are waiting on the platform, and no one will speak first.",
+      "choices": [
+        {
+          "id": "door",
+          "label": "Open the door: read everything on every wire",
+          "requires": {
+            "proofs_min": 3,
+            "flag": "floor_published"
+          },
+          "ending": "open_door"
+        },
+        {
+          "id": "climb",
+          "label": "Prepare the climb for the forty-first week",
+          "requires": {
+            "hope_min": 60,
+            "any_flag": [
+              "observatory_trusted",
+              "observatory_sheltered"
+            ]
+          },
+          "ending": "exodus"
+        },
+        {
+          "id": "order",
+          "label": "Close the ledger: the Directorate keeps the lists, and the rest stays buried",
+          "requires": {
+            "any_of": [
+              {
+                "flag": "floor_to_directorate"
+              },
+              {
+                "standing_min": {
+                  "directorate": 50
+                }
+              }
+            ]
+          },
+          "ending": "order"
+        },
+        {
+          "id": "hold",
+          "label": "Hold the line one more week",
+          "hope": 0
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
     }
   ],
   "ru": {
@@ -674,6 +906,28 @@
     "The chalk on the wall": "Мел на стене",
     "Where the Lamplighters led a family through your station, someone has left chalk on the tunnel wall: a line, a knot of water, a door. They did not mean for you to read it. They did not hide it either.": "Там, где Фонарщики вели семью через твою станцию, на стене тоннеля остался мел: линия, узел воды, дверь. Они не хотели, чтобы ты это прочёл. Но и не прятали.",
     "Sketch the marks": "Зарисовать знаки",
-    "Rub them out": "Стереть их"
+    "Rub them out": "Стереть их",
+    "The meeting that never ended": "Совещание, которое не кончилось",
+    "The door of City Hall is open. Inside, forty people sit around a long table and nobody looks up. Helena Brook reads the quorum. She asks who speaks for Coney Island. Then she asks what you have come to change in the minutes.": "Дверь Сити-холла открыта. Внутри сорок человек сидят за длинным столом, и никто не поднимает глаз. Хелена Брук зачитывает кворум. Она спрашивает, кто говорит от имени Кони-Айленда. Потом спрашивает, что ты пришёл менять в протоколе.",
+    "Ask her to read the minutes aloud, to everyone": "Попросить её прочесть протокол вслух, для всех",
+    "Trade your silence for a place on their list": "Обменять молчание на место в их списке",
+    "Hand the Floor to the Directorate": "Передать Этаж Дирекции",
+    "Leave without a word": "Уйти, не сказав ни слова",
+    "The door that no one opens": "Дверь, которую никто не открывает",
+    "The steel door is dry on this side. Captain Ray Dawson answers through a slot. He has orders not to open and no one left to ask to cancel them. His soldiers stand at attention behind him in a corridor with nothing to guard.": "С этой стороны стальная дверь сухая. Капитан Рэй Доусон отвечает через щель. У него приказ не открывать, и спросить, отменить ли его, не у кого. За его спиной солдаты стоят по стойке смирно в коридоре, где нечего охранять.",
+    "Carry the proof of the order the Depot burned": "Предъявить доказательство приказа, который сожгло Депо",
+    "Force the door with iron": "Взломать дверь железом",
+    "Leave them to the door": "Оставить их у двери",
+    "The count": "Счёт",
+    "Dr. Theodor Reed has not slept in a room with the lights off for forty weeks. He shows you the log: a click every few seconds, grouped in forty-one. The surface will be safe to walk on at the forty-first week. He has counted since the first day. He asks only whether anyone is listening.": "Доктор Теодор Рид сорок недель не спал в комнате с выключенным светом. Он показывает журнал: щелчок каждые несколько секунд, группами по сорок один. Поверхность станет безопасной на сорок первой неделе. Он считает с первого дня. Он спрашивает только, слушает ли кто-нибудь.",
+    "Bring him the testimonies your people told": "Принести ему свидетельства, которые рассказали твои люди",
+    "Offer your station as a shelter for his people": "Предложить свою станцию как убежище для его людей",
+    "Demand the instruments": "Потребовать приборы",
+    "The end of the line": "Конец линии",
+    "The pipe taps forty-one. Your people have stopped asking what the surface is and started asking when. Whatever you know, it is enough to do one thing with. The leaders are waiting on the platform, and no one will speak first.": "Труба стучит сорок один. Твои люди перестали спрашивать, что такое поверхность, и начали спрашивать, когда. Что бы ты ни знал, этого хватит, чтобы сделать одно. Лидеры ждут на платформе, и никто не заговорит первым.",
+    "Open the door: read everything on every wire": "Открыть дверь: прочесть всё по всем проводам",
+    "Prepare the climb for the forty-first week": "Подготовить подъём к сорок первой неделе",
+    "Close the ledger: the Directorate keeps the lists, and the rest stays buried": "Закрыть журнал: Дирекция хранит списки, остальное остаётся погребённым",
+    "Hold the line one more week": "Продержаться ещё одну неделю"
   }
 }

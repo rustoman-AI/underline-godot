@@ -82,6 +82,10 @@ var fragments := {}
 var story_words := 0
 ## Week each leader was last helped; help waits audience_cooldown_weeks whatever the regard band.
 var help_last := {}
+## Bunker scenes (events with "trigger") an order has set off, shown at the next dawn in this order.
+var story_queue: Array = []
+## Proofs gained from choices ("proof": n) on top of the fragments learned honestly.
+var proof_extra := 0
 var errors: Array = []
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
@@ -605,6 +609,10 @@ func shortage_text(need: Dictionary) -> String:
 		needs.append(Copy.stock(want, str(key)))
 		short.append(Copy.stock(have, str(key)))
 	if needs.is_empty():
+		for key in ARTIFACTS:
+			var have := int(artifacts.get(key, 0))
+			if int(need.get(key, 0)) > have:
+				return Copy.t("Needs %s %d, you have %d") % [Copy.t(str(ARTIFACT_TEXT[key])), int(need[key]), have]
 		return ""
 	var line := Copy.t("Needs %s. You have %s.") % [", ".join(needs), ", ".join(short)]
 	var where: PackedStringArray = []
@@ -757,6 +765,7 @@ func _dawn() -> void:
 	_release_white_checks()
 	_offer_checks()
 	_offer_story_event()
+	_offer_triggered()
 	_note_dawn_afford()
 	_log("DAWN food %d air %d power %d mat %d tok %d inf %d hope %d dis %d pop %d" % [
 		int(stock.food), int(stock.air), int(stock.power), int(stock.materials), int(stock.tokens), int(stock.influence), hope, discontent, residents.size()])
@@ -2594,6 +2603,8 @@ func _apply_order(action: Dictionary) -> bool:
 			ok = _order_expedition()
 		"approach":
 			ok = _order_approach()
+		"approach_observatory":
+			ok = _order_approach_observatory()
 		"address":
 			ok = _order_address()
 	if ok:
@@ -2702,6 +2713,8 @@ func queue_order(action: Dictionary) -> bool:
 	var target := sid
 	if kind == "expedition" and stations.has("vault"):
 		target = "vault"
+	elif kind == "approach" and stations.has("archive"):
+		target = "archive"
 	queued_orders.append({
 		"action": action.duplicate(true),
 		"role": str(who.role),
@@ -2768,6 +2781,8 @@ func _resolve_queued() -> void:
 				ok = _order_expedition()
 			"approach":
 				ok = _order_approach()
+			"approach_observatory":
+				ok = _order_approach_observatory()
 			"address":
 				ok = _order_address()
 		var place := sid
@@ -2825,6 +2840,10 @@ func _order_title(kind: String) -> String:
 			return "The deal is struck"
 		"expedition":
 			return "The expedition sets out"
+		"approach":
+			return "Approach the Floor"
+		"approach_observatory":
+			return "Approach the Observatory"
 		_:
 			return "Dawn report"
 
@@ -2853,9 +2872,36 @@ func order_block(kind: String, sid: String = "") -> String:
 			return ""
 		"expedition":
 			return _expedition_block()
+		"approach":
+			return approach_block()
+		"approach_observatory":
+			return observatory_block()
 		_:
 			return Copy.t("No such order.")
 	return ""
+
+
+## Why the Floor cannot be approached now; "" when it can (the order itself aside).
+func approach_block() -> String:
+	if floor_met:
+		return Copy.t("The Floor has already been met.")
+	var tunnel := _tunnel_by_id("to_floor")
+	if int(artifacts.get("papers", 0)) < 1 or tunnel.is_empty() or not bool(tunnel.get("dug", false)):
+		return Copy.t("Needs Papers and the Floor tunnel")
+	return ""
+
+
+## Why the Observatory cannot be approached now; "" when it can (the order itself aside).
+func observatory_block() -> String:
+	if _scene_used("st3_observatory"):
+		return Copy.t("The Observatory has already been met.")
+	if int(artifacts.get("words", 0)) < 2 or not fragment_known("synod_recording"):
+		return Copy.t("Needs 2 testimonies and the recording")
+	return ""
+
+
+func can_approach_observatory() -> bool:
+	return observatory_block() == "" and orders_left > 0
 
 
 func order_risk(kind: String, sid: String = "") -> String:
@@ -2894,6 +2940,8 @@ func order_risk(kind: String, sid: String = "") -> String:
 			return line
 		"expedition":
 			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
+		"approach", "approach_observatory":
+			return Copy.t("No risk. The meeting comes at the next dawn.")
 	return ""
 
 
@@ -3062,7 +3110,49 @@ func _order_approach() -> bool:
 	floor_met = true
 	_add_hope(2, "victory")
 	_log("The Floor is still holding a meeting. They ask who speaks for Coney Island.", true)
+	_fire_trigger("approach_floor")
 	return true
+
+
+func _order_approach_observatory() -> bool:
+	if observatory_block() != "":
+		return false
+	if stations.has("oldcommand"):
+		stations.oldcommand.hidden = false
+		stations.oldcommand.known = true
+	_log("Court St answers through the grate. Someone down there has been counting.", true)
+	_fire_trigger("approach_observatory")
+	return true
+
+
+## The bunker scenes an order can set off ("trigger": {"order": ...}); each order name is fired from one place.
+const TRIGGER_ORDERS := ["approach_floor", "expedition_to_ferry", "approach_observatory"]
+
+
+## Queues every bunker scene waiting on `order` whose trigger conditions hold, for the next dawn, once a run.
+func _fire_trigger(order: String) -> void:
+	for ev in catalog.events:
+		var trigger = ev.get("trigger", null)
+		if not (trigger is Dictionary) or str(trigger.get("order", "")) != order or _scene_used(str(ev.id)):
+			continue
+		if needs_hold(trigger.get("needs", {})):
+			story_queue.append(str(ev.id))
+
+
+func _scene_used(id: String) -> bool:
+	return events_seen.has(id) or story_queue.has(id) or _has_event(pending, id)
+
+
+## Bunker scenes queued by an order come at dawn after every other draw, so no pool or slot sees them.
+func _offer_triggered() -> void:
+	var keep: Array = []
+	for id in story_queue:
+		var ev := _event_by_id(str(id))
+		if ev.is_empty() or events_seen.has(str(id)):
+			continue
+		if not _present_event(ev):
+			keep.append(id)
+	story_queue = keep
 
 
 func _order_address() -> bool:
@@ -3095,6 +3185,7 @@ func _tick_expedition() -> void:
 	expedition = {}
 	flags[EXPEDITION_FLAG] = true
 	_log("South Ferry is open. Two people walk back with the squad.", true)
+	_fire_trigger("expedition_to_ferry")
 
 
 # --- rivals ---
@@ -4122,6 +4213,8 @@ func needs_window(ev: Dictionary) -> int:
 		if week < int(weeks[0]) or week > int(weeks[1]):
 			return -1
 		left = mini(left, int(weeks[1]) - week)
+	if offers_ending(ev) and not _ending_open(ev):
+		return -1
 	return left if needs_hold(needs) else -1
 
 
@@ -4154,8 +4247,23 @@ func needs_hold(needs: Dictionary) -> bool:
 	return true
 
 
-## Whether every ending path is closed. Endings arrive in story phase S2; until then no path is ever closed.
+## Whether every story ending is closed: no choice with an "ending" in any event has its "requires" met.
 func ending_blocked() -> bool:
+	for ev in catalog.events:
+		if _ending_open(ev):
+			return false
+	return true
+
+
+static func offers_ending(ev: Dictionary) -> bool:
+	return ev.get("choices", []).any(func(c): return c is Dictionary and str(c.get("ending", "")) != "")
+
+
+## An event offering endings is only worth showing while at least one of those endings can be chosen.
+func _ending_open(ev: Dictionary) -> bool:
+	for choice in ev.get("choices", []):
+		if str(choice.get("ending", "")) != "" and requires_reason(choice.get("requires", {})) == "":
+			return true
 	return false
 
 
@@ -4256,7 +4364,7 @@ func dismiss_front() -> bool:
 
 func _free_choice(ev: Dictionary) -> Dictionary:
 	for choice in ev.choices:
-		if _cost_empty(choice.get("cost", {})):
+		if _cost_empty(choice.get("cost", {})) and str(choice.get("ending", "")) == "":
 			return choice
 	return {}
 
@@ -4296,6 +4404,8 @@ func _present_event(ev: Dictionary) -> bool:
 func _event_pool(major_only: bool) -> Array:
 	var pool: Array = []
 	for ev in catalog.events:
+		if ev.has("needs") or ev.has("trigger"):
+			continue
 		if major_only and not bool(ev.get("major", false)):
 			continue
 		if not major_only and bool(ev.get("major", false)) and rng.randf() < 0.5:
@@ -4314,7 +4424,7 @@ func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
 	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
 		return false
-	if ev.has("needs"):
+	if ev.has("needs") or ev.has("trigger"):
 		return false
 	if id == "lamps" and week == crunch_week:
 		return false
@@ -4341,7 +4451,7 @@ func _resolve_pending() -> void:
 		var ev: Dictionary = pending[0]
 		var choice := {}
 		for c in ev.choices:
-			if choice_locked(c) or not choice_offered(c) or not _afford(c.get("cost", {})):
+			if choice_locked(c) or not choice_offered(c) or not _afford(c.get("cost", {})) or str(c.get("ending", "")) != "":
 				continue
 			choice = c
 			break
@@ -4356,7 +4466,133 @@ func _resolve_pending() -> void:
 
 
 func choice_locked(choice: Dictionary) -> bool:
-	return bool(choice.get("locked", false))
+	return bool(choice.get("locked", false)) or requires_reason(choice.get("requires", {})) != ""
+
+
+## Why a locked choice is closed, one line for the card: a check's lock_reason or the first unmet "requires".
+func lock_reason(choice: Dictionary) -> String:
+	if bool(choice.get("locked", false)):
+		return str(choice.get("lock_reason", ""))
+	return requires_reason(choice.get("requires", {}))
+
+
+## Choice-level "requires": the "needs" keys plus these.
+const REQUIRES_EXTRA := ["proofs_min", "hope_min", "any_flag", "any_of"]
+## What a flag read by "requires" is called on the card; any other flag shows its id with spaces.
+const FLAG_TEXT := {
+	"floor_published": "the minutes read aloud",
+	"floor_deal": "a place on the Floor's list",
+	"floor_to_directorate": "the Floor handed over",
+	"observatory_trusted": "the Observatory's trust",
+	"observatory_sheltered": "the Observatory sheltered",
+	"observatory_stripped": "the Observatory stripped",
+	"quarantine_open": "the Quarantine door opened",
+}
+const ARTIFACT_TEXT := {"papers": "Papers", "iron": "Iron", "words": "Words"}
+
+
+static func flag_text(flag: String) -> String:
+	return Copy.t(str(FLAG_TEXT.get(flag, flag.replace("_", " "))))
+
+
+## The first condition in `req` that does not hold, as one line in the current language; "" when all hold.
+## Never empty for an unmet condition, so a closed choice always says why.
+func requires_reason(req) -> String:
+	if not (req is Dictionary) or req.is_empty():
+		return ""
+	if req.has("week"):
+		var weeks: Array = req.week
+		if week < int(weeks[0]) or week > int(weeks[1]):
+			return Copy.t("Only in weeks %d to %d") % [int(weeks[0]), int(weeks[1])]
+	if req.has("leader"):
+		var row: Dictionary = leader_answers.get(str(req.leader), {})
+		if row.is_empty() or not answer_matches(str(req.get("answer", "")), str(row.answer)):
+			return Copy.t("Needs your answer to %s") % _leader_display(str(req.leader))
+		if req.has("after_weeks"):
+			var since := week - int(row.week)
+			if since < int(req.after_weeks[0]) or since > int(req.after_weeks[1]):
+				return Copy.t("Only %d to %d weeks after your answer to %s") % [int(req.after_weeks[0]), int(req.after_weeks[1]), _leader_display(str(req.leader))]
+	for fid in req.get("standing_min", {}):
+		var now := int(standing.get(str(fid), 0))
+		if now < int(req.standing_min[fid]):
+			return Copy.t("Needs %s's trust %d, now %d") % [_leader_display(str(fid)), int(req.standing_min[fid]), now]
+	for fid in req.get("standing_max", {}):
+		var now := int(standing.get(str(fid), 0))
+		if now > int(req.standing_max[fid]):
+			return Copy.t("Needs %s's regard at %d or lower, now %d") % [_leader_display(str(fid)), int(req.standing_max[fid]), now]
+	for fid in req.get("band", {}):
+		if standing_band(str(fid)) != str(req.band[fid]):
+			return Copy.t("Needs %s at %s") % [_leader_display(str(fid)), Copy.t(str(req.band[fid]))]
+	if req.has("fragment") and not fragment_known(str(req.fragment)):
+		return Copy.t("Needs the fragment: %s") % _fragment_name(str(req.fragment))
+	if req.has("no_fragment") and fragment_known(str(req.no_fragment)):
+		return Copy.t("Closed: you already know %s") % _fragment_name(str(req.no_fragment))
+	if req.has("flag") and not flags.has(str(req.flag)):
+		return Copy.t("Needs %s") % flag_text(str(req.flag))
+	if req.has("no_flag") and flags.has(str(req.no_flag)):
+		return Copy.t("Closed: %s") % flag_text(str(req.no_flag))
+	for key in req.get("artifacts_min", {}):
+		var have := int(artifacts.get(str(key), 0))
+		if have < int(req.artifacts_min[key]):
+			return Copy.t("Needs %s %d, you have %d") % [Copy.t(str(ARTIFACT_TEXT.get(str(key), key))), int(req.artifacts_min[key]), have]
+	if req.has("season") and not _season_is(str(req.season)):
+		return Copy.t("Only during the %s") % Copy.season(str(req.season))
+	if req.has("ending_blocked") and ending_blocked() != bool(req.ending_blocked):
+		return Copy.t("Not while an ending is open") if bool(req.ending_blocked) else Copy.t("Only while an ending is open")
+	if req.has("proofs_min") and proofs() < int(req.proofs_min):
+		if Copy.ru():
+			return "Нужно %d %s, у вас %d" % [int(req.proofs_min), Copy.plural(int(req.proofs_min), ["доказательство", "доказательства", "доказательств"]), proofs()]
+		return "Needs %d %s, you have %d" % [int(req.proofs_min), "proof" if int(req.proofs_min) == 1 else "proofs", proofs()]
+	if req.has("hope_min") and hope < int(req.hope_min):
+		return Copy.t("Needs hope %d, now %d") % [int(req.hope_min), hope]
+	if req.has("any_flag"):
+		var names: PackedStringArray = []
+		var any := false
+		for flag in req.any_flag:
+			any = any or flags.has(str(flag))
+			names.append(flag_text(str(flag)))
+		if not any:
+			return Copy.t("Needs %s") % Copy.t(" or ").join(names)
+	if req.has("any_of"):
+		var whys: PackedStringArray = []
+		var nouns: PackedStringArray = []
+		for sub in req.any_of:
+			var why := requires_reason(sub)
+			if why == "":
+				return ""
+			whys.append(why)
+			nouns.append(_unmet_noun(sub))
+		if not nouns.has(""):
+			return Copy.t("Needs %s") % Copy.t(" or ").join(nouns)
+		return Copy.t("; or ").join(whys)
+	return ""
+
+
+## The first unmet condition in `req` as a short noun for an "either way" reason; "" when it has none.
+func _unmet_noun(req: Dictionary) -> String:
+	if req.size() != 1:
+		return ""
+	if req.has("flag") and not flags.has(str(req.flag)):
+		return flag_text(str(req.flag))
+	for fid in req.get("standing_min", {}):
+		if int(standing.get(str(fid), 0)) < int(req.standing_min[fid]):
+			return Copy.t("%s's trust %d") % [_leader_display(str(fid)), int(req.standing_min[fid])]
+	if req.has("hope_min") and hope < int(req.hope_min):
+		return Copy.t("hope %d") % int(req.hope_min)
+	return ""
+
+
+func _leader_display(fid: String) -> String:
+	var pair = leader_name(fid, "name")
+	if pair is Dictionary:
+		var out := str(pair.get("ru", "")) if Copy.ru() else ""
+		return out if out != "" else str(pair.get("en", fid))
+	return str(pair) if str(pair) != "" else fid
+
+
+func _fragment_name(id: String) -> String:
+	var title := fragment_text(id, "title")
+	return title if title != "" else id.replace("_", " ")
 
 
 func choice_offered(choice: Dictionary) -> bool:
@@ -4499,7 +4735,7 @@ func check_preview(choice: Dictionary, person_id: String) -> Dictionary:
 		"modifiers": check_modifiers(skill),
 		"chance": check_chance(skill, int(check.get("difficulty", 10)), person_id, str(check.get("color", ""))),
 		"locked": choice_locked(choice),
-		"reason": str(choice.get("lock_reason", "")),
+		"reason": lock_reason(choice),
 	}
 
 
@@ -5096,6 +5332,86 @@ func _apply_story_effects(choice: Dictionary) -> void:
 	if flag != "":
 		flags[flag] = true
 		_log("FLAG %s" % flag, true)
+	if int(choice.get("proof", 0)) > 0:
+		proof_extra += int(choice.proof)
+		_journal("proof", {"amount": int(choice.proof)})
+	var ending := str(choice.get("ending", ""))
+	if ending != "" and over == "":
+		over = ending
+		stats.pop40 = residents.size()
+		_journal("ending", {"ending": ending})
+		_log("ENDING %s" % ending, true)
+
+
+## The run's ending: the story endings set by a choice keep their id, and the old game over reasons map to
+## theirs (time -> winter). "" while the run goes on.
+const STORY_ENDINGS := ["open_door", "exodus", "order"]
+const OVER_ENDINGS := {"time": "winter", "collapse": "collapse", "hope": "hope", "revolt": "revolt", "capital": "capital"}
+const ENDINGS := ["open_door", "exodus", "order", "winter", "collapse", "hope", "revolt", "capital"]
+
+
+func ending_id() -> String:
+	if STORY_ENDINGS.has(over):
+		return over
+	return str(OVER_ENDINGS.get(over, ""))
+
+
+## The ending's "title" or "text" from data/endings.json in the current language.
+func ending_text(id: String, key: String) -> String:
+	return _pair_text(catalog.endings.get("endings", {}).get(id, {}).get(key, {}))
+
+
+## The epilogue line for a leader by the recorded answer: accepted, refused (or silence), helped, none.
+func leader_epilogue_state(fid: String) -> String:
+	var answer := str(leader_answers.get(fid, {}).get("answer", ""))
+	match answer:
+		"accepted":
+			return "accepted"
+		"refused", "silence":
+			return "refused"
+		"helped":
+			return "helped"
+	return "none"
+
+
+func leader_epilogue(fid: String) -> String:
+	return _pair_text(catalog.endings.get("leaders", {}).get(fid, {}).get(leader_epilogue_state(fid), {}))
+
+
+## proof with 3 or more proofs, some with any fragment known, none otherwise.
+func truth_state() -> String:
+	if proofs() >= 3:
+		return "proof"
+	for id in fragments:
+		if fragment_known(str(id)):
+			return "some"
+	return "none"
+
+
+func truth_epilogue() -> String:
+	return _pair_text(catalog.endings.get("truth", {}).get(truth_state(), {}))
+
+
+func _pair_text(pair) -> String:
+	if not (pair is Dictionary):
+		return ""
+	var out := str(pair.get("ru", "")) if Copy.ru() else ""
+	return out if out != "" else str(pair.get("en", ""))
+
+
+## Leader deals taken and turned away over the run, from the journal (silence counts as turned away).
+func deals_tally() -> Dictionary:
+	var made := 0
+	var refused := 0
+	for row in journal:
+		if str(row.get("kind", "")) != "audience":
+			continue
+		match str(row.get("result", "")):
+			"deal":
+				made += 1
+			"refused", "silence":
+				refused += 1
+	return {"made": made, "refused": refused}
 
 
 const FRAGMENTS := {
@@ -5126,8 +5442,12 @@ func fragment_known(id: String) -> bool:
 	return row is Dictionary and bool(row.get("known", false))
 
 
-## Fragments learned the honest way, with proof; the endings will weigh them.
+## Proofs the endings weigh: fragments learned the honest way plus proofs gained in bunker scenes.
 func proofs() -> int:
+	return honest_fragments() + proof_extra
+
+
+func honest_fragments() -> int:
 	var n := 0
 	for id in fragments:
 		if fragment_known(str(id)) and str(fragments[id].get("how", "")) == "honest":
@@ -5874,7 +6194,8 @@ func _afford(cost) -> bool:
 	if not (cost is Dictionary):
 		return true
 	for key in cost:
-		if int(stock.get(key, 0)) < int(cost[key]):
+		var have := int(artifacts.get(key, 0)) if ARTIFACTS.has(str(key)) else int(stock.get(key, 0))
+		if have < int(cost[key]):
 			return false
 	return true
 
@@ -5883,7 +6204,10 @@ func _pay(cost) -> void:
 	if not (cost is Dictionary):
 		return
 	for key in cost:
-		stock[key] = int(stock.get(key, 0)) - int(cost[key])
+		if ARTIFACTS.has(str(key)):
+			artifacts[str(key)] = int(artifacts.get(str(key), 0)) - int(cost[key])
+		else:
+			stock[key] = int(stock.get(key, 0)) - int(cost[key])
 
 
 func _add_opinion(fid: String, amount: int, why: String = "") -> void:
@@ -6410,13 +6734,14 @@ const PERSIST := [
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
+	"story_queue", "proof_extra",
 ]
 
 
 ## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
 ## Adding a PERSIST key needs a new schema number and its own migration list.
-const SAVE_SCHEMA := 5
+const SAVE_SCHEMA := 6
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -6440,6 +6765,8 @@ const V3_ADDED := ["fragments", "story_words"]
 const V3_RNG_ADDED := ["story_state"]
 ## Fields a version 1 to 4 save may lack: no leader helped yet, so help is open to everyone.
 const V4_ADDED := ["help_last"]
+## Fields a version 1 to 5 save may lack: no bunker scene waiting, no proof beyond the fragments.
+const V5_ADDED := ["story_queue", "proof_extra"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -6490,7 +6817,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -6608,6 +6935,15 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 		var at = state.help_last[fid]
 		if not leaders.has(str(fid)) or typeof(at) != TYPE_INT or int(at) < 1 or int(at) > int(state.week):
 			return "help %s week %s" % [str(fid), str(at)]
+	for id in state.story_queue:
+		var queued := false
+		for ev in cat.events:
+			if str(ev.get("id", "")) == str(id) and ev.has("trigger"):
+				queued = true
+		if not queued:
+			return "story queue %s is not a bunker scene" % str(id)
+	if typeof(state.proof_extra) != TYPE_INT or int(state.proof_extra) < 0:
+		return "proof_extra %s" % str(state.proof_extra)
 	for key in ARTIFACTS:
 		if typeof(state.artifacts.get(key)) != TYPE_INT or int(state.artifacts[key]) < 0:
 			return "artifact %s is %s" % [key, str(state.artifacts.get(key))]

@@ -23,6 +23,7 @@ func _init() -> void:
 	_wipe(SaveGame.root)
 	_legacy()
 	_rejects()
+	_story_saves()
 	_resume()
 	_slots()
 	_wipe(SaveGame.root)
@@ -65,6 +66,8 @@ func _busy_game() -> Game:
 	game.help_last["depot"] = 17
 	game.fragments["depot_order"] = {"known": true, "how": "dirty", "week": 18}
 	game.story_words = 3
+	game.story_queue = ["st3_floor"]
+	game.proof_extra = 2
 	return game
 
 
@@ -120,9 +123,18 @@ func _legacy() -> void:
 	loaded = game.import_state(fourth)
 	_expect(loaded and game.help_last.is_empty() and game.seed == 1,
 		"Schema 4 save migrates with no help given yet", "schema 4 loaded=%s %s help=%s" % [loaded, game.load_error, game.help_last])
+	var fifth := source.export_state()
+	fifth["schema"] = 5
+	for key in Game.V5_ADDED:
+		fifth.erase(key)
+	game = _busy_game()
+	loaded = game.import_state(fifth)
+	_expect(loaded and game.story_queue.is_empty() and game.proof_extra == 0 and game.seed == 1,
+		"Schema 5 save migrates with no scene queued and no extra proofs",
+		"schema 5 loaded=%s %s queue=%s proofs=%d" % [loaded, game.load_error, game.story_queue, game.proof_extra])
 	var oldest := source.export_state()
 	oldest.erase("schema")
-	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED + Game.V3_ADDED + Game.V4_ADDED:
+	for key in Game.V1_ADDED + Game.V1_RNG_ADDED + Game.V2_ADDED + Game.V3_ADDED + Game.V4_ADDED + Game.V5_ADDED:
 		oldest.erase(key)
 	game = _busy_game()
 	loaded = game.import_state(oldest)
@@ -167,6 +179,13 @@ func _rejects() -> void:
 		"help unknown leader": _with(good, "help_last", {"nobody": 1}),
 		"help future week": _with(good, "help_last", {"depot": 39}),
 		"help week text": _with(good, "help_last", {"depot": "1"}),
+		"v6 missing story_queue": _without(good, "story_queue"),
+		"v6 missing proof_extra": _without(good, "proof_extra"),
+		"queued scene unknown": _with(good, "story_queue", ["st3_moon"]),
+		"queued scene not by order": _with(good, "story_queue", ["st3_decision"]),
+		"queue not a list": _with(good, "story_queue", "st3_floor"),
+		"proof_extra negative": _with(good, "proof_extra", -1),
+		"proof_extra text": _with(good, "proof_extra", "2"),
 	}
 	for name in cases:
 		var game := _busy_game()
@@ -177,6 +196,33 @@ func _rejects() -> void:
 		same = same and rng_before == [game.rng.state, game.crunch_rng.state, game.net_rng.state, game.check_rng.state]
 		_expect(not loaded and same and game.load_error != "", "Rejects %s (%s)" % [name, game.load_error],
 			"%s loaded=%s unchanged=%s" % [name, loaded, same])
+
+
+## A save taken with the final decision on the table, and one taken after a story ending, load back the same.
+func _story_saves() -> void:
+	var game := _game(3)
+	game.week = 34
+	game.pending = []
+	game.proof_extra = 3
+	game.flags["floor_published"] = true
+	game.story_queue = ["st3_observatory"]
+	game._present_event(game._event_by_id("st3_decision"))
+	var at_decision := game.export_state()
+	at_decision["schema"] = Game.SAVE_SCHEMA
+	var copy := _game(1)
+	var loaded := copy.import_state(at_decision)
+	var same := loaded and var_to_bytes(copy.export_state()) == var_to_bytes(game.export_state())
+	var choices: Array = copy.pending.filter(func(ev): return str(ev.id) == "st3_decision")
+	var door_open := not choices.is_empty() and not copy.choice_locked(choices[0].choices[0])
+	var took := copy.apply({"kind": "event", "event_id": "st3_decision", "choice_id": "door"})
+	var after := copy.export_state()
+	after["schema"] = Game.SAVE_SCHEMA
+	var ended := _game(1)
+	var reloaded := ended.import_state(after)
+	_expect(same and door_open and took and copy.over == "open_door" and reloaded and ended.over == "open_door"
+		and ended.ending_id() == "open_door" and ended.proofs() == 3 and ended.story_queue == ["st3_observatory"],
+		"Saves at the final decision and after a story ending load back the same",
+		"decision loaded=%s same=%s door=%s took=%s over=%s reloaded=%s %s ending=%s" % [loaded, same, door_open, took, copy.over, reloaded, ended.load_error, ended.ending_id()])
 
 
 func _with(data: Dictionary, key: String, value) -> Dictionary:
