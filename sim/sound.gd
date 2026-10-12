@@ -24,6 +24,16 @@ const ROOM_DB_HOVER := -16.0
 const ROOM_DB_OPEN := -6.0
 const HOVER_DB := -9.0
 const SILENT_DB := -60.0
+## click.ogg runs 100 ms; it is played 6 dB down and faded out so it is over by 78 ms.
+const CLICK_DB := -6.0
+const CLICK_HOLD := 0.06
+const CLICK_FADE := 0.018
+## A press that also starts an action cue (confirm, whoosh, card...) plays only that cue.
+const PAIR_MS := 80
+## Per-room trim on top of the open/hover level, and seconds open before the loop fades away.
+const ROOM_TRIM := {"hydroponics": -8.0}
+const ROOM_FADE_AFTER := {"hydroponics": 3.0}
+const ROOM_FADE_OUT := 1.5
 
 static var host: Node
 static var players := {}
@@ -34,6 +44,7 @@ static var drip_timer: Timer
 static var room_player: AudioStreamPlayer
 static var room_tween: Tween
 static var room_now := ""
+static var room_open_now := false
 static var room_streams := {}
 static var radio_cue: AudioStreamPlayer
 static var voice: AudioStreamPlayer
@@ -41,6 +52,7 @@ static var voice_timer: Timer
 static var voice_tail: AudioStreamPlayer
 static var voice_tween: Tween
 static var last_ms := {}
+static var click_tween: Tween
 static var rng := RandomNumberGenerator.new()
 
 
@@ -65,6 +77,8 @@ static func boot(tree_host: Node) -> void:
 		player.name = "Sfx" + str(cue)
 		if cue == "hover":
 			player.volume_db = HOVER_DB
+		elif cue == "click":
+			player.volume_db = CLICK_DB
 		host.add_child(player)
 		players[cue] = player
 	ambient = _loop_player(AMBIENT, "Ambient")
@@ -106,9 +120,31 @@ static func play(cue: String) -> void:
 	var gap := 160 if cue == "hover" else 35
 	if now - int(last_ms.get(cue, 0)) < gap:
 		return
+	if cue == "click" and now - int(last_ms.get("action", -PAIR_MS)) < PAIR_MS:
+		return
+	if cue != "click" and cue != "hover":
+		last_ms["action"] = now
+		if now - int(last_ms.get("click", -PAIR_MS)) < PAIR_MS and players.has("click"):
+			(players["click"] as AudioStreamPlayer).stop()
 	last_ms[cue] = now
 	var player: AudioStreamPlayer = players[cue]
+	if cue == "click":
+		_play_click(player)
+		return
 	player.play()
+
+
+static func _play_click(player: AudioStreamPlayer) -> void:
+	if click_tween != null and click_tween.is_valid():
+		click_tween.kill()
+	player.volume_db = CLICK_DB
+	player.play()
+	if host == null or not host.is_inside_tree():
+		return
+	click_tween = host.create_tween()
+	click_tween.tween_interval(CLICK_HOLD)
+	click_tween.tween_property(player, "volume_db", SILENT_DB, CLICK_FADE)
+	click_tween.tween_callback(player.stop)
 
 
 static func bed(which: String) -> void:
@@ -163,9 +199,12 @@ static func room(type: String, open: bool) -> void:
 		type = ""
 	if type == "" and room_now == "" and not room_player.playing:
 		return
+	if type != "" and type == room_now and open == room_open_now and room_player.playing:
+		return
+	room_open_now = open
 	var target := SILENT_DB
 	if type != "":
-		target = ROOM_DB_OPEN if open else ROOM_DB_HOVER
+		target = (ROOM_DB_OPEN if open else ROOM_DB_HOVER) + float(ROOM_TRIM.get(type, 0.0))
 	if room_tween != null and room_tween.is_valid():
 		room_tween.kill()
 	room_tween = host.create_tween()
@@ -177,6 +216,9 @@ static func room(type: String, open: bool) -> void:
 	room_now = type
 	if type != "":
 		room_tween.tween_property(room_player, "volume_db", target, 0.45)
+		if open and ROOM_FADE_AFTER.has(type):
+			room_tween.tween_interval(float(ROOM_FADE_AFTER[type]))
+			room_tween.tween_property(room_player, "volume_db", SILENT_DB, ROOM_FADE_OUT)
 
 
 static func _swap_room(type: String, stream: AudioStream) -> void:

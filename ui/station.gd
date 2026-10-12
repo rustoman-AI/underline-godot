@@ -902,7 +902,6 @@ func _tool(kind: String, caption: String, cb: Callable) -> Button:
 	if Copy.ru() and display_font != null:
 		button.set_meta("caption_font", display_font)
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.mouse_entered.connect(_ui_hover)
 	button.pressed.connect(_ui_pressed.bind(button))
 	button.pressed.connect(cb)
 	_style_tool(button)
@@ -1082,7 +1081,6 @@ func _side_panel() -> PanelContainer:
 	people_tab.focus_mode = Control.FOCUS_NONE
 	people_tab.pressed.connect(_toggle_drawer)
 	people_tab.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	people_tab.mouse_entered.connect(_ui_hover)
 	people_tab.pressed.connect(func(): Sound.play("click"))
 	_style_tool(people_tab)
 	people_tab.custom_minimum_size = Vector2(52, 72)
@@ -5152,14 +5150,9 @@ func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	button.custom_minimum_size.y = 64 if Copy.ru() else 48
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.mouse_entered.connect(_ui_hover)
 	button.set_meta("ui_sound", sound)
 	button.pressed.connect(_card_press.bind(button, cb) if on_paper else _plain_press.bind(button, cb))
 	return button
-
-
-func _ui_hover() -> void:
-	Sound.play("hover")
 
 
 func _plain_press(button: Button, cb: Callable) -> void:
