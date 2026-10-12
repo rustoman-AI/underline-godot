@@ -6,6 +6,7 @@ extends SceneTree
 ##   B3  wheel zoom keeps the point under the cursor unless the bounds need the view to move.
 ##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
 ##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
+##   C8  people, beds and the weekly overcrowding cost on the people line, the people tab and the ticker.
 ##   Hints: shown in their weeks, hidden under a modal, dismissed by the action or a click, remembered in the
 ##   player's settings file (not the save), off in shot runs and on saves loaded past week 6.
 ## Settings, saves and logs go to user://check_clarity, never to the player's own files.
@@ -54,6 +55,7 @@ func _run() -> void:
 	_network_bounds()
 	_event_words()
 	_audience_words()
+	_crowd_words()
 	await _hint_flow()
 	st._end_log()
 	st.queue_free()
@@ -107,6 +109,47 @@ func _end_turn_logic() -> void:
 		bad.append("end turn: game over gives %s" % st._end_state())
 	game.over = ""
 	st._sync_waiting()
+
+
+## C8: the population line, the people tab and the overcrowding ticker say people, beds and the weekly cost,
+## with the numbers the week end actually uses.
+func _crowd_words() -> void:
+	_clear_modals()
+	var game: Game = st.game
+	var added := 0
+	while game.residents.size() <= game.housing():
+		var twin: Dictionary = game.residents[0].duplicate(true)
+		twin.id = "%s_crowd%d" % [str(twin.id), added]
+		game.residents.append(twin)
+		added += 1
+	st._refresh()
+	var cost := int(game.bal.overcrowd_discontent)
+	var want := "People: %d. Beds: %d. Not enough beds raises discontent by %d a week." % [game.residents.size(), game.housing(), cost]
+	for pair in [["ticker", st.ticker_label], ["people head", st.people_head], ["people tab", st.people_tab]]:
+		if str(pair[1].tooltip_text) != want:
+			bad.append("C8: %s tooltip is '%s'" % [pair[0], pair[1].tooltip_text])
+	st._show_crowd()
+	if not _shows(st.card_body, want):
+		bad.append("C8: overcrowding card does not explain the beds")
+	_clear_modals()
+	Copy.set_lang("ru")
+	if not game.crowd_tip().begins_with("Людей: %d. Коек: %d." % [game.residents.size(), game.housing()]):
+		bad.append("C8: RU tip is '%s'" % game.crowd_tip())
+	Copy.set_lang("en")
+	var kept: Array = game.residents.duplicate()
+	while game.residents.size() > game.housing():
+		game.residents.pop_back()
+	st._refresh()
+	if st.ticker_label.text == game.crowd_line():
+		bad.append("C8: ticker still shows overcrowding with enough beds")
+	var calm := "People: %d. Beds: %d." % [game.residents.size(), game.housing()]
+	if game.crowd_tip() != calm or st.people_head.tooltip_text != calm:
+		bad.append("C8: with enough beds the tip is '%s'" % st.people_head.tooltip_text)
+	game.residents = kept
+	for i in added:
+		game.residents.pop_back()
+	st._refresh()
+	print("C8 crowd tip: %s" % want)
 
 
 func _plain_event() -> Dictionary:

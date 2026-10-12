@@ -1179,6 +1179,22 @@ func crowd_line() -> String:
 	return "Overcrowding +%d/wk" % n
 
 
+func crowd_tip() -> String:
+	var people := residents.size()
+	var beds := housing()
+	var n := int(bal.get("overcrowd_discontent", 2))
+	var line := ""
+	if Copy.ru():
+		line = "Людей: %d. Коек: %d." % [people, beds]
+		if people > beds:
+			line += " Из-за нехватки коек недовольство растёт на %d в неделю." % n
+		return line
+	line = "People: %d. Beds: %d." % [people, beds]
+	if people > beds:
+		line += " Not enough beds raises discontent by %d a week." % n
+	return line
+
+
 func flood_line() -> String:
 	if flood_guard:
 		return ""

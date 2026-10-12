@@ -1100,6 +1100,7 @@ func _side_panel() -> PanelContainer:
 	people_head = _label("", 15, true)
 	people_head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	people_head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	people_head.mouse_filter = Control.MOUSE_FILTER_STOP
 	head.add_child(people_head)
 	var shut := _button("×", _toggle_drawer)
 	shut.custom_minimum_size = Vector2(40, 36)
@@ -1141,7 +1142,26 @@ func _ticker_input(event: InputEvent) -> void:
 		if not warning.is_empty():
 			_open_forecast_at(str(warning.hint), int(warning.level), int(warning.cell))
 			return
+		if ticker_label.text == game.crowd_line():
+			_show_crowd()
+			return
 		_open_forecast()
+
+
+func _show_crowd() -> void:
+	if not _claim(ModalDeck.AMBIENT, "crowd", _show_crowd):
+		return
+	_open_card("Overcrowding")
+	_body(game.crowd_tip())
+	if game.residents.size() > game.housing():
+		var fix: Dictionary = game._supply_hint("quarters")
+		var go := _button(str(fix.text), func() -> void:
+			_close_card()
+			_open_forecast_at(str(fix.hint), int(fix.level), int(fix.cell))
+		)
+		go.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_body.add_child(go)
+	_fit_card()
 
 
 func _layout() -> void:
@@ -1534,6 +1554,7 @@ func _refresh() -> void:
 	elif not outlook_rows.is_empty():
 		line = str(outlook_rows[0].text)
 	ticker_label.text = line
+	ticker_label.tooltip_text = game.crowd_tip() if line == game.crowd_line() else ""
 	ticker.visible = line != "" and (hold or not ticker_dismissed)
 	_place_chrome()
 	turn_clear = game.over == "" and game.pending.is_empty() and game.forecasts().is_empty() and game.revolt_warning().is_empty()
@@ -1574,6 +1595,9 @@ func _fill_people() -> void:
 	var free_n := total - working
 	if people_head != null:
 		people_head.text = _people_counts(total, working, free_n)
+		people_head.tooltip_text = game.crowd_tip()
+	if people_tab != null:
+		people_tab.tooltip_text = game.crowd_tip()
 	if people_rail != null:
 		people_rail.caption = _people_tab_caption(free_n)
 		people_rail.badge = free_n
