@@ -1063,7 +1063,7 @@ func _order_icon(kind: String) -> String:
 			return "squad"
 		"expedition":
 			return "artifact"
-		"approach", "approach_observatory":
+		"approach", "approach_quarantine", "approach_observatory":
 			return "envoy"
 		_:
 			return kind
@@ -1513,7 +1513,7 @@ func _fill_sheet_body(sid: String) -> void:
 
 
 ## Orders aimed at a bunker rather than the station on the sheet; a locked one says why on its face.
-const APPROACHES := ["approach", "approach_observatory"]
+const APPROACHES := ["approach", "approach_quarantine", "approach_observatory"]
 
 
 func _order_button(kind: String, label: String, sid: String, parent: Node = null) -> void:
@@ -1697,6 +1697,8 @@ func _order_title(kind: String) -> String:
 			return "Approach the Floor"
 		"approach_observatory":
 			return "Approach the Observatory"
+		"approach_quarantine":
+			return "Approach the Quarantine"
 		_:
 			return kind.capitalize()
 
@@ -1783,6 +1785,8 @@ func _add_actions(sid: String, own: bool, parent: Node) -> void:
 	var game = _game()
 	if game != null and not game.floor_met:
 		_order_button("approach", "Approach the Floor", sid, parent)
+	if game != null and not game._scene_used("st3_quarantine"):
+		_order_button("approach_quarantine", "Approach the Quarantine", sid, parent)
 	if game != null and not game._scene_used("st3_observatory"):
 		_order_button("approach_observatory", "Approach the Observatory", sid, parent)
 

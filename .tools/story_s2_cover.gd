@@ -29,7 +29,8 @@ func _initialize() -> void:
 		var shown := {}
 		var picks := {}
 		var flags := {}
-		var trips := {"back": 0, "path": 0, "iron": 0}
+		var gate := {"path": 0, "open": 0, "weeks": []}
+		var at_decision := {}
 		var honest := 0
 		var dirty := 0
 		var proofs := 0
@@ -46,16 +47,33 @@ func _initialize() -> void:
 				bot.audience_style = style
 				bot.take_endings = true
 				var guard := 0
-				var back := false
+				var opened := false
+				var path_week := 0
+				var decided := false
 				while game.over == "" and guard < WEEKS + 2:
 					guard += 1
+					for ev in game.pending:
+						if decided or str(ev.id) != "st3_decision":
+							continue
+						decided = true
+						var open: Array = []
+						for choice in ev.choices:
+							if str(choice.get("ending", "")) != "" and not game.choice_locked(choice):
+								open.append(str(choice.id))
+						var key := "+".join(open) if not open.is_empty() else "none"
+						at_decision[key] = int(at_decision.get(key, 0)) + 1
+						if game.can_approach_quarantine():
+							at_decision["quarantine order still open"] = int(at_decision.get("quarantine order still open", 0)) + 1
 					bot._act(game)
 					game.end_week()
-					if not back and game.flags.has(Game.EXPEDITION_FLAG):
-						back = true
-						trips.back += 1
-						trips.path += 1 if game.fragment_known("quarantine_path") else 0
-						trips.iron += 1 if int(game.artifacts.iron) >= 1 else 0
+					if path_week == 0 and game.fragment_known("quarantine_path"):
+						path_week = game.week
+					if not opened and game.quarantine_block() == "":
+						opened = true
+						gate.open += 1
+				if path_week > 0:
+					gate.path += 1
+					gate.weeks.append(path_week)
 				runs += 1
 				errors += game.errors.filter(func(e): return not str(e).contains("decisions")).size()
 				var end := game.ending_id() if game.ending_id() != "" else "running"
@@ -93,7 +111,9 @@ func _initialize() -> void:
 		keys.sort()
 		print("  choices (journal): %s" % ", ".join(keys.map(func(k): return "%s %d" % [k, int(picks[k])])) if not keys.is_empty() else "  choices (journal): none")
 		print("  scene flags (runs): %s" % (_row(flags, runs) if not flags.is_empty() else "none"))
-		print("  expedition back in %d runs; at that dawn the quarantine path known in %d, iron 1+ in %d" % [trips.back, trips.path, trips.iron])
+		print("  endings open at the decision: %s" % (_row(at_decision, runs) if not at_decision.is_empty() else "no decision"))
+		gate.weeks.sort()
+		print("  quarantine path learned in %d runs (weeks %s); Quarantine order open in %d" % [gate.path, str(gate.weeks), gate.open])
 		print("  fragments per run: honest %.2f, dirty %.2f; proofs per run %.2f; runs with 0/1/2/3+ proofs %d/%d/%d/%d" % [
 			honest / float(runs), dirty / float(runs), proofs / float(runs),
 			int(proof_runs.get(0, 0)), int(proof_runs.get(1, 0)), int(proof_runs.get(2, 0)), int(proof_runs.get(3, 0))])

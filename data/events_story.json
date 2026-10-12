@@ -234,11 +234,11 @@
         "no_flag": "buried_papers",
         "no_fragment": "depot_order"
       },
-      "text": "Bernie Shaw asks you to sit in the stove room and shuts the door. She takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" she says. \"Lock the gates. Admit no one to the tunnel.\" She does not look up.",
+      "text": "Bernie Shaw asks you to sit in the stove room and shuts the door. He takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" he says. \"Lock the gates. Admit no one to the tunnel.\" He does not look up.",
       "choices": [
         {
           "id": "take",
-          "label": "Take the scrap and ask what she wants for it",
+          "label": "Take the scrap and ask what he wants for it",
           "fragment": "depot_order",
           "how": "honest",
           "hope": -1,
@@ -248,7 +248,7 @@
         },
         {
           "id": "refuse",
-          "label": "Tell her to keep it",
+          "label": "Tell him to keep it",
           "hope": 1,
           "standing": {
             "depot": 2
@@ -669,7 +669,7 @@
       "id": "st3_quarantine",
       "title": "The door that no one opens",
       "trigger": {
-        "order": "expedition_to_ferry",
+        "order": "approach_quarantine",
         "needs": {
           "fragment": "quarantine_path",
           "artifacts_min": {
@@ -800,7 +800,7 @@
           "id": "climb",
           "label": "Prepare the climb for the forty-first week",
           "requires": {
-            "hope_min": 60,
+            "hope_min": 50,
             "any_flag": [
               "observatory_trusted",
               "observatory_sheltered"
@@ -867,9 +867,6 @@
     "Tell her yes, soon": "Сказать, что да, скоро",
     "Tell her the Synod keeps a quiet room for such questions": "Сказать, что у Синода есть тихая комната для таких вопросов",
     "The scrap Bernie kept": "Обрывок, который хранила Берни",
-    "Bernie Shaw asks you to sit in the stove room and shuts the door. She takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" she says. \"Lock the gates. Admit no one to the tunnel.\" She does not look up.": "Берни Шоу просит тебя сесть в печной комнате и закрывает дверь. Из сапога она достаёт обгоревший угол бумаги. Она говорит: «Уцелела только первая строка. Запереть створки. Никого не пускать в тоннель». Она не поднимает глаз.",
-    "Take the scrap and ask what she wants for it": "Взять обрывок и спросить, чего она хочет за него",
-    "Tell her to keep it": "Сказать, чтобы оставила себе",
     "What you remember of the copy": "Что ты помнишь о копии",
     "You read the copy before it burned. At night the first line comes back by itself: lock the gates, admit no one to the tunnel. There is no paper left to show anyone. Only you.": "Ты прочёл копию до того, как она сгорела. По ночам первая строка возвращается сама: запереть створки, никого не пускать в тоннель. Бумаги, которую можно показать, не осталось. Только ты.",
     "Write down what you remember": "Записать то, что помнишь",
@@ -928,6 +925,9 @@
     "Open the door: read everything on every wire": "Открыть дверь: прочесть всё по всем проводам",
     "Prepare the climb for the forty-first week": "Подготовить подъём к сорок первой неделе",
     "Close the ledger: the Directorate keeps the lists, and the rest stays buried": "Закрыть журнал: Дирекция хранит списки, остальное остаётся погребённым",
-    "Hold the line one more week": "Продержаться ещё одну неделю"
+    "Hold the line one more week": "Продержаться ещё одну неделю",
+    "Bernie Shaw asks you to sit in the stove room and shuts the door. He takes a corner of burnt paper out of a boot. \"The first line is all that survived,\" he says. \"Lock the gates. Admit no one to the tunnel.\" He does not look up.": "Берни Шоу просит тебя сесть в печной комнате и закрывает дверь. Из сапога он достаёт обгоревший угол бумаги. Он говорит: «Уцелела только первая строка. Запереть створки. Никого не пускать в тоннель». Он не поднимает глаз.",
+    "Take the scrap and ask what he wants for it": "Взять обрывок и спросить, чего он хочет за него",
+    "Tell him to keep it": "Сказать, чтобы оставил себе"
   }
 }

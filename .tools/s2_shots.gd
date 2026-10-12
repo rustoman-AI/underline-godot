@@ -3,7 +3,8 @@ extends SceneTree
 ## Story S2 shots (docs/briefs/cursor_story_engine_s2.txt):
 ##   godot --path . -s res://.tools/s2_shots.gd -- --lang=ru --size=1280x720
 ## Saves shots/s2/<lang>_<size>/: the three bunker scenes (scene_st3_floor shows a choice closed by trust,
-## scene_st3_quarantine two closed choices), the Observatory order locked and open on a station sheet, the final
+## scene_st3_quarantine two closed choices), the Quarantine and Observatory orders locked and open on a station
+## sheet (observatory_locked, observatory_open), the final
 ## decision with closed choices, and the epilogue of all eight endings (top and scrolled to the buttons).
 ## Nothing is saved to a slot.
 
@@ -50,7 +51,10 @@ func _run() -> void:
 		st._close_card()
 	game.pending = []
 	game.events_seen.erase("st3_observatory")
+	game.events_seen.erase("st3_quarantine")
+	game.artifacts.iron = 0
 	await _sheet("observatory_locked")
+	game.artifacts.iron = 1
 	game.artifacts.words = 2
 	game.fragments["synod_recording"] = {"known": true, "how": "honest", "week": 21}
 	await _sheet("observatory_open")

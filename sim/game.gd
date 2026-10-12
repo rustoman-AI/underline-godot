@@ -2605,6 +2605,8 @@ func _apply_order(action: Dictionary) -> bool:
 			ok = _order_approach()
 		"approach_observatory":
 			ok = _order_approach_observatory()
+		"approach_quarantine":
+			ok = _order_approach_quarantine()
 		"address":
 			ok = _order_address()
 	if ok:
@@ -2783,6 +2785,8 @@ func _resolve_queued() -> void:
 				ok = _order_approach()
 			"approach_observatory":
 				ok = _order_approach_observatory()
+			"approach_quarantine":
+				ok = _order_approach_quarantine()
 			"address":
 				ok = _order_address()
 		var place := sid
@@ -2844,6 +2848,8 @@ func _order_title(kind: String) -> String:
 			return "Approach the Floor"
 		"approach_observatory":
 			return "Approach the Observatory"
+		"approach_quarantine":
+			return "Approach the Quarantine"
 		_:
 			return "Dawn report"
 
@@ -2876,6 +2882,8 @@ func order_block(kind: String, sid: String = "") -> String:
 			return approach_block()
 		"approach_observatory":
 			return observatory_block()
+		"approach_quarantine":
+			return quarantine_block()
 		_:
 			return Copy.t("No such order.")
 	return ""
@@ -2902,6 +2910,19 @@ func observatory_block() -> String:
 
 func can_approach_observatory() -> bool:
 	return observatory_block() == "" and orders_left > 0
+
+
+## Why the Quarantine cannot be approached now; "" when it can (the order itself aside).
+func quarantine_block() -> String:
+	if _scene_used("st3_quarantine"):
+		return Copy.t("The Quarantine has already been met.")
+	if int(artifacts.get("iron", 0)) < 1 or not fragment_known("quarantine_path"):
+		return Copy.t("Needs the Lamplighters' path and iron")
+	return ""
+
+
+func can_approach_quarantine() -> bool:
+	return quarantine_block() == "" and orders_left > 0
 
 
 func order_risk(kind: String, sid: String = "") -> String:
@@ -2940,7 +2961,7 @@ func order_risk(kind: String, sid: String = "") -> String:
 			return line
 		"expedition":
 			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
-		"approach", "approach_observatory":
+		"approach", "approach_observatory", "approach_quarantine":
 			return Copy.t("No risk. The meeting comes at the next dawn.")
 	return ""
 
@@ -3125,8 +3146,15 @@ func _order_approach_observatory() -> bool:
 	return true
 
 
+func _order_approach_quarantine() -> bool:
+	if quarantine_block() != "":
+		return false
+	_fire_trigger("approach_quarantine")
+	return true
+
+
 ## The bunker scenes an order can set off ("trigger": {"order": ...}); each order name is fired from one place.
-const TRIGGER_ORDERS := ["approach_floor", "expedition_to_ferry", "approach_observatory"]
+const TRIGGER_ORDERS := ["approach_floor", "approach_quarantine", "approach_observatory"]
 
 
 ## Queues every bunker scene waiting on `order` whose trigger conditions hold, for the next dawn, once a run.
@@ -3185,7 +3213,6 @@ func _tick_expedition() -> void:
 	expedition = {}
 	flags[EXPEDITION_FLAG] = true
 	_log("South Ferry is open. Two people walk back with the squad.", true)
-	_fire_trigger("expedition_to_ferry")
 
 
 # --- rivals ---
@@ -4515,7 +4542,7 @@ func requires_reason(req) -> String:
 	for fid in req.get("standing_min", {}):
 		var now := int(standing.get(str(fid), 0))
 		if now < int(req.standing_min[fid]):
-			return Copy.t("Needs %s's trust %d, now %d") % [_leader_display(str(fid)), int(req.standing_min[fid]), now]
+			return Copy.t("Needs %s's trust: %d") % [_faction_of(str(fid)), int(req.standing_min[fid])]
 	for fid in req.get("standing_max", {}):
 		var now := int(standing.get(str(fid), 0))
 		if now > int(req.standing_max[fid]):
@@ -4576,7 +4603,7 @@ func _unmet_noun(req: Dictionary) -> String:
 		return flag_text(str(req.flag))
 	for fid in req.get("standing_min", {}):
 		if int(standing.get(str(fid), 0)) < int(req.standing_min[fid]):
-			return Copy.t("%s's trust %d") % [_leader_display(str(fid)), int(req.standing_min[fid])]
+			return Copy.t("%s's trust: %d") % [_faction_of(str(fid)), int(req.standing_min[fid])]
 	if req.has("hope_min") and hope < int(req.hope_min):
 		return Copy.t("hope %d") % int(req.hope_min)
 	return ""
@@ -4588,6 +4615,19 @@ func _leader_display(fid: String) -> String:
 		var out := str(pair.get("ru", "")) if Copy.ru() else ""
 		return out if out != "" else str(pair.get("en", fid))
 	return str(pair) if str(pair) != "" else fid
+
+
+## Russian takes the faction in the genitive ("доверие Дирекции"); English uses its short name.
+const FACTION_OF_RU := {"depot": "Депо", "directorate": "Дирекции", "synod": "Синода", "exchange": "Биржи", "black_flag": "Фонарщиков"}
+
+
+## The faction as read in a reason line: "the Directorate" / "Дирекции".
+func _faction_of(fid: String) -> String:
+	if Copy.ru() and FACTION_OF_RU.has(fid):
+		return str(FACTION_OF_RU[fid])
+	if catalog.factions.has(fid):
+		return "the " + str(catalog.factions[fid].short)
+	return "the Lamplighters" if fid == "black_flag" else _leader_display(fid)
 
 
 func _fragment_name(id: String) -> String:

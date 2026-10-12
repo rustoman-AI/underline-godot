@@ -12,7 +12,7 @@ var profile := "careful"
 ## (or when it cannot pay for the help).
 ## A deal the bot cannot pay for is left waiting, which the game counts as silence.
 ## "storyteller" answers like "helper", listens to one new resident story a week (as the player does in a
-## dossier), approaches the Floor and the Observatory as soon as it can, takes the choice with a proof (then a
+## dossier), approaches the Floor, the Quarantine and the Observatory as soon as it can, takes the choice with a proof (then a
 ## flag) in bunker scenes, and takes an ending at the final decision.
 var audience_style := "silence"
 const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed", "storyteller"]
@@ -527,6 +527,8 @@ func _order(game: Game) -> Dictionary:
 	if audience_style == "storyteller":
 		if game.can_approach():
 			return {"kind": "order", "order": "approach"}
+		if game.can_approach_quarantine():
+			return {"kind": "order", "order": "approach_quarantine"}
 		if game.can_approach_observatory():
 			return {"kind": "order", "order": "approach_observatory"}
 	if profile == "expander":

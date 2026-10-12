@@ -650,7 +650,7 @@ func _shown(game: Game, id: String) -> bool:
 
 
 ## Bunker scenes come from orders, never from the pool or the story slot: the Floor on its approach, the
-## Quarantine when the expedition comes back with the path known and iron, the Observatory on its own order.
+## Quarantine on its order once the path is known and there is iron, the Observatory on its own order.
 ## Each comes at the next dawn, once a run.
 func _scenes() -> void:
 	var bad: PackedStringArray = []
@@ -673,18 +673,29 @@ func _scenes() -> void:
 	game._fire_trigger("approach_floor")
 	if not game.story_queue.is_empty():
 		bad.append("floor queued twice")
-	for known in [false, true]:
-		var trip := _game()
-		trip.week = 20
-		if known:
-			trip.fragments = {"quarantine_path": {"known": true, "how": "found", "week": 18}}
-			trip.artifacts.iron = 1
-		trip.expedition = {"left": 1, "tunnel": "to_ferry"}
-		trip.squads[trip.player].away = true
-		trip._tick_expedition()
-		var want: Array = ["st3_quarantine"] if known else []
-		if trip.story_queue != want or bool(trip.stations.vault.hidden) or not trip.flags.has(Game.EXPEDITION_FLAG):
-			bad.append("expedition path %s queue %s vault hidden %s" % [known, trip.story_queue, trip.stations.vault.hidden])
+	var trip := _game()
+	trip.week = 20
+	trip.fragments = {"quarantine_path": {"known": true, "how": "found", "week": 18}}
+	trip.artifacts.iron = 1
+	trip.expedition = {"left": 1, "tunnel": "to_ferry"}
+	trip.squads[trip.player].away = true
+	trip._tick_expedition()
+	if not trip.story_queue.is_empty() or bool(trip.stations.vault.hidden) or not trip.flags.has(Game.EXPEDITION_FLAG):
+		bad.append("expedition back: queue %s vault hidden %s" % [trip.story_queue, trip.stations.vault.hidden])
+	var gate := _game()
+	gate.week = 22
+	var shut := gate.quarantine_block()
+	gate.fragments = {"quarantine_path": {"known": true, "how": "honest", "week": 20}}
+	var no_iron := gate.quarantine_block()
+	gate.artifacts.iron = 1
+	var gate_orders := gate.orders_left
+	if shut != "Needs the Lamplighters' path and iron" or no_iron != shut or gate.quarantine_block() != "":
+		bad.append("quarantine locked '%s' no iron '%s' open '%s'" % [shut, no_iron, gate.quarantine_block()])
+	if not gate.queue_order({"kind": "order", "order": "approach_quarantine"}) or gate.orders_left != gate_orders - 1 or _shown(gate, "st3_quarantine"):
+		bad.append("quarantine order not queued for one order")
+	gate.end_week()
+	if not _shown(gate, "st3_quarantine") or gate.quarantine_block() != "The Quarantine has already been met." or gate.can_approach_quarantine():
+		bad.append("quarantine not met once at the next dawn")
 	var obs := _game()
 	obs.week = 24
 	var locked := obs.observatory_block()
@@ -704,7 +715,7 @@ func _scenes() -> void:
 		bad.append("observatory not met at the next dawn")
 	if obs.observatory_block() != "The Observatory has already been met." or obs.can_approach_observatory():
 		bad.append("observatory open twice")
-	_expect(bad.is_empty(), "Bunker scenes come by order at the next dawn, once a run, never pooled; Observatory order locked with its reason, then reveals Court St",
+	_expect(bad.is_empty(), "Bunker scenes come by order at the next dawn, once a run, never pooled; Quarantine and Observatory orders locked with their reasons; the expedition sets off no scene",
 		"scenes: " + "; ".join(bad))
 
 
@@ -729,7 +740,7 @@ func _choices() -> void:
 		"proof": "Needs 3 proofs, you have 1",
 		"hope": "Needs hope 60, now 40",
 		"any": "Needs the Observatory's trust or the Observatory sheltered",
-		"either": "Needs the Floor handed over or %s's trust 50" % game._leader_display("directorate"),
+		"either": "Needs the Floor handed over or the Directorate's trust: 50",
 	}
 	for choice in ev.choices:
 		var why := game.lock_reason(choice)
