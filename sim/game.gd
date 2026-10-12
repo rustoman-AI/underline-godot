@@ -4946,10 +4946,9 @@ func _offer_checks() -> void:
 			continue
 		if _present_event(ev):
 			item.done = true
-			if not bool(ev.get("opened", false)):
-				var live: Dictionary = pending[pending.size() - 1]
+			var live: Dictionary = pending[pending.size() - 1]
+			if not bool(live.get("opened", false)):
 				_apply_effect_block(live.get("effects_on_open", {}), "", false, live)
-				ev.opened = true
 				live.opened = true
 		else:
 			item.week = week + 1

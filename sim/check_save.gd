@@ -25,6 +25,7 @@ func _init() -> void:
 	_legacy()
 	_rejects()
 	_story_saves()
+	_shared_catalog()
 	_resume()
 	_slots()
 	_wipe(SaveGame.root)
@@ -224,6 +225,31 @@ func _story_saves() -> void:
 		and ended.ending_id() == "open_door" and ended.proofs() == 3 and ended.story_queue == ["st3_observatory"],
 		"Saves at the final decision and after a story ending load back the same",
 		"decision loaded=%s same=%s door=%s took=%s over=%s reloaded=%s %s ending=%s" % [loaded, same, door_open, took, copy.over, reloaded, ended.load_error, ended.ending_id()])
+
+
+## New Game and Continue reuse the session's catalog, so a run must leave it as it found it: the same seed
+## played twice on one catalog ends in the same state, check events' open effects included.
+func _shared_catalog() -> void:
+	var shared := Catalog.new()
+	shared.load_all()
+	var runs: Array = []
+	var opened := 0
+	for i in 2:
+		var game := Game.new()
+		game.setup(shared, 3, WEEKS)
+		var bot := Bot.new()
+		while game.over == "":
+			bot._act(game)
+			game.end_week()
+		runs.append(var_to_bytes(game.export_state()))
+		if i == 0:
+			for item in game.check_schedule:
+				if bool(item.done) and not game._event_by_id(str(item.id)).get("effects_on_open", {}).is_empty():
+					opened += 1
+	var marked := shared.events.filter(func(ev): return ev.has("opened"))
+	_expect(opened > 0 and runs[0] == runs[1] and marked.is_empty(),
+		"Same seed twice on one catalog plays the same (%d checks with open effects)" % opened,
+		"shared catalog: open checks %d, same %s, catalog events marked %d" % [opened, runs[0] == runs[1], marked.size()])
 
 
 func _with(data: Dictionary, key: String, value) -> Dictionary:
