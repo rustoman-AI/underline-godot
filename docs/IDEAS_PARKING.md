@@ -63,3 +63,6 @@
 - Design note: switching the workshop off lowers materials storage and the surplus burns (about -12 in one night). Now visible in the forecast as "Store full". Decide after playtest data whether the rule needs a warning on the switch. (12 Oct, Cursor)
 
 - Upgrades: part B (one per week, cost x1.5, optional 1 week of work) waits for the owner yes, see docs/briefs/cursor_upgrade_visible.txt. Related older F12/F13 (cooldown, build tiers) stay parked. (12 Oct, owner playtest)
+
+- Night Moon ideas (13 Oct): one murder-mystery branch (a character dies after day one, find who), a radio madman with daily news, skill synergy per room (Strength, Wits, Speech, Perception), a saboteur spy, a clearer reason to grow the station. Artur: too much now, write for later. Also reference game UNFROST (detective logic, very positive Steam reviews).
+- F42: Brooklyn stations too far apart (owner issue). Changes the map and travel time, owner decides.
