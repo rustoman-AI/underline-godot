@@ -13,13 +13,15 @@ const QUARANTINE_CUT := 0.75
 
 
 ## One room's output of `key` tonight. "zero" names why it makes nothing; "steps" are the multipliers in order.
-static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {}) -> Dictionary:
+## `tier` reads it as if the room were at that upgrade tier (the upgrade card's "after"); -1 is the room's own.
+static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {}, tier: int = -1) -> Dictionary:
 	var defin: Dictionary = game.catalog.rooms[room.type]
 	var base_table: Dictionary = defin.get("base", {})
 	var out := {"amount": 0, "base": 0.0, "steps": [], "zero": ""}
 	if not base_table.has(key):
 		return out
-	var base := float(base_table[key]) * (1.0 + 0.25 * float(room.upgrade))
+	var at_tier := int(room.upgrade) if tier < 0 else tier
+	var base := float(base_table[key]) * (1.0 + 0.25 * float(at_tier))
 	out.base = base
 	if bool(room.get("switched_off", false)):
 		out.zero = "off"

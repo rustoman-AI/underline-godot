@@ -58,6 +58,25 @@ const YIELD_ZERO := {
 	"event": "stopped by an event",
 	"mold": "mold in the beds",
 }
+const ROMAN := ["", "I", "II", "III", "IV", "V"]
+const UPGRADE_FLASH_MS := 900
+const BRASS := Color("c9a050")
+## The lead's plain words for each upgrade (docs/briefs/cursor_upgrade_visible.txt).
+const UPGRADE_WHAT := {
+	"bunks": "Bunks: more beds in the same space.",
+	"family": "Family corners: calmer people, a little more hope.",
+	"grow_lamps": "Grow lamps: more food from the same beds.",
+	"mushroom_beds": "Mushroom beds: food that needs little light.",
+	"charcoal": "Charcoal filters: cleaner air.",
+	"pressure_seals": "Pressure seals: fewer leaks.",
+	"dynamo": "Dynamo: more power from the same crew.",
+	"substation": "Substation: steadier power.",
+	"drill_heads": "Drill heads: digging goes faster.",
+	"armor": "Armour plates: the workshop survives raids.",
+	"quarantine_ward": "Quarantine ward: the sick are kept apart.",
+	"loudspeakers": "Loudspeakers: the hall reaches the whole platform.",
+	"antenna": "Antenna: the radio hears farther.",
+}
 const YIELD_STEP := {
 	"skill": "crew skill",
 	"half_crew": "short crew",
@@ -1714,7 +1733,7 @@ func _fill_people() -> void:
 			var room = game._room(uid)
 			if room == null:
 				continue
-			var room_name := Copy.t(str(game.catalog.rooms[room.type].name))
+			var room_name := room_title(room)
 			var skill := str(game.catalog.rooms[room.type].get("skill", ""))
 			_people_group(room_name, grouped[uid], skill, false, str(uid))
 		if (people_filter == "" or people_filter == "crew") and not grouped["crew"].is_empty():
@@ -1754,7 +1773,7 @@ func _where(id: String) -> String:
 	for room in game.rooms:
 		for sid in room.staff:
 			if str(sid) == id:
-				return Copy.t(str(game.catalog.rooms[room.type].name))
+				return room_title(room)
 	for wid in game._locked_ids():
 		if str(wid) == id:
 			return Copy.t("On a crew")
@@ -2213,6 +2232,85 @@ func _room_amount(uid: String, key: String) -> int:
 	return int(room_out.get(uid, {}).get(key, 0))
 
 
+## Each output the next upgrade raises: this week's number now and at the next tier, read like the room header,
+## and the step on the base output in percent.
+func upgrade_gains(uid: String) -> Array:
+	var rows: Array = []
+	var room = game._room(uid)
+	if room == null:
+		return rows
+	_sync_numbers()
+	var defin: Dictionary = game.catalog.rooms[room.type]
+	var base: Dictionary = defin.get("base", {})
+	for key in base:
+		var now: Dictionary = WeekForecast.room_yield(game, room, str(key), dark_now)
+		var next: Dictionary = WeekForecast.room_yield(game, room, str(key), dark_now, int(room.upgrade) + 1)
+		var pct := int(round((float(next.base) - float(now.base)) / maxf(float(base[key]), 0.001) * 100.0))
+		rows.append({"key": str(key), "before": _room_amount(uid, str(key)), "after": _room_cut(str(key), int(next.amount)), "pct": pct})
+	return rows
+
+
+## Brass plate by the room card's title: the tier and the last upgrade bought.
+func _tier_chip(room) -> PanelContainer:
+	var tier := int(room.upgrade)
+	var steps: Array = game.catalog.rooms[room.type].get("upgrades", [])
+	var chip := PanelContainer.new()
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var face := StyleBoxFlat.new()
+	face.bg_color = BRASS
+	face.border_color = Color("5a3d12")
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.content_margin_left = 8
+	face.content_margin_right = 8
+	face.content_margin_top = 2
+	face.content_margin_bottom = 2
+	chip.add_theme_stylebox_override("panel", face)
+	var text := Copy.t("Tier %s") % roman(tier)
+	if tier - 1 < steps.size():
+		text = Copy.t("Tier %s: %s") % [roman(tier), _upgrade_name(str(steps[tier - 1]))]
+	var lab := _label(text, 15, true)
+	lab.add_theme_color_override("font_color", Color("24180e"))
+	chip.add_child(lab)
+	chip.set_meta("tier_chip", tier)
+	return chip
+
+
+func roman(n: int) -> String:
+	return ROMAN[n] if n >= 0 and n < ROMAN.size() else str(n)
+
+
+func _built_count(type: String) -> int:
+	var n := 0
+	for room in game.rooms:
+		if str(room.type) == type:
+			n += 1
+	return n
+
+
+## "Hydroponics, tier II" when another room of the type stands in the yard, so the two read apart.
+func room_title(room) -> String:
+	var name := Copy.t(str(game.catalog.rooms[room.type].name))
+	if int(room.upgrade) <= 0 or _built_count(str(room.type)) < 2:
+		return name
+	return Copy.t("%s, tier %s") % [name, roman(int(room.upgrade))]
+
+
+func _upgrade_what(id: String) -> String:
+	return Copy.t(UPGRADE_WHAT[id]) if UPGRADE_WHAT.has(id) else ""
+
+
+## "+4 power a week, +1 influence a week" for the gains that move.
+func _gain_words(gains: Array) -> String:
+	var bits: PackedStringArray = []
+	for row in gains:
+		var delta := int(row.after) - int(row.before)
+		if delta != 0:
+			bits.append(Copy.t("%s%s a week") % ["+" if delta > 0 else "-", Copy.stock(absi(delta), str(row.key))])
+	return ", ".join(bits)
+
+
 func _stock_head(key: String) -> String:
 	var row: Dictionary = week_fc[key]
 	var net := "%+d" % int(row.net)
@@ -2496,7 +2594,7 @@ func _show_power() -> void:
 		if room == null:
 			continue
 		index += 1
-		var name := Copy.t(str(game.catalog.rooms[room.type].name))
+		var name := room_title(room)
 		_body("%d. %s" % [index, name])
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
@@ -2698,7 +2796,8 @@ func _show_room(uid: String) -> void:
 		return
 	if not _claim(ModalDeck.AMBIENT, "room", _show_room.bind(uid)):
 		return
-	_open_card(str(detail.name))
+	var room = game._room(uid)
+	_open_card(room_title(room))
 	room_open = str(detail.type)
 	_sync_room_sound()
 	var title_row := card_body.get_child(0) as HBoxContainer
@@ -2707,6 +2806,10 @@ func _show_room(uid: String) -> void:
 		var icon := _room_icon(str(detail.type), 48)
 		title_row.add_child(icon)
 		title_row.move_child(icon, 0)
+		if int(room.upgrade) > 0:
+			var chip := _tier_chip(room)
+			title_row.add_child(chip)
+			title_row.move_child(chip, 2)
 		if room_what(str(detail.type)) != "":
 			var line := _help_line(str(detail.type), help_unfold)
 			var badge := _help_badge(str(detail.type), line)
@@ -3020,7 +3123,7 @@ func _show_assign(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
 	if not _claim(ModalDeck.AMBIENT, "assign", _show_assign.bind(uid)):
 		return
-	_open_card(Copy.t("Assign to %s") % Copy.t(str(detail.name)))
+	_open_card(Copy.t("Assign to %s") % room_title(game._room(uid)))
 	var skill_name := str(detail.skill)
 	if skill_name != "":
 		_body(Copy.t("Best %s first. The number is that skill.") % Copy.skill(skill_name, false))
@@ -3078,10 +3181,35 @@ func _confirm_upgrade(uid: String) -> void:
 	else:
 		card_body.add_child(_upgrade_card(uid, true))
 		if bool(info.ok):
-			card_body.add_child(_button("Upgrade", _do_confirm.bind({"kind": "upgrade", "room": uid})))
+			card_body.add_child(_button("Upgrade", _do_upgrade.bind(uid)))
 		else:
 			_blocked_pair("Upgrade", str(info.reason))
 	card_body.add_child(_button("Back", _close_card))
+
+
+## Buys the next tier, then marks it: the "built" cue, a brass flash on the room and a toast with what it adds.
+func _do_upgrade(uid: String) -> void:
+	var room = game._room(uid)
+	var info := game.upgrade_preview(uid)
+	var gains := upgrade_gains(uid)
+	if room == null or not game.apply({"kind": "upgrade", "room": uid}):
+		_do_confirm({})
+		return
+	Sound.play("built")
+	_close_card()
+	_refresh()
+	_action_voice("upgrade", "")
+	if yard != null:
+		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
+	_toast(upgrade_toast(str(room.type), str(info.name), gains), 3.2)
+
+
+func upgrade_toast(type: String, upgrade_id: String, gains: Array) -> String:
+	var words := _gain_words(gains)
+	var name := _room_type_name(type)
+	if words == "":
+		return Copy.t("%s upgraded: %s.") % [name, _upgrade_name(upgrade_id)]
+	return Copy.t("%s upgraded: %s (%s).") % [name, _upgrade_name(upgrade_id), words]
 
 
 func _confirm_demolish(uid: String) -> void:
@@ -3536,6 +3664,8 @@ func _journal_line(row: Dictionary) -> String:
 		"dig":
 			return Copy.t("Dug a new cell.")
 		"upgrade":
+			if str(row.get("name", "")) != "":
+				return Copy.t("Upgraded %s to tier %s: %s.") % [_room_type_name(str(row.get("type", ""))), roman(int(row.get("tier", 1))), _upgrade_name(str(row.name))]
 			return Copy.t("Upgraded %s.") % _room_type_name(str(row.get("type", "")))
 		"demolish":
 			return Copy.t("Demolished %s.") % _room_type_name(str(row.get("type", "")))
@@ -3631,7 +3761,8 @@ func _room_type_name(type: String) -> String:
 
 ## rooms.json names upgrades by id ("drill_heads"); ru.json keys them by the spaced words.
 func _upgrade_name(id: String) -> String:
-	return Copy.t(id.replace("_", " "))
+	var name := Copy.t(id.replace("_", " "))
+	return name.substr(0, 1).to_upper() + name.substr(1)
 
 
 func _station_name(sid: String) -> String:
@@ -5773,30 +5904,43 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text.add_theme_constant_override("separation", 4)
-	var uname := _upgrade_name(str(info.get("name", "")))
-	if uname != "":
-		var title := _label(uname, 18, true)
+	var uid_name := str(info.get("name", ""))
+	var uname := _upgrade_name(uid_name)
+	if uname != "" and room != null:
+		var title := _label(Copy.t("Tier %s: %s") % [roman(int(room.upgrade) + 1), uname], 18, true)
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		title.set_meta("upgrade_title", int(room.upgrade) + 1)
 		text.add_child(title)
-	var changes: Array = Brief.upgrade_changes(game, uid)
-	if changes.is_empty():
-		var stay := _label("the weekly numbers stay", 14)
-		stay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		text.add_child(stay)
-	else:
+	if _upgrade_what(uid_name) != "":
+		var what := _label(_upgrade_what(uid_name), 14)
+		what.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		text.add_child(what)
+	var gains: Array = upgrade_gains(uid) if uname != "" else []
+	var moved := false
+	for gain in gains:
+		if int(gain.after) == int(gain.before):
+			continue
+		moved = true
 		var line := HBoxContainer.new()
 		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		line.add_theme_constant_override("separation", 4)
-		var first := true
-		for change in changes:
-			if not first:
-				line.add_child(_dot())
-			first = false
-			_change_bit(line, change)
-		var per := _label("/ wk", 14)
-		per.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		line.add_child(per)
+		line.add_child(_mini_glyph(str(gain.key)))
+		var nums := _label(Copy.t("%s %+d -> %+d a week") % [Copy.res(str(gain.key)), int(gain.before), int(gain.after)], 15, true)
+		nums.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		nums.add_theme_color_override("font_color", DELTA_UP)
+		nums.set_meta("upgrade_gain", gain)
+		line.add_child(nums)
 		text.add_child(line)
+	if not gains.is_empty():
+		var pct := _label(Copy.t("You get: +%d%% of the base output.") % int(gains[0].pct), 14)
+		pct.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		text.add_child(pct)
+	if not moved and uname != "":
+		var stay := _label("the weekly numbers stay", 14)
+		stay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		text.add_child(stay)
 	var cost := HBoxContainer.new()
 	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost.add_theme_constant_override("separation", 4)
@@ -5811,7 +5955,10 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	cost_n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost_n.add_theme_color_override("font_color", DELTA_DOWN)
 	cost.add_child(cost_n)
-	text.add_child(cost)
+	if uname != "":
+		text.add_child(cost)
+	else:
+		cost.free()
 	if not enabled and not embedded:
 		var why := _label(str(info.get("reason", "")), 13)
 		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -5828,19 +5975,6 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	row.add_child(text)
 	panel.add_child(row)
 	return panel
-
-
-func _change_bit(row: HBoxContainer, change: Dictionary) -> void:
-	row.add_child(_mini_glyph(str(change.key)))
-	var before := _label("+%d" % int(change.before), 14)
-	before.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(before)
-	var arrow := _mini_glyph("arrow")
-	row.add_child(arrow)
-	var after := _label("+%d" % int(change.after), 14)
-	after.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	after.add_theme_color_override("font_color", DELTA_UP if bool(change.gain) else DELTA_DOWN)
-	row.add_child(after)
 
 
 func _assign_picks(uid: String) -> Array:
@@ -5920,7 +6054,7 @@ func _other_room_name(person_id: String, uid: String) -> String:
 			continue
 		for sid in room.staff:
 			if str(sid) == person_id:
-				return Copy.t(str(game.catalog.rooms[room.type].name))
+				return room_title(room)
 	return ""
 
 
@@ -9000,6 +9134,10 @@ class Yard extends Control:
 	var pending_at := 0
 	var focused := Vector2i(-1, -1)
 	var pops: Array = []
+	## Room uid -> msec when its upgrade flash ends.
+	var flash := {}
+	## Room uid -> the numeral its sign showed last frame (for the checks).
+	var sign_tiers := {}
 	const DOUBLE_MS := 320
 
 	func fit() -> void:
@@ -9623,6 +9761,8 @@ class Yard extends Control:
 			if texture != null:
 				_blit_room(texture, rect)
 			_draw_lamp_glow(rect, room_type)
+			if room != null and int(room.upgrade) > 0:
+				_draw_tier_light(rect, int(room.upgrade))
 		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
 		if losing:
 			draw_rect(rect, Color(0, 0, 0, _lamp(level, cell)))
@@ -9634,6 +9774,9 @@ class Yard extends Control:
 				_draw_people(rect, room)
 			if glow.has(str(spot.room)):
 				draw_rect(rect.grow(-3.0), Color(0.95, 0.84, 0.55, 0.95), false, 3.0)
+			if int(room.upgrade) > 0:
+				draw_rect(rect.grow(-1.0), Color(station.BRASS, 0.9), false, 1.0 + float(int(room.upgrade)))
+			_draw_flash(rect, str(room.uid))
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
 		if kind == "undug":
@@ -9839,6 +9982,30 @@ class Yard extends Control:
 		var glow_h := rect.size.y * 0.28
 		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.06)
 		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
+
+	## An upgraded room's lamps burn warmer and wider and the room reads a little brighter, more with each tier.
+	func _draw_tier_light(rect: Rect2, tier: int) -> void:
+		draw_rect(rect, Color(1.0, 0.82, 0.5, 0.04 + 0.03 * float(tier)))
+		var tex := _lamp_texture()
+		if tex == null:
+			return
+		var warm := Color(1.0, 0.74, 0.4, 1.0)
+		var glow_w := rect.size.x * (0.5 + 0.1 * float(tier))
+		var glow_h := rect.size.y * (0.4 + 0.08 * float(tier))
+		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.02)
+		for i in tier + 1:
+			draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, warm)
+
+	## The brass flash on a room just upgraded, fading out over UPGRADE_FLASH_MS.
+	func _draw_flash(rect: Rect2, uid: String) -> void:
+		if not flash.has(uid):
+			return
+		var left := float(int(flash[uid]) - Time.get_ticks_msec()) / float(station.UPGRADE_FLASH_MS)
+		if left <= 0.0:
+			flash.erase(uid)
+			return
+		draw_rect(rect, Color(1.0, 0.86, 0.5, 0.45 * left))
+		draw_rect(rect.grow(-2.0), Color(1.0, 0.9, 0.6, left), false, 4.0)
 
 	func _job_reveal(level: int, cell: int) -> float:
 		var job := _job_span(level, cell)
@@ -10089,7 +10256,11 @@ class Yard extends Control:
 		var steps: Array = defin.get("upgrades", [])
 		var total := mini(3, maxi(1, steps.size() + 1))
 		var filled := clampi(int(room.upgrade) + 1, 1, total)
+		var tier := int(room.upgrade)
+		var numeral: String = station.roman(tier)
 		var pip_w := float(total) * 8.0
+		if tier > 0:
+			pip_w = font.get_string_size(numeral, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 14.0
 		var plate_w := minf(8.0 + 16.0 + 4.0 + text_w + 8.0 + pip_w, screen.size.x - 8.0)
 		var plate := Rect2(screen.position + Vector2(4.0, 4.0), Vector2(plate_w, 22.0))
 		draw_rect(plate, Color("efe6d2"))
@@ -10098,9 +10269,17 @@ class Yard extends Control:
 		var name_w := maxf(8.0, plate_w - 16.0 - 8.0 - pip_w)
 		draw_string(font, plate.position + Vector2(20.0, 16.0), room_name, HORIZONTAL_ALIGNMENT_LEFT, name_w, font_size, Color("24180e"))
 		var px := plate.position.x + plate.size.x - pip_w - 2.0
-		for i in total:
-			var pip := Color("3a2610") if i < filled else Color("3a2610", 0.28)
-			draw_circle(Vector2(px + 4.0 + float(i) * 8.0, plate.position.y + 11.0), 2.2, pip)
+		if tier > 0:
+			var brass := Rect2(px + 1.0, plate.position.y + 2.0, pip_w - 1.0, plate.size.y - 4.0)
+			draw_rect(brass, station.BRASS)
+			draw_rect(brass, Color("5a3d12"), false, 1.0)
+			draw_string(font, Vector2(brass.position.x + 7.0, plate.position.y + 16.0), numeral, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("24180e"))
+			sign_tiers[str(room.uid)] = numeral
+		else:
+			sign_tiers.erase(str(room.uid))
+			for i in total:
+				var pip := Color("3a2610") if i < filled else Color("3a2610", 0.28)
+				draw_circle(Vector2(px + 4.0 + float(i) * 8.0, plate.position.y + 11.0), 2.2, pip)
 		var disc := Rect2(plate.end.x + 4.0, plate.position.y + 2.0, 18.0, 18.0)
 		if disc.end.x <= screen.end.x - 4.0 and station.room_what(str(room.type)) != "":
 			var mid := disc.get_center()

@@ -4,6 +4,7 @@ extends SceneTree
 ##   B1  a rebuilt card leaves no empty paper; a second press inside the guard window is dropped.
 ##   B2  station and network cameras keep the dark void out at every zoom and window size.
 ##   B3  wheel zoom keeps the point under the cursor unless the bounds need the view to move.
+##   U1-U4  upgrade tiers on the yard sign, the room card and titles; before and after numbers equal what is applied.
 ##   M1, M3  the network map opens filling 90 percent of the free area; zoom bounds, the deepest zoom, + - and Whole map.
 ##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
 ##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
@@ -59,6 +60,7 @@ func _run() -> void:
 	_event_words()
 	_audience_words()
 	_crowd_words()
+	await _upgrade_view()
 	_week_numbers()
 	if not numbers_done:
 		bad.append("N1: the week check stopped on a script error")
@@ -510,6 +512,75 @@ func _map_fill(net, view: Vector2) -> void:
 	var bar: Rect2 = net._zoom_bar.get_rect()
 	if not Rect2(Vector2.ZERO, view).encloses(bar) or bar.end.y > net._chrome_top() + 0.5:
 		bad.append("M3 network %s: zoom buttons %s are off the map or over the bottom buttons" % [view, bar])
+
+
+## U1 to U4: the hydroponics sign and room card show tiers 0, I and II; with a second hydroponics the card title
+## and the people list say "Hydroponics, tier II"; the upgrade card's "after" numbers are what the room makes
+## once bought, the toast names the upgrade and its gain, the room flashes and the journal keeps the tier.
+func _upgrade_view() -> void:
+	var game: Game = st.game
+	_clear_modals()
+	var uid := ""
+	for room in game.rooms:
+		if str(room.type) == "hydroponics":
+			uid = str(room.uid)
+	if uid == "":
+		bad.append("U: no hydroponics on a new game")
+		return
+	var room: Dictionary = game._room(uid)
+	var twin: Dictionary = room.duplicate(true)
+	twin.uid = uid + "_twin"
+	twin.staff = []
+	for tier in [0, 1, 2]:
+		await _frames(2)
+		var sign := str(st.yard.sign_tiers.get(uid, ""))
+		if sign != st.roman(tier):
+			bad.append("U1 tier %d: the sign shows '%s'" % [tier, sign])
+		st._show_room(uid)
+		var chip := _find_meta(st.card_body, "tier_chip")
+		if (tier == 0) != (chip == null) or (chip != null and int(chip.get_meta("tier_chip")) != tier):
+			bad.append("U2 tier %d: the room card's tier plate is %s" % [tier, "missing" if chip == null else str(chip.get_meta("tier_chip"))])
+		game.rooms.append(twin)
+		var title: String = st.room_title(room)
+		var want := "Hydroponics" if tier == 0 else "Hydroponics, tier %s" % st.roman(tier)
+		if title != want:
+			bad.append("U4 tier %d with two hydroponics: title '%s', want '%s'" % [tier, title, want])
+		game.rooms.erase(twin)
+		if st.room_title(room) != "Hydroponics":
+			bad.append("U4: a single upgraded hydroponics is titled '%s'" % st.room_title(room))
+		_clear_modals()
+		if tier == 2:
+			break
+		game.stock.materials = 99
+		var gains: Array = st.upgrade_gains(uid)
+		st._confirm_upgrade(uid)
+		var head := _find_meta(st.card_body, "upgrade_title")
+		if head == null or int(head.get_meta("upgrade_title")) != tier + 1:
+			bad.append("U2 tier %d: the upgrade card does not name tier %s" % [tier, st.roman(tier + 1)])
+		if not _shows(st.card_body, "Grow lamps: more food" if tier == 0 else "Mushroom beds: food"):
+			bad.append("U2 tier %d: the upgrade's plain words are missing" % tier)
+		var shown := _find_meta(st.card_body, "upgrade_gain")
+		if shown == null:
+			bad.append("U2 tier %d: no before and after line" % tier)
+		st._do_upgrade(uid)
+		if int(room.upgrade) != tier + 1:
+			bad.append("U3 tier %d: the upgrade was not bought" % tier)
+			return
+		st._sync_numbers()
+		for row in gains:
+			var now: int = st._room_amount(uid, str(row.key))
+			if now != int(row.after):
+				bad.append("U2 tier %d: the card said %s %+d after, the room makes %+d" % [tier, row.key, int(row.after), now])
+		var toast: String = st.toast_label.text if st.toast_label != null else ""
+		if not toast.begins_with("Hydroponics upgraded: %s" % st._upgrade_name(["grow_lamps", "mushroom_beds"][tier])):
+			bad.append("U3 tier %d: toast '%s'" % [tier, toast])
+		if not st.yard.flash.has(uid):
+			bad.append("U3 tier %d: no flash on the room" % tier)
+		var last: Dictionary = game.journal[game.journal.size() - 1] if not game.journal.is_empty() else {}
+		if str(last.get("kind", "")) != "upgrade" or int(last.get("tier", 0)) != tier + 1:
+			bad.append("U3 tier %d: the journal's last line is %s" % [tier, last])
+		print("U tier %d -> %d: %s | journal: %s" % [tier, tier + 1, toast, st._journal_line(last)])
+	_clear_modals()
 
 
 func _net_shown(net) -> Rect2:

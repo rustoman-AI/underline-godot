@@ -357,9 +357,11 @@ func _journal_context(kind: String, action: Dictionary) -> Dictionary:
 			return {"level": int(action.get("level", -1)), "cell": int(action.get("cell", -1))}
 		"upgrade", "demolish":
 			var room = _room(str(action.get("room", "")))
-			if room != null:
-				return {"type": str(room.type)}
-			return {}
+			if room == null:
+				return {}
+			if kind == "upgrade":
+				return {"type": str(room.type), "name": str(upgrade_preview(str(room.uid)).name), "tier": int(room.upgrade) + 1}
+			return {"type": str(room.type)}
 		"law", "repeal":
 			return {"law": str(action.get("law", ""))}
 		"order":
