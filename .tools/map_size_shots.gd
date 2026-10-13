@@ -117,6 +117,17 @@ func _run() -> void:
 	net._redraw()
 	await _shot("network_zoomed")
 	_zoom_reach(net, sid)
+
+	## Shots only: every station known, so the territories show the whole network, then switched off.
+	for each in st.game.stations:
+		st.game.stations[each].known = true
+		st.game.stations[each].hidden = false
+	net.refresh()
+	net._fit()
+	await _shot("network_territories_all")
+	print("FILL %s territories: %d held cells" % [_key(), net.territory_cells(st.game).size()])
+	net.set_territories(false)
+	await _shot("network_territories_off")
 	quit(0)
 
 

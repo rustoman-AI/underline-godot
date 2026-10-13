@@ -36,7 +36,13 @@ const FIT_PIN := 24.0
 const ZOOM_STEP := 1.25
 ## At the deepest zoom a station and its neighbours span about this share of the window's short side.
 const NEAR_SHARE := 1.0 / 3.0
-const WASH_RADIUS := 70.0
+## Territories: how far a station's land reaches on the map (map px), how strong the wash is, the border width
+## in window px, and the edge tags that never get a border line.
+const TERRITORY_REACH := 165.0
+const TERRITORY_FILL := 0.42
+const TERRITORY_LINE := 2.0
+const TAG_REACH := -1
+const TAG_PAPER_EDGE := -2
 const PIN_CAPITAL := 52.0
 const PIN_OTHER := 38.0
 const PIN_FLOOR := 24.0
@@ -54,7 +60,11 @@ const VISIT_MAX_W := 900.0
 const HUB_FOCUS_Y := 0.55
 ## Plain wood in the desk picture (no props), in desk px, and how dark it is drawn beyond the desk.
 const WOOD := Rect2(560, 130, 480, 680)
-const WOOD_TINT := Color(0.42, 0.39, 0.36)
+const WOOD_TINT := Color(0.62, 0.57, 0.52)
+## How far the dark edge of the table reaches in from the window border, as a share of the short side.
+const VIGNETTE := 0.22
+## The council photos stay a narrow column docked at the left edge, off the map's middle.
+const COUNCIL_W := 220.0
 
 
 class Layer extends Control:
@@ -102,7 +112,10 @@ var _pin_rects := {}
 var _head_anchor := Vector2(0.4, 0.36)
 var _weights: Array[Vector2] = []
 var _weight_radius := 34.0
-var _washes := {}
+var territories := true
+var _terr_key := "-"
+var _terr_owners: PackedStringArray = []
+var _terr_cells: Array = []
 var _dot: Texture2D
 var _back_layer: Control
 var _base_layer: Control
@@ -534,13 +547,7 @@ func _soft_rect(c: CanvasItem, rect: Rect2, spread: float, col: Color) -> void:
 func _draw_base(c: CanvasItem) -> void:
 	if not _fitted:
 		_fit()
-	if _desk == null:
-		c.draw_rect(Rect2(Vector2.ZERO, size), Color("120d09"))
 	var view := _view()
-	c.draw_set_transform_matrix(view)
-	if _desk != null:
-		c.draw_texture_rect(_desk, Rect2(Vector2.ZERO, _desk_size), false)
-		_shade_desk_edges(c)
 	c.draw_set_transform_matrix(view * _map_xf)
 	_soft_rect(c, Rect2(Vector2(16, 26), _map_size - Vector2(8, 8)), 46.0, Color(0, 0, 0, 0.55))
 	if _map != null:
@@ -552,20 +559,8 @@ func _draw_base(c: CanvasItem) -> void:
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
-func _shade_desk_edges(c: CanvasItem) -> void:
-	var shade := Color(0.03, 0.02, 0.01, 0.82)
-	var clear := Color(shade, 0.0)
-	var d := Rect2(Vector2.ZERO, _desk_size)
-	var i_box := d.grow(-170.0)
-	var inner := [i_box.position, Vector2(i_box.end.x, i_box.position.y), i_box.end, Vector2(i_box.position.x, i_box.end.y)]
-	var outer := [d.position, Vector2(d.end.x, d.position.y), d.end, Vector2(d.position.x, d.end.y)]
-	for i in 4:
-		var j := (i + 1) % 4
-		c.draw_polygon(PackedVector2Array([inner[i], inner[j], outer[j], outer[i]]), PackedColorArray([clear, clear, shade, shade]))
-
-
-## Plain wood from the middle of the desk picture, tiled mirror-wise under the whole window in desk space, so
-## the table goes on past the desk's edges at any size, pan and zoom and no black shows.
+## A bare table: plain wood from the middle of the desk picture (none of its props), tiled mirror-wise under
+## the whole window in desk space so no black shows at any size, pan and zoom, darkened toward the window edges.
 func _draw_backdrop(c: CanvasItem) -> void:
 	c.draw_rect(Rect2(Vector2.ZERO, size), Color("120d09"))
 	if _desk == null or size.x < 1.0:
@@ -585,6 +580,20 @@ func _draw_backdrop(c: CanvasItem) -> void:
 			c.draw_set_transform_matrix(view * Transform2D(0.0, flip, 0.0, at))
 			c.draw_texture_rect_region(_desk, Rect2(Vector2.ZERO, tile), WOOD, WOOD_TINT)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+	_vignette(c)
+
+
+func _vignette(c: CanvasItem) -> void:
+	var reach := VIGNETTE * minf(size.x, size.y)
+	var shade := Color(0.02, 0.012, 0.006, 0.75)
+	var clear := Color(shade, 0.0)
+	var outer := Rect2(Vector2.ZERO, size)
+	var inner := outer.grow(-reach)
+	var i_pts := [inner.position, Vector2(inner.end.x, inner.position.y), inner.end, Vector2(inner.position.x, inner.end.y)]
+	var o_pts := [outer.position, Vector2(outer.end.x, outer.position.y), outer.end, Vector2(outer.position.x, outer.end.y)]
+	for i in 4:
+		var j := (i + 1) % 4
+		c.draw_polygon(PackedVector2Array([i_pts[i], i_pts[j], o_pts[j], o_pts[i]]), PackedColorArray([clear, clear, shade, shade]))
 
 
 func _draw_weights(c: CanvasItem) -> void:
@@ -602,42 +611,127 @@ func _draw_weights(c: CanvasItem) -> void:
 		c.draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, _desk)
 
 
+## Territories on the multiply layer: each faction's land in its colour from the data, with a thin border where
+## it meets another holder or open ground. Drawn only while the Territories button is on.
 func _draw_wash(c: CanvasItem) -> void:
 	var game = _game()
-	if game == null:
+	if game == null or not territories:
+		return
+	var cells := territory_cells(game)
+	if cells.is_empty():
 		return
 	c.draw_set_transform_matrix(_view() * _map_xf)
-	for sid in game.stations:
-		var st: Dictionary = game.stations[sid]
-		if not bool(st.get("known", false)) or not PIN_SPRITE.has(str(st.owner)):
-			continue
-		var tex := _wash_for(str(st.owner))
-		var at := _map_spot(str(sid))
-		var h := _hash(str(sid))
-		for k in 3:
-			var off := Vector2(float((h >> (k * 5)) % 13) - 6.0, float((h >> (k * 5 + 3)) % 13) - 6.0) * 3.0
-			var r := WASH_RADIUS * (0.8 + 0.15 * float(k))
-			c.draw_texture_rect(tex, Rect2(at + off - Vector2(r, r), Vector2(r, r) * 2.0), false)
+	var width := TERRITORY_LINE / maxf(zoom * _map_scale(), 0.01)
+	for cell in cells:
+		var col: Color = cell.color
+		c.draw_colored_polygon(cell.pts, Color.WHITE.lerp(col, TERRITORY_FILL))
+	for cell in cells:
+		var line: Color = Color.WHITE.lerp(Color(cell.color).darkened(0.2), 0.8)
+		var pts: PackedVector2Array = cell.pts
+		var tags: PackedInt32Array = cell.tags
+		for k in pts.size():
+			var t := tags[k]
+			if t == TAG_PAPER_EDGE or (t >= 0 and str(cells_owner(t)) == str(cell.owner)):
+				continue
+			c.draw_line(pts[k], pts[(k + 1) % pts.size()], line, width, true)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
-func _wash_for(owner: String) -> Texture2D:
-	if _washes.has(owner):
-		return _washes[owner]
-	var col := _faction_color(_game(), owner)
-	var grad := Gradient.new()
-	grad.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CUBIC
-	grad.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
-	grad.colors = PackedColorArray([Color.WHITE.lerp(col, 0.24), Color.WHITE.lerp(col, 0.13), Color.WHITE])
-	var tex := GradientTexture2D.new()
-	tex.gradient = grad
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(1.0, 0.5)
-	tex.width = 128
-	tex.height = 128
-	_washes[owner] = tex
-	return tex
+## The colour a faction's land is washed in: the leader data first, then the faction table.
+func territory_color(game, fid: String) -> Color:
+	var row: Dictionary = game.leader(fid) if game != null and game.has_method("leader") else {}
+	if row.has("color"):
+		return Color(str(row.color))
+	return _faction_color(game, fid)
+
+
+## "" when a station's ground stays open: unknown, neutral, ruined or enemy, or contested (a rival's move on it
+## shows on the map).
+func territory_owner(game, sid: String) -> String:
+	var st: Dictionary = game.stations[sid]
+	if _secret(st) or not bool(st.get("known", true)):
+		return ""
+	var owner := str(st.owner)
+	if owner in ["neutral", "enemy", "ruin", "bunker", ""]:
+		return ""
+	if not game.catalog.factions.has(owner) and game.leader(owner).is_empty():
+		return ""
+	for intent in game.telegraphed:
+		if str(intent.get("station", "")) == sid and not bool(intent.get("hidden", false)):
+			return ""
+	return owner
+
+
+func cells_owner(seed: int) -> String:
+	return str(_terr_owners[seed]) if seed >= 0 and seed < _terr_owners.size() else ""
+
+
+## Voronoi cells around the known stations, each cut to TERRITORY_REACH and to the paper, in map px; only the
+## held ones are returned. Rebuilt when an owner, a discovery or a rival move changes.
+func territory_cells(game) -> Array:
+	var seeds: Array = []
+	var owners: PackedStringArray = []
+	var key := ""
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if _secret(st) or not bool(st.get("known", true)) or not _spots.has(str(sid)):
+			continue
+		var holder := territory_owner(game, str(sid))
+		seeds.append(_map_spot(str(sid)))
+		owners.append(holder)
+		key += "%s:%s;" % [sid, holder]
+	if key == _terr_key:
+		return _terr_cells
+	_terr_key = key
+	_terr_owners = owners
+	_terr_cells = []
+	var paper := Rect2(Vector2.ZERO, _map_size)
+	for i in seeds.size():
+		if owners[i] == "":
+			continue
+		var at: Vector2 = seeds[i]
+		var pts := PackedVector2Array()
+		var tags := PackedInt32Array()
+		for k in 40:
+			var ang := TAU * float(k) / 40.0
+			pts.append(at + Vector2(cos(ang), sin(ang)) * TERRITORY_REACH)
+			tags.append(TAG_REACH)
+		for edge in [[Vector2(-1, 0), -paper.position.x], [Vector2(1, 0), paper.end.x], [Vector2(0, -1), -paper.position.y], [Vector2(0, 1), paper.end.y]]:
+			var cut := _clip_half(pts, tags, edge[0], float(edge[1]), TAG_PAPER_EDGE)
+			pts = cut[0]
+			tags = cut[1]
+		for j in seeds.size():
+			var other: Vector2 = seeds[j]
+			if j == i or at.distance_to(other) > TERRITORY_REACH * 2.0 or pts.size() < 3:
+				continue
+			var cut := _clip_half(pts, tags, (other - at) * 2.0, other.length_squared() - at.length_squared(), j)
+			pts = cut[0]
+			tags = cut[1]
+		if pts.size() >= 3:
+			_terr_cells.append({"owner": owners[i], "color": territory_color(game, owners[i]), "pts": pts, "tags": tags})
+	return _terr_cells
+
+
+## Sutherland-Hodgman against n.x <= d; tags[k] names what cut the edge from pts[k] to pts[k + 1].
+func _clip_half(pts: PackedVector2Array, tags: PackedInt32Array, n: Vector2, d: float, tag: int) -> Array:
+	var out := PackedVector2Array()
+	var out_tags := PackedInt32Array()
+	var count := pts.size()
+	for k in count:
+		var a := pts[k]
+		var b := pts[(k + 1) % count]
+		var da := n.dot(a) - d
+		var db := n.dot(b) - d
+		if da <= 0.0:
+			out.append(a)
+			out_tags.append(tags[k])
+			if db > 0.0:
+				out.append(a.lerp(b, da / (da - db)))
+				out_tags.append(tag)
+		elif db <= 0.0:
+			out.append(a.lerp(b, da / (da - db)))
+			out_tags.append(tags[k])
+	return [out, out_tags]
 
 
 func _draw_ink(c: CanvasItem) -> void:
@@ -650,7 +744,6 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_lines(c, game)
 	_draw_tunnels(c, game)
 	_draw_order_trails(c, game)
-	_draw_lamp(c, view)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_layout_pins(game)
 	_draw_leaders(c)
@@ -717,15 +810,17 @@ func _draw_legend(c: CanvasItem, game) -> void:
 		if mark == null:
 			continue
 		var name: Dictionary = game.leader_name(fid, "name")
-		rows.append([mark, str(name.get("ru" if Copy.ru() else "en", fid)), _paper_tint(fid)])
+		rows.append([mark, str(name.get("ru" if Copy.ru() else "en", fid)), _paper_tint(fid), territory_color(game, fid)])
 	if rows.is_empty():
 		return
 	var fs := 13
 	var icon := 20.0
 	var step := 25.0
+	var swatch := 14.0 if territories else 0.0
 	var widest := 0.0
 	for row in rows:
 		widest = maxf(widest, _tag_font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	widest += swatch + (6.0 if territories else 0.0)
 	var area := _open_area()
 	var bottom := minf(area.end.y, _chrome_top())
 	if _zoom_bar != null and _zoom_bar.visible:
@@ -751,26 +846,14 @@ func _draw_legend(c: CanvasItem, game) -> void:
 		var top := local.position.y + 6.0 + step * i
 		c.draw_texture_rect(rows[i][0], Rect2(local.position.x + 7.0, top + (step - icon) * 0.5, icon, icon), false, rows[i][2])
 		var base := top + (step - _tag_font.get_height(fs)) * 0.5 + _tag_font.get_ascent(fs)
-		c.draw_string(_tag_font, Vector2(local.position.x + icon + 14.0, base), str(rows[i][1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
+		var text_x := local.position.x + icon + 14.0
+		if territories:
+			var chip := Rect2(text_x, top + (step - swatch) * 0.5, swatch, swatch)
+			c.draw_rect(chip, Color.WHITE.lerp(rows[i][3], 0.55))
+			c.draw_rect(chip, Color(rows[i][3]).darkened(0.35), false, 1.0)
+			text_x += swatch + 6.0
+		c.draw_string(_tag_font, Vector2(text_x, base), str(rows[i][1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
-
-
-func _draw_lamp(c: CanvasItem, view: Transform2D) -> void:
-	c.draw_set_transform_matrix(view)
-	var cols := 12
-	var rows := 8
-	var cell := _desk_size / Vector2(cols, rows)
-	var lamp := _desk_size * Vector2(0.05, 0.03)
-	var reach := _desk_size.length()
-	for y in rows:
-		for x in cols:
-			var p0 := Vector2(x, y) * cell
-			var quad := PackedVector2Array([p0, p0 + Vector2(cell.x, 0), p0 + cell, p0 + Vector2(0, cell.y)])
-			var shades := PackedColorArray()
-			for p in quad:
-				var t := clampf((p.distance_to(lamp) / reach - 0.3) / 0.7, 0.0, 1.0)
-				shades.append(Color(0.05, 0.03, 0.01, 0.5 * t * t))
-			c.draw_polygon(quad, shades)
 
 
 func _edge_key(a: String, b: String) -> String:
@@ -1436,7 +1519,7 @@ func _build_council() -> void:
 	council.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	council.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	_council_body = VBoxContainer.new()
-	_council_body.add_theme_constant_override("separation", 14)
+	_council_body.add_theme_constant_override("separation", 10)
 	_council_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	council.add_child(_council_body)
 	add_child(council)
@@ -1454,7 +1537,7 @@ func _dress_card(card: Control) -> void:
 
 
 func _dress_photo(photo: Control) -> void:
-	_paper_clip(photo, Vector2(photo.size.x * 0.5, -14), 40.0)
+	_paper_clip(photo, Vector2(24, -10), 30.0)
 
 
 func _paper_clip(c: CanvasItem, at: Vector2, length: float) -> void:
@@ -1501,9 +1584,9 @@ func _place_panels() -> void:
 		sheet.offset_right = size.x - right
 		sheet.offset_bottom = size.y - 120.0
 	if council != null:
-		council.offset_left = 24.0
+		council.offset_left = FIT_PAD
 		council.offset_top = top
-		council.offset_right = 24.0 + 280.0
+		council.offset_right = FIT_PAD + COUNCIL_W
 		council.offset_bottom = top + 10.0
 	if _zoom_bar != null:
 		_zoom_bar.reset_size()
@@ -1522,12 +1605,15 @@ func _build_zoom_bar() -> void:
 	_zoom_bar = HBoxContainer.new()
 	_zoom_bar.add_theme_constant_override("separation", 6)
 	_zoom_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for key in ["out", "in", "fit"]:
+	for key in ["out", "in", "fit", "land"]:
 		var button := Button.new()
 		button.custom_minimum_size = Vector2(44, 44)
 		button.focus_mode = Control.FOCUS_NONE
 		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		button.add_theme_font_size_override("font_size", 22 if key != "fit" else 16)
+		button.add_theme_font_size_override("font_size", 22 if key in ["out", "in"] else 16)
+		if key == "land":
+			button.toggle_mode = true
+			button.button_pressed = territories
 		for state in ["normal", "hover", "pressed"]:
 			var face := StyleBoxFlat.new()
 			face.bg_color = TAG_PAPER.darkened(0.12 if state == "pressed" else 0.0).lightened(0.06 if state == "hover" else 0.0)
@@ -1558,13 +1644,26 @@ func _name_zoom_bar() -> void:
 	_zoom_buttons["in"].tooltip_text = Copy.t("Zoom in")
 	_zoom_buttons.fit.text = Copy.t("Whole map")
 	_zoom_buttons.fit.tooltip_text = Copy.t("Show the whole network")
+	_zoom_buttons.land.text = Copy.t("Territories")
+	_zoom_buttons.land.tooltip_text = Copy.t("Colour each faction's land on the map.")
 	if _tag_font != null:
 		_zoom_buttons.fit.add_theme_font_override("font", _tag_font)
+		_zoom_buttons.land.add_theme_font_override("font", _tag_font)
+
+
+func set_territories(on: bool) -> void:
+	territories = on
+	if _zoom_buttons.has("land"):
+		_zoom_buttons.land.set_pressed_no_signal(on)
+	_redraw()
 
 
 func _zoom_button(key: String) -> void:
 	if host != null and host.has_method("_ui_click"):
 		host._ui_click()
+	if key == "land":
+		set_territories(_zoom_buttons.land.button_pressed)
+		return
 	if key == "fit":
 		_fit()
 		return
@@ -1579,7 +1678,7 @@ func _fill_council() -> void:
 	var game = _game()
 	if game == null:
 		return
-	var title := _lab(Copy.t("Council"), 18, true)
+	var title := _lab(Copy.t("Council"), 15, true)
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	title.add_theme_constant_override("shadow_offset_y", 2)
 	_council_body.add_child(title)
@@ -1596,27 +1695,27 @@ func _fill_council() -> void:
 		face.bg_color = Color("efe8d6")
 		face.border_color = Color("c9bea4")
 		face.set_border_width_all(1)
-		face.set_content_margin_all(8)
-		face.content_margin_top = 16
+		face.set_content_margin_all(5)
+		face.content_margin_top = 12
 		face.shadow_color = Color(0, 0, 0, 0.5)
-		face.shadow_size = 10
-		face.shadow_offset = Vector2(4, 6)
+		face.shadow_size = 6
+		face.shadow_offset = Vector2(3, 4)
 		photo.add_theme_stylebox_override("panel", face)
 		photo.rotation_degrees = float(tilts[index % tilts.size()])
 		photo.resized.connect(func(): photo.pivot_offset = photo.size * 0.5)
 		photo.draw.connect(_dress_photo.bind(photo))
 		index += 1
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
+		row.add_theme_constant_override("separation", 6)
 		if host != null and host.has_method("_portrait_box"):
-			row.add_child(host._portrait_box(str(seat.id), 64))
+			row.add_child(host._portrait_box(str(seat.id), 40))
 		var text := "%s\n%s" % [Copy.t(role.capitalize()), Copy.person(str(person.get("name", "")))]
 		if used != "":
 			text += "\n" + Copy.t("Council order") + ": " + Copy.t(_order_title(used))
 		else:
 			text += "\n" + Copy.t("Open seat")
-		var seat_label := _lab(text, 15, false)
-		seat_label.custom_minimum_size = Vector2(160, 48)
+		var seat_label := _lab(text, 13, false)
+		seat_label.custom_minimum_size = Vector2(130, 40)
 		seat_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		seat_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var stack := VBoxContainer.new()

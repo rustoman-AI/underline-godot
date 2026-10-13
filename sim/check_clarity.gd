@@ -61,6 +61,7 @@ func _run() -> void:
 	_yard_bounds()
 	_network_bounds()
 	await _visit_sheet()
+	_map_look()
 	_event_words()
 	_audience_words()
 	_crowd_words()
@@ -569,6 +570,66 @@ func _english_names(root: Node, where: String) -> void:
 	for node in root.find_children("*", "", true, false):
 		if (node is Label or node is Button) and node.is_visible_in_tree():
 			_english_names_in(str(node.text), where)
+
+
+## M2 territories on by default with a named toggle; only faction-held stations get land, in their data colour,
+## and no two cells overlap. M4 the dig badge reads "1 of 2 wk" on a longer job.
+func _map_look() -> void:
+	var game: Game = st.game
+	st._toggle_network()
+	var net = st.network_view
+	if not net.territories or not net._zoom_buttons.land.button_pressed:
+		bad.append("M2: territories are not on when the map opens")
+	for lang in ["en", "ru"]:
+		Copy.set_lang(lang)
+		net.refresh()
+		var want := "Territories" if lang == "en" else "Территории"
+		if str(net._zoom_buttons.land.text) != want:
+			bad.append("M2 %s: the toggle reads '%s'" % [lang, net._zoom_buttons.land.text])
+	Copy.set_lang("en")
+	net.refresh()
+	var kept := {}
+	for sid in game.stations:
+		kept[sid] = [game.stations[sid].known, game.stations[sid].get("hidden", false)]
+		game.stations[sid].known = true
+		game.stations[sid].hidden = false
+	var cells: Array = net.territory_cells(game)
+	var held := 0
+	for sid in game.stations:
+		if net.territory_owner(game, str(sid)) != "":
+			held += 1
+	if cells.size() != held or held == 0:
+		bad.append("M2: %d territory cells for %d held stations" % [cells.size(), held])
+	for cell in cells:
+		var fid := str(cell.owner)
+		if fid in ["neutral", "enemy", "ruin", ""]:
+			bad.append("M2: open ground '%s' got a territory" % fid)
+		if Color(cell.color) != net.territory_color(game, fid):
+			bad.append("M2: %s land is not in its data colour" % fid)
+	var overlap := 0
+	for i in cells.size():
+		for j in range(i + 1, cells.size()):
+			for piece in Geometry2D.intersect_polygons(cells[i].pts, cells[j].pts):
+				var area := 0.0
+				for k in piece.size():
+					area += piece[k].cross(piece[(k + 1) % piece.size()])
+				if absf(area) * 0.5 > 4.0:
+					overlap += 1
+	if overlap > 0:
+		bad.append("M2: %d territory cells overlap" % overlap)
+	for sid in kept:
+		game.stations[sid].known = kept[sid][0]
+		game.stations[sid].hidden = kept[sid][1]
+	net._terr_key = "-"
+	st._toggle_network()
+	var yard = st.yard
+	if yard.job_label(Vector2i(2, 2)) != "1 of 2 wk" or yard.job_label(Vector2i(1, 2)) != "2 of 2 wk" or yard.job_label(Vector2i(1, 1)) != "1 wk":
+		bad.append("M4: badge reads '%s', '%s', '%s'" % [yard.job_label(Vector2i(2, 2)), yard.job_label(Vector2i(1, 2)), yard.job_label(Vector2i(1, 1))])
+	Copy.set_lang("ru")
+	if yard.job_label(Vector2i(2, 2)) != "1 из 2 нед.":
+		bad.append("M4 RU: badge reads '%s'" % yard.job_label(Vector2i(2, 2)))
+	Copy.set_lang("en")
+	print("M2: %d held cells over %d known stations; M4 badge '%s'" % [cells.size(), kept.size(), yard.job_label(Vector2i(2, 2))])
 
 
 ## B2 and B3 on the network map.

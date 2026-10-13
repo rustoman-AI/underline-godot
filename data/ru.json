@@ -615,6 +615,7 @@
   "Nothing makes %s this week. Build a %s.": "На этой неделе %s никто не делает. Построить: %s.",
   "Trade and laws can add tokens.": "Торговля и законы могут прибавить жетоны.",
   "%d wk": "%d нед.",
+  "%d of %d wk": "%d из %d нед.",
   "Digging, %s left": "Копаем, осталось %s",
   "Building %s, %s left": "Строим %s, осталось %s",
   "Solid rock": "Сплошная скала",
@@ -1155,5 +1156,7 @@
   "Zoom out": "Отдалить",
   "Whole map": "Вся карта",
   "Show the whole network": "Показать всю сеть",
+  "Territories": "Территории",
+  "Colour each faction's land on the map.": "Закрасить на карте земли каждой фракции.",
   "%s %+d a week: %s": "%s %+d в неделю: %s"
 }

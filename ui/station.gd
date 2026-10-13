@@ -9156,6 +9156,10 @@ class Yard extends Control:
 	const FIG_DIR := "res://assets/figures/poses"
 	## Drawn stems for the crew on a building site: the hammer and the crate.
 	const BUILDER_FIGS := ["workshop_02", "workshop_03"]
+	## Site crew loop: strokes a second, and how high the body rises between strokes (share of the cell height).
+	const CREW_BEAT := 1.1
+	const CREW_BOB := 0.022
+	const CREW_LEAN := 0.1
 	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
 	var more_hits: Array = []
@@ -10159,13 +10163,28 @@ class Yard extends Control:
 		var shown := mini(workers.size(), slots.size())
 		var stems: Array = BUILDER_FIGS.filter(func(s): return fig_variants.has(s)) if building else body_figs
 		var looks := _figs_for_group(stems, workers.slice(0, shown))
+		var t := 0.3 if station._motion_off() else Time.get_ticks_msec() / 1000.0
 		for i in shown:
 			var id := str(workers[i])
 			var x := floor.position.x + floor.size.x * float(slots[i])
+			var beat := fmod(t * CREW_BEAT + fmod(_id_hash(id) / 97.0, 1.0) + 0.5 * float(i), 1.0)
+			var foot := floor.end.y - 2.0 - floor.size.y * CREW_BOB * sin(beat * PI)
+			var lean := CREW_LEAN * (1.0 - sin(beat * PI))
 			if looks[i] != null:
-				_paint_sprite(looks[i], x, floor.end.y - 2.0, floor.size.y, id, i % 2 == 1)
+				_paint_sprite(looks[i], x, foot, floor.size.y, id, i % 2 == 1, lean)
 			else:
-				_paint_pose(pose_name, x, floor.end.y - 2.0, floor.size.y, id, i % 2 == 1)
+				_paint_pose(pose_name, x, foot, floor.size.y, id, i % 2 == 1, lean)
+			_draw_dust(Vector2(x + floor.size.y * (-0.07 if i % 2 == 1 else 0.07), floor.end.y - 2.0), beat, floor.size.y)
+
+	## A small puff where the tool strikes, just after each downstroke (beat 0), drifting up and fading.
+	func _draw_dust(at: Vector2, beat: float, cell_h: float) -> void:
+		var age := beat / 0.5
+		if age >= 1.0:
+			return
+		for k in 3:
+			var drift := Vector2((float(k) - 1.0) * 0.035, -0.02 - 0.03 * age) * cell_h * (0.4 + age)
+			var r := cell_h * (0.02 + 0.03 * age) * (1.0 - 0.2 * float(k))
+			draw_circle(at + drift, r, Color(0.7, 0.62, 0.5, 0.7 * (1.0 - age)))
 
 	func _job_span(level: int, cell: int) -> Vector2i:
 		var digging: Dictionary = station.game.dig
@@ -10180,6 +10199,12 @@ class Yard extends Control:
 			var left := int(building.left)
 			return Vector2i(left, maxi(total, left))
 		return Vector2i(-1, 0)
+
+	## "1 wk" for a one-week job; "1 of 2 wk" (the week under way, of all) for a longer one.
+	func job_label(job: Vector2i) -> String:
+		if job.y > 1:
+			return Copy.t("%d of %d wk") % [job.y - job.x + 1, job.y]
+		return Copy.t("%d wk") % job.x
 
 	func _job_is_build(level: int, cell: int) -> bool:
 		var building: Dictionary = station.game.build
@@ -10283,7 +10308,7 @@ class Yard extends Control:
 		var kind := str(station.game.build.type) if _job_is_build(level, cell) else "dig"
 		var icon_px := 48.0 if screen.size.x >= 150.0 else 32.0
 		var font_size := 24 if icon_px >= 48.0 else 18
-		var label := Copy.t("%d wk") % job.x
+		var label := job_label(job)
 		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		var line_h := font.get_height(font_size)
 		var bar_w := maxf(text_w, clampf(screen.size.x * 0.4, 60.0, 170.0))
@@ -10625,17 +10650,24 @@ class Yard extends Control:
 			return poses[pose_name]
 		return poses.get("standing", null)
 
-	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool) -> void:
+	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0) -> void:
 		var sprite := _pose_sprite(pose_name, id)
 		if sprite == null:
 			return
-		_paint_sprite(sprite, cx, foot_y, cell_h, id, flip)
+		_paint_sprite(sprite, cx, foot_y, cell_h, id, flip, lean)
 
-	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool) -> void:
+	## `lean` tips the figure about its feet (radians, toward the side it faces).
+	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0) -> void:
 		var scale := 0.94 + fmod(floor(_id_hash(id) / 11.0), 13.0) * 0.01
 		var fitted := _pose_size(sprite, cell_h) * scale
+		var tipped := lean != 0.0
+		if tipped:
+			var world := Transform2D(0.0, Vector2(zoom, zoom), 0.0, pan)
+			draw_set_transform_matrix(world * Transform2D(-lean if flip else lean, Vector2(-1.0 if flip else 1.0, 1.0), 0.0, Vector2(cx, foot_y)))
+			cx = 0.0
+			foot_y = 0.0
 		var dest := Rect2(cx - fitted.x * 0.5, foot_y - fitted.y, fitted.x, fitted.y)
-		if flip:
+		if flip and not tipped:
 			dest.position.x += dest.size.x
 			dest.size.x = -dest.size.x
 		var shade := 0.36 + fmod(_id_hash(id), 5.0) * 0.02
@@ -10646,6 +10678,8 @@ class Yard extends Control:
 		if soft_figs.has(sprite):
 			tint = tint.lerp(Color.WHITE, fig_tint_mix)
 		draw_texture_rect(sprite, dest, false, tint)
+		if tipped:
+			draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
 
 	func _idle_ids() -> Array:
 		var busy := {}
