@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 165. Первый: 2026-10-02. Последний: 2026-10-12 4283f1b.
+Коммитов: 176. Первый: 2026-10-02. Последний: 2026-10-12 4cd6788.
 
 ## Этапы
 
@@ -19,8 +19,19 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-12 (46)
+### 2026-10-12 (57)
 
+- `4cd6788` Upgrades: drawn art for upgraded rooms
+- `f47a673` Art: 13 upgraded room variants (tier 1 and 2)
+- `081015d` Upgrades: every upgrade does something
+- `c3113d0` Upgrades: second tier costs more
+- `6433f8a` Docs: upgrades must improve in gameplay and visually, part C and art are go
+- `7a10853` Docs: art brief for upgraded room variants
+- `0f53dd9` Docs: owner decision on upgrade cost by tier
+- `c98f737` Docs: upgrade part A accepted, part C proposal for dead upgrades
+- `c6b7fd7` Upgrades you can see: tier plate, glow, before and after
+- `3817621` Docs: brief for visible upgrades (part A go, part B proposal)
+- `43cc600` Docs: playtest5 build recorded
 - `4283f1b` Map size: network map fills the window
 - `4473c26` Docs: Cursor brief for map size
 - `12e14d2` Docs: playtest4 build recorded
