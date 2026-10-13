@@ -103,5 +103,7 @@ func _settle_flash() -> void:
 func _shot(name: String, frames := 30) -> void:
 	for _i in frames:
 		await process_frame
+	if st.vo_pill != null:
+		st.vo_pill.scale = Vector2.ZERO if name.begins_with("yard") else Vector2.ONE
 	await st._frame()
 	st._save(out + "/" + name)

@@ -9107,6 +9107,7 @@ class Yard extends Control:
 		"platform": "res://assets/rooms/room_platform.webp",
 		"radio": "res://assets/rooms/room_radio.webp",
 	}
+	const TIER_ART := "res://assets/rooms/upgrades/room_%s_t%d.png"
 	const POSE_ART := {
 		"standing": "res://assets/figures/fig_standing.webp",
 		"walking": "res://assets/figures/fig_walking.webp",
@@ -9138,6 +9139,7 @@ class Yard extends Control:
 	const SOIL_LIP := 0.032
 	const ROCK_LIP := 0.0
 	var art := {}
+	var tier_cache := {}
 	var poses := {}
 	var figure_scale_px := 660.0
 	var lamp_glow: Texture2D
@@ -9803,11 +9805,12 @@ class Yard extends Control:
 				_paint_rock(rect, level * 6 + cell)
 		else:
 			draw_rect(rect, Color(0.08, 0.07, 0.06))
-			var texture = art.get(room_type, null)
+			var tier_tex: Texture2D = tier_art(room_type, int(room.upgrade)) if room != null else null
+			var texture = tier_tex if tier_tex != null else art.get(room_type, null)
 			if texture != null:
 				_blit_room(texture, rect)
 			_draw_lamp_glow(rect, room_type)
-			if room != null and int(room.upgrade) > 0:
+			if room != null and int(room.upgrade) > 0 and tier_tex == null:
 				_draw_tier_light(rect, int(room.upgrade))
 		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
 		if losing:
@@ -10219,6 +10222,18 @@ class Yard extends Control:
 		if not building.is_empty() and int(building.level) == level and int(building.cell) == cell:
 			return "%s %d" % [_short(str(building.type), width), int(building.left)]
 		return ""
+
+	## The drawn variant for a room with this many upgrades bought (assets/rooms/upgrades/room_<id>_t<N>.png);
+	## null at tier 0 or when the file is missing, and the base image with the layered tier light is drawn instead.
+	func tier_art(room_type: String, tier: int) -> Texture2D:
+		if tier <= 0:
+			return null
+		var path := TIER_ART % [room_type, tier]
+		if not tier_cache.has(path):
+			var tex: Texture2D = ArtPack.load_texture(path) if ResourceLoader.exists(path) else null
+			tier_cache[path] = tex if tex != null else false
+		var found = tier_cache[path]
+		return found if found is Texture2D else null
 
 	func _art_rect(room_type: String, rect: Rect2) -> Rect2:
 		var texture: Texture2D = art.get(room_type, null)

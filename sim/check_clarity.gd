@@ -591,6 +591,17 @@ func _upgrade_view() -> void:
 			bad.append("U3 tier %d: the journal's last line is %s" % [tier, last])
 		print("U tier %d -> %d: %s | journal: %s" % [tier, tier + 1, toast, st._journal_line(last)])
 	_clear_modals()
+	var drawn := 0
+	for type in st.game.catalog.rooms:
+		var steps: Array = st.game.catalog.rooms[type].get("upgrades", [])
+		for n in range(1, steps.size() + 1):
+			if st.yard.tier_art(str(type), n) == null:
+				bad.append("Tier art: no drawn variant for %s tier %d" % [type, n])
+			else:
+				drawn += 1
+	if st.yard.tier_art("infirmary", 2) != null or st.yard.tier_art("hydroponics", 0) != null:
+		bad.append("Tier art: a missing variant or tier 0 does not fall back to the base image")
+	print("Tier art: %d drawn variants found" % drawn)
 	var tier2 := {"quarters": 9, "workshop": 9, "hydroponics": 12, "air_filter": 12, "generator": 15, "infirmary": 12, "meeting_hall": 12, "radio": 12}
 	for type in tier2:
 		var first := int(game.catalog.rooms[type].upgrade_materials)
