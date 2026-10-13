@@ -31,3 +31,12 @@ B1 One upgrade per station per week (a player was able to buy two in one week).
 B2 Upgrade cost x1.5 (rounded): quarters 9, workshop 9, hydroponics 12, air filter 12, generator 15, infirmary 12, meeting hall 12, radio 12.
 B3 Optionally the upgrade takes a week of crew work like a build, and the room runs at the old tier meanwhile.
 Report with PART B: the bot's upgrade counts per run before and after, and the gates.
+
+PART A RESULT (12 Oct): done, commit c6b7fd7, accepted by the lead after screenshots. Tier number = number of upgrades bought (Dynamo is Tier I, Substation Tier II); the example "Tier II: Dynamo" in this brief was wrong, Cursor's numbering stays.
+
+PART C (FOUND BY CURSOR, PROPOSAL, needs the owner's yes; it is a balance change)
+Today every upgrade only gives +25% of the room's base output. So the following upgrades DO NOTHING real: bunks, family (quarters have no output), quarantine_ward (infirmary), antenna (radio); and drill_heads, armor, mushroom_beds, pressure_seals, substation, loudspeakers only give +25% while their names promise more. The player pays 6 to 10 materials for a plate. That breaks the owner's goal (satisfaction from upgrading).
+Proposal, using ONLY mechanics the game already has, small numbers:
+ bunks: +2 beds. family: +2 beds and housing comfort (no new rule). quarantine_ward: the Cough costs fewer crew-weeks (use the existing quarantine numbers). antenna: the radio hears one more station tier (use the existing radio reach).
+ Others keep +25% and the text says exactly that ("+25% materials"); remove promises the sim does not keep (raid armour, faster digging, steadier power, less light).
+Cursor: first list for all 13 upgrades the REAL effect today and the nearest existing mechanic for each dead one; propose exact numbers; run the 30-seed gates and write a decision in docs/audit/balance_gate_decisions.md. Do not apply without the owner's yes.
