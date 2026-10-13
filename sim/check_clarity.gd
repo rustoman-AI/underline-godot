@@ -20,7 +20,7 @@ extends SceneTree
 
 const SCRATCH := "user://check_clarity"
 const LEADERS := ["directorate", "depot", "synod", "exchange", "black_flag"]
-const SIZES := [Vector2(1280, 720), Vector2(1024, 768), Vector2(1920, 1080)]
+const SIZES := [Vector2(1280, 720), Vector2(1024, 768), Vector2(1920, 1080), Vector2(2048, 1090), Vector2(2560, 1440), Vector2(3440, 1440)]
 
 var bad: PackedStringArray = []
 var catalog: Catalog
@@ -60,6 +60,7 @@ func _run() -> void:
 	_double_press()
 	_yard_bounds()
 	_network_bounds()
+	await _visit_sheet()
 	_event_words()
 	_audience_words()
 	_crowd_words()
@@ -432,6 +433,144 @@ func _covers(shown: Rect2, area: Rect2) -> String:
 	return ""
 
 
+## "" when content narrower than the area on an axis sits in its middle (V1: the map is centred, not parked).
+func _off_centre(shown: Rect2, area: Rect2) -> String:
+	for axis in 2:
+		if shown.size[axis] < area.size[axis] - 1.0 and absf(shown.get_center()[axis] - area.get_center()[axis]) > 1.0:
+			return "%s: off centre" % ("x" if axis == 0 else "y")
+	return ""
+
+
+## V2 the visit sheet stays narrow with its close button in reach; V3 order captions fit their buttons;
+## V4 no English person name shows in RU (councillors, order reports, sheets).
+func _visit_sheet() -> void:
+	var game: Game = st.game
+	var foreign := ""
+	for sid in game.stations:
+		if str(game.stations[sid].owner) != str(game.player) and str(sid) != str(game.capital_id):
+			foreign = str(sid)
+			break
+	st._toggle_network()
+	var net = st.network_view
+	var checked := 0
+	for lang in ["en", "ru"]:
+		Copy.set_lang(lang)
+		st._refresh()
+		net.refresh()
+		for view in SIZES:
+			net.size = view
+			net._fit()
+			net.open_sheet(foreign)
+			await _frames(3)
+			checked += _captions_fit(net.sheet, "%s %s side sheet" % [lang, view])
+			net.close_sheet()
+			net.open_visit(foreign)
+			await _frames(3)
+			var sheet: Rect2 = net.visit_sheet.get_global_rect()
+			var room: Rect2 = net.visit.get_global_rect()
+			if sheet.size.x > net.VISIT_MAX_W + 0.5 or absf(sheet.get_center().x - room.get_center().x) > 1.0:
+				bad.append("V2 %s %s: visit sheet %.0f px wide at x %.0f, window centre %.0f" % [lang, view, sheet.size.x, sheet.get_center().x, room.get_center().x])
+			var close: Rect2 = net.visit_close.get_global_rect()
+			if not net.visit_close.is_visible_in_tree() or not sheet.encloses(close) or close.position.y > sheet.position.y + 80.0:
+				bad.append("V2 %s %s: close button %s is not in the sheet header %s" % [lang, view, close, sheet])
+			var banner := _find_meta(net.visit_sheet, "visit_banner") as TextureRect
+			if banner != null and not (banner.texture is AtlasTexture):
+				var want := minf(banner.size.x * banner.texture.get_height() / banner.texture.get_width(), net.banner_cap())
+				if absf(banner.size.y - want) > 2.0:
+					bad.append("V2 %s %s: banner %s is not at its picture's proportions (want height %.0f)" % [lang, view, banner.size, want])
+			checked += _captions_fit(net.visit_sheet, "%s %s visit" % [lang, view])
+			if lang == "ru":
+				_english_names(st, "%s visit and council" % view)
+			var esc := InputEventKey.new()
+			esc.keycode = KEY_ESCAPE
+			esc.pressed = true
+			net._unhandled_key_input(esc)
+			if net.visit.visible:
+				bad.append("V2 %s %s: Esc did not close the visit sheet" % [lang, view])
+	var probe := _door("depot")
+	Copy.set_lang("ru")
+	probe.stock.influence = 50
+	var near := ""
+	for sid in probe.stations:
+		if probe.order_block("envoy", str(sid)) == "":
+			near = str(sid)
+			break
+	if not probe.queue_order({"kind": "order", "order": "envoy", "station": near}):
+		bad.append("V4: no station takes the probe envoy")
+	probe._resolve_queued()
+	if probe.order_reports.is_empty():
+		bad.append("V4: the envoy order left no dawn report to read")
+	for report in probe.order_reports:
+		_english_names_in(str(report.get("text", "")), "order report")
+	for who in probe.residents:
+		_english_names_in(Copy.person(str(who.name)), "resident %s" % who.id)
+	for fid in probe.catalog.factions:
+		var leader := str(probe.catalog.factions[fid].get("leader", ""))
+		if leader != "":
+			_english_names_in(Copy.person(leader), "leader of %s" % fid)
+	net.size = SIZES[0]
+	st._toggle_network()
+	st._refresh()
+	st._fill_people()
+	_english_names(st, "people drawer")
+	for room in game.rooms:
+		if not game.room_detail(str(room.uid)).get("staff", []).is_empty():
+			st._show_room(str(room.uid))
+			_english_names(st.card_body, "room card")
+			_clear_modals()
+			break
+	st._show_journal()
+	_english_names(st.card_body, "journal")
+	_clear_modals()
+	Copy.set_lang("en")
+	st._refresh()
+	print("V2/V3: %d order captions checked, visit sheet over %d sizes x 2 languages" % [checked, SIZES.size()])
+
+
+## Every order caption shows all its lines inside the button.
+func _captions_fit(root: Node, where: String) -> int:
+	var count := 0
+	for button in root.find_children("*", "Button", true, false):
+		if not button.has_meta("order_caption") or not button.is_visible_in_tree():
+			continue
+		var caption: Label = button.get_meta("order_caption")
+		count += 1
+		var need := caption.get_line_count() * (caption.get_line_height() + caption.get_theme_constant("line_spacing"))
+		if need > button.size.y - 4.0 or not button.get_global_rect().grow(0.5).encloses(caption.get_global_rect()):
+			bad.append("V3 %s: '%s' needs %d px, button is %.0f" % [where, caption.text.replace("\n", " / "), need, button.size.y])
+		elif button.size.y > maxf(float(button.get_meta("base_height", 52.0)), need + 14.0) + 2.0:
+			bad.append("V3 %s: '%s' needs %d px, button swelled to %.0f" % [where, caption.text.replace("\n", " / "), need, button.size.y])
+	return count
+
+
+func _name_words() -> PackedStringArray:
+	var words: PackedStringArray = []
+	var names: Array = []
+	for who in st.game.catalog.residents:
+		names.append(str(who.name))
+	for fid in st.game.catalog.factions:
+		names.append(str(st.game.catalog.factions[fid].get("leader", "")))
+	for name in names:
+		for part in name.split(" ", false):
+			if part.length() > 2 and not words.has(part):
+				words.append(part)
+	return words
+
+
+func _english_names_in(text: String, where: String) -> void:
+	for word in _name_words():
+		var hit := RegEx.create_from_string("\\b%s\\b" % word).search(text)
+		if hit != null:
+			bad.append("V4 RU %s shows the English name '%s': %s" % [where, word, text.left(90)])
+			return
+
+
+func _english_names(root: Node, where: String) -> void:
+	for node in root.find_children("*", "", true, false):
+		if (node is Label or node is Button) and node.is_visible_in_tree():
+			_english_names_in(str(node.text), where)
+
+
 ## B2 and B3 on the network map.
 func _network_bounds() -> void:
 	st._toggle_network()
@@ -443,13 +582,16 @@ func _network_bounds() -> void:
 		for factor in [1.0, 1.6, 3.0, 100.0]:
 			net.zoom = clampf(net._zoom_min * factor, net._zoom_min, net._zoom_max)
 			var box: Rect2 = net._map_box()
-			for far in [box.position - Vector2(1e4, 1e4), box.end + Vector2(1e4, 1e4), Vector2(box.position.x - 1e4, box.end.y + 1e4), box.get_center()]:
+			for far in [box.position - Vector2(1e4, 1e4), box.end + Vector2(1e4, 1e4), Vector2(box.position.x - 1e4, box.end.y + 1e4), Vector2(box.end.x + 1e4, box.position.y - 1e4), box.get_center()]:
 				net.origin = far
 				net._clamp_view()
 				checked += 1
 				var why := _covers(_net_shown(net), net._open_area())
 				if why != "":
 					bad.append("B2 network %s zoom x%.1f: %s" % [view, factor, why])
+				var off := _off_centre(_net_shown(net), net._open_area())
+				if off != "":
+					bad.append("V1 network %s zoom x%.1f: the map is narrower than the window and %s" % [view, factor, off])
 		net._fit()
 		_map_fill(net, view)
 		var area: Rect2 = net._open_area()
@@ -463,6 +605,8 @@ func _network_bounds() -> void:
 				var kept: Vector2 = net.origin
 				net.origin = world - (spot - net._center()) / net.zoom
 				var why := _covers(_net_shown(net), area)
+				if why == "":
+					why = _off_centre(_net_shown(net), area)
 				net.origin = kept
 				if why == "":
 					bad.append("B3 network %s: zoom moved the view %.1f px with no bounds reason" % [view, drift.length()])

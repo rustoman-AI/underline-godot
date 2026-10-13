@@ -91,6 +91,26 @@ func _run() -> void:
 		"yes" if view.grow(8.0).encloses(sheet_box) else "NO", "yes" if _scrolls(net.sheet) else "no"])
 	net.close_sheet()
 
+	net.open_visit(sid)
+	await _shot("visit_top")
+	var close_box: Rect2 = net.visit_close.get_global_rect()
+	print("FILL %s visit sheet %d px wide, close button inside the window: %s" % [_key(), int(net.visit_sheet.size.x),
+		"yes" if view.encloses(close_box) else "NO"])
+	for scroll in net.visit_sheet.find_children("*", "ScrollContainer", true, false):
+		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+	await _shot("visit_bottom")
+	net.close_visit()
+	await st._frame()
+
+	for corner in [[net._zoom_min, Vector2(-1e5, -1e5), "corner_min_top_left"], [net._zoom_min, Vector2(1e5, 1e5), "corner_min_bottom_right"],
+			[net._zoom_max, Vector2(-1e5, 1e5), "corner_max_bottom_left"], [net._zoom_max, Vector2(1e5, -1e5), "corner_max_top_right"]]:
+		net.zoom = corner[0]
+		net.origin = corner[1]
+		net._clamp_view()
+		net._redraw()
+		await _shot("network_" + str(corner[2]))
+	net._fit()
+
 	net.origin = net._station_world(st.game.stations[sid])
 	net.zoom = net._zoom_max
 	net._clamp_view()

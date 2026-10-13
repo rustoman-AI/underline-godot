@@ -48,8 +48,13 @@ const FLAG_ANCHOR := Vector2(0.176, 0.35)
 const FLAG_CLOTH := Vector2(0.62, 0.42)
 const PANORAMA_HUBS := ["northgate", "chapel", "trampark", "brickworks"]
 const HUB_MAX_H := 400.0
+## The visit sheet never grows wider than this; the map shows dimmed on both sides of it.
+const VISIT_MAX_W := 900.0
 ## Where the crop window centres on the panorama, as a share of its height from the top.
 const HUB_FOCUS_Y := 0.55
+## Plain wood in the desk picture (no props), in desk px, and how dark it is drawn beyond the desk.
+const WOOD := Rect2(560, 130, 480, 680)
+const WOOD_TINT := Color(0.42, 0.39, 0.36)
 
 
 class Layer extends Control:
@@ -81,6 +86,9 @@ var _zoom_buttons := {}
 var _cam_origin := Vector2.ZERO
 var _cam_zoom := 1.0
 var visit: PanelContainer
+var visit_sheet: PanelContainer
+var visit_close: Button
+var _visit_title: Label
 var _visit_body: VBoxContainer
 var _paper: Texture2D
 var _desk: Texture2D
@@ -118,11 +126,6 @@ func _ready() -> void:
 	clip_contents = true
 	_load_desk()
 	_back_layer = _add_layer(_draw_backdrop)
-	var haze := Shader.new()
-	haze.code = "shader_type canvas_item;\nvoid fragment() {\n\tCOLOR = vec4(textureLod(TEXTURE, UV, 5.0).rgb * 0.3, 1.0);\n}\n"
-	var haze_mat := ShaderMaterial.new()
-	haze_mat.shader = haze
-	_back_layer.material = haze_mat
 	_base_layer = _add_layer(_draw_base)
 	_wash_layer = _add_layer(_draw_wash)
 	var mul := CanvasItemMaterial.new()
@@ -457,10 +460,13 @@ func _clamp_view() -> void:
 	var z := maxf(zoom, 0.001)
 	var mid := _center()
 	for axis in 2:
-		## A map larger than the view keeps covering it; a smaller one stays inside it without snapping to the middle.
+		## A map larger than the view keeps covering it; a smaller one sits in the middle of the free area.
 		var lo: float = box.position[axis] + (mid[axis] - area.position[axis]) / z
 		var hi: float = box.end[axis] - (area.end[axis] - mid[axis]) / z
-		origin[axis] = clampf(origin[axis], minf(lo, hi), maxf(lo, hi))
+		if lo > hi:
+			origin[axis] = box.get_center()[axis] - (area.get_center()[axis] - mid[axis]) / z
+		else:
+			origin[axis] = clampf(origin[axis], lo, hi)
 
 
 func _fit() -> void:
@@ -558,12 +564,27 @@ func _shade_desk_edges(c: CanvasItem) -> void:
 		c.draw_polygon(PackedVector2Array([inner[i], inner[j], outer[j], outer[i]]), PackedColorArray([clear, clear, shade, shade]))
 
 
+## Plain wood from the middle of the desk picture, tiled mirror-wise under the whole window in desk space, so
+## the table goes on past the desk's edges at any size, pan and zoom and no black shows.
 func _draw_backdrop(c: CanvasItem) -> void:
+	c.draw_rect(Rect2(Vector2.ZERO, size), Color("120d09"))
 	if _desk == null or size.x < 1.0:
 		return
-	var k := maxf(size.x / _desk_size.x, size.y / _desk_size.y) * 1.1
-	var span := _desk_size * k
-	c.draw_texture_rect(_desk, Rect2((size - span) * 0.5, span), false)
+	var view := _view()
+	var tile := WOOD.size
+	var top_left := _world(Vector2.ZERO)
+	var bottom_right := _world(size)
+	var i0 := floori(top_left.x / tile.x)
+	var j0 := floori(top_left.y / tile.y)
+	var i1 := floori(bottom_right.x / tile.x)
+	var j1 := floori(bottom_right.y / tile.y)
+	for i in range(i0, i1 + 1):
+		for j in range(j0, j1 + 1):
+			var flip := Vector2(-1.0 if absi(i) % 2 == 1 else 1.0, -1.0 if absi(j) % 2 == 1 else 1.0)
+			var at := Vector2(i * tile.x, j * tile.y) + tile * (Vector2.ONE - flip) * 0.5
+			c.draw_set_transform_matrix(view * Transform2D(0.0, flip, 0.0, at))
+			c.draw_texture_rect_region(_desk, Rect2(Vector2.ZERO, tile), WOOD, WOOD_TINT)
+	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _draw_weights(c: CanvasItem) -> void:
@@ -1621,6 +1642,11 @@ func _fill_sheet(sid: String) -> void:
 func _fill_sheet_body(sid: String) -> void:
 	for child in _sheet_body.get_children():
 		child.queue_free()
+	## The way back sits at the top, so the player never has to scroll the sheet to close it.
+	var back := Button.new()
+	back.text = Copy.t("Back to the map")
+	back.pressed.connect(close_sheet)
+	_sheet_body.add_child(back)
 	var game = _game()
 	if game == null or not game.stations.has(sid):
 		return
@@ -1661,10 +1687,6 @@ func _fill_sheet_body(sid: String) -> void:
 		if trade != "":
 			_sheet_body.add_child(_lab(trade, 14, false))
 	_add_actions(sid, own, _sheet_body)
-	var back := Button.new()
-	back.text = Copy.t("Back to the map")
-	back.pressed.connect(close_sheet)
-	_sheet_body.add_child(back)
 
 
 ## Orders aimed at a bunker rather than the station on the sheet; a locked one says why on its face.
@@ -1728,6 +1750,9 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
 	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 52)
+	button.set_meta("order_caption", caption)
+	button.set_meta("base_height", button.custom_minimum_size.y)
+	caption.resized.connect(_fit_order_button.bind(button, caption))
 	parent.add_child(button)
 	if game != null and why == "":
 		var effect: String = game.order_risk(kind, sid)
@@ -1736,6 +1761,17 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 			line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			line.set_meta("effect_line", true)
 			parent.add_child(line)
+
+
+## The button grows with its wrapped caption, so the second line (cost, envoy, dawn) is never cut.
+func _fit_order_button(button: Button, caption: Label) -> void:
+	if caption.size.x < 80.0:
+		return
+	var lines := maxi(caption.get_line_count(), 1)
+	var tall := float(lines * (caption.get_line_height() + caption.get_theme_constant("line_spacing"))) + 14.0
+	var want := maxf(float(button.get_meta("base_height", 52.0)), tall)
+	if absf(want - button.custom_minimum_size.y) > 0.5:
+		button.custom_minimum_size.y = want
 
 
 func _order_tip(game, kind: String, sid: String, why: String) -> String:
@@ -1980,19 +2016,64 @@ func _build_visit() -> void:
 	visit.mouse_filter = Control.MOUSE_FILTER_STOP
 	visit.z_index = 6
 	visit.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var dim := StyleBoxFlat.new()
+	dim.bg_color = Color(0.03, 0.025, 0.02, 0.82)
+	dim.content_margin_top = 8
+	dim.content_margin_bottom = 8
+	visit.add_theme_stylebox_override("panel", dim)
+	visit_sheet = PanelContainer.new()
+	visit_sheet.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	visit_sheet.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.07, 0.06, 0.05, 1.0)
+	style.border_color = Color(0.36, 0.29, 0.2)
+	style.set_border_width_all(1)
 	style.set_content_margin_all(16)
-	visit.add_theme_stylebox_override("panel", style)
+	visit_sheet.add_theme_stylebox_override("panel", style)
+	visit.add_child(visit_sheet)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 10)
+	visit_sheet.add_child(column)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 12)
+	_visit_title = _lab("", 20, true)
+	_visit_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_visit_title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(_visit_title)
+	visit_close = Button.new()
+	visit_close.text = Copy.t("Back to map")
+	visit_close.custom_minimum_size = Vector2(120, 36)
+	visit_close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	visit_close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	visit_close.tooltip_text = "Esc"
+	visit_close.pressed.connect(close_visit)
+	header.add_child(visit_close)
+	column.add_child(header)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_visit_body = VBoxContainer.new()
 	_visit_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_visit_body.add_theme_constant_override("separation", 6)
 	scroll.add_child(_visit_body)
-	visit.add_child(scroll)
+	column.add_child(scroll)
+	visit.resized.connect(_size_visit)
 	add_child(visit)
+
+
+func _size_visit() -> void:
+	if visit_sheet != null:
+		visit_sheet.custom_minimum_size.x = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo or key.keycode != KEY_ESCAPE:
+		return
+	if visit != null and visit.is_visible_in_tree():
+		close_visit()
+		get_viewport().set_input_as_handled()
 
 
 func open_visit(sid: String) -> void:
@@ -2020,6 +2101,7 @@ func _show_visit(sid: String) -> void:
 	if sheet != null:
 		sheet.visible = false
 	visit.visible = true
+	_size_visit()
 	_fill_visit(sid)
 
 
@@ -2032,6 +2114,7 @@ func _fill_visit(sid: String) -> void:
 	if game == null or not game.stations.has(sid):
 		return
 	var st: Dictionary = game.stations[sid]
+	_visit_title.text = Copy.t(str(st.name))
 	var hub := _hub_tex(game, st)
 	if hub != null:
 		var face := TextureRect.new()
@@ -2040,9 +2123,12 @@ func _fill_visit(sid: String) -> void:
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		face.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		face.set_meta("visit_banner", true)
 		if sid in PANORAMA_HUBS:
 			face.stretch_mode = TextureRect.STRETCH_SCALE
 			face.resized.connect(_crop_hub.bind(face, hub))
+		else:
+			face.resized.connect(_banner_height.bind(face, hub))
 		_visit_body.add_child(face)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
@@ -2060,12 +2146,8 @@ func _fill_visit(sid: String) -> void:
 	if mark != null:
 		named.add_child(_symbol_rect(mark, 28))
 	var community := _lab(game.station_text(sid, "community"), 22, true)
-	community.autowrap_mode = TextServer.AUTOWRAP_OFF
+	community.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	named.add_child(community)
-	var place := _lab(Copy.t(str(st.name)), 15, false)
-	place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	place.size_flags_vertical = Control.SIZE_SHRINK_END
-	named.add_child(place)
 	_visit_body.add_child(named)
 	if who != "":
 		_visit_body.add_child(_lab(who, 15, false))
@@ -2081,19 +2163,29 @@ func _fill_visit(sid: String) -> void:
 	if art != "":
 		_visit_body.add_child(_lab(art, 14, false))
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, false)
-	var back := Button.new()
-	back.text = Copy.t("Back to map")
-	back.pressed.connect(close_visit)
-	_visit_body.add_child(back)
 
 
-## Cover-fit at full width, no taller than HUB_MAX_H; the cut is shared around HUB_FOCUS_Y.
+## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
+func _banner_height(face: TextureRect, hub: Texture2D) -> void:
+	if face.size.x <= 0.0 or hub.get_width() <= 0:
+		return
+	face.custom_minimum_size.y = minf(face.size.x * float(hub.get_height()) / float(hub.get_width()), banner_cap())
+
+
+## On a short window the banner leaves most of the sheet to the words and the orders.
+func banner_cap() -> float:
+	if visit == null or visit.size.y < 1.0:
+		return HUB_MAX_H
+	return minf(HUB_MAX_H, visit.size.y * 0.42)
+
+
+## Cover-fit at full width, no taller than banner_cap(); the cut is shared around HUB_FOCUS_Y.
 func _crop_hub(face: TextureRect, hub: Texture2D) -> void:
 	if face.size.x <= 0.0:
 		return
 	var w := float(hub.get_width())
 	var h := float(hub.get_height())
-	var shown := minf(face.size.x * h / w, HUB_MAX_H)
+	var shown := minf(face.size.x * h / w, banner_cap())
 	var region_h := minf(h, w * shown / face.size.x)
 	var top := clampf(h * HUB_FOCUS_Y - region_h * 0.5, 0.0, h - region_h)
 	var atlas := face.texture as AtlasTexture

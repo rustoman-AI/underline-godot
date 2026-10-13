@@ -2907,7 +2907,7 @@ func _resolve_queued() -> void:
 			place = station_text(sid, "community")
 		seat_used.erase(str(row.get("role", "")))
 		var title := Copy.t("Dawn report")
-		var text := "%s · %s" % [str(row.get("name", "")), place]
+		var text := "%s · %s" % [Copy.person(str(row.get("name", ""))), place]
 		if ok:
 			title = Copy.t(_order_title(kind))
 		else:

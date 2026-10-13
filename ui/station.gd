@@ -3005,12 +3005,12 @@ func _seat_filled(uid: String, member: Dictionary, skill_name: String) -> Contro
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	var portrait := _portrait_box(str(member.id), 56)
 	box.add_child(portrait)
-	var who := _label(str(member.name).get_slice(" ", 0), 15)
+	var who := _label(Copy.person(str(member.name)).get_slice(" ", 0), 15)
 	who.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	who.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	who.clip_text = true
-	who.tooltip_text = str(member.name)
+	who.tooltip_text = Copy.person(str(member.name))
 	who.mouse_filter = Control.MOUSE_FILTER_PASS
 	box.add_child(who)
 	if skill_name != "":
