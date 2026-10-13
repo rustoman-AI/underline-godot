@@ -5,6 +5,7 @@ extends SceneTree
 ##   B2  station and network cameras keep the dark void out at every zoom and window size.
 ##   B3  wheel zoom keeps the point under the cursor unless the bounds need the view to move.
 ##   U1-U4  upgrade tiers on the yard sign, the room card and titles; before and after numbers equal what is applied.
+##   Price  tier II costs upgrade_step_cost times tier I (rounded up); the card shows and the purchase takes that price.
 ##   M1, M3  the network map opens filling 90 percent of the free area; zoom bounds, the deepest zoom, + - and Whole map.
 ##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
 ##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
@@ -562,10 +563,16 @@ func _upgrade_view() -> void:
 		var shown := _find_meta(st.card_body, "upgrade_gain")
 		if shown == null:
 			bad.append("U2 tier %d: no before and after line" % tier)
+		var price: int = [8, 12][tier]
+		var tag := _find_meta(st.card_body, "upgrade_cost")
+		if tag == null or int(tag.get_meta("upgrade_cost")) != price or tag.text != str(price):
+			bad.append("Price tier %d: the card's price is %s, want %d" % [tier, "missing" if tag == null else tag.text, price])
 		st._do_upgrade(uid)
 		if int(room.upgrade) != tier + 1:
 			bad.append("U3 tier %d: the upgrade was not bought" % tier)
 			return
+		if int(game.stock.materials) != 99 - price:
+			bad.append("Price tier %d: the upgrade took %d materials, want %d" % [tier, 99 - int(game.stock.materials), price])
 		st._sync_numbers()
 		for row in gains:
 			var now: int = st._room_amount(uid, str(row.key))
@@ -581,6 +588,11 @@ func _upgrade_view() -> void:
 			bad.append("U3 tier %d: the journal's last line is %s" % [tier, last])
 		print("U tier %d -> %d: %s | journal: %s" % [tier, tier + 1, toast, st._journal_line(last)])
 	_clear_modals()
+	var tier2 := {"quarters": 9, "workshop": 9, "hydroponics": 12, "air_filter": 12, "generator": 15, "infirmary": 12, "meeting_hall": 12, "radio": 12}
+	for type in tier2:
+		var first := int(game.catalog.rooms[type].upgrade_materials)
+		if game.upgrade_cost(type, 1) != first or game.upgrade_cost(type, 2) != int(tier2[type]):
+			bad.append("Price %s: tier I costs %d (want %d), tier II costs %d (want %d)" % [type, game.upgrade_cost(type, 1), first, game.upgrade_cost(type, 2), tier2[type]])
 
 
 func _net_shown(net) -> Rect2:

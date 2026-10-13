@@ -5954,6 +5954,7 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	var cost_n := _label(str(int(info.get("materials", 0))), 14)
 	cost_n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost_n.add_theme_color_override("font_color", DELTA_DOWN)
+	cost_n.set_meta("upgrade_cost", int(info.get("materials", 0)))
 	cost.add_child(cost_n)
 	if uname != "":
 		text.add_child(cost)

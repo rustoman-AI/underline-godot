@@ -97,3 +97,19 @@ Each seed count threshold is the worst of HEAD on seeds 1-30 and 31-60, minus 2.
 | follower white checks | 55-85% | 75.2% | 77.4% | 75.8% | 73.1% |
 
 HEAD is 326d9db (before pool batch 1); new is pool batch 1 with the lead's numbers. The gate runs seeds 1 to 30. On seeds 31 to 60 the new content falls below two thresholds (follower 21, hope order 12): the hope order drops from 18-19 to 12-16 seeds. Recorded as a watch item, not tuned.
+
+## 2026-10-12: second upgrade of a room costs more (owner decision, PART B2)
+
+**Changed.** The materials for an upgrade now depend on the tier: `upgrade_materials` for tier I, times 1.5 rounded up for tier II. The multipliers are data, `"upgrade_step_cost": [1.0, 1.5]` in `data/balance.json`; `Game.upgrade_cost(type, tier)` reads them and `upgrade_preview` uses it, so the room card, the confirm card and the purchase all show and take the same price. Tier II prices: quarters 9, workshop 9, hydroponics 12, air filter 12, generator 15. Infirmary, meeting hall and radio have one upgrade only and never pay more. The one-per-week limit and the week of work time (PART B1, B3) are not approved and not done.
+
+**Why.** The owner's decision of 12 Oct 2026 (docs/briefs/cursor_upgrade_visible.txt): the first upgrade costs what it does today, each further upgrade of the same room costs more.
+
+**Gates.** All 8 gates green; every gate's output is identical to before line by line. The bots never buy a tier II upgrade on seeds 1 to 30, so no number moves (`.tools/upgrade_counts.gd`, before and after identical):
+
+| steward, seeds 1-30 | upgrades bought | tier II | ends | mean people at week 40 | mean hope | mean discontent peak | shortage weeks |
+|---|---|---|---|---|---|---|---|
+| careful | 8 | 0 | time 30 | 65.7 | 52.1 | 47.9 | 2 |
+| expander | 5 | 0 | time 30 | 69.0 | 52.1 | 68.3 | 41 |
+| follower | 7 | 0 | time 30 | 56.9 | 63.7 | 58.9 | 2 |
+
+The bots buy an upgrade only to retry a failed event check that asks for a room level, and only to tier I. `sim/check_balance.gd` on seeds 1 to 30: careful 29, expander 29, follower 23, hope order 16, red 56.8%, white 75.8%, unchanged. On seeds 31 to 60 the output is also identical before and after (follower 21 and hope order 12, the watch item recorded above). A player who buys a second tier pays 3 to 5 materials more; the bots do not measure that.

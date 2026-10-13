@@ -59,6 +59,7 @@
   "pump_power": 6,
   "dig_materials": 2,
   "build_workers": 2,
+  "upgrade_step_cost": [1.0, 1.5],
   "secure_turns": 2,
   "squad_heal": 1,
   "growth_rate": 0.04,

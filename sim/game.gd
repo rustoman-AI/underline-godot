@@ -2116,7 +2116,7 @@ func upgrade_preview(uid: String) -> Dictionary:
 		return info
 	var defin: Dictionary = catalog.rooms[room.type]
 	var steps: Array = defin.get("upgrades", [])
-	info.materials = int(defin.get("upgrade_materials", 0))
+	info.materials = upgrade_cost(str(room.type), int(room.upgrade) + 1)
 	if int(room.upgrade) >= steps.size():
 		info.reason = Copy.t("Nothing left to upgrade.")
 		return info
@@ -2129,6 +2129,16 @@ func upgrade_preview(uid: String) -> Dictionary:
 		return info
 	info.ok = true
 	return info
+
+
+## Materials for upgrading a room of this type to the given tier: upgrade_materials times the tier's
+## multiplier from balance.json upgrade_step_cost (tiers past the list use its last value), rounded up.
+func upgrade_cost(type: String, tier: int) -> int:
+	var base := int(catalog.rooms[type].get("upgrade_materials", 0))
+	var step: Array = bal.get("upgrade_step_cost", [1.0])
+	if step.is_empty() or tier < 1:
+		return base
+	return ceili(base * float(step[mini(tier, step.size()) - 1]) - 0.0001)
 
 
 func demolish_preview(uid: String) -> Dictionary:
