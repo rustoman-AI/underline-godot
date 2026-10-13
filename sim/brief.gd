@@ -233,7 +233,10 @@ static func _used(game, key: String) -> String:
 		"power":
 			return Copy.t("Used by: the rooms (%d / week)") % game._weekly_draw("power")
 		"materials":
-			var up: int = int(game.bal.filter_upkeep) * int(game.room_count("air_filter"))
+			var up := 0
+			for room in game.rooms:
+				if str(room.type) == "air_filter":
+					up += int(game.filter_upkeep(room))
 			return Copy.t("Used by: building, upgrades, filter upkeep (%d / week)") % up
 		"tokens":
 			return Copy.t("Used by: trade and gifts")
@@ -303,7 +306,7 @@ static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: 
 		n = int(round(float(n) * float(room.get("efficiency", 1.0))))
 	if game.belt_down and str(room.type) == "hydroponics" and key == "food":
 		n = int(n / 2.0)
-	if game.workshop_down and str(room.type) == "workshop" and key == "materials":
+	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		n = 0
 	if game.gen_down and str(room.type) == "generator" and key == "power":
 		n = int(n / 2.0)
@@ -332,7 +335,7 @@ static func _live(game, room: Dictionary, defin: Dictionary, upgrade: int, key: 
 		n = int(round(float(n) * float(room.efficiency)))
 	if game.belt_down and str(room.type) == "hydroponics" and key == "food":
 		n = int(n / 2.0)
-	if game.workshop_down and str(room.type) == "workshop" and key == "materials":
+	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		n = 0
 	if game.gen_down and str(room.type) == "generator" and key == "power":
 		n = int(n / 2.0)

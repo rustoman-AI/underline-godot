@@ -60,6 +60,18 @@
   "dig_materials": 2,
   "build_workers": 2,
   "upgrade_step_cost": [1.0, 1.5],
+  "upgrade_fx": {
+    "bunks": {"housing": 2},
+    "family": {"housing": 2, "hope_week": 1},
+    "mushroom_beds": {"power": -1},
+    "pressure_seals": {"upkeep": -1},
+    "substation": {"power": -2},
+    "drill_heads": {"dig_turns": -1},
+    "armor": {"shrug_down": true},
+    "quarantine_ward": {"cough_spread": 0.5},
+    "loudspeakers": {"discontent_week": -1},
+    "antenna": {"warning_weeks": 1}
+  },
   "secure_turns": 2,
   "squad_heal": 1,
   "growth_rate": 0.04,

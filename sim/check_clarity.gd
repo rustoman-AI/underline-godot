@@ -6,6 +6,8 @@ extends SceneTree
 ##   B3  wheel zoom keeps the point under the cursor unless the bounds need the view to move.
 ##   U1-U4  upgrade tiers on the yard sign, the room card and titles; before and after numbers equal what is applied.
 ##   Price  tier II costs upgrade_step_cost times tier I (rounded up); the card shows and the purchase takes that price.
+##   Effects  each of the 13 upgrades changes the sim as its card line says (beds, power use, upkeep, digging,
+##            workshop shutdowns, the Cough, the flood warning, hope and discontent, +25% output).
 ##   M1, M3  the network map opens filling 90 percent of the free area; zoom bounds, the deepest zoom, + - and Whole map.
 ##   End turn is "waiting" while a dawn choice is open and lit when ready; the dawn and event card titles.
 ##   Effect words under five event choices and five audiences (deal and help) match what applying them changes.
@@ -62,6 +64,7 @@ func _run() -> void:
 	_audience_words()
 	_crowd_words()
 	await _upgrade_view()
+	_upgrade_effects()
 	_week_numbers()
 	if not numbers_done:
 		bad.append("N1: the week check stopped on a script error")
@@ -558,7 +561,7 @@ func _upgrade_view() -> void:
 		var head := _find_meta(st.card_body, "upgrade_title")
 		if head == null or int(head.get_meta("upgrade_title")) != tier + 1:
 			bad.append("U2 tier %d: the upgrade card does not name tier %s" % [tier, st.roman(tier + 1)])
-		if not _shows(st.card_body, "Grow lamps: more food" if tier == 0 else "Mushroom beds: food"):
+		if not _shows(st.card_body, "Grow lamps: Food +25%." if tier == 0 else "Mushroom beds: Food +25%, power use 2 -> 1."):
 			bad.append("U2 tier %d: the upgrade's plain words are missing" % tier)
 		var shown := _find_meta(st.card_body, "upgrade_gain")
 		if shown == null:
@@ -593,6 +596,70 @@ func _upgrade_view() -> void:
 		var first := int(game.catalog.rooms[type].upgrade_materials)
 		if game.upgrade_cost(type, 1) != first or game.upgrade_cost(type, 2) != int(tier2[type]):
 			bad.append("Price %s: tier I costs %d (want %d), tier II costs %d (want %d)" % [type, game.upgrade_cost(type, 1), first, game.upgrade_cost(type, 2), tier2[type]])
+
+
+func _upgrade_effects() -> void:
+	var game := Game.new()
+	game.setup(st.game.catalog, 1, 40)
+	var lines := {
+		"bunks": "Bunks: +2 beds.",
+		"family": "Family: +2 beds, hope +1 a week.",
+		"grow_lamps": "Grow lamps: Food +25%.",
+		"mushroom_beds": "Mushroom beds: Food +25%, power use 2 -> 1.",
+		"charcoal": "Charcoal: Air +25%.",
+		"pressure_seals": "Pressure seals: Air +25%, upkeep 2 -> 1 materials a week.",
+		"dynamo": "Dynamo: Power +25%.",
+		"substation": "Substation: Power +25%, power use 2 -> 0.",
+		"drill_heads": "Drill heads: Materials +25%, digging takes 1 week less, at least 1 week.",
+		"armor": "Armor: Materials +25%, events cannot shut the workshop down.",
+		"quarantine_ward": "Quarantine ward: the Cough spreads 40% -> 20% a week.",
+		"loudspeakers": "Loudspeakers: Influence +25%, discontent -1 a week.",
+		"antenna": "Antenna: flood warning 2 -> 3 weeks ahead.",
+	}
+	for id in lines:
+		var said: String = st._upgrade_what(id)
+		if said != lines[id]:
+			bad.append("Effects %s: the card says '%s', want '%s'" % [id, said, lines[id]])
+	var made := {}
+	for type in ["quarters", "hydroponics", "air_filter", "generator", "workshop", "infirmary", "meeting_hall", "radio"]:
+		var room: Dictionary = {"uid": "fx_" + type, "type": type, "level": 9, "cell": 9, "upgrade": 0, "efficiency": 1.0,
+			"staff": [], "offline": false, "browned": false, "disabled": 0}
+		game.rooms.append(room)
+		made[type] = room
+	var beds := game.housing()
+	var hope_d := game.upgrade_mood("hope_week")
+	made.quarters.upgrade = 1
+	_fx_expect(game.housing() == beds + 2, "bunks: beds %d -> %d" % [beds, game.housing()])
+	made.quarters.upgrade = 2
+	_fx_expect(game.housing() == beds + 4 and game.upgrade_mood("hope_week") == hope_d + 1, "family: beds %d, hope a week %d" % [game.housing(), game.upgrade_mood("hope_week")])
+	made.hydroponics.upgrade = 2
+	_fx_expect(game.room_power(made.hydroponics) == 1, "mushroom beds: power use %d" % game.room_power(made.hydroponics))
+	made.air_filter.upgrade = 2
+	_fx_expect(game.filter_upkeep(made.air_filter) == 1, "pressure seals: upkeep %d" % game.filter_upkeep(made.air_filter))
+	made.generator.upgrade = 2
+	_fx_expect(game.room_power(made.generator) == 0, "substation: generator power use %d" % game.room_power(made.generator))
+	var dig_before := int(game._dig_cost(2).turns)
+	made.workshop.upgrade = 1
+	_fx_expect(dig_before > 1 and int(game._dig_cost(2).turns) == dig_before - 1, "drill heads: dig %d -> %d weeks" % [dig_before, int(game._dig_cost(2).turns)])
+	_fx_expect(not game.shrugs_down(made.workshop), "drill heads alone shrug off shutdowns")
+	made.workshop.upgrade = 2
+	game._disable_room("workshop", 2)
+	_fx_expect(game.shrugs_down(made.workshop) and int(made.workshop.disabled) == 0, "armour: workshop disabled %d" % int(made.workshop.disabled))
+	made.infirmary.upgrade = 1
+	_fx_expect(is_equal_approx(game.station_fx("cough_spread"), 0.5), "quarantine ward: spread x%.2f" % game.station_fx("cough_spread"))
+	var dis_d := game.upgrade_mood("discontent_week")
+	made.meeting_hall.upgrade = 1
+	_fx_expect(game.upgrade_mood("discontent_week") == dis_d - 1, "loudspeakers: discontent a week %d" % game.upgrade_mood("discontent_week"))
+	made.radio.upgrade = 1
+	_fx_expect(game.flood_warning() == 3, "antenna: flood warning %d weeks" % game.flood_warning())
+	made.radio.offline = true
+	_fx_expect(game.flood_warning() == 2, "antenna switched off: flood warning %d weeks" % game.flood_warning())
+	print("Effects: 13 upgrade lines and their sim effects checked")
+
+
+func _fx_expect(ok: bool, what: String) -> void:
+	if not ok:
+		bad.append("Effects " + what)
 
 
 func _net_shown(net) -> Rect2:

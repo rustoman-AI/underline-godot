@@ -113,3 +113,35 @@ HEAD is 326d9db (before pool batch 1); new is pool batch 1 with the lead's numbe
 | follower | 7 | 0 | time 30 | 56.9 | 63.7 | 58.9 | 2 |
 
 The bots buy an upgrade only to retry a failed event check that asks for a room level, and only to tier I. `sim/check_balance.gd` on seeds 1 to 30: careful 29, expander 29, follower 23, hope order 16, red 56.8%, white 75.8%, unchanged. On seeds 31 to 60 the output is also identical before and after (follower 21 and hope order 12, the watch item recorded above). A player who buys a second tier pays 3 to 5 materials more; the bots do not measure that.
+
+## 2026-10-12: every upgrade does something (owner decision, PART C)
+
+**Changed.** Each of the 13 upgrades now has a real effect in the sim, built only from mechanics the game already has. The +25% base output per tier stays for production rooms. The extra effects are data, `"upgrade_fx"` in `data/balance.json`, and add up over the tiers a room has bought. They work while the room is switched on (not offline).
+
+| upgrade | room, tier | effect | existing mechanic |
+|---|---|---|---|
+| bunks | quarters I | +2 beds | housing, overcrowding discontent |
+| family | quarters II | +2 beds, hope +1 a week | housing; weekly hope like a law's hope_week |
+| grow_lamps | hydroponics I | food +25% | tier output |
+| mushroom_beds | hydroponics II | food +25%, power use 2 -> 1 | room power draw |
+| charcoal | air filter I | air +25% | tier output |
+| pressure_seals | air filter II | air +25%, filter upkeep 2 -> 1 material a week | filter upkeep |
+| dynamo | generator I | power +25% | tier output |
+| substation | generator II | power +25%, the generator's own draw 2 -> 0 | room power draw |
+| drill_heads | workshop I | materials +25%, digging 1 week less (never under 1) | dig weeks, like the Engineers' Charter |
+| armor | workshop II | materials +25%, events cannot shut the workshop down | shop_down and disabled weeks from events |
+| quarantine_ward | infirmary I | the Cough spreads 40% -> 20% a week | cough_spread |
+| loudspeakers | meeting hall I | influence +25%, discontent -1 a week | weekly discontent like a law's discontent_week |
+| antenna | radio I | flood warning 2 -> 3 weeks ahead (warning line, pumping, season notice) | season_warning for the flood |
+
+Station-wide effects (digging, the Cough, the flood warning) take the best room and do not stack across rooms of one type. The card line and the toast are built from the same data, so they always carry the real numbers ("Mushroom beds: Food +25%, power use 2 -> 1."). The lead's 13 lines are removed: each promised something the sim does not do (raids, leaks, steadier power, less light, a farther radio). `sim/check_clarity.gd` checks every line and every effect.
+
+**Gates.** All 8 gates green. The bots buy only drill heads (to retry the "Workshop level 2" check), so only those runs move: digging is a week faster on deep cells. Bot upgrade counts and outcomes, seeds 1 to 30 (`.tools/upgrade_counts.gd`):
+
+| steward | upgrades (tier II) before / after | ends before / after | mean people at week 40 | mean hope | mean discontent peak | shortage weeks |
+|---|---|---|---|---|---|---|
+| careful | 8 (0) / 8 (0) | time 30 / time 30 | 65.7 / 65.7 | 52.1 / 52.2 | 47.9 / 47.8 | 2 / 2 |
+| expander | 5 (0) / 5 (0) | time 30 / time 30 | 69.0 / 68.5 | 52.1 / 52.1 | 68.3 / 68.6 | 41 / 41 |
+| follower | 7 (0) / 7 (0) | time 30 / time 30 | 56.9 / 57.4 | 63.7 / 63.9 | 58.9 / 59.8 | 2 / 2 |
+
+`sim/check_balance.gd` before / after: seeds 1 to 30, careful 29 / 29, expander 29 / 29, follower 23 / 22 (threshold 22: seed 26's discontent peak goes from 59 to 70), hope order 16 / 16, red 56.8% / 56.8%, white 75.8% / 75.8%. Seeds 31 to 60: careful 26 / 26, expander 29 / 29, follower 21 / 21, hope order 12 / 13, red 62.2% / 62.2%, white 73.1% / 73.1% (the watch item above, unchanged or slightly better). No gate failed, so no tuning was needed. The follower now sits exactly on its threshold on seeds 1 to 30: a watch item.

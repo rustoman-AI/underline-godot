@@ -61,22 +61,6 @@ const YIELD_ZERO := {
 const ROMAN := ["", "I", "II", "III", "IV", "V"]
 const UPGRADE_FLASH_MS := 900
 const BRASS := Color("c9a050")
-## The lead's plain words for each upgrade (docs/briefs/cursor_upgrade_visible.txt).
-const UPGRADE_WHAT := {
-	"bunks": "Bunks: more beds in the same space.",
-	"family": "Family corners: calmer people, a little more hope.",
-	"grow_lamps": "Grow lamps: more food from the same beds.",
-	"mushroom_beds": "Mushroom beds: food that needs little light.",
-	"charcoal": "Charcoal filters: cleaner air.",
-	"pressure_seals": "Pressure seals: fewer leaks.",
-	"dynamo": "Dynamo: more power from the same crew.",
-	"substation": "Substation: steadier power.",
-	"drill_heads": "Drill heads: digging goes faster.",
-	"armor": "Armour plates: the workshop survives raids.",
-	"quarantine_ward": "Quarantine ward: the sick are kept apart.",
-	"loudspeakers": "Loudspeakers: the hall reaches the whole platform.",
-	"antenna": "Antenna: the radio hears farther.",
-}
 const YIELD_STEP := {
 	"skill": "crew skill",
 	"half_crew": "short crew",
@@ -2297,8 +2281,65 @@ func room_title(room) -> String:
 	return Copy.t("%s, tier %s") % [name, roman(int(room.upgrade))]
 
 
+## "Mushroom beds: Food +25%, power use 2 -> 1." Built from the tier output bonus and balance.json upgrade_fx,
+## so the card says exactly what the sim does.
 func _upgrade_what(id: String) -> String:
-	return Copy.t(UPGRADE_WHAT[id]) if UPGRADE_WHAT.has(id) else ""
+	var type := ""
+	for key in game.catalog.rooms:
+		if game.catalog.rooms[key].get("upgrades", []).has(id):
+			type = str(key)
+	if type == "":
+		return ""
+	var parts: PackedStringArray = []
+	for key in game.catalog.rooms[type].get("base", {}):
+		parts.append(Copy.t("%s +%d%%") % [Copy.res(str(key)), 25])
+	parts.append_array(upgrade_fx_words(id))
+	if parts.is_empty():
+		return ""
+	return Copy.t("%s: %s.") % [_upgrade_name(id), ", ".join(parts)]
+
+
+## What one upgrade adds beyond its output bonus, in words with the real numbers.
+func upgrade_fx_words(id: String) -> PackedStringArray:
+	var fx: Dictionary = game.bal.get("upgrade_fx", {}).get(id, {})
+	var type := ""
+	var earlier := {}
+	for key in game.catalog.rooms:
+		var steps: Array = game.catalog.rooms[key].get("upgrades", [])
+		if steps.has(id):
+			type = str(key)
+			for i in steps.find(id):
+				var prev: Dictionary = game.bal.get("upgrade_fx", {}).get(str(steps[i]), {})
+				for k in prev:
+					if prev[k] is float or prev[k] is int:
+						earlier[k] = int(earlier.get(k, 0)) + int(prev[k])
+	var bits: PackedStringArray = []
+	if type == "":
+		return bits
+	var defin: Dictionary = game.catalog.rooms[type]
+	if fx.has("housing"):
+		bits.append("+" + Words.count(int(fx.housing), "bed"))
+	if fx.has("power"):
+		var was := maxi(0, int(defin.get("power", 0)) + int(earlier.get("power", 0)))
+		bits.append(Copy.t("power use %d -> %d") % [was, maxi(0, was + int(fx.power))])
+	if fx.has("upkeep"):
+		var was := maxi(0, int(game.bal.filter_upkeep) + int(earlier.get("upkeep", 0)))
+		bits.append(Copy.t("upkeep %d -> %d materials a week") % [was, maxi(0, was + int(fx.upkeep))])
+	if fx.has("dig_turns"):
+		bits.append(Copy.t("digging takes %s less, at least 1 week") % Words.count(-int(fx.dig_turns), "week"))
+	if bool(fx.get("shrug_down", false)):
+		bits.append(Copy.t("events cannot shut the workshop down"))
+	if fx.has("cough_spread"):
+		var was := int(round(float(game.bal.cough_spread) * 100.0))
+		bits.append(Copy.t("the Cough spreads %d%% -> %d%% a week") % [was, int(round(was * float(fx.cough_spread)))])
+	if fx.has("warning_weeks"):
+		var was := int(game.bal.get("season_warning", 2))
+		bits.append(Copy.t("flood warning %d -> %d weeks ahead") % [was, was + int(fx.warning_weeks)])
+	if fx.has("hope_week"):
+		bits.append(Copy.t("hope %+d a week") % int(fx.hope_week))
+	if fx.has("discontent_week"):
+		bits.append(Copy.t("discontent %+d a week") % int(fx.discontent_week))
+	return bits
 
 
 ## "+4 power a week, +1 influence a week" for the gains that move.
@@ -3205,7 +3246,11 @@ func _do_upgrade(uid: String) -> void:
 
 
 func upgrade_toast(type: String, upgrade_id: String, gains: Array) -> String:
-	var words := _gain_words(gains)
+	var bits: PackedStringArray = []
+	if _gain_words(gains) != "":
+		bits.append(_gain_words(gains))
+	bits.append_array(upgrade_fx_words(upgrade_id))
+	var words := ", ".join(bits)
 	var name := _room_type_name(type)
 	if words == "":
 		return Copy.t("%s upgraded: %s.") % [name, _upgrade_name(upgrade_id)]
@@ -5937,7 +5982,7 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 		var pct := _label(Copy.t("You get: +%d%% of the base output.") % int(gains[0].pct), 14)
 		pct.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		text.add_child(pct)
-	if not moved and uname != "":
+	if not moved and uname != "" and upgrade_fx_words(uid_name).is_empty():
 		var stay := _label("the weekly numbers stay", 14)
 		stay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		text.add_child(stay)

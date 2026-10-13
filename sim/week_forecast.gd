@@ -69,7 +69,7 @@ static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {
 	if game.belt_down and str(room.type) == "hydroponics" and key == "food":
 		n = int(n / 2.0)
 		out.steps.append(["event", 0.5])
-	if game.workshop_down and str(room.type) == "workshop" and key == "materials":
+	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		out.zero = "event"
 		return out
 	if game.gen_down and str(room.type) == "generator" and key == "power":
@@ -219,7 +219,7 @@ static func _night(game, made: Dictionary, room_lines: Dictionary, dark: Diction
 	for room in game.rooms:
 		if bool(room.offline) or dark.has(str(room.uid)):
 			continue
-		var draw := int(game.catalog.rooms[room.type].get("power", 0)) * (2 if double else 1)
+		var draw: int = game.room_power(room) * (2 if double else 1)
 		if draw > 0:
 			power_need += draw
 	short["power"] = maxi(0, power_need - int(stock.power))
@@ -227,11 +227,11 @@ static func _night(game, made: Dictionary, room_lines: Dictionary, dark: Diction
 	_draws(game, rows.power, dark, double, int(stock.power) - power_left)
 	stock.power = power_left
 	short["materials"] = 0
-	var upkeep := int(game.bal.filter_upkeep)
 	var paid := 0
 	for room in game.rooms:
 		if str(room.type) != "air_filter":
 			continue
+		var upkeep: int = game.filter_upkeep(room)
 		if int(stock.materials) >= upkeep:
 			stock.materials -= upkeep
 			paid += upkeep
@@ -278,7 +278,7 @@ static func _draws(game, rows: Array, dark: Dictionary, double: bool, taken: int
 	for room in game.rooms:
 		if bool(room.offline) or dark.has(str(room.uid)):
 			continue
-		var draw := int(game.catalog.rooms[room.type].get("power", 0)) * (2 if double else 1)
+		var draw: int = game.room_power(room) * (2 if double else 1)
 		if draw <= 0:
 			continue
 		var name := str(game.catalog.rooms[room.type].name)

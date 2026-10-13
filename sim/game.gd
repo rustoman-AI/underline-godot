@@ -502,8 +502,73 @@ func housing() -> int:
 	for room in rooms:
 		if room.offline:
 			continue
-		n += int(catalog.rooms[room.type].get("housing", 0))
+		n += room_housing(room)
 	return n
+
+
+## What a room's bought upgrades do beyond the +25% base output per tier (balance.json upgrade_fx), summed over
+## every tier bought. cough_spread multiplies, shrug_down is true if any tier has it, the rest add up.
+func upgrade_fx(room) -> Dictionary:
+	var out := {}
+	var steps: Array = catalog.rooms[room.type].get("upgrades", [])
+	var table: Dictionary = bal.get("upgrade_fx", {})
+	for i in mini(int(room.upgrade), steps.size()):
+		var fx: Dictionary = table.get(str(steps[i]), {})
+		for key in fx:
+			if key == "cough_spread":
+				out[key] = float(out.get(key, 1.0)) * float(fx[key])
+			elif key == "shrug_down":
+				out[key] = bool(out.get(key, false)) or bool(fx[key])
+			else:
+				out[key] = int(out.get(key, 0)) + int(fx[key])
+	return out
+
+
+func room_housing(room) -> int:
+	return maxi(0, int(catalog.rooms[room.type].get("housing", 0)) + int(upgrade_fx(room).get("housing", 0)))
+
+
+func room_power(room) -> int:
+	return maxi(0, int(catalog.rooms[room.type].get("power", 0)) + int(upgrade_fx(room).get("power", 0)))
+
+
+func filter_upkeep(room) -> int:
+	return maxi(0, int(bal.filter_upkeep) + int(upgrade_fx(room).get("upkeep", 0)))
+
+
+## Armour plates: events that shut the workshop down (shop_down, disabled weeks) pass it by.
+func shrugs_down(room) -> bool:
+	return bool(upgrade_fx(room).get("shrug_down", false))
+
+
+## The best value of a station-wide upgrade effect among rooms that are switched on: the smallest for
+## dig_turns and cough_spread, the largest for warning_weeks. Rooms of one type do not stack.
+func station_fx(key: String) -> float:
+	var best := 1.0 if key == "cough_spread" else 0.0
+	for room in rooms:
+		if bool(room.offline):
+			continue
+		var fx := upgrade_fx(room)
+		if not fx.has(key):
+			continue
+		if key == "warning_weeks":
+			best = maxf(best, float(fx[key]))
+		else:
+			best = minf(best, float(fx[key]))
+	return best
+
+
+## Weekly hope or discontent from upgrades (family corners, loudspeakers) in rooms that are switched on.
+func upgrade_mood(key: String) -> int:
+	var n := 0
+	for room in rooms:
+		if not bool(room.offline):
+			n += int(upgrade_fx(room).get(key, 0))
+	return n
+
+
+func flood_warning() -> int:
+	return int(bal.get("season_warning", 2)) + int(station_fx("warning_weeks"))
 
 
 func room_count(type: String) -> int:
@@ -688,6 +753,8 @@ func dawn_projection() -> Dictionary:
 			hope_d += int(hope_table[season_id])
 	if residents.size() > housing():
 		dis_d += int(bal.get("overcrowd_discontent", 0))
+	hope_d += upgrade_mood("hope_week")
+	dis_d += upgrade_mood("discontent_week")
 	for law_id in laws_on:
 		var defin: Dictionary = catalog.laws[law_id]
 		if defin.has("hope_week"):
@@ -914,6 +981,10 @@ func _night() -> void:
 	_rival_agents()
 	if residents.size() > housing():
 		_add_discontent(int(bal.overcrowd_discontent), "overcrowd")
+	if upgrade_mood("hope_week") != 0:
+		_add_hope(upgrade_mood("hope_week"), "upgrades")
+	if upgrade_mood("discontent_week") != 0:
+		_add_discontent(upgrade_mood("discontent_week"), "upgrades")
 	_add_hope(int(bal.hope_drift), "drift")
 	for key in before:
 		last_net[key] = int(stock.get(key, 0)) - int(before[key])
@@ -1004,7 +1075,7 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false) -> 
 			n = int(round(float(n) * mult))
 			if drop_hydro_food and str(room.type) == "hydroponics" and str(key) == "food":
 				n = int(n / 2.0)
-			if drop_shop and str(room.type) == "workshop" and str(key) == "materials":
+			if drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
 				n = 0
 			if drop_gen and str(room.type) == "generator" and str(key) == "power":
 				n = int(n / 2.0)
@@ -1055,7 +1126,7 @@ func _brownout_ids() -> Array:
 	for room in rooms:
 		if str(room.type) != "generator" or bool(room.offline):
 			continue
-		pool -= int(catalog.rooms.generator.get("power", 0)) * mult
+		pool -= room_power(room) * mult
 	if pool < 0:
 		pool = 0
 	for uid in power_order:
@@ -1064,7 +1135,7 @@ func _brownout_ids() -> Array:
 			continue
 		if str(room.type) == "generator" or bool(room.offline) or _flood_silences(room):
 			continue
-		var draw := int(catalog.rooms[str(room.type)].get("power", 0)) * mult
+		var draw := room_power(room) * mult
 		if draw <= 0:
 			continue
 		if pool >= draw:
@@ -1204,7 +1275,7 @@ func flood_line() -> String:
 	if flood_guard:
 		return ""
 	var eta := _flood_eta()
-	if eta > int(bal.get("season_warning", 2)):
+	if eta > flood_warning():
 		return ""
 	var spoil := Copy.t("Food on the lower level will spoil.")
 	if eta <= 0:
@@ -1494,7 +1565,7 @@ func _full_power_draw() -> int:
 	for room in rooms:
 		if room.offline:
 			continue
-		n += int(catalog.rooms[room.type].get("power", 0))
+		n += room_power(room)
 	if _season_is("cold") or crunch_power:
 		n *= 2
 	return n
@@ -1640,7 +1711,7 @@ func _power_need() -> int:
 	for room in rooms:
 		if room.offline or bool(room.get("browned", false)):
 			continue
-		n += int(catalog.rooms[room.type].get("power", 0))
+		n += room_power(room)
 	return n
 
 
@@ -1667,7 +1738,7 @@ func _consumer_line(key: String) -> String:
 		for room in rooms:
 			if room.offline:
 				continue
-			var draw := int(catalog.rooms[room.type].get("power", 0))
+			var draw := room_power(room)
 			if draw <= 0:
 				continue
 			draws.append({"name": str(catalog.rooms[room.type].name), "draw": draw})
@@ -1693,13 +1764,13 @@ func _uncovered_power_ids() -> Array:
 	for room in rooms:
 		if room.offline:
 			continue
-		var draw := int(catalog.rooms[room.type].get("power", 0))
+		var draw := room_power(room)
 		if draw <= 0:
 			continue
 		rows.append(room)
 	rows.sort_custom(func(a, b):
-		var da := int(catalog.rooms[a.type].get("power", 0))
-		var db := int(catalog.rooms[b.type].get("power", 0))
+		var da := room_power(a)
+		var db := room_power(b)
 		if da == db:
 			return str(a.uid) < str(b.uid)
 		return da < db
@@ -1709,7 +1780,7 @@ func _uncovered_power_ids() -> Array:
 		left = int(left / 2.0)
 	var lost: Array = []
 	for room in rows:
-		var draw := int(catalog.rooms[room.type].get("power", 0))
+		var draw := room_power(room)
 		if left >= draw:
 			left -= draw
 		else:
@@ -1983,10 +2054,10 @@ func _apply_weekly_laws() -> void:
 
 
 func _decay_filters() -> void:
-	var upkeep := int(bal.filter_upkeep)
 	for room in rooms:
 		if room.type != "air_filter":
 			continue
+		var upkeep := filter_upkeep(room)
 		if int(stock.materials) >= upkeep:
 			stock.materials = int(stock.materials) - upkeep
 			room.efficiency = clampf(float(room.efficiency) - float(bal.filter_decay) + float(bal.filter_restore), 0.25, 1.0)
@@ -2226,7 +2297,7 @@ func switch_preview(uid: String) -> Dictionary:
 	var room = _room(uid)
 	if room == null:
 		return info
-	var draw := int(catalog.rooms[room.type].get("power", 0))
+	var draw := room_power(room)
 	info.saves = draw
 	info.on = not bool(room.get("switched_off", false))
 	if str(room.type) == "platform" or draw <= 0:
@@ -2324,7 +2395,7 @@ func room_detail(uid: String) -> Dictionary:
 			n = int(round(float(n) * float(room.efficiency)))
 		if belt_down and str(room.type) == "hydroponics" and str(key) == "food":
 			n = int(n / 2.0)
-		if workshop_down and str(room.type) == "workshop" and str(key) == "materials":
+		if workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
 			n = 0
 		if gen_down and str(room.type) == "generator" and str(key) == "power":
 			n = int(n / 2.0)
@@ -2342,7 +2413,7 @@ func room_detail(uid: String) -> Dictionary:
 		"skill": skill,
 		"staff": staff,
 		"staff_max": int(defin.staff_max),
-		"power": int(defin.get("power", 0)),
+		"power": room_power(room),
 		"outputs": outputs,
 		"upgrade": int(room.upgrade),
 		"offline": bool(room.offline),
@@ -2513,6 +2584,7 @@ func _dig_cost(level: int) -> Dictionary:
 	var turns := 1 + level
 	if _law_on("engineers_charter"):
 		turns = maxi(1, turns - int(catalog.laws.engineers_charter.dig_faster))
+	turns = maxi(1, turns + int(station_fx("dig_turns")))
 	return {"turns": turns, "workers": mini(4, 2 + level)}
 
 
@@ -2608,7 +2680,7 @@ func _needs_pump() -> bool:
 			return true
 	if flood_guard:
 		return false
-	return _flood_eta() <= int(bal.get("season_warning", 2))
+	return _flood_eta() <= flood_warning()
 
 
 # --- council orders ---
@@ -3981,7 +4053,7 @@ func _pull_sick_from_rooms() -> void:
 func _spread_cough() -> void:
 	if quarantine:
 		return
-	var chance := float(bal.cough_spread)
+	var chance := float(bal.cough_spread) * station_fx("cough_spread")
 	var sick_cells := {}
 	for room in rooms:
 		for id in room.staff:
@@ -5406,6 +5478,9 @@ func _disable_room(type: String, weeks: int) -> void:
 	for room in rooms:
 		if str(room.type) != type:
 			continue
+		if shrugs_down(room):
+			_log("ARMOURED %s keeps working" % type, true)
+			return
 		room.disabled = maxi(int(room.get("disabled", 0)), weeks)
 		_log("DISABLED %s %d" % [type, int(room.disabled)], true)
 		return
@@ -5766,9 +5841,9 @@ func _faction_dead(fid: String) -> bool:
 
 
 func _season_clock() -> void:
-	var warning := int(bal.season_warning)
 	for season in bal.seasons:
 		var at := int(season.week)
+		var warning := flood_warning() if str(season.id) == "flood" else int(bal.season_warning)
 		if week == at - warning:
 			var soon := "SEASON warning %s" % str(season.id)
 			if Copy.ru():
@@ -5790,7 +5865,7 @@ func _season_clock() -> void:
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):
 		active_season = {}
-	if flood_guard and _flood_eta() > int(bal.get("season_warning", 2)):
+	if flood_guard and _flood_eta() > flood_warning():
 		flood_guard = false
 
 
