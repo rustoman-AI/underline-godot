@@ -61,6 +61,7 @@ func _run() -> void:
 	_yard_bounds()
 	_network_bounds()
 	await _visit_sheet()
+	await _banners()
 	_map_look()
 	_event_words()
 	_audience_words()
@@ -529,6 +530,67 @@ func _visit_sheet() -> void:
 
 
 ## Every order caption shows all its lines inside the button.
+## Words a station's community, who or art line must contain for each room picture it may borrow.
+const BANNER_WORDS := {
+	"hydroponics": ["garden", "greenhouse", "mushroom", "beds"],
+	"workshop": ["machine", "iron", "workshop"],
+	"air_filter": ["filter", "air"],
+	"generator": ["substation", "generator", "power"],
+	"radio": ["radio"],
+	"platform": ["platform", "cars"],
+	"infirmary": ["quarantine", "infirmary", "sick"],
+	"meeting_hall": ["meeting", "lecture", "debat", "court", "planning"],
+}
+
+
+## P1: every station shows its own hub art, the capital hub, a room picture its description names, or a
+## dark plate with its name; never a picture picked by its lean.
+func _banners() -> void:
+	var game: Game = st.game
+	var net = st.network_view
+	var plates := 0
+	Copy.set_lang("en")
+	for sid in game.stations:
+		var path: String = net.banner_path(game, str(sid))
+		var own: bool = path.ends_with("/hubs/%s.webp" % sid) or (str(sid) == str(game.capital_id) and path.ends_with("hub_coney_island.webp"))
+		if path == "":
+			plates += 1
+			continue
+		if own:
+			continue
+		var room := path.get_file().get_basename().trim_prefix("room_")
+		var said := ("%s %s %s" % [game.station_text(str(sid), "community"), game.station_text(str(sid), "who"), game.station_text(str(sid), "art")]).to_lower()
+		var fits := false
+		for word in BANNER_WORDS.get(room, []):
+			fits = fits or said.contains(word)
+		if not fits:
+			bad.append("P1 %s (%s) shows room_%s, which its description does not name" % [sid, game.stations[sid].name, room])
+	if net.banner_path(game, "riverside").get_file() != "room_hydroponics.webp":
+		bad.append("P1 Botanic Garden shows %s, want the hydroponics beds" % net.banner_path(game, "riverside").get_file())
+	for sid in net.BANNER_ROOMS:
+		if not game.stations.has(sid):
+			bad.append("P1 BANNER_ROOMS names %s, which is not a station" % sid)
+		elif ResourceLoader.exists("res://assets/hubs/%s.webp" % sid):
+			bad.append("P1 BANNER_ROOMS names %s, which has its own hub art" % sid)
+	var plain := ""
+	for sid in game.stations:
+		if net.banner_path(game, str(sid)) == "" and str(game.stations[sid].owner) != str(game.player):
+			plain = str(sid)
+			break
+	if plain != "":
+		st._toggle_network()
+		net.size = SIZES[0]
+		net._fit()
+		net.open_visit(plain)
+		await _frames(3)
+		var plate := _find_meta(net.visit_sheet, "visit_banner")
+		if not (plate is PanelContainer) or not _shows(plate, Copy.t(str(game.stations[plain].name))):
+			bad.append("P1 %s: the visit sheet has no name plate in place of a picture" % plain)
+		net.close_visit()
+		st._toggle_network()
+	print("Banners: %d stations, %d with a name plate" % [game.stations.size(), plates])
+
+
 func _captions_fit(root: Node, where: String) -> int:
 	var count := 0
 	for button in root.find_children("*", "Button", true, false):

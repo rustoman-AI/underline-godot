@@ -53,6 +53,15 @@ const STAMP_ON_PAPER := ["black_flag"]
 const FLAG_ANCHOR := Vector2(0.176, 0.35)
 const FLAG_CLOTH := Vector2(0.62, 0.42)
 const PANORAMA_HUBS := ["northgate", "chapel", "trampark", "brickworks"]
+## Room picture for each station without its own hub art, chosen from what the station's community and art
+## lines describe. A station missing here has no fitting picture and shows a dark plate with its name.
+const BANNER_ROOMS := {
+	"riverside": "hydroponics", "garden": "hydroponics", "foundry": "workshop", "eastwater": "air_filter",
+	"quarry": "generator", "signal": "radio", "oldcommand": "platform", "vault": "infirmary",
+	"plaza": "meeting_hall", "library": "meeting_hall", "stadium": "meeting_hall", "dockyard": "meeting_hall",
+	"archive": "meeting_hall",
+}
+const PLATE := Color("1e1812")
 const HUB_MAX_H := 400.0
 ## The visit sheet never grows wider than this; the map shows dimmed on both sides of it.
 const VISIT_MAX_W := 900.0
@@ -2229,6 +2238,10 @@ func _fill_visit(sid: String) -> void:
 		else:
 			face.resized.connect(_banner_height.bind(face, hub))
 		_visit_body.add_child(face)
+	else:
+		var plate := _name_plate(Copy.t(str(st.name)), Vector2(0, 150), 34)
+		plate.set_meta("visit_banner", true)
+		_visit_body.add_child(plate)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
 	if host != null and host.has_method("_portrait_box"):
@@ -2297,28 +2310,43 @@ func _crop_hub(face: TextureRect, hub: Texture2D) -> void:
 
 
 func _hub_tex(game, st: Dictionary) -> Texture2D:
-	var sid := str(st.get("id", ""))
+	var path := banner_path(game, str(st.get("id", "")))
+	return ArtPack.load_texture(path) if path != "" else null
+
+
+## The picture a station shows: the capital's hub, the station's own hub art, else the room from BANNER_ROOMS;
+## "" when nothing fits.
+func banner_path(game, sid: String) -> String:
 	var paths: PackedStringArray = []
 	if sid == str(game.capital_id):
 		paths.append("res://assets/hubs/hub_coney_island.webp")
 	paths.append("res://assets/hubs/%s.webp" % sid)
-	paths.append("res://assets/hubs/hub_%s.webp" % str(st.get("lean", "")))
-	var room := "workshop"
-	match str(st.get("lean", "")):
-		"order", "faith":
-			room = "meeting_hall"
-		"trade":
-			room = "radio"
-		_:
-			room = "workshop"
-	paths.append("res://assets/rooms/room_%s.webp" % room)
+	if BANNER_ROOMS.has(sid):
+		paths.append("res://assets/rooms/room_%s.webp" % str(BANNER_ROOMS[sid]))
 	for path in paths:
-		if not ResourceLoader.exists(path):
-			continue
-		var tex := ArtPack.load_texture(path)
-		if tex != null:
-			return tex
-	return null
+		if ResourceLoader.exists(path):
+			return path
+	return ""
+
+
+## A dark plate with the station's name in place of a picture.
+func _name_plate(text: String, min_size: Vector2, px: int) -> PanelContainer:
+	var plate := PanelContainer.new()
+	var face := StyleBoxFlat.new()
+	face.bg_color = PLATE
+	face.border_color = Color(0.55, 0.43, 0.24, 0.6)
+	face.set_border_width_all(1)
+	face.set_content_margin_all(12)
+	plate.add_theme_stylebox_override("panel", face)
+	plate.custom_minimum_size = min_size
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name_label := _lab(text, px, true)
+	name_label.add_theme_color_override("font_color", Color(MUTED, 0.75))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	plate.add_child(name_label)
+	return plate
 
 
 ## Small snapshot for the station sheet. Stations without their own art borrow a room picture.
@@ -2347,7 +2375,10 @@ func _station_photo(game, st: Dictionary) -> Control:
 	shot.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	shot.clip_contents = true
 	var caption := ""
-	if _secret(st):
+	if not _secret(st) and banner_path(game, str(st.get("id", ""))) == "":
+		box.add_child(_name_plate(Copy.t(str(st.get("name", ""))), shot.custom_minimum_size, 20))
+		caption = Copy.t("No photo yet")
+	elif _secret(st):
 		var blank := ColorRect.new()
 		blank.color = Color(0.18, 0.16, 0.14)
 		blank.custom_minimum_size = shot.custom_minimum_size
@@ -2378,22 +2409,7 @@ func _station_photo(game, st: Dictionary) -> Control:
 
 
 func _thumb_tex(game, st: Dictionary) -> Texture2D:
-	var sid := str(st.get("id", ""))
-	for path in ["res://assets/hubs/%s.webp" % sid, "res://assets/hubs/hub_%s.webp" % sid]:
-		if ResourceLoader.exists(path):
-			return ArtPack.load_texture(path)
-	if sid == str(game.capital_id):
-		return _hub_tex(game, st)
-	var pool: Array = ["hydroponics", "quarters", "platform", "workshop"]
-	match str(st.get("lean", "")):
-		"order", "faith":
-			pool = ["meeting_hall", "quarters", "infirmary"]
-		"trade":
-			pool = ["radio", "platform", "workshop"]
-		"craft", "depot":
-			pool = ["workshop", "generator", "air_filter"]
-	var room := str(pool[_hash(sid) % pool.size()])
-	return ArtPack.load_texture("res://assets/rooms/room_%s.webp" % room)
+	return _hub_tex(game, st)
 
 
 func _lean_name(lean: String) -> String:
