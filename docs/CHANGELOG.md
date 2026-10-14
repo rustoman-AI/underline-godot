@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 176. Первый: 2026-10-02. Последний: 2026-10-12 4cd6788.
+Коммитов: 184. Первый: 2026-10-02. Последний: 2026-10-13 f7fe4c0.
 
 ## Этапы
 
@@ -19,8 +19,19 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-12 (57)
+### 2026-10-13 (7)
 
+- `f7fe4c0` Sound: switch to the new sound set
+- `d454b99` Docs: triage station orders feedback F45, park quest and mini-game ideas
+- `b0ecac1` Audio: 30 new sound files from Muse (additive), audit docs, switch brief
+- `db79a48` Map look: clean table, territories, digging crew
+- `c0a7ea7` Fix: wide window clamp, station sheet, button text, RU names
+- `1710c75` Docs: briefs for sound overhaul (Muse) and station sheet, wide window, map look (Cursor)
+- `c154855` Docs: log owner issues F35-F44, park Night Moon ideas
+
+### 2026-10-12 (58)
+
+- `1b830e6` Docs: playtest6 build recorded
 - `4cd6788` Upgrades: drawn art for upgraded rooms
 - `f47a673` Art: 13 upgraded room variants (tier 1 and 2)
 - `081015d` Upgrades: every upgrade does something
