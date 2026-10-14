@@ -72,3 +72,5 @@
 - Resident lines when assigned to a room ("again hydroponics, I am allergic", "Rob took the 16 key again"): cheap, later as one batch of text.
 - One simple mini-game on a frequent action (repair or filter work) instead of five different ones: later.
 - A station with a clear market and exchange rate (Heroes style): later.
+
+- VISUAL POLISH BATCH (14 Oct, two AI reviews of playtest7, F49). Quick wins in order of value: (1) top bar: dark pill behind each resource and amber or red text when the weekly net is negative; (2) dug, being-dug and empty cells look different (crack and dust while digging, a faint cable or debris on dug-empty cells, darker unmined rock); (3) people readable: soft shadow or warm rim under sprites, slightly clearer working pose; (4) panel contrast: lighter panel or stronger gold border, more space between buttons; (5) incident marker on the room when an event hits it (rats on hydroponics); (6) territories and route lines hand-drawn (dashes, ink stroke) instead of vector circles (F47). Not now: rivet frames, per-room light colours, dust and steam particles. Code only, no new art. One Cursor package after the tester logs.
