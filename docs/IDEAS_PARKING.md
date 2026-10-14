@@ -66,3 +66,9 @@
 
 - Night Moon ideas (13 Oct): one murder-mystery branch (a character dies after day one, find who), a radio madman with daily news, skill synergy per room (Strength, Wits, Speech, Perception), a saboteur spy, a clearer reason to grow the station. Artur: too much now, write for later. Also reference game UNFROST (detective logic, very positive Steam reviews).
 - F42: Brooklyn stations too far apart (owner issue). Changes the map and travel time, owner decides.
+
+- CANDIDATE NEXT GOAL (13 Oct, from outside AI text pasted by the owner and Night Moon feedback "three identical buttons"): give each station order its own role, price and risk. Expedition = one-off errand for a concrete haul (needed first: a station is a name and a rumour until someone has been there), Convoy = move people or goods to stay (gives beds, production, storage; can be refused or robbed), Influence = long work on opinion that makes the first two cheaper and safer. Plus a real reason to expand: the home station has a people ceiling and overcrowding hurts (already exists as Overcrowding +2/wk; "capacity with debuffs" is F19). Decide only after the playtest logs show whether players find the orders interchangeable. Needs the lead's design pass and Cursor; changes balance, so the 30-seed gates.
+- Daughter of the warden and the dog Bimbo in the tunnel: a full quest chain, later, one of the first story quests.
+- Resident lines when assigned to a room ("again hydroponics, I am allergic", "Rob took the 16 key again"): cheap, later as one batch of text.
+- One simple mini-game on a frequent action (repair or filter work) instead of five different ones: later.
+- A station with a clear market and exchange rate (Heroes style): later.
