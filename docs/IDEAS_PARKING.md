@@ -80,3 +80,5 @@
 - Station banners still missing (7 stations show a neutral dark plate): Times Sq, Spring St, Aqueduct, High St, Delancey St, Greenpoint, Canal St. Needs one art order (ChatGPT, hub style v2 of incoming-art/hubs/style_v2, flat, one main subject, no emblems) when the owner says so. (14 Oct, Cursor P1)
 
 - Music soundtrack (14 Oct, owner): brief docs/briefs/muse_music.txt, research plus 5 sample tracks; integration (music player with crossfades by game state) is a later Cursor task after the owner approves the tracks.
+
+- POLISH 2 (14 Oct, F51): (1) small state icons on the station pins of the network map (trade open, expedition under way, pact, enemy), so the map shows what is going on without opening a card; (2) room card: keep output, slots and the main button on top, move the upgrade description and the minor lines under a "Details" fold. Not now: sprites in the yard after a deal (sacks at the gate), ink-dash route lines. Needs the next tester round first.
