@@ -1,37 +1,59 @@
 class_name Sound
 extends RefCounted
 
-## Short CC0 cues on the SFX bus. Looping beds play only when the files exist.
+## Short cues on the SFX bus; a cue with several files picks one at random. Looping beds play only when
+## the files exist.
 
 const CUES := {
-	"click": "res://assets/audio/click.ogg",
+	"click": ["res://assets/audio/click_01.ogg", "res://assets/audio/click_02.ogg", "res://assets/audio/click_03.ogg"],
 	"hover": "res://assets/audio/hover.ogg",
 	"confirm": "res://assets/audio/confirm.ogg",
 	"error": "res://assets/audio/error.ogg",
-	"whoosh": "res://assets/audio/whoosh.ogg",
-	"built": "res://assets/audio/built.ogg",
-	"thud": "res://assets/audio/thud.ogg",
-	"card": "res://assets/audio/card.ogg",
+	"end_turn": "res://assets/audio/end_turn.ogg",
+	"build_done": "res://assets/audio/build_done.ogg",
+	"upgrade": "res://assets/audio/upgrade.ogg",
+	"dig": "res://assets/audio/dig.ogg",
+	"card_open": ["res://assets/audio/card_open.ogg", "res://assets/audio/card_open_02.ogg", "res://assets/audio/card_open_03.ogg"],
+	"new_week": "res://assets/audio/new_week.ogg",
+	"audience_open": "res://assets/audio/audience_open.ogg",
+	"dossier_open": "res://assets/audio/dossier_open.ogg",
+	"dossier_tab": "res://assets/audio/dossier_tab.ogg",
+	"map_click": "res://assets/audio/map_click.ogg",
 }
 const AMBIENT := "res://assets/audio/ambient.ogg"
-const DRONE := "res://assets/audio/drone.ogg"
+const MENU_TONE := "res://assets/audio/menu_tone.ogg"
 const DRIP := "res://assets/audio/drip.ogg"
 const RADIO_CUE := "res://assets/audio/radio.ogg"
 const ROOM_DIR := "res://assets/audio/rooms"
 # Seconds between drips for each Settings.drips mode.
 const DRIP_GAPS := {"rare": Vector2(45.0, 100.0), "often": Vector2(12.0, 30.0)}
-const ROOM_DB_HOVER := -16.0
-const ROOM_DB_OPEN := -6.0
+## drip.ogg is 12 s of drops at most 1.5 s apart: each drip plays a slice from a random point.
+const DRIP_HOLD := 1.3
+const DRIP_FADE := 0.3
+## radio.ogg is 10 s of static: the burst before a radio voice keeps the old 0.7 s length.
+const RADIO_HOLD := 0.5
+const RADIO_FADE := 0.2
+## Room loops are -23 LUFS files: open plays them near -28 LUFS, 8 LU under the -20 LUFS voices.
+const ROOM_DB_HOVER := -15.0
+const ROOM_DB_OPEN := -5.0
 const HOVER_DB := -9.0
 const SILENT_DB := -60.0
-## click.ogg runs 100 ms; it is played 6 dB down and faded out so it is over by 78 ms.
+## The click files run 479 ms; each is played 6 dB down and faded out so it is over by 78 ms.
 const CLICK_DB := -6.0
 const CLICK_HOLD := 0.06
 const CLICK_FADE := 0.018
-## A press that also starts an action cue (confirm, whoosh, card...) plays only that cue.
+## Seconds skipped at the start of a file whose first hit comes late, and per-file trims that keep the
+## cut click variants level with each other.
+const FILE_START := {"click_03": 0.135, "dig": 0.5}
+const FILE_DB := {"click_01": 3.0, "click_02": -2.5}
+## A press that also starts an action cue (confirm, end_turn, card_open...) plays only that cue.
 const PAIR_MS := 80
+## Cues that land while end_turn swells wait for its impact, then follow one another QUEUE_STEP_MS apart.
+const AFTER_END_TURN := ["build_done", "card_open", "new_week", "audience_open"]
+const END_TURN_MS := 1250
+const QUEUE_STEP_MS := 700
 ## Per-room trim on top of the open/hover level, and seconds open before the loop fades away.
-const ROOM_TRIM := {"hydroponics": -8.0}
+const ROOM_TRIM := {"hydroponics": -3.0}
 const ROOM_FADE_AFTER := {"hydroponics": 3.0}
 const ROOM_FADE_OUT := 1.5
 
@@ -53,6 +75,11 @@ static var voice_tail: AudioStreamPlayer
 static var voice_tween: Tween
 static var last_ms := {}
 static var click_tween: Tween
+static var drip_tween: Tween
+static var radio_tween: Tween
+static var variants := {}
+static var queue_ms := 0
+static var queued := {}
 static var rng := RandomNumberGenerator.new()
 
 
@@ -68,21 +95,24 @@ static func boot(tree_host: Node) -> void:
 	_ensure_bus("Voice", "SFX")
 	apply_buses()
 	for cue in CUES:
-		var stream := _stream(str(CUES[cue]))
-		if stream == null:
+		var files: Array = []
+		for path in cue_files(cue):
+			var stream := _stream(path)
+			if stream != null:
+				files.append({"stream": stream, "name": path.get_file().get_basename()})
+		if files.is_empty():
 			continue
 		var player := AudioStreamPlayer.new()
-		player.stream = stream
+		player.stream = files[0].stream
 		player.bus = "SFX"
 		player.name = "Sfx" + str(cue)
 		if cue == "hover":
 			player.volume_db = HOVER_DB
-		elif cue == "click":
-			player.volume_db = CLICK_DB
 		host.add_child(player)
 		players[cue] = player
+		variants[cue] = files
 	ambient = _loop_player(AMBIENT, "Ambient")
-	drone = _loop_player(DRONE, "Drone")
+	drone = _loop_player(MENU_TONE, "MenuTone")
 	drip = _one_shot(DRIP, "Drip", "Music")
 	radio_cue = _one_shot(RADIO_CUE, "RadioCue", "Radio")
 	room_player = AudioStreamPlayer.new()
@@ -111,40 +141,82 @@ static func boot(tree_host: Node) -> void:
 	host.add_child(drip_timer)
 
 
+## Every file a cue may play.
+static func cue_files(cue: String) -> PackedStringArray:
+	var entry = CUES.get(cue, [])
+	return PackedStringArray(entry) if entry is Array else PackedStringArray([str(entry)])
+
+
 static func play(cue: String) -> void:
 	if cue == "" or not players.has(cue):
 		return
 	if cue == "hover" and Settings.quiet_cues:
 		return
 	var now := Time.get_ticks_msec()
+	if cue in AFTER_END_TURN and now < queue_ms and host != null and host.is_inside_tree():
+		if queued.has(cue):
+			return
+		queued[cue] = true
+		var wait := float(queue_ms - now) / 1000.0
+		queue_ms += QUEUE_STEP_MS
+		host.get_tree().create_timer(wait).timeout.connect(_play_now.bind(cue))
+		return
 	var gap := 160 if cue == "hover" else 35
 	if now - int(last_ms.get(cue, 0)) < gap:
 		return
 	if cue == "click" and now - int(last_ms.get("action", -PAIR_MS)) < PAIR_MS:
 		return
+	if cue == "end_turn":
+		queue_ms = now + END_TURN_MS
+	_play_now(cue)
+
+
+static func _play_now(cue: String) -> void:
+	queued.erase(cue)
+	var now := Time.get_ticks_msec()
 	if cue != "click" and cue != "hover":
 		last_ms["action"] = now
 		if now - int(last_ms.get("click", -PAIR_MS)) < PAIR_MS and players.has("click"):
 			(players["click"] as AudioStreamPlayer).stop()
 	last_ms[cue] = now
 	var player: AudioStreamPlayer = players[cue]
+	var files: Array = variants[cue]
+	var pick: Dictionary = files[rng.randi_range(0, files.size() - 1)]
+	player.stream = pick.stream
+	var trim := float(FILE_DB.get(pick.name, 0.0))
+	var start := float(FILE_START.get(pick.name, 0.0))
 	if cue == "click":
-		_play_click(player)
+		_play_click(player, trim, start)
 		return
-	player.play()
+	if cue != "hover":
+		player.volume_db = trim
+	player.play(start)
 
 
-static func _play_click(player: AudioStreamPlayer) -> void:
+static func _play_click(player: AudioStreamPlayer, trim: float, start: float) -> void:
 	if click_tween != null and click_tween.is_valid():
 		click_tween.kill()
-	player.volume_db = CLICK_DB
-	player.play()
+	player.volume_db = CLICK_DB + trim
+	player.play(start)
 	if host == null or not host.is_inside_tree():
 		return
 	click_tween = host.create_tween()
 	click_tween.tween_interval(CLICK_HOLD)
 	click_tween.tween_property(player, "volume_db", SILENT_DB, CLICK_FADE)
 	click_tween.tween_callback(player.stop)
+
+
+## Plays `seconds` of `player` from `start` at `db`, then fades it out over `fade`.
+static func _slice(player: AudioStreamPlayer, start: float, db: float, seconds: float, fade: float) -> Tween:
+	player.volume_db = db
+	player.play(start)
+	if host == null or not host.is_inside_tree():
+		return null
+	var tween := host.create_tween()
+	tween.tween_interval(seconds)
+	tween.tween_property(player, "volume_db", SILENT_DB, fade)
+	tween.tween_callback(player.stop)
+	return tween
 
 
 static func bed(which: String) -> void:
@@ -182,8 +254,10 @@ static func _drip_due() -> void:
 	if ambient == null or not ambient.playing:
 		return
 	drip.pitch_scale = rng.randf_range(0.75, 1.3)
-	drip.volume_db = rng.randf_range(-24.0, -16.0)
-	drip.play()
+	if drip_tween != null and drip_tween.is_valid():
+		drip_tween.kill()
+	var room_left := maxf(drip.stream.get_length() - DRIP_HOLD - DRIP_FADE, 0.0)
+	drip_tween = _slice(drip, rng.randf_range(0.0, room_left), rng.randf_range(-24.0, -16.0), DRIP_HOLD, DRIP_FADE)
 	schedule_drip()
 
 
@@ -249,8 +323,11 @@ static func _room_stream(type: String) -> AudioStream:
 static func radio_static() -> float:
 	if radio_cue == null:
 		return 0.0
-	radio_cue.play()
-	return radio_cue.stream.get_length()
+	if radio_tween != null and radio_tween.is_valid():
+		radio_tween.kill()
+	var room_left := maxf(radio_cue.stream.get_length() - RADIO_HOLD - RADIO_FADE, 0.0)
+	radio_tween = _slice(radio_cue, rng.randf_range(0.0, room_left), 0.0, RADIO_HOLD, RADIO_FADE)
+	return minf(radio_cue.stream.get_length(), RADIO_HOLD + RADIO_FADE)
 
 
 ## Plays a voice file on `bus` after `delay` seconds. Returns the line length, or 0 when nothing plays.

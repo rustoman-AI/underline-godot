@@ -43,6 +43,7 @@ func _run() -> void:
 
 	_ui_scale()
 	_build_info()
+	_sounds()
 	_log_and_report()
 	await _station()
 
@@ -95,6 +96,92 @@ func _build_info() -> void:
 	if not BuildInfo.line().contains(str(info.version)):
 		bad.append("build line %s" % BuildInfo.line())
 	print("Build info: %s" % BuildInfo.line())
+
+
+## Every sound id the UI plays (Sound.play, the ui_sound of a button, the map's _ui_click) is a cue whose files
+## are imported, every bed and room loop the game asks for exists, and a cut click is over within 80 ms.
+func _sounds() -> void:
+	var ids := {"click": true}
+	var play_re := RegEx.create_from_string("Sound\\.play\\(\"(\\w*)\"\\)")
+	var meta_re := RegEx.create_from_string("\"ui_sound\", \"(\\w*)\"")
+	var literal_re := RegEx.create_from_string("\"([a-z_]+)\"")
+	var button_re := RegEx.create_from_string("(?<![\\w.])_button\\(")
+	for folder in ["res://ui", "res://sim"]:
+		for file in DirAccess.get_files_at(folder):
+			if not file.ends_with(".gd") or file.begins_with("check_"):
+				continue
+			for line in FileAccess.get_file_as_string(folder.path_join(file)).split("\n"):
+				for m in play_re.search_all(line):
+					ids[m.get_string(1)] = true
+				for m in meta_re.search_all(line):
+					ids[m.get_string(1)] = true
+				var call := button_re.search(line)
+				if call != null:
+					var args := _call_args(line.substr(call.get_end()))
+					if args.size() >= 3:
+						for m in literal_re.search_all(args[2]):
+							ids[m.get_string(1)] = true
+	ids.erase("")
+	var files := 0
+	for id in ids:
+		if not Sound.CUES.has(id):
+			bad.append("sound: the code plays \"%s\", which is not a cue in Sound.CUES" % id)
+	for cue in Sound.CUES:
+		if not ids.has(cue) and cue != "hover":
+			bad.append("sound: cue \"%s\" is never played" % cue)
+		for path in Sound.cue_files(cue):
+			files += 1
+			if not ResourceLoader.exists(path) or not (load(path) is AudioStream):
+				bad.append("sound: cue \"%s\" file %s is missing" % [cue, path])
+	var names := {}
+	for cue in Sound.CUES:
+		for path in Sound.cue_files(cue):
+			names[path.get_file().get_basename()] = true
+	for key in Sound.FILE_START.keys() + Sound.FILE_DB.keys():
+		if not names.has(key):
+			bad.append("sound: FILE_START or FILE_DB names %s, which no cue plays" % key)
+	for path in [Sound.AMBIENT, Sound.MENU_TONE, Sound.DRIP, Sound.RADIO_CUE]:
+		files += 1
+		if not ResourceLoader.exists(path) or not (load(path) is AudioStream):
+			bad.append("sound: bed %s is missing" % path)
+	var catalog := Catalog.new()
+	catalog.load_all()
+	var loops := 0
+	for type in catalog.rooms:
+		loops += 1
+		if not ResourceLoader.exists("%s/%s.ogg" % [Sound.ROOM_DIR, type]):
+			bad.append("sound: room loop for %s is missing" % type)
+	for file in DirAccess.get_files_at(Sound.ROOM_DIR):
+		if file.ends_with(".ogg") and not catalog.rooms.has(file.get_basename()):
+			bad.append("sound: room loop %s matches no room type" % file)
+	if Sound.CLICK_HOLD + Sound.CLICK_FADE >= 0.08:
+		bad.append("sound: a cut click runs %.0f ms" % ((Sound.CLICK_HOLD + Sound.CLICK_FADE) * 1000.0))
+	print("Sounds: %d ids played, %d cue and bed files, %d room loops, all present" % [ids.size(), files, loops])
+
+
+## Top-level arguments of a call whose text starts just after its opening bracket.
+func _call_args(text: String) -> PackedStringArray:
+	var args: PackedStringArray = []
+	var depth := 0
+	var quoted := false
+	var from := 0
+	for i in text.length():
+		var c := text[i]
+		if c == "\"" and (i == 0 or text[i - 1] != "\\"):
+			quoted = not quoted
+		elif quoted:
+			continue
+		elif c == "(" or c == "[" or c == "{":
+			depth += 1
+		elif c == ")" or c == "]" or c == "}":
+			if depth == 0:
+				args.append(text.substr(from, i - from).strip_edges())
+				return args
+			depth -= 1
+		elif c == "," and depth == 0:
+			args.append(text.substr(from, i - from).strip_edges())
+			from = i + 1
+	return args
 
 
 func _log_and_report() -> void:

@@ -255,6 +255,7 @@ var vo_dossier := ""
 var vo_story_progress := 0.0
 var audience_key := ""
 var audience_heard := false
+var dawn_heard := ""
 ## The leader line last voiced; a redraw that shows the same line again stays silent.
 var leader_voiced := ""
 var vo_queue: Array = []
@@ -2033,7 +2034,7 @@ func _end_turn() -> void:
 	var before := {}
 	for room in game.rooms:
 		before[str(room.uid)] = true
-	Sound.play("whoosh")
+	Sound.play("end_turn")
 	game.end_week()
 	var placed: Array = []
 	if game.over == "" and yard != null:
@@ -2041,7 +2042,7 @@ func _end_turn() -> void:
 			if before.has(str(room.uid)):
 				continue
 			yard.flash_at(int(room.level), int(room.cell))
-			Sound.play("built")
+			Sound.play("build_done")
 			placed.append(str(room.uid))
 	if game.over == "":
 		for uid in placed:
@@ -3228,7 +3229,7 @@ func _confirm_upgrade(uid: String) -> void:
 	card_body.add_child(_button("Back", _close_card))
 
 
-## Buys the next tier, then marks it: the "built" cue, a brass flash on the room and a toast with what it adds.
+## Buys the next tier, then marks it: the "upgrade" cue, a brass flash on the room and a toast with what it adds.
 func _do_upgrade(uid: String) -> void:
 	var room = game._room(uid)
 	var info := game.upgrade_preview(uid)
@@ -3236,7 +3237,7 @@ func _do_upgrade(uid: String) -> void:
 	if room == null or not game.apply({"kind": "upgrade", "room": uid}):
 		_do_confirm({})
 		return
-	Sound.play("built")
+	Sound.play("upgrade")
 	_close_card()
 	_refresh()
 	_action_voice("upgrade", "")
@@ -3830,7 +3831,7 @@ func _show_journal() -> void:
 	flow.add_theme_constant_override("v_separation", 6)
 	for pair in [["", "All"], ["builds", "Builds"], ["decisions", "Decisions"], ["map", "Map"], ["news", "News"], ["truth", "Truth"]]:
 		var key := str(pair[0])
-		var button := _button(str(pair[1]), _pick_journal_filter.bind(key), "card")
+		var button := _button(str(pair[1]), _pick_journal_filter.bind(key), "dossier_tab")
 		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.autowrap_mode = TextServer.AUTOWRAP_OFF
 		button.custom_minimum_size = Vector2(0, 40)
@@ -4098,6 +4099,10 @@ func _show_dawn() -> void:
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	if game.pending.is_empty():
+		var dawn_key := "%d:%d" % [game.get_instance_id(), game.week]
+		if dawn_heard != dawn_key:
+			dawn_heard = dawn_key
+			Sound.play("new_week")
 		_open_card(Copy.t("Dawn of week %d") % game.week)
 		_choice_tally()
 		var urgent: PackedStringArray = []
@@ -4116,7 +4121,7 @@ func _paint_dawn() -> void:
 		_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
-	Sound.play("card")
+	Sound.play("card_open")
 	var ev: Dictionary = game.front_event()
 	_open_card(game.line_of(ev, "title"), false, "Event")
 	var banner := _event_banner(ev)
@@ -4326,7 +4331,7 @@ func _show_audience() -> void:
 	if audience_key != key:
 		audience_key = key
 		audience_heard = false
-		Sound.play("card")
+		Sound.play("audience_open")
 	var row: Dictionary = game.leader(fid)
 	_open_card(_leader_text(game.leader_name(fid, "leader")), false)
 	card_roomy = true
@@ -5379,7 +5384,7 @@ func _do_confirm(action: Dictionary) -> void:
 		return
 	var kind := str(action.get("kind", ""))
 	if kind == "dig":
-		Sound.play("thud")
+		Sound.play("dig")
 	else:
 		Sound.play("confirm")
 	_close_card()
@@ -5601,6 +5606,11 @@ func _ui_pressed(button: Button) -> void:
 	if button.disabled:
 		return
 	Sound.play(str(button.get_meta("ui_sound", "click")))
+
+
+## Called by the network map for a station pick or a zoom button.
+func _ui_click() -> void:
+	Sound.play("map_click")
 
 
 func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
@@ -6399,7 +6409,7 @@ func _show_person(person_id: String) -> void:
 			caption = Copy.t("Dossier  ·  read %d/%d") % [Lore.read_count(lore_id), Lore.sections(lore_id).size()]
 		if _story_state(person_id) == "new":
 			caption += " •"
-		card_body.add_child(_button(caption, _open_dossier.bind(person_id)))
+		card_body.add_child(_button(caption, _open_dossier.bind(person_id), "dossier_open"))
 	card_body.add_child(_button("Close", _close_card))
 
 
@@ -6512,7 +6522,7 @@ func _dossier_tabs(person_id: String, lore_id: String) -> void:
 		var caption := Copy.t("Profile") if tab == "profile" else Copy.t(str(Lore.TITLES[tab]))
 		if tab != "profile" and not Lore.is_read(lore_id, str(tab)):
 			caption += " •"
-		var button := _button(caption, _pick_dossier_tab.bind(person_id, str(tab)), "card")
+		var button := _button(caption, _pick_dossier_tab.bind(person_id, str(tab)), "dossier_tab")
 		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.autowrap_mode = TextServer.AUTOWRAP_OFF
 		button.custom_minimum_size = Vector2(0, 40)
@@ -8746,35 +8756,25 @@ func _fill_credits() -> void:
 	fonts.custom_minimum_size = Vector2(600, 0)
 	box.add_child(fonts)
 	box.add_child(_label("Sounds", 20, true))
-	var sounds := _label("Kenney Interface Sounds and Kenney RPG sounds (www.kenney.nl), CC0.", 16)
-	sounds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sounds.custom_minimum_size = Vector2(600, 0)
-	box.add_child(sounds)
-	for line in [
-		"click.ogg  Interface Sounds  click_001",
-		"hover.ogg  Interface Sounds  tick_001",
-		"confirm.ogg  Interface Sounds  confirmation_001",
-		"error.ogg  Interface Sounds  error_001",
-		"whoosh.ogg  Interface Sounds  minimize_001",
-		"built.ogg  Interface Sounds  confirmation_003",
-		"card.ogg  Interface Sounds  open_001",
-		"thud.ogg  RPG sounds  chop",
-	]:
-		var row := _label(line, 14)
-		row.add_theme_color_override("font_color", PAPER_MUTED)
-		box.add_child(row)
-	var made := _label("Station bed, hub drone, water drips, room loops and the radio cue are original sounds made for this game.", 14)
+	var made := _label("Sound effects, station ambience, water drips, room loops, radio static and the menu tone were generated with ElevenLabs Sound Effects (paid plan).", 16)
 	made.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	made.custom_minimum_size = Vector2(600, 0)
-	made.add_theme_color_override("font_color", PAPER_MUTED)
 	box.add_child(made)
+	var sounds := _label("Kenney Interface Sounds (www.kenney.nl), CC0.", 14)
+	sounds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sounds.custom_minimum_size = Vector2(600, 0)
+	sounds.add_theme_color_override("font_color", PAPER_MUTED)
+	box.add_child(sounds)
+	var row := _label("hover.ogg  Interface Sounds  tick_001", 14)
+	row.add_theme_color_override("font_color", PAPER_MUTED)
+	box.add_child(row)
 	box.add_child(_label("Disclaimer", 20, true))
 	var fiction := _label(DISCLAIMER, 15)
 	fiction.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fiction.custom_minimum_size = Vector2(600, 0)
 	box.add_child(fiction)
 	if not Sound.has_ambient() or not Sound.has_drone():
-		var missing := _label("Station ambience and the hub drone are not included yet.", 15)
+		var missing := _label("Station ambience and the menu tone are not included yet.", 15)
 		missing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		missing.custom_minimum_size = Vector2(600, 0)
 		box.add_child(missing)

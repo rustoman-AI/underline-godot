@@ -3,18 +3,20 @@ extends SceneTree
 ## Integrated loudness (ITU-R BS.1770-4: K-weighting, 400 ms blocks, 75% overlap, -70 LUFS absolute and
 ## -10 LU relative gates), sample peak and length of UI cues and room loops, decoded headless with
 ## AudioStreamPlayback.mix_audio. Clips shorter than one 400 ms block are measured as one ungated block.
-## godot --headless -s res://.tools/audio_measure.gd -- [--gain=click:-6,hydroponics:-8]
+## Measures the pre-ElevenLabs set kept for rollback in assets/audio/_originals_sfx/ (ignored by git and Godot);
+## the shipped set and its played levels: .tools/audio_measure_dir.gd -- --dir=res://assets/audio --played
+## godot --headless --path . -s res://.tools/audio_measure.gd
 
 const FILES := [
-	"res://assets/audio/click.ogg", "res://assets/audio/hover.ogg", "res://assets/audio/confirm.ogg",
-	"res://assets/audio/error.ogg", "res://assets/audio/whoosh.ogg", "res://assets/audio/built.ogg",
-	"res://assets/audio/thud.ogg", "res://assets/audio/card.ogg", "res://assets/audio/radio.ogg",
-	"res://assets/audio/drip.ogg",
-	"res://assets/audio/rooms/air_filter.ogg", "res://assets/audio/rooms/generator.ogg",
-	"res://assets/audio/rooms/hydroponics.ogg", "res://assets/audio/rooms/infirmary.ogg",
-	"res://assets/audio/rooms/meeting_hall.ogg", "res://assets/audio/rooms/platform.ogg",
-	"res://assets/audio/rooms/quarters.ogg", "res://assets/audio/rooms/radio.ogg",
-	"res://assets/audio/rooms/workshop.ogg",
+	"res://assets/audio/_originals_sfx/click.ogg", "res://assets/audio/hover.ogg", "res://assets/audio/_originals_sfx/confirm.ogg",
+	"res://assets/audio/_originals_sfx/error.ogg", "res://assets/audio/_originals_sfx/whoosh.ogg", "res://assets/audio/_originals_sfx/built.ogg",
+	"res://assets/audio/_originals_sfx/thud.ogg", "res://assets/audio/_originals_sfx/card.ogg", "res://assets/audio/_originals_sfx/radio.ogg",
+	"res://assets/audio/_originals_sfx/drip.ogg",
+	"res://assets/audio/_originals_sfx/rooms/air_filter.ogg", "res://assets/audio/_originals_sfx/rooms/generator.ogg",
+	"res://assets/audio/_originals_sfx/rooms/hydroponics.ogg", "res://assets/audio/_originals_sfx/rooms/infirmary.ogg",
+	"res://assets/audio/_originals_sfx/rooms/meeting_hall.ogg", "res://assets/audio/_originals_sfx/rooms/platform.ogg",
+	"res://assets/audio/_originals_sfx/rooms/quarters.ogg", "res://assets/audio/_originals_sfx/rooms/radio.ogg",
+	"res://assets/audio/_originals_sfx/rooms/workshop.ogg",
 ]
 
 
@@ -23,7 +25,7 @@ func _init() -> void:
 	print("mix rate %d" % int(rate))
 	print("%-34s %8s %9s %9s %10s" % ["file", "len ms", "LUFS", "peak dB", "audible ms"])
 	for path in FILES:
-		var stream := (load(path) as AudioStream).duplicate() as AudioStream
+		var stream: AudioStream = AudioStreamOggVorbis.load_from_file(ProjectSettings.globalize_path(path))
 		if stream is AudioStreamOggVorbis:
 			(stream as AudioStreamOggVorbis).loop = false
 		var frames := _decode(stream, rate)
@@ -37,31 +39,8 @@ func _init() -> void:
 				last = i
 		print("%-34s %8d %9.1f %9.1f %10d" % [path.get_file() if not path.contains("/rooms/") else "rooms/" + path.get_file(),
 			int(stream.get_length() * 1000.0), lufs, linear_to_db(maxf(peak, 0.000001)), int(float(last) / rate * 1000.0)])
-	_after(rate)
 	quit()
 
-
-## What the player hears now: Sound.CLICK_DB with the hold-and-fade cut, and the hydroponics loop at the
-## open-panel level with its trim, before and after.
-func _after(rate: float) -> void:
-	var click := _decode(load("res://assets/audio/click.ogg"), rate)
-	var gain := db_to_linear(Sound.CLICK_DB)
-	var hold := int(Sound.CLICK_HOLD * rate)
-	var fade := int(Sound.CLICK_FADE * rate)
-	var cut := PackedVector2Array()
-	for i in mini(click.size(), hold + fade):
-		var g := gain
-		if i >= hold:
-			g *= db_to_linear(lerpf(0.0, Sound.SILENT_DB - Sound.CLICK_DB, float(i - hold) / float(fade)))
-		cut.append(click[i] * g)
-	print("after: click.ogg as played  len %d ms  LUFS %.1f (file %.1f)" % [int(float(cut.size()) / rate * 1000.0), _loudness(cut, rate), _loudness(click, rate)])
-	var hydro_stream := (load("res://assets/audio/rooms/hydroponics.ogg") as AudioStream).duplicate() as AudioStreamOggVorbis
-	hydro_stream.loop = false
-	var hydro := _loudness(_decode(hydro_stream, rate), rate)
-	var trim := float(Sound.ROOM_TRIM.get("hydroponics", 0.0))
-	print("after: hydroponics loop  len %d ms  file %.1f LUFS  open panel before %.1f, after %.1f  hover before %.1f, after %.1f  fades after %.1f s open" % [
-		int(hydro_stream.get_length() * 1000.0), hydro, hydro + Sound.ROOM_DB_OPEN, hydro + Sound.ROOM_DB_OPEN + trim,
-		hydro + Sound.ROOM_DB_HOVER, hydro + Sound.ROOM_DB_HOVER + trim, float(Sound.ROOM_FADE_AFTER.get("hydroponics", 0.0))])
 
 
 func _decode(stream: AudioStream, rate: float) -> PackedVector2Array:
