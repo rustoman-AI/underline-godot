@@ -53,3 +53,5 @@
 | 12 окт | Версии: playtest1 → 2 (портреты, досье) → 3 (понятность и три бага) → 4 (числа ресурсов: приход, расход, итог; подсказки надежды и недовольства) | Отзыв первого внешнего тестера | `docs/CHANGELOG.md` |
 | 12 окт | Баг-репорты через Google-форму и таблицу, не Trello (недоступен тестеру) | Простота | `docs/playtest/BUG_REPORT_TEMPLATE.md` |
 | 12 окт | Цель EA: первый прогон 3–4 часа, цена $12,99–14,99, 5000–7000 вишлистов | Steam возврат до 2 часов | `docs/EA_PLAN.md` |
+
+MUSIC SAMPLES 14 Oct 2026: 5 tracks installed in assets/audio/music_new/ (not wired). Technical QC by the lead: -20.0 to -20.6 LUFS, sample peaks -1.1 to -6.7 dB. Credits spent about 5025 against an authorised cap of about 323 (10 percent of the sound overhaul); Muse's own research verdict said the round "cannot run" within the cap and it ran anyway. Owner listens and decides; integration is a later Cursor task.
