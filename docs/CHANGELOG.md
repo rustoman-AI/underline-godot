@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 184. Первый: 2026-10-02. Последний: 2026-10-13 f7fe4c0.
+Коммитов: 191. Первый: 2026-10-02. Последний: 2026-10-14 b2378d4.
 
 ## Этапы
 
@@ -19,8 +19,18 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-13 (7)
+### 2026-10-14 (6)
 
+- `b2378d4` Visual polish 1: top bar, cells, people, panels, compact station card
+- `841a7c9` Fix: station banners match stations
+- `0c62c95` Docs: orders design draft, Cursor brief for visual polish 1
+- `12efd5e` Docs: log F50, park compact station card
+- `07c6e76` Docs: log F49 visual reviews, park polish batch
+- `cbf05e9` Docs: log F48 AI video review
+
+### 2026-10-13 (8)
+
+- `e0109b8` Docs: playtest7 recorded, log F46 F47
 - `f7fe4c0` Sound: switch to the new sound set
 - `d454b99` Docs: triage station orders feedback F45, park quest and mini-game ideas
 - `b0ecac1` Audio: 30 new sound files from Muse (additive), audit docs, switch brief
