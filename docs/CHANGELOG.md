@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 191. Первый: 2026-10-02. Последний: 2026-10-14 b2378d4.
+Коммитов: 196. Первый: 2026-10-02. Последний: 2026-10-14 8f37e5b.
 
 ## Этапы
 
@@ -19,8 +19,13 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-14 (6)
+### 2026-10-14 (11)
 
+- `8f37e5b` Music: state-driven player with crossfades
+- `2569706` Docs: Cursor brief for the music player
+- `f156391` Audio: 5 music sample tracks from Muse (not wired), research notes
+- `8842558` Docs: Muse brief for music
+- `3836a49` Docs: playtest8 recorded, park 7 station banners
 - `b2378d4` Visual polish 1: top bar, cells, people, panels, compact station card
 - `841a7c9` Fix: station banners match stations
 - `0c62c95` Docs: orders design draft, Cursor brief for visual polish 1
