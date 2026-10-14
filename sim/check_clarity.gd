@@ -62,6 +62,9 @@ func _run() -> void:
 	_network_bounds()
 	await _visit_sheet()
 	await _banners()
+	await _station_card()
+	_pills()
+	await _incident_sign()
 	_map_look()
 	_event_words()
 	_audience_words()
@@ -589,6 +592,171 @@ func _banners() -> void:
 		net.close_visit()
 		st._toggle_network()
 	print("Banners: %d stations, %d with a name plate" % [game.stations.size(), plates])
+
+
+## P6 the station card, on the map sheet and the visit sheet, rich and broke: at most CARD_ORDERS orders above
+## the closed "Details" fold, each available now; every order the card offers is on it once, wired or greyed
+## with a reason, and in view once the fold opens; "Next dawn" is said once and on no button.
+func _station_card() -> void:
+	var game: Game = st.game
+	var net = st.network_view
+	var keep_influence := int(game.stock.influence)
+	st._toggle_network()
+	net.size = SIZES[0]
+	net._fit()
+	var cards := 0
+	var hidden := 0
+	for influence in [0, 50]:
+		game.stock.influence = influence
+		st._refresh()
+		for sid in game.stations:
+			if str(sid) == str(game.capital_id):
+				continue
+			net.open_sheet(str(sid))
+			await process_frame
+			hidden += _card_orders(game, net, net._sheet_body, str(sid), "map sheet")
+			net.close_sheet()
+			net.open_visit(str(sid))
+			await process_frame
+			hidden += _card_orders(game, net, net._visit_body, str(sid), "visit")
+			net.close_visit()
+			cards += 2
+	game.stock.influence = keep_influence
+	st._toggle_network()
+	st._refresh()
+	if hidden == 0:
+		bad.append("P6: no card kept an order behind Details, so the fold went untested")
+	print("Station card: %d cards, %d orders behind Details" % [cards, hidden])
+
+
+func _card_orders(game: Game, net, body: Control, sid: String, where: String) -> int:
+	var tag := "P6 %s %s (influence %d)" % [sid, where, int(game.stock.influence)]
+	var want: Array = []
+	for row in net.order_rows(game, str(game.stations[sid].owner) == str(game.player)):
+		want.append(str(row[0]))
+	var seen: Array = []
+	var orders: Array = []
+	var toggle: Button = null
+	var up := 0
+	for node in body.find_children("*", "Button", true, false):
+		if node.is_queued_for_deletion():
+			continue
+		if node.has_meta("details_toggle"):
+			toggle = node
+		if not node.has_meta("order_kind"):
+			continue
+		var kind := str(node.get_meta("order_kind"))
+		if seen.has(kind):
+			bad.append("%s: %s is on the card twice" % [tag, kind])
+		seen.append(kind)
+		orders.append(node)
+		if node.disabled and str(node.tooltip_text) == "":
+			bad.append("%s: %s is greyed with no reason on hover" % [tag, kind])
+		if not node.disabled and node.pressed.get_connections().is_empty():
+			bad.append("%s: %s is lit but does nothing" % [tag, kind])
+		if str(node.get_meta("order_caption").text).contains(Copy.t("Next dawn")):
+			bad.append("%s: %s still says Next dawn on its face" % [tag, kind])
+		if node.is_visible_in_tree():
+			up += 1
+			if _find_meta(node, "order_cost") == null:
+				bad.append("%s: %s shows no cost on its face" % [tag, kind])
+			if node.disabled or game.order_block(kind, sid) != "":
+				bad.append("%s: %s shows above Details though it is not available" % [tag, kind])
+	if up > net.CARD_ORDERS:
+		bad.append("%s: %d orders above Details, want at most %d" % [tag, up, net.CARD_ORDERS])
+	seen.sort()
+	want.sort()
+	if seen != want:
+		bad.append("%s: the card offers %s, want %s" % [tag, seen, want])
+	var dawn := 0
+	for node in body.find_children("*", "Label", true, false):
+		if node.has_meta("dawn_line") and not node.is_queued_for_deletion():
+			dawn += 1
+	if dawn != 1:
+		bad.append("%s: Next dawn is said %d times, want once" % [tag, dawn])
+	var behind := orders.size() - up
+	if behind > 0:
+		if toggle == null or toggle.button_pressed:
+			bad.append("%s: %d orders hidden with no closed Details fold" % [tag, behind])
+		else:
+			toggle.button_pressed = true
+			for node in orders:
+				if not node.is_visible_in_tree():
+					bad.append("%s: %s is out of reach with Details open" % [tag, node.get_meta("order_kind")])
+			toggle.button_pressed = false
+	return behind
+
+
+## P8 an event whose data names a room (requires_room) puts a warning on that room's yard sign for the week;
+## an event naming no room marks nothing, and the mark is gone the next week.
+func _incident_sign() -> void:
+	var game: Game = st.game
+	_clear_modals()
+	var named := {}
+	var plain := {}
+	for ev in game.catalog.events:
+		if named.is_empty() and str(ev.get("requires_room", "")) == "generator":
+			named = ev.duplicate(true)
+		if plain.is_empty() and str(ev.get("requires_room", "")) == "" and ev.get("choices", []).size() >= 2:
+			plain = ev.duplicate(true)
+	if named.is_empty():
+		bad.append("P8: no event names the generator")
+		return
+	var gen_uid := ""
+	for room in game.rooms:
+		if str(room.type) == "generator":
+			gen_uid = str(room.uid)
+	st.incident_rooms.clear()
+	game.pending.append(plain)
+	st._show_dawn()
+	_clear_modals()
+	st.yard.queue_redraw()
+	await _frames(2)
+	if not st.yard.sign_incidents.is_empty():
+		bad.append("P8: an event naming no room marked %s" % str(st.yard.sign_incidents.keys()))
+	game.pending.append(named)
+	st._show_dawn()
+	_clear_modals()
+	st.yard.queue_redraw()
+	await _frames(2)
+	if not st.incident_on("generator") or not st.yard.sign_incidents.has(gen_uid):
+		bad.append("P8: the generator sabotage left no warning on the generator sign")
+	game.week += 1
+	if st.incident_on("generator"):
+		bad.append("P8: the warning outlived its week")
+	game.week -= 1
+	st.incident_rooms.clear()
+	st.yard.queue_redraw()
+	print("Incident sign: generator marked for its week only")
+
+
+## P2 the number on a top bar pill: amber while the week's net is below zero, red when the week falls short
+## or the stock runs out within two weeks; the live bar agrees with the forecast it reads.
+func _pills() -> void:
+	var cases := [[10, 2, 0, ""], [10, 0, 0, ""], [10, -3, 0, "amber"], [3, -3, 0, "red"], [2, -3, 0, "red"], [4, 1, 2, "red"], [1, -1, 0, "red"], [5, -2, 0, "amber"]]
+	for row in cases:
+		var got: String = st.stock_alarm(int(row[0]), int(row[1]), int(row[2]))
+		if got != str(row[3]):
+			bad.append("P2 pill for after %d, net %d, short %d is '%s', want '%s'" % [row[0], row[1], row[2], got, row[3]])
+	var game: Game = st.game
+	var keep_food := int(game.stock.food)
+	for food in [keep_food, 1]:
+		game.stock.food = food
+		st._refresh()
+		var week_fc: Dictionary = WeekForecast.week(game)
+		for key in st.chips:
+			if not week_fc.has(key):
+				continue
+			var fc: Dictionary = week_fc[key]
+			var want: String = st.stock_alarm(int(fc.after), int(fc.net), int(fc.short))
+			var chip: Dictionary = st.chips[key]
+			var tint: Color = chip.value.get_theme_color("font_color")
+			var tint_want: Color = st.STOCK_RED if want == "red" else (st.STOCK_AMBER if want == "amber" else st.INK)
+			if str(chip.alarm) != want or not tint.is_equal_approx(tint_want):
+				bad.append("P2 %s at food %d: pill says '%s', forecast wants '%s'" % [key, food, chip.alarm, want])
+	game.stock.food = keep_food
+	st._refresh()
+	print("Pills: %d number cases, live bar checked at two food stocks" % cases.size())
 
 
 func _captions_fit(root: Node, where: String) -> int:

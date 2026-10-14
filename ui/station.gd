@@ -12,6 +12,10 @@ const PAPER_BUTTON := Color("3a3126")
 const PAPER_BUTTON_HOVER := Color("4a3f32")
 const PAPER_BUTTON_DOWN := Color("1a140e")
 const PAPER_EDGE := Color("b89a6a")
+const CARD_PAPER := Color("30261b")
+const CARD_EDGE := Color("d9ac4f")
+## Extra space above each button row in a card.
+const BUTTON_GAP := 8.0
 const ALERT_INK := Color("e07a62")
 const DELTA_UP := Color("b6e38a")
 const DELTA_DOWN := Color("ff9b8a")
@@ -29,6 +33,10 @@ const ROOM_COLOR := {
 }
 const URGENT_WEEKS := 2
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
+## Top bar numbers: amber while the week's net is below zero, red when the stock runs out within two weeks.
+const STOCK_AMBER := Color("e8b04a")
+const STOCK_RED := Color("ff6a55")
+const PILL := Color(0.0, 0.0, 0.0, 0.42)
 const STOCK_WHAT := {
 	"power": "Keeps the rooms running. Rooms without power go dark.",
 	"food": "Everyone eats every week. Running short costs hope, and people can die.",
@@ -256,6 +264,8 @@ var vo_story_progress := 0.0
 var audience_key := ""
 var audience_heard := false
 var dawn_heard := ""
+## Room type -> "<game id>:<week>" for the week an event's data named that room; its yard sign shows a warning.
+var incident_rooms := {}
 ## The leader line last voiced; a redraw that shows the same line again stays silent.
 var leader_voiced := ""
 var vo_queue: Array = []
@@ -1043,8 +1053,21 @@ func _top_bar() -> PanelContainer:
 		chip.gui_input.connect(_chip_input.bind(str(key)))
 		chip.mouse_entered.connect(_peek_source.bind(str(key)))
 		chip.mouse_exited.connect(_unpeek_source)
-		res_grid.add_child(chip)
-		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon, "name": name}
+		var pill := PanelContainer.new()
+		var pill_face := StyleBoxFlat.new()
+		pill_face.bg_color = PILL
+		pill_face.set_corner_radius_all(14)
+		pill_face.content_margin_left = 8
+		pill_face.content_margin_right = 4
+		pill_face.content_margin_top = 1
+		pill_face.content_margin_bottom = 1
+		pill.add_theme_stylebox_override("panel", pill_face)
+		pill.mouse_filter = Control.MOUSE_FILTER_PASS
+		pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		pill.add_child(chip)
+		res_grid.add_child(pill)
+		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon, "name": name, "pill": pill}
 
 	var meters := HBoxContainer.new()
 	meters.add_theme_constant_override("separation", 12)
@@ -1422,7 +1445,7 @@ func _build_overlay() -> void:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(dim)
 	card = PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _paper_style())
+	card.add_theme_stylebox_override("panel", _card_style())
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.add_child(card)
 	var margin := MarginContainer.new()
@@ -1498,6 +1521,34 @@ func _queue_shrink() -> void:
 	get_tree().process_frame.connect(_shrink_card, CONNECT_ONE_SHOT)
 
 
+## Puts `gap` px above every button row in the card that follows other content; the gaps fold to 0 when
+## the card has to squeeze. Idempotent: a gap already in place is resized, never doubled.
+func _space_buttons(gap: float) -> void:
+	var kids := card_body.get_children()
+	for i in range(kids.size() - 1, 0, -1):
+		var child: Node = kids[i]
+		if child.has_meta("button_gap") or not _holds_button(child):
+			continue
+		var before: Node = kids[i - 1]
+		if before.has_meta("button_gap"):
+			(before as Control).custom_minimum_size.y = gap
+			continue
+		var spacer := Control.new()
+		spacer.set_meta("button_gap", true)
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		spacer.custom_minimum_size = Vector2(0, gap)
+		card_body.add_child(spacer)
+		card_body.move_child(spacer, i)
+
+
+func _holds_button(node: Node) -> bool:
+	if node is Button:
+		return (node as Button).visible
+	if node is BoxContainer and (node as Control).visible and node.get_child_count() > 0:
+		return node.get_child(0) is Button
+	return false
+
+
 func _card_top_limit() -> float:
 	var top_limit := 64.0
 	if hud != null and hud.size.y > 8.0:
@@ -1515,6 +1566,8 @@ func _shrink_card() -> void:
 	var top_limit := _card_top_limit()
 	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
+	if card_fit_tries == 0 and card_body.get_theme_constant("separation") > 2:
+		_space_buttons(BUTTON_GAP)
 	var content_h := card_body.size.y
 	card_fit_tries += 1
 	if card_fit_tries > 30:
@@ -1531,6 +1584,7 @@ func _shrink_card() -> void:
 			return
 		if card_body.get_theme_constant("separation") > 2:
 			card_body.add_theme_constant_override("separation", 2)
+			_space_buttons(0.0)
 			_queue_shrink()
 			return
 	h = clampf(h, 96.0, max_h)
@@ -1571,18 +1625,22 @@ func _refresh() -> void:
 		if not keep_delta:
 			chips[key].delta.text = delta_text
 			chips[key].delta.add_theme_color_override("font_color", color)
-		var hit := false
+		var alarm := ""
 		if week_fc.has(key):
 			var row: Dictionary = week_fc[key]
 			chips[key].box.tooltip_text = _stock_tip(str(key))
-			hit = int(row.stock) <= 0 or int(row.after) <= 0 or int(row.short) > 0
+			alarm = stock_alarm(int(row.after), int(row.net), int(row.short))
 		else:
 			var outlook: Dictionary = game.resource_outlook(str(key))
 			chips[key].box.tooltip_text = "%s. %s" % [Copy.res(str(key)), str(outlook.text)]
-			hit = bool(outlook.hit)
+			var have := int(game.stock.get(key, 0))
+			alarm = stock_alarm(int(outlook.next), int(outlook.next) - have, maxi(0, -int(outlook.next)))
+		chips[key].alarm = alarm
 		var value_color := INK
-		if hit:
-			value_color = Color("e0a15a")
+		if alarm == "red":
+			value_color = STOCK_RED
+		elif alarm == "amber":
+			value_color = STOCK_AMBER
 		chips[key].value.add_theme_color_override("font_color", value_color)
 	power_loss = {}
 	for uid in game.rooms_losing_power():
@@ -1975,6 +2033,17 @@ func _sync_resource_names() -> void:
 		var name_label: Label = chips[key].name
 		name_label.visible = show_names
 	_place_chrome()
+
+
+## "red" when the week falls short or the same net empties the stock within two weeks; "amber" while the
+## net is below zero; "" otherwise. `after` is the stock at dawn, `net` the week's change and `short` what
+## the week could not pay, all from the forecast.
+static func stock_alarm(after: int, net: int, short: int) -> String:
+	if short > 0 or (net < 0 and after + net <= 0):
+		return "red"
+	if net < 0:
+		return "amber"
+	return ""
 
 
 func _paint_stocks(roll: bool) -> void:
@@ -4123,6 +4192,7 @@ func _paint_dawn() -> void:
 		return
 	Sound.play("card_open")
 	var ev: Dictionary = game.front_event()
+	note_incident(ev)
 	_open_card(game.line_of(ev, "title"), false, "Event")
 	var banner := _event_banner(ev)
 	if banner != null:
@@ -5667,6 +5737,31 @@ func _paper_style() -> StyleBoxFlat:
 	style.set_border_width_all(2)
 	style.set_content_margin_all(10)
 	style.set_corner_radius_all(2)
+	return style
+
+
+## Marks the room an event happens in (its requires_room) for this week; nothing when the data names none.
+func note_incident(ev: Dictionary) -> void:
+	var type := str(ev.get("requires_room", ""))
+	if type == "" or game == null or not game.catalog.rooms.has(type):
+		return
+	incident_rooms[type] = "%d:%d" % [game.get_instance_id(), game.week]
+	if yard != null:
+		yard.queue_redraw()
+
+
+func incident_on(type: String) -> bool:
+	return game != null and str(incident_rooms.get(type, "")) == "%d:%d" % [game.get_instance_id(), game.week]
+
+
+## The modal card (events, rooms, the build list): a shade lighter than the paper with a stronger gold edge.
+func _card_style() -> StyleBoxFlat:
+	var style := _paper_style()
+	style.bg_color = CARD_PAPER
+	style.border_color = CARD_EDGE
+	style.set_border_width_all(3)
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 8
 	return style
 
 
@@ -7363,6 +7458,10 @@ func _ux_order_button(kind: String) -> Button:
 	while not stack.is_empty():
 		var node: Node = stack.pop_back()
 		if node is Button and node.has_meta("order_kind") and str(node.get_meta("order_kind")) == kind:
+			if not node.is_visible_in_tree():
+				for toggle in network_view._sheet_body.find_children("*", "Button", true, false):
+					if toggle.has_meta("details_toggle"):
+						toggle.button_pressed = true
 			return node
 		stack.append_array(node.get_children())
 	return null
@@ -9160,6 +9259,11 @@ class Yard extends Control:
 	const CREW_BEAT := 1.1
 	const CREW_BOB := 0.022
 	const CREW_LEAN := 0.1
+	## Warm rim on working figures: colour, screen px out from the silhouette, and the silhouette's cap in px.
+	const RIM := Color(1.0, 0.74, 0.4, 0.55)
+	const RIM_PX := 1.6
+	const RIM_H := 240
+	var rim_cache := {}
 	const SCAFFOLD := "res://assets/construction/scaffold.webp"
 	var glow := {}
 	var more_hits: Array = []
@@ -9190,6 +9294,7 @@ class Yard extends Control:
 	var flash := {}
 	## Room uid -> the numeral its sign showed last frame (for the checks).
 	var sign_tiers := {}
+	var sign_incidents := {}
 	const DOUBLE_MS := 320
 
 	func fit() -> void:
@@ -9799,14 +9904,18 @@ class Yard extends Control:
 			room_type = str(room.type)
 		if kind == "hidden":
 			_blit_fill(cell_rock, rect)
-			draw_rect(rect, Color(0, 0, 0, 0.38))
+			draw_rect(rect, Color(0, 0, 0, 0.5))
+			_draw_rough(rect, level * 6 + cell, 0.7)
 		elif kind == "undug":
 			_blit_fill(cell_rock, rect)
+			draw_rect(rect, Color(0, 0, 0, 0.3))
+			_draw_rough(rect, level * 6 + cell, 1.0)
 		elif kind == "dug":
 			if cell_dug != null:
 				_blit_room(cell_dug, rect)
 			else:
 				_paint_rock(rect, level * 6 + cell)
+			_draw_dug_props(rect, level * 6 + cell)
 		else:
 			draw_rect(rect, Color(0.08, 0.07, 0.06))
 			var tier_tex: Texture2D = tier_art(room_type, int(room.upgrade)) if room != null else null
@@ -10112,6 +10221,7 @@ class Yard extends Control:
 		else:
 			_blit_fill(cell_rock, rect)
 			draw_rect(rect, Color(0, 0, 0, 0.2))
+			_draw_cracks(rect, level * 6 + cell, 5, Color(0.02, 0.015, 0.01, 0.85), maxf(1.5, rect.size.y * 0.01))
 			target = _ghost("#dug", cell_dug)
 			workers = station.game.dig.get("workers", [])
 		var reveal := _job_reveal(level, cell)
@@ -10127,7 +10237,67 @@ class Yard extends Control:
 			draw_texture_rect(scaffold, _fit_rect(scaffold, rect), false)
 		else:
 			_draw_frame(rect)
+		if not building:
+			_draw_dig_haze(rect, level * 6 + cell)
 		_draw_site_crew(floor, workers, building)
+
+	## Unmined rock: chipped flakes and a few dark seams so it reads rougher than a dug floor.
+	func _draw_rough(rect: Rect2, salt: int, strength: float) -> void:
+		var h := rect.size.y
+		for i in 14:
+			var n := _speck(salt + 7, i)
+			var at := rect.position + Vector2(fmod(n * 2.3, rect.size.x), fmod(n * 1.71, rect.size.y))
+			var r := h * (0.008 + fmod(n, 5.0) * 0.003)
+			var shard := PackedVector2Array([at + Vector2(-r, 0), at + Vector2(0, -r * 0.7), at + Vector2(r * 1.2, r * 0.2), at + Vector2(r * 0.1, r * 0.8)])
+			draw_colored_polygon(shard, Color(0, 0, 0, 0.45 * strength))
+		_draw_cracks(rect, salt, 3, Color(0.0, 0.0, 0.0, 0.55 * strength), maxf(1.0, h * 0.006))
+
+	## Jagged seams from points inside the cell, the same for a cell every frame.
+	func _draw_cracks(rect: Rect2, salt: int, count: int, color: Color, width: float) -> void:
+		for c in count:
+			var n := _speck(salt * 3 + 11, c)
+			var at := rect.position + Vector2(rect.size.x * (0.15 + fmod(n * 0.013, 0.7)), rect.size.y * (0.15 + fmod(n * 0.029, 0.7)))
+			var heading := fmod(n * 0.37, TAU)
+			var line := PackedVector2Array([at])
+			for k in 5:
+				heading += (fmod(_speck(salt + c, k), 7.0) - 3.0) * 0.18
+				at += Vector2(cos(heading), sin(heading)) * rect.size.y * 0.05
+				line.append(at)
+			draw_polyline(line, color, width)
+			draw_line(line[2], line[2] + Vector2(cos(heading + 1.1), sin(heading + 1.1)) * rect.size.y * 0.04, color, width * 0.7)
+
+	## Dust hanging over a cell being dug: a haze along the floor and specks drifting up.
+	func _draw_dig_haze(rect: Rect2, salt: int) -> void:
+		var band := rect.size.y * 0.32
+		var steps := 6
+		for i in steps:
+			var y := rect.end.y - band * float(i + 1) / float(steps)
+			draw_rect(Rect2(rect.position.x, y, rect.size.x, band / float(steps) + 0.5), Color(0.62, 0.55, 0.44, 0.07 * float(steps - i) / float(steps) + 0.03))
+		var t := 0.0 if station._motion_off() else Time.get_ticks_msec() / 1000.0
+		for i in 10:
+			var n := _speck(salt + 3, i)
+			var rise := fmod(t * 0.08 + n * 0.01, 1.0)
+			var at := Vector2(rect.position.x + fmod(n * 1.9, rect.size.x), rect.end.y - rect.size.y * (0.05 + 0.45 * rise))
+			draw_circle(at, rect.size.y * 0.008, Color(0.78, 0.7, 0.58, 0.5 * (1.0 - rise)))
+
+	## A dug, empty cell: a slack cable along the wall and a small heap of rubble in one corner.
+	func _draw_dug_props(rect: Rect2, salt: int) -> void:
+		var h := rect.size.y
+		var y0 := rect.position.y + h * 0.2
+		var sag := h * 0.07
+		var cable := PackedVector2Array()
+		for i in 13:
+			var f := float(i) / 12.0
+			cable.append(Vector2(rect.position.x + rect.size.x * f, y0 + sag * sin(f * PI) + sag * 0.6 * sin(f * TAU)))
+		draw_polyline(cable, Color(0.04, 0.035, 0.03, 0.55), maxf(1.5, h * 0.012))
+		var left := salt % 2 == 0
+		var base := Vector2(rect.position.x + rect.size.x * (0.2 if left else 0.8), rect.end.y - h * 0.03)
+		for i in 5:
+			var n := _speck(salt + 5, i)
+			var r := h * (0.025 + fmod(n, 4.0) * 0.006)
+			var at := base + Vector2((float(i) - 2.0) * r * 0.9, -r * (0.4 if i % 2 == 0 else 0.9))
+			var rock := PackedVector2Array([at + Vector2(-r, r * 0.5), at + Vector2(-r * 0.6, -r * 0.4), at + Vector2(r * 0.3, -r * 0.6), at + Vector2(r, r * 0.5)])
+			draw_colored_polygon(rock, Color(0.24, 0.2, 0.16, 0.9) if i % 2 == 0 else Color(0.32, 0.27, 0.21, 0.9))
 
 	func _draw_frame(rect: Rect2) -> void:
 		var wood := Color(0.46, 0.31, 0.16, 0.9)
@@ -10171,9 +10341,9 @@ class Yard extends Control:
 			var foot := floor.end.y - 2.0 - floor.size.y * CREW_BOB * sin(beat * PI)
 			var lean := CREW_LEAN * (1.0 - sin(beat * PI))
 			if looks[i] != null:
-				_paint_sprite(looks[i], x, foot, floor.size.y, id, i % 2 == 1, lean)
+				_paint_sprite(looks[i], x, foot, floor.size.y, id, i % 2 == 1, lean, true)
 			else:
-				_paint_pose(pose_name, x, foot, floor.size.y, id, i % 2 == 1, lean)
+				_paint_pose(pose_name, x, foot, floor.size.y, id, i % 2 == 1, lean, true)
 			_draw_dust(Vector2(x + floor.size.y * (-0.07 if i % 2 == 1 else 0.07), floor.end.y - 2.0), beat, floor.size.y)
 
 	## A small puff where the tool strikes, just after each downstroke (beat 0), drifting up and fading.
@@ -10367,6 +10537,14 @@ class Yard extends Control:
 				var pip := Color("3a2610") if i < filled else Color("3a2610", 0.28)
 				draw_circle(Vector2(px + 4.0 + float(i) * 8.0, plate.position.y + 11.0), 2.2, pip)
 		var disc := Rect2(plate.end.x + 4.0, plate.position.y + 2.0, 18.0, 18.0)
+		if station.incident_on(str(room.type)):
+			var warn := ArtPack.icon_texture("warning", 24.0)
+			if warn != null and disc.end.x <= screen.end.x - 4.0:
+				draw_texture_rect(warn, disc, false)
+				sign_incidents[str(room.uid)] = true
+				disc.position.x += 22.0
+		else:
+			sign_incidents.erase(str(room.uid))
 		if disc.end.x <= screen.end.x - 4.0 and station.room_what(str(room.type)) != "":
 			var mid := disc.get_center()
 			draw_circle(mid, 9.0, Color("efe6d2"))
@@ -10461,7 +10639,7 @@ class Yard extends Control:
 			var limit := floor.size.x * 0.34
 			if fitted.x > limit:
 				body_h *= limit / fitted.x
-			_paint_sprite(sprite, x, foot_y, body_h, id, flip)
+			_paint_sprite(sprite, x, foot_y, body_h, id, flip, 0.0, true)
 		if crew.size() > shown:
 			_draw_more(rect, crew.size() - shown, str(room.uid))
 		for id in crew:
@@ -10650,16 +10828,18 @@ class Yard extends Control:
 			return poses[pose_name]
 		return poses.get("standing", null)
 
-	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0) -> void:
+	func _paint_pose(pose_name: String, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0, working := false) -> void:
 		var sprite := _pose_sprite(pose_name, id)
 		if sprite == null:
 			return
-		_paint_sprite(sprite, cx, foot_y, cell_h, id, flip, lean)
+		_paint_sprite(sprite, cx, foot_y, cell_h, id, flip, lean, working)
 
-	## `lean` tips the figure about its feet (radians, toward the side it faces).
-	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0) -> void:
+	## `lean` tips the figure about its feet (radians, toward the side it faces). Every figure stands on a soft
+	## shadow; a working one gets a thin warm rim so it separates from the machinery behind it.
+	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0, working := false) -> void:
 		var scale := 0.94 + fmod(floor(_id_hash(id) / 11.0), 13.0) * 0.01
 		var fitted := _pose_size(sprite, cell_h) * scale
+		_draw_shadow(Vector2(cx, foot_y), fitted.x * 0.42, fitted.y * 0.035)
 		var tipped := lean != 0.0
 		if tipped:
 			var world := Transform2D(0.0, Vector2(zoom, zoom), 0.0, pan)
@@ -10677,9 +10857,46 @@ class Yard extends Control:
 			clampf(shade * 1.2, 0.42, 0.54))
 		if soft_figs.has(sprite):
 			tint = tint.lerp(Color.WHITE, fig_tint_mix)
+		if working:
+			var rim := _rim_tex(sprite)
+			if rim != null:
+				var step := RIM_PX / maxf(zoom, 0.01)
+				for k in 8:
+					var off := Vector2.from_angle(TAU * float(k) / 8.0) * step
+					draw_texture_rect(rim, Rect2(dest.position + off, dest.size), false, RIM)
 		draw_texture_rect(sprite, dest, false, tint)
 		if tipped:
 			draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
+
+	## A soft dark ellipse on the floor, darkest under the feet.
+	func _draw_shadow(at: Vector2, rx: float, ry: float) -> void:
+		for ring in 3:
+			var f := 1.0 - float(ring) * 0.28
+			var pts := PackedVector2Array()
+			for i in 20:
+				var a := TAU * float(i) / 20.0
+				pts.append(at + Vector2(cos(a) * rx * f, sin(a) * maxf(ry, 1.0) * f))
+			draw_colored_polygon(pts, Color(0, 0, 0, 0.16))
+
+	## The figure's silhouette in white (alpha kept), at most RIM_H px tall; drawn tinted behind a working figure.
+	func _rim_tex(sprite: Texture2D) -> Texture2D:
+		if rim_cache.has(sprite):
+			return rim_cache[sprite]
+		var made: Texture2D = null
+		var img := sprite.get_image()
+		if img != null:
+			img = img.duplicate() as Image
+			if img.is_compressed():
+				img.decompress()
+			img.convert(Image.FORMAT_RGBA8)
+			if img.get_height() > RIM_H:
+				img.resize(maxi(1, int(float(img.get_width()) * RIM_H / float(img.get_height()))), RIM_H, Image.INTERPOLATE_BILINEAR)
+			for y in img.get_height():
+				for x in img.get_width():
+					img.set_pixel(x, y, Color(1, 1, 1, img.get_pixel(x, y).a))
+			made = ImageTexture.create_from_image(img)
+		rim_cache[sprite] = made
+		return made
 
 	func _idle_ids() -> Array:
 		var busy := {}

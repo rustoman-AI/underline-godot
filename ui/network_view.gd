@@ -36,11 +36,12 @@ const FIT_PIN := 24.0
 const ZOOM_STEP := 1.25
 ## At the deepest zoom a station and its neighbours span about this share of the window's short side.
 const NEAR_SHARE := 1.0 / 3.0
-## Territories: how far a station's land reaches on the map (map px), how strong the wash is, the border width
-## in window px, and the edge tags that never get a border line.
+## Territories: how far a station's land reaches on the map (map px), how strong the wash is, the dashed border's
+## width and dash in window px, and the edge tags that never get a border line.
 const TERRITORY_REACH := 165.0
-const TERRITORY_FILL := 0.42
-const TERRITORY_LINE := 2.0
+const TERRITORY_FILL := 0.32
+const TERRITORY_LINE := 1.2
+const TERRITORY_DASH := 7.0
 const TAG_REACH := -1
 const TAG_PAPER_EDGE := -2
 const PIN_CAPITAL := 52.0
@@ -236,6 +237,7 @@ func _redraw() -> void:
 
 
 func open_sheet(sid: String) -> void:
+	_details_open = false
 	selected = sid
 	sheet.visible = true
 	_fill_sheet(sid)
@@ -620,8 +622,9 @@ func _draw_weights(c: CanvasItem) -> void:
 		c.draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, _desk)
 
 
-## Territories on the multiply layer: each faction's land in its colour from the data, with a thin border where
-## it meets another holder or open ground. Drawn only while the Territories button is on.
+## Territories on the multiply layer: each faction's land in a soft wash of its colour from the data, with a thin
+## dashed border only where it meets another station's ground; its outer reach fades into the paper unlined.
+## Drawn only while the Territories button is on.
 func _draw_wash(c: CanvasItem) -> void:
 	var game = _game()
 	if game == null or not territories:
@@ -630,19 +633,19 @@ func _draw_wash(c: CanvasItem) -> void:
 	if cells.is_empty():
 		return
 	c.draw_set_transform_matrix(_view() * _map_xf)
-	var width := TERRITORY_LINE / maxf(zoom * _map_scale(), 0.01)
+	var px := 1.0 / maxf(zoom * _map_scale(), 0.01)
 	for cell in cells:
 		var col: Color = cell.color
 		c.draw_colored_polygon(cell.pts, Color.WHITE.lerp(col, TERRITORY_FILL))
 	for cell in cells:
-		var line: Color = Color.WHITE.lerp(Color(cell.color).darkened(0.2), 0.8)
+		var line: Color = Color.WHITE.lerp(Color(cell.color).darkened(0.15), 0.7)
 		var pts: PackedVector2Array = cell.pts
 		var tags: PackedInt32Array = cell.tags
 		for k in pts.size():
 			var t := tags[k]
-			if t == TAG_PAPER_EDGE or (t >= 0 and str(cells_owner(t)) == str(cell.owner)):
+			if t < 0 or str(cells_owner(t)) == str(cell.owner):
 				continue
-			c.draw_line(pts[k], pts[(k + 1) % pts.size()], line, width, true)
+			c.draw_dashed_line(pts[k], pts[(k + 1) % pts.size()], line, TERRITORY_LINE * px, TERRITORY_DASH * px, true, true)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
@@ -1774,36 +1777,44 @@ func _fill_sheet_body(sid: String) -> void:
 		head.add_child(title)
 		_sheet_body.add_child(head)
 	_sheet_body.add_child(_lab(Copy.t(str(st.name)), 14, false))
+	var details := _details_box()
 	if own:
-		_add_own_facts(game, st, sid, _sheet_body)
+		_add_own_facts(game, st, sid, _sheet_body, details)
 	else:
+		_sheet_body.add_child(_standing_row(game, st, sid))
 		var who: String = game.station_text(sid, "who")
 		if who != "":
-			_sheet_body.add_child(_lab(who, 14, false))
+			details.add_child(_lab(who, 14, false))
 		var conflict: String = game.station_text(sid, "conflict")
 		if conflict != "":
-			_sheet_body.add_child(_lab(conflict, 14, false))
-		_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Owner"), Copy.t(_owner_name(game, str(st.owner)))], 14, false))
-		_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
+			details.add_child(_lab(conflict, 14, false))
+		details.add_child(_lab("%s: %s" % [Copy.t("Owner"), Copy.t(_owner_name(game, str(st.owner)))], 14, false))
+		details.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
 		if int(st.unrest) > 0:
-			_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Unrest"), str(int(st.unrest))], 14, false))
-		_add_needs(st, _sheet_body)
+			details.add_child(_lab("%s: %s" % [Copy.t("Unrest"), str(int(st.unrest))], 14, false))
+		_add_needs(st, details)
 		var art: String = game.station_text(sid, "art")
 		if art != "":
-			_sheet_body.add_child(_lab(art, 13, false))
+			details.add_child(_lab(art, 13, false))
 		var trade := _trade_line(st)
 		if trade != "":
-			_sheet_body.add_child(_lab(trade, 14, false))
-	_add_actions(sid, own, _sheet_body)
+			details.add_child(_lab(trade, 14, false))
+	_add_actions(sid, own, _sheet_body, details)
+	_add_fold(_sheet_body, details)
 
 
 ## Orders aimed at a bunker rather than the station on the sheet; a locked one says why on its face.
 const APPROACHES := ["approach", "approach_quarantine", "approach_observatory"]
+## Orders a card shows above its "Details" fold; the rest wait behind it.
+const CARD_ORDERS := 4
+var _details_open := false
 
 
-func _order_button(kind: String, label: String, sid: String, parent: Node = null) -> void:
+func _order_button(kind: String, label: String, sid: String, parent: Node = null, notes: Node = null) -> void:
 	if parent == null:
 		parent = _sheet_body
+	if notes == null:
+		notes = parent
 	var game = _game()
 	var button := Button.new()
 	button.text = ""
@@ -1824,25 +1835,20 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(face)
-	var detail := Copy.t("Next dawn")
-	if game != null:
-		var who: Dictionary = game.order_councillor()
-		var who_name := Copy.person(str(who.get("name", "")))
-		if who.is_empty():
-			who_name = Copy.t("No councillor is free.")
-		detail = "%s · %s · %s" % [_cost_text(game.order_cost(kind, sid)), who_name, Copy.t("Next dawn")]
 	var why := ""
+	var caption := Label.new()
+	caption.text = Copy.t(label)
 	if game != null:
 		why = game.order_block(kind, sid)
 	if why != "" and APPROACHES.has(kind):
-		detail = why
-	var caption := Label.new()
-	caption.text = "%s\n%s" % [Copy.t(label), detail]
+		caption.text = "%s\n%s" % [Copy.t(label), why]
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	caption.add_theme_color_override("font_color", Color("efe6d2"))
 	row.add_child(caption)
+	if game != null and not (why != "" and APPROACHES.has(kind)):
+		row.add_child(_cost_tag(game.order_cost(kind, sid)))
 	button.custom_minimum_size = Vector2(0, 36)
 	button.add_child(row)
 	button.disabled = why != ""
@@ -1857,7 +1863,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
-	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 52)
+	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 40)
 	button.set_meta("order_caption", caption)
 	button.set_meta("base_height", button.custom_minimum_size.y)
 	caption.resized.connect(_fit_order_button.bind(button, caption))
@@ -1865,10 +1871,45 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	if game != null and why == "":
 		var effect: String = game.order_risk(kind, sid)
 		if effect != "":
-			var line := _lab(effect, 13, false)
+			var line := _lab(effect if notes == parent else "%s: %s" % [Copy.t(label), effect], 13, false)
 			line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			line.set_meta("effect_line", true)
-			parent.add_child(line)
+			notes.add_child(line)
+
+
+## An order's price at the right of its button: a number and the resource's icon per cost, or "No cost".
+func _cost_tag(cost: Dictionary) -> HBoxContainer:
+	var tag := HBoxContainer.new()
+	tag.add_theme_constant_override("separation", 3)
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tag.set_meta("order_cost", _cost_text(cost))
+	if cost.is_empty():
+		var free := Label.new()
+		free.text = Copy.t("No cost")
+		free.add_theme_font_size_override("font_size", 13)
+		free.add_theme_color_override("font_color", Color("b9ad96"))
+		free.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tag.add_child(free)
+		return tag
+	for key in cost:
+		var amount := Label.new()
+		amount.text = str(int(cost[key]))
+		amount.add_theme_color_override("font_color", Color("efe6d2"))
+		amount.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tag.add_child(amount)
+		var tex := ArtPack.icon_texture(str(key), 24.0)
+		if tex == null:
+			amount.text = "%d %s" % [int(cost[key]), Copy.res(str(key))]
+			continue
+		var face := TextureRect.new()
+		face.texture = tex
+		face.custom_minimum_size = Vector2(18, 18)
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tag.add_child(face)
+	return tag
 
 
 ## The button grows with its wrapped caption, so the second line (cost, envoy, dawn) is never cut.
@@ -2045,13 +2086,13 @@ func _trade_line(st: Dictionary) -> String:
 	return "%s: %s" % [Copy.t("They trade"), ", ".join(goods)]
 
 
-func _add_own_facts(game, st: Dictionary, sid: String, parent: Node) -> void:
+func _add_own_facts(game, st: Dictionary, sid: String, parent: Node, details: Node) -> void:
 	parent.add_child(_lab("%s: %d" % [Copy.t("Population"), int(st.pop)], 14, false))
 	parent.add_child(_lab("%s: %d" % [Copy.t("Loyalty"), int(st.loyalty)], 14, false))
 	parent.add_child(_lab("%s: %d" % [Copy.t("Garrison"), int(st.garrison)], 14, false))
 	parent.add_child(_lab(_supply_text(game, sid), 14, false))
 	parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
-	_add_needs(st, parent)
+	_add_needs(st, details)
 
 
 func _supply_text(game, sid: String) -> String:
@@ -2080,7 +2121,7 @@ func _ships_text(game, st: Dictionary, sid: String) -> String:
 	return "%s: %s" % [Copy.t("Ships home"), ", ".join(bits)]
 
 
-func _add_actions(sid: String, own: bool, parent: Node, with_visit: bool = true) -> void:
+func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visit: bool = true) -> void:
 	var game_now = _game()
 	var home: bool = game_now != null and str(sid) == str(game_now.capital_id)
 	if with_visit:
@@ -2090,21 +2131,137 @@ func _add_actions(sid: String, own: bool, parent: Node, with_visit: bool = true)
 		open_b.set_meta("visit_station", sid)
 		open_b.pressed.connect(_open_station.bind(sid))
 		parent.add_child(open_b)
-	if own:
-		_order_button("move", "Garrison", sid, parent)
+	if game_now == null:
 		return
-	_order_button("envoy", "Send envoy", sid, parent)
-	_order_button("propaganda", "Propaganda", sid, parent)
-	_order_button("move", "Move squad", sid, parent)
-	_order_button("trade", "Open trade", sid, parent)
-	_order_button("expedition", "Start expedition", sid, parent)
-	var game = _game()
-	if game != null and not game.floor_met:
-		_order_button("approach", "Approach the Floor", sid, parent)
-	if game != null and not game._scene_used("st3_quarantine"):
-		_order_button("approach_quarantine", "Approach the Quarantine", sid, parent)
-	if game != null and not game._scene_used("st3_observatory"):
-		_order_button("approach_observatory", "Approach the Observatory", sid, parent)
+	parent.add_child(_dawn_line(game_now))
+	var shown := 0
+	var later: Array = []
+	for row in order_rows(game_now, own):
+		var kind := str(row[0])
+		if shown < CARD_ORDERS and not APPROACHES.has(kind) and game_now.order_block(kind, sid) == "":
+			_order_button(kind, str(row[1]), sid, parent, details)
+			shown += 1
+		else:
+			later.append(row)
+	for row in later:
+		_order_button(str(row[0]), str(row[1]), sid, details, details)
+
+
+## Every order a station's card offers, in card order: [kind, label].
+func order_rows(game, own: bool) -> Array:
+	if own:
+		return [["move", "Garrison"]]
+	var rows := [["envoy", "Send envoy"], ["propaganda", "Propaganda"], ["move", "Move squad"], ["trade", "Open trade"], ["expedition", "Start expedition"]]
+	if not game.floor_met:
+		rows.append(["approach", "Approach the Floor"])
+	if not game._scene_used("st3_quarantine"):
+		rows.append(["approach_quarantine", "Approach the Quarantine"])
+	if not game._scene_used("st3_observatory"):
+		rows.append(["approach_observatory", "Approach the Observatory"])
+	return rows
+
+
+## Who carries the orders and when they land, said once above the buttons.
+func _dawn_line(game) -> Label:
+	var who: Dictionary = game.order_councillor()
+	var who_name := Copy.person(str(who.get("name", "")))
+	if who.is_empty():
+		who_name = Copy.t("No councillor is free.")
+	var line := _lab("%s: %s · %s: %s" % [Copy.t("Goes"), who_name, Copy.t("Result"), Copy.t("Next dawn")], 13, false)
+	line.set_meta("dawn_line", true)
+	return line
+
+
+## The box behind the "Details" fold; _add_fold puts it on the card, closed unless the player opened it.
+func _details_box() -> VBoxContainer:
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 6)
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.visible = _details_open
+	body.set_meta("station_details", true)
+	return body
+
+
+func _add_fold(parent: Node, body: VBoxContainer) -> void:
+	if body.get_child_count() == 0:
+		body.free()
+		return
+	var toggle := Button.new()
+	toggle.toggle_mode = true
+	toggle.button_pressed = _details_open
+	toggle.text = Copy.t("Details")
+	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	toggle.custom_minimum_size = Vector2(0, 32)
+	toggle.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	toggle.set_meta("details_toggle", true)
+	toggle.toggled.connect(func(on: bool):
+		_details_open = on
+		body.visible = on)
+	parent.add_child(toggle)
+	parent.add_child(body)
+
+
+## Opinion number and bar, then up to three state marks from existing data.
+func _standing_row(game, st: Dictionary, sid: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var relation := int(st.get("sympathy", 0))
+	var low := 0.0
+	if game.opinions.has(str(st.owner)):
+		relation = int(game.opinions[str(st.owner)])
+		low = -100.0
+	var words := _lab("%s: %d" % [Copy.t("Opinion"), relation], 15, true)
+	words.autowrap_mode = TextServer.AUTOWRAP_OFF
+	words.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(words)
+	var bar := ProgressBar.new()
+	bar.min_value = low
+	bar.max_value = 100
+	bar.value = clampf(relation, low, 100.0)
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(140, 10)
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var groove := StyleBoxFlat.new()
+	groove.bg_color = Color(0, 0, 0, 0.18 if _on_paper else 0.45)
+	groove.border_color = Color(CARD_MUTED if _on_paper else MUTED, 0.6)
+	groove.set_border_width_all(1)
+	bar.add_theme_stylebox_override("background", groove)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color("c4544a") if relation < 0 else (Color("e2a63a") if relation < 40 else Color("7dba6a"))
+	bar.add_theme_stylebox_override("fill", fill)
+	bar.set_meta("opinion_bar", relation)
+	row.add_child(bar)
+	for mark in state_marks(game, st, sid):
+		var tex := ArtPack.icon_texture(str(mark[0]), 24.0)
+		if tex == null:
+			continue
+		var face := TextureRect.new()
+		face.texture = tex
+		face.custom_minimum_size = Vector2(24, 24)
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		face.tooltip_text = Copy.t(str(mark[1]))
+		face.mouse_filter = Control.MOUSE_FILTER_PASS
+		face.set_meta("state_mark", str(mark[1]))
+		row.add_child(face)
+	return row
+
+
+## [icon, words] for: can trade, an expedition under way, hostile, pact. At most three.
+func state_marks(game, st: Dictionary, sid: String) -> Array:
+	var marks: Array = []
+	if int(st.get("deals", 0)) > 0 or game.order_block("trade", sid) == "":
+		marks.append(["trade", "Can trade"])
+	if not game.expedition.is_empty():
+		marks.append(["artifact", "Expedition under way"])
+	var fid := station_faction(game, sid)
+	var band: String = game.standing_band(fid) if game.standing.has(fid) else ""
+	if str(st.owner) == "enemy" or band == "hostile":
+		marks.append(["ultimatum", "Hostile"])
+	elif band == "pact":
+		marks.append(["envoy", "Pact"])
+	return marks.slice(0, 3)
 
 
 func _open_station(sid: String) -> void:
@@ -2208,6 +2365,7 @@ func _show_visit(sid: String) -> void:
 		visit.offset_top = host.hud.size.y
 	if sheet != null:
 		sheet.visible = false
+	_details_open = false
 	visit.visible = true
 	_size_visit()
 	_fill_visit(sid)
@@ -2246,35 +2404,39 @@ func _fill_visit(sid: String) -> void:
 	head.add_theme_constant_override("separation", 12)
 	if host != null and host.has_method("_portrait_box"):
 		head.add_child(host._portrait_box(str(sid), 64))
-	var who: String = game.station_text(sid, "who")
-	var conflict: String = game.station_text(sid, "conflict")
-	var words := _lab(conflict if conflict != "" else who, 18, true)
-	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(words)
-	_visit_body.add_child(head)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 4)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var named := HBoxContainer.new()
-	named.add_theme_constant_override("separation", 12)
+	named.add_theme_constant_override("separation", 10)
 	var mark := _symbol(game, station_faction(game, sid))
 	if mark != null:
 		named.add_child(_symbol_rect(mark, 28))
 	var community := _lab(game.station_text(sid, "community"), 22, true)
 	community.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	named.add_child(community)
-	_visit_body.add_child(named)
+	column.add_child(named)
+	column.add_child(_standing_row(game, st, sid))
+	head.add_child(column)
+	_visit_body.add_child(head)
+	var details := _details_box()
+	var who: String = game.station_text(sid, "who")
+	var conflict: String = game.station_text(sid, "conflict")
+	if conflict != "":
+		details.add_child(_lab(conflict, 16, true))
 	if who != "":
-		_visit_body.add_child(_lab(who, 15, false))
-	_add_needs(st, _visit_body)
-	var relation := int(st.get("sympathy", 0))
-	if game.opinions.has(str(st.owner)):
-		relation = int(game.opinions[str(st.owner)])
-	_visit_body.add_child(_lab("%s: %d    %s: %d" % [Copy.t("Opinion"), relation, Copy.t("Loyalty"), int(st.loyalty)], 15, false))
+		details.add_child(_lab(who, 15, false))
+	details.add_child(_lab("%s: %d" % [Copy.t("Loyalty"), int(st.loyalty)], 15, false))
+	_add_needs(st, details)
 	var trade := _trade_line(st)
 	if trade != "":
-		_visit_body.add_child(_lab(trade, 15, false))
+		details.add_child(_lab(trade, 15, false))
 	var art: String = game.station_text(sid, "art")
 	if art != "":
-		_visit_body.add_child(_lab(art, 14, false))
-	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, false)
+		details.add_child(_lab(art, 14, false))
+	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
+	_add_fold(_visit_body, details)
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
@@ -2368,20 +2530,15 @@ func _station_photo(game, st: Dictionary) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	frame.add_child(box)
-	var shot := TextureRect.new()
-	shot.custom_minimum_size = Vector2(220, 110)
-	shot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	shot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	shot.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	shot.clip_contents = true
+	var shot_size := Vector2(220, 110)
 	var caption := ""
 	if not _secret(st) and banner_path(game, str(st.get("id", ""))) == "":
-		box.add_child(_name_plate(Copy.t(str(st.get("name", ""))), shot.custom_minimum_size, 20))
+		box.add_child(_name_plate(Copy.t(str(st.get("name", ""))), shot_size, 20))
 		caption = Copy.t("No photo yet")
 	elif _secret(st):
 		var blank := ColorRect.new()
 		blank.color = Color(0.18, 0.16, 0.14)
-		blank.custom_minimum_size = shot.custom_minimum_size
+		blank.custom_minimum_size = shot_size
 		var mark := Label.new()
 		mark.text = "?"
 		mark.add_theme_font_size_override("font_size", 48)
@@ -2393,6 +2550,12 @@ func _station_photo(game, st: Dictionary) -> Control:
 		box.add_child(blank)
 		caption = Copy.t("No photo yet")
 	else:
+		var shot := TextureRect.new()
+		shot.custom_minimum_size = shot_size
+		shot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		shot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		shot.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		shot.clip_contents = true
 		shot.texture = _thumb_tex(game, st)
 		shot.modulate = Color(1.0, 0.94, 0.84)
 		box.add_child(shot)
