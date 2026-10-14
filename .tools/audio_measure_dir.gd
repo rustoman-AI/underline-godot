@@ -6,7 +6,11 @@ extends SceneTree
 ## godot --headless --path . -s res://.tools/audio_measure_dir.gd -- --dir=res://assets/audio [--limit=40] [--played] [--env=1500]
 ## --played also prints what the player hears with the current Sound constants: each click*.ogg from its
 ## FILE_START after the CLICK_DB hold-and-fade cut, and each room loop (room_<id>.ogg or rooms/<id>.ogg) at
-## the open and hover levels. --env prints the peak of each 10 ms window over the first milliseconds.
+## the open and hover levels, each music track at its Music levels and the ambient and menu_tone beds.
+## --env prints the peak of each 10 ms window over the first milliseconds.
+
+## The volume_db Sound._loop_player gives the ambient bed and the menu tone.
+const BED_DB := -10.0
 
 var dir := "res://assets/audio"
 var limit := 0
@@ -90,6 +94,15 @@ func _played(path: String, frames: PackedVector2Array, lufs: float, rate: float)
 			cut.append(frames[start + i] * g)
 		print("  played: %s from %d ms, cut to %d ms, %.1f LUFS (file %.1f, %+.1f dB)" % [file, int(float(start) / rate * 1000.0),
 			int(float(cut.size()) / rate * 1000.0), _loudness(cut, rate), lufs, db])
+		return
+	if path.get_base_dir().ends_with("music"):
+		var base := lufs + Music.BASE_DB
+		print("  played: music %.1f LUFS, under a voice %.1f, fewer cues %.1f, both %.1f (base %+.1f, duck %+.1f, quiet %+.1f dB; Music bus %+.1f at %.2f)" % [
+			base, base + Music.DUCK_DB, base + Music.QUIET_DB, base + Music.DUCK_DB + Music.QUIET_DB,
+			Music.BASE_DB, Music.DUCK_DB, Music.QUIET_DB, linear_to_db(Settings.music), Settings.music])
+		return
+	if file == "ambient" or file == "menu_tone":
+		print("  played: bed %s %.1f LUFS (%+.1f dB, Music bus)" % [file, lufs + BED_DB, BED_DB])
 		return
 	var room := file.trim_prefix("room_") if file.begins_with("room_") else (file if path.get_base_dir().ends_with("rooms") else "")
 	if room == "":

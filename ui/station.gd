@@ -320,6 +320,10 @@ func _ready() -> void:
 		Settings.apply_display(get_window())
 		get_window().size_changed.connect(_rescale)
 		Sound.apply_buses()
+		var score := Music.new()
+		score.name = "Music"
+		score.source = music_state
+		add_child(score)
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
@@ -7897,6 +7901,30 @@ func _polish_shots() -> void:
 	get_tree().quit()
 
 
+## What the score reads: where the player is and how the station stands. Read only.
+func music_state() -> Dictionary:
+	var at := {"context": "none", "voice": Voice.playing()}
+	if shot_mode or game == null:
+		return at
+	var in_menu := menu_layer != null and menu_layer.visible and not settings_from_game
+	if at_menu or in_menu or (hub_layer != null and hub_layer.visible):
+		at.context = "menu"
+		return at
+	if game.over != "":
+		at.context = "ending"
+		return at
+	var revolt := game.revolt_warning()
+	at.context = "station"
+	at.hope = game.hope
+	at.discontent = game.discontent
+	at.revolt_warn = not revolt.is_empty()
+	at.revolt_edge = not revolt.is_empty() and int(revolt.get("weeks", 99)) <= 1
+	at.hope_warn = game._hope_warn_weeks() <= int(game.bal.get("forecast_weeks", 2))
+	at.flood = game._season_is("flood")
+	at.cough_call = game.can_quarantine()
+	return at
+
+
 func _show_main_menu() -> void:
 	at_menu = true
 	settings_from_game = false
@@ -8780,8 +8808,15 @@ func _fill_settings() -> void:
 	for pair in [["off", "Off"], ["rare", "Rare"], ["often", "Often"]]:
 		drips.add_child(_pick_button(str(pair[1]), Settings.drips == str(pair[0]), _pick_drips.bind(str(pair[0]))))
 	sound.add_child(drips)
+	var toggles := HBoxContainer.new()
+	toggles.add_theme_constant_override("separation", 8)
+	var score := Copy.t("Music") + ": " + Copy.t("On" if Settings.music_on else "Off")
+	var score_toggle := _pick_button(score, Settings.music_on, _toggle_music, 150.0)
+	score_toggle.set_meta("music_toggle", true)
+	toggles.add_child(score_toggle)
 	var rooms := Copy.t("Room sounds") + ": " + Copy.t("On" if Settings.room_sounds else "Off")
-	sound.add_child(_pick_button(rooms, Settings.room_sounds, _toggle_room_sounds, 300.0))
+	toggles.add_child(_pick_button(rooms, Settings.room_sounds, _toggle_room_sounds, 220.0))
+	sound.add_child(toggles)
 	sound.add_child(_label("Cable radio", 18, true))
 	var radios := HFlowContainer.new()
 	radios.add_theme_constant_override("h_separation", 8)
@@ -8859,6 +8894,10 @@ func _fill_credits() -> void:
 	made.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	made.custom_minimum_size = Vector2(600, 0)
 	box.add_child(made)
+	var score := _label("Music was generated with ElevenLabs Music (paid plan).", 16)
+	score.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	score.custom_minimum_size = Vector2(600, 0)
+	box.add_child(score)
 	var sounds := _label("Kenney Interface Sounds (www.kenney.nl), CC0.", 14)
 	sounds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sounds.custom_minimum_size = Vector2(600, 0)
@@ -8958,6 +8997,12 @@ func _toggle_room_sounds() -> void:
 	Settings.room_sounds = not Settings.room_sounds
 	Settings.save()
 	_sync_room_sound()
+	_fill_settings()
+
+
+func _toggle_music() -> void:
+	Settings.music_on = not Settings.music_on
+	Settings.save()
 	_fill_settings()
 
 

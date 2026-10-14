@@ -9,6 +9,7 @@ const DRIP_MODES := ["off", "rare", "often"]
 
 static var master := 0.85
 static var music := 0.55
+static var music_on := true
 static var sfx := 0.8
 static var radio := 0.8
 static var drips := "rare"
@@ -45,6 +46,7 @@ static func load_file() -> void:
 		return
 	master = clampf(float(cfg.get_value("audio", "master", master)), 0.0, 1.0)
 	music = clampf(float(cfg.get_value("audio", "music", music)), 0.0, 1.0)
+	music_on = bool(cfg.get_value("audio", "music_on", music_on))
 	sfx = clampf(float(cfg.get_value("audio", "sfx", sfx)), 0.0, 1.0)
 	radio = clampf(float(cfg.get_value("audio", "radio", radio)), 0.0, 1.0)
 	drips = str(cfg.get_value("audio", "drips", drips))
@@ -78,6 +80,7 @@ static func save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master", master)
 	cfg.set_value("audio", "music", music)
+	cfg.set_value("audio", "music_on", music_on)
 	cfg.set_value("audio", "sfx", sfx)
 	cfg.set_value("audio", "radio", radio)
 	cfg.set_value("audio", "drips", drips)

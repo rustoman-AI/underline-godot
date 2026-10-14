@@ -17,6 +17,8 @@ Courier Prime is by Quote-Unquote Apps. Big Shoulders Display is by Patric King 
 
 Sound effects were generated with ElevenLabs Sound Effects (eleven_text_to_sound_v2, paid plan): the UI cues in assets/audio/ (click_01 to click_03, confirm, error, end_turn, build_done, upgrade, dig, card_open to card_open_03, new_week, audience_open, dossier_open, dossier_tab, map_click), the station bed ambient.ogg, the menu tone menu_tone.ogg, drip.ogg, the radio static radio.ogg and the room loops in assets/audio/rooms/. Prompts, levels and dates are listed in docs/audit/sound/index_samples.tsv.
 
+Music was generated with ElevenLabs Music (paid plan): the five tracks in assets/audio/music/ (M1_menu_theme, M2_station_calm, M3_station_tension, M4_station_crisis, M5_ending_quiet).
+
 Kenney audio is Creative Commons Zero (CC0 1.0). Credit to Kenney (www.kenney.nl) is appreciated and not required.
 
 | File in this game | Source file | Pack | License |
