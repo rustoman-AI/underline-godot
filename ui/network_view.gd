@@ -42,6 +42,15 @@ const TERRITORY_REACH := 165.0
 const TERRITORY_FILL := 0.32
 const TERRITORY_LINE := 1.2
 const TERRITORY_DASH := 7.0
+## Territory raster: one grid cell is TERR_STEP map px; a station's influence fades out over TERR_REACH map px,
+## a faction holds the land where its summed influence passes TERR_EDGE; fill strength, hatch period (cells) and
+## the border's strength.
+const TERR_STEP := 3
+const TERR_REACH := 250.0
+const TERR_EDGE := 0.24
+const TERR_FILL := 0.62
+const TERR_HATCH := 3
+const TERR_LINE := 0.9
 const TAG_REACH := -1
 const TAG_PAPER_EDGE := -2
 const PIN_CAPITAL := 52.0
@@ -126,6 +135,11 @@ var territories := true
 var _terr_key := "-"
 var _terr_owners: PackedStringArray = []
 var _terr_cells: Array = []
+var _terr_tex: ImageTexture
+var _terr_tex_key := "-"
+var _land := PackedByteArray()
+var _land_w := 0
+var _land_h := 0
 var _dot: Texture2D
 var _back_layer: Control
 var _base_layer: Control
@@ -622,31 +636,164 @@ func _draw_weights(c: CanvasItem) -> void:
 		c.draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, _desk)
 
 
-## Territories on the multiply layer: each faction's land in a soft wash of its colour from the data, with a thin
-## dashed border only where it meets another station's ground; its outer reach fades into the paper unlined.
-## Drawn only while the Territories button is on.
+## Territories on the multiply layer: land the factions hold, as a soft wash of their colour with pencil hatching
+## and a thin inked border where it ends or meets another faction. Water is never coloured and the coast is not
+## outlined. Built as one raster (see _territory_texture), drawn only while the Territories button is on.
 func _draw_wash(c: CanvasItem) -> void:
 	var game = _game()
 	if game == null or not territories:
 		return
-	var cells := territory_cells(game)
-	if cells.is_empty():
+	var tex := _territory_texture(game)
+	if tex == null:
 		return
 	c.draw_set_transform_matrix(_view() * _map_xf)
-	var px := 1.0 / maxf(zoom * _map_scale(), 0.01)
-	for cell in cells:
-		var col: Color = cell.color
-		c.draw_colored_polygon(cell.pts, Color.WHITE.lerp(col, TERRITORY_FILL))
-	for cell in cells:
-		var line: Color = Color.WHITE.lerp(Color(cell.color).darkened(0.15), 0.7)
-		var pts: PackedVector2Array = cell.pts
-		var tags: PackedInt32Array = cell.tags
-		for k in pts.size():
-			var t := tags[k]
-			if t < 0 or str(cells_owner(t)) == str(cell.owner):
-				continue
-			c.draw_dashed_line(pts[k], pts[(k + 1) % pts.size()], line, TERRITORY_LINE * px, TERRITORY_DASH * px, true, true)
+	c.draw_texture_rect(tex, Rect2(Vector2.ZERO, Vector2(_land_w, _land_h) * float(TERR_STEP)), false)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## 1 per grid cell where the paper shows land (warm paper, not the blue-grey water), the coast smoothed by a
+## 3x3 majority so speckles in the map art do not make holes.
+func _build_land() -> void:
+	if _land_w > 0:
+		return
+	_land_w = ceili(_map_size.x / float(TERR_STEP))
+	_land_h = ceili(_map_size.y / float(TERR_STEP))
+	var raw := PackedByteArray()
+	raw.resize(_land_w * _land_h)
+	var img: Image = _map.get_image() if _map != null else null
+	if img == null or img.is_empty():
+		raw.fill(1)
+	else:
+		if img.is_compressed():
+			img.decompress()
+		var k := Vector2(float(img.get_width()) / _map_size.x, float(img.get_height()) / _map_size.y)
+		for y in _land_h:
+			for x in _land_w:
+				var px := mini(img.get_width() - 1, int((float(x) + 0.5) * TERR_STEP * k.x))
+				var py := mini(img.get_height() - 1, int((float(y) + 0.5) * TERR_STEP * k.y))
+				var col := img.get_pixel(px, py)
+				raw[y * _land_w + x] = 1 if (col.r - col.b > 0.17 and col.r > 0.5) else 0
+	_land.resize(_land_w * _land_h)
+	for y in _land_h:
+		for x in _land_w:
+			var n := 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					var xx := clampi(x + dx, 0, _land_w - 1)
+					var yy := clampi(y + dy, 0, _land_h - 1)
+					n += raw[yy * _land_w + xx]
+			_land[y * _land_w + x] = 1 if n >= 5 else 0
+
+
+## Slow value noise in 0.74..1.26 so the edge of a held area wanders like ground, not like a compass circle.
+func _terr_noise(x: int, y: int) -> float:
+	var n := 0.5 + 0.25 * sin(float(x) * 0.11 + 1.3) * cos(float(y) * 0.09 + 0.7) + 0.25 * sin(float(x) * 0.23 + float(y) * 0.17 + 2.1)
+	return 0.74 + 0.52 * clampf(n, 0.0, 1.0)
+
+
+func territory_is_land(map_px: Vector2) -> bool:
+	_build_land()
+	var x := clampi(int(map_px.x / float(TERR_STEP)), 0, _land_w - 1)
+	var y := clampi(int(map_px.y / float(TERR_STEP)), 0, _land_h - 1)
+	return _land[y * _land_w + x] == 1
+
+
+## The raster of the held land, rebuilt only when an owner, a discovery or a rival move changes (same key as
+## territory_cells). White where nothing is held, so it multiplies away.
+func _territory_texture(game) -> ImageTexture:
+	territory_cells(game)
+	if _terr_tex != null and _terr_tex_key == _terr_key:
+		return _terr_tex
+	_terr_tex_key = _terr_key
+	_build_land()
+	var w := _land_w
+	var h := _land_h
+	var ids: Array = []
+	var seeds: Array = []
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if _secret(st) or not bool(st.get("known", true)) or not _spots.has(str(sid)):
+			continue
+		var holder := territory_owner(game, str(sid))
+		if holder == "":
+			continue
+		var fi := ids.find(holder)
+		if fi < 0:
+			ids.append(holder)
+			seeds.append([])
+			fi = ids.size() - 1
+		seeds[fi].append(_map_spot(str(sid)) / float(TERR_STEP))
+	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
+	img.fill(Color.WHITE)
+	if ids.is_empty():
+		_terr_tex = ImageTexture.create_from_image(img)
+		return _terr_tex
+	var reach := TERR_REACH / float(TERR_STEP)
+	var infl: Array = []
+	for fi in ids.size():
+		var field := PackedFloat32Array()
+		field.resize(w * h)
+		for at in seeds[fi]:
+			var x0 := maxi(0, floori(at.x - reach))
+			var x1 := mini(w - 1, ceili(at.x + reach))
+			var y0 := maxi(0, floori(at.y - reach))
+			var y1 := mini(h - 1, ceili(at.y + reach))
+			for y in range(y0, y1 + 1):
+				for x in range(x0, x1 + 1):
+					var d := Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(at) / reach
+					if d < 1.0:
+						var v := 1.0 - d
+						v = v * v * (3.0 - 2.0 * v) * _terr_noise(x, y)
+						field[y * w + x] += v
+		infl.append(field)
+	var owner_at := PackedInt32Array()
+	owner_at.resize(w * h)
+	var strength := PackedFloat32Array()
+	strength.resize(w * h)
+	for i in w * h:
+		owner_at[i] = -1
+		if _land[i] == 0:
+			continue
+		var best := -1
+		var top := 0.0
+		for fi in ids.size():
+			var v: float = infl[fi][i]
+			if v > top:
+				top = v
+				best = fi
+		if best >= 0 and top >= TERR_EDGE:
+			owner_at[i] = best
+			strength[i] = top
+	var colors: Array = []
+	for fi in ids.size():
+		colors.append(territory_color(game, str(ids[fi])))
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			var fi := owner_at[i]
+			if fi < 0:
+				continue
+			var col: Color = colors[fi]
+			var fade := smoothstep(TERR_EDGE, TERR_EDGE + 0.32, strength[i])
+			var amount := TERR_FILL * (0.35 + 0.65 * fade)
+			if (x - y) % TERR_HATCH == 0:
+				amount *= 1.55
+			var out := Color.WHITE.lerp(col, amount)
+			var edge := false
+			for n in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var xx: int = x + n.x
+				var yy: int = y + n.y
+				if xx < 0 or yy < 0 or xx >= w or yy >= h:
+					continue
+				var j := yy * w + xx
+				if owner_at[j] != fi and _land[j] == 1:
+					edge = true
+					break
+			if edge:
+				out = Color.WHITE.lerp(col.darkened(0.45), TERR_LINE)
+			img.set_pixel(x, y, out)
+	_terr_tex = ImageTexture.create_from_image(img)
+	return _terr_tex
 
 
 ## The colour a faction's land is washed in: the leader data first, then the faction table.
@@ -903,15 +1050,42 @@ func _wobble(a: Vector2, b: Vector2, seed: int, amp: float) -> PackedVector2Arra
 	return pts
 
 
+## A route as drawn in pencil and ink on the paper: a faint soft stroke underneath (the ink bleeding into the
+## fibres) and, over it, a dashed hand-wobbled stroke in the line's colour mixed toward dark ink, with a short
+## tick at every dash so it reads as a surveyed track rather than a vector line.
 func _marker(c: CanvasItem, a: Vector2, b: Vector2, col: Color, width: float, seed: int) -> void:
 	var pts := _wobble(a, b, seed, width * 0.35)
 	if pts.size() < 2:
 		return
-	c.draw_polyline(pts, col, width, true)
-	var d := (b - a).normalized()
-	var edge := Vector2(-d.y, d.x) * width * 0.3
-	var rim := _wobble(a + edge, b + edge, seed + 7, width * 0.3)
-	c.draw_polyline(rim, Color(col.r * 0.6, col.g * 0.6, col.b * 0.6, col.a * 0.3), width * 0.3, true)
+	var ink := Color(0.16, 0.12, 0.09, col.a)
+	var stroke := Color(col.r, col.g, col.b, col.a).lerp(ink, 0.55)
+	c.draw_polyline(pts, Color(col.r, col.g, col.b, col.a * 0.16), width * 1.7, true)
+	var dash := width * 4.2
+	var gap := width * 1.5
+	var run := 0.0
+	var on := true
+	for i in pts.size() - 1:
+		var p := pts[i]
+		var q := pts[i + 1]
+		var seg := p.distance_to(q)
+		if seg < 0.001:
+			continue
+		var dir := (q - p) / seg
+		var t := 0.0
+		while t < seg:
+			var left := (dash if on else gap) - run
+			var step := minf(left, seg - t)
+			if on:
+				c.draw_line(p + dir * t, p + dir * (t + step), stroke, width * 0.5, true)
+			run += step
+			t += step
+			if run >= (dash if on else gap) - 0.0001:
+				if on:
+					var tick := p + dir * t
+					var n := Vector2(-dir.y, dir.x) * width * 0.55
+					c.draw_line(tick - n, tick + n, stroke, width * 0.28, true)
+				on = not on
+				run = 0.0
 
 
 func _draw_lines(c: CanvasItem, game) -> void:
