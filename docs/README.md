@@ -34,6 +34,7 @@
 | План раннего доступа | `docs/EA_PLAN.md` |
 | Маркетинг, название, конкуренты | `docs/MARKETING.md` |
 | Задания исполнителям | `docs/briefs/` (`cursor_*`, `art_*`, `muse_*`) |
+| Приказы на станциях: дизайн-черновик | `docs/ORDERS_DESIGN.md` |
 | Аудиты, QA, баланс-гейты | `docs/audit/` |
 | Плейтест: гайд, анкета, страница, обратная связь | `docs/playtest/` (`feedback_log.md`, `SURVEY.md`, `ITCH_PAGE.md`, `INVITE.md`, `BUG_REPORT_TEMPLATE.md`) |
 | Озвучка: индекс и кредиты | `assets/audio/vo/INDEX.md`, `CREDITS.md` |
