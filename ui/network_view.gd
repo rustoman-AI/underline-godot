@@ -1339,6 +1339,25 @@ func _draw_junctions(c: CanvasItem, game) -> void:
 		for stop in lines[line_id]:
 			count[str(stop)] = int(count.get(str(stop), 0)) + 1
 	for sid in _layout:
+		if schematic and bool(_layout[sid].known) and not bool(_layout[sid].big):
+			var plain: Dictionary = _layout[sid]
+			var holder := str(game.stations[sid].owner)
+			var ring := Color("7a6a50")
+			match holder:
+				"neutral":
+					ring = Color("7a6a50")
+				"enemy":
+					ring = ORDER_RED
+				"ruin":
+					ring = Color("5b5b5b")
+				"bunker":
+					ring = Color("b08a2a")
+				_:
+					ring = territory_color(game, holder)
+			var pr := float(plain.px) * 0.5
+			c.draw_arc(plain.at, pr + 1.5, 0.0, TAU, 40, Color(TAG_INK, 0.8), 5.0, true)
+			c.draw_arc(plain.at, pr + 1.5, 0.0, TAU, 40, ring, 3.0, true)
+	for sid in _layout:
 		if bool(_layout[sid].known) and bool(_layout[sid].big):
 			var cap: Dictionary = _layout[sid]
 			var cr := float(cap.px) * 0.66
@@ -1372,6 +1391,36 @@ func _draw_line_badges(c: CanvasItem, game) -> void:
 			c.draw_circle(at, 11.0, Color(TAG_INK, 0.9))
 			c.draw_circle(at, 9.0, col)
 			c.draw_string(font, at + Vector2(-5.0, 5.0), str(line_id).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14, Color.WHITE)
+
+
+## The route segments between known stations, in screen px, for placing tags clear of the lines.
+func _line_segments(game) -> Array:
+	var out: Array = []
+	var lines: Dictionary = game.catalog.communities.get("lines", {})
+	for line_id in lines:
+		var stops: Array = lines[line_id]
+		for i in range(stops.size() - 1):
+			var a := str(stops[i])
+			var b := str(stops[i + 1])
+			if _layout.has(a) and _layout.has(b) and bool(_layout[a].known) and bool(_layout[b].known):
+				out.append([_layout[a].at, _layout[b].at])
+	return out
+
+
+func _crossings(box: Rect2, segs: Array) -> int:
+	var n := 0
+	var tl := box.position
+	var tr := Vector2(box.end.x, box.position.y)
+	var br := box.end
+	var bl := Vector2(box.position.x, box.end.y)
+	for seg in segs:
+		var p: Vector2 = seg[0]
+		var q: Vector2 = seg[1]
+		if box.has_point(p) or box.has_point(q):
+			n += 1
+		elif Geometry2D.segment_intersects_segment(p, q, tl, tr) != null or Geometry2D.segment_intersects_segment(p, q, tr, br) != null or Geometry2D.segment_intersects_segment(p, q, br, bl) != null or Geometry2D.segment_intersects_segment(p, q, bl, tl) != null:
+			n += 1
+	return n
 
 
 func _pin_order(a, b) -> bool:
@@ -1497,6 +1546,7 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		if panel != null and panel.visible:
 			placed.append(panel.get_rect().grow(4.0))
 	_tags.clear()
+	var segs := _line_segments(game)
 	var fs := maxi(14 if level < 2 else 15, ceili(TAG_MIN_PX / _window_scale()))
 	for row in rows:
 		var sid := str(row.id)
@@ -1539,12 +1589,17 @@ func _draw_tags(c: CanvasItem, game) -> void:
 				others.append(head.box)
 		var chosen := Rect2()
 		var found := false
+		var fewest := 1000
 		for box in sides:
 			if _hits(box, placed) or _hits(box, others):
 				continue
-			chosen = box
-			found = true
-			break
+			var crossings := _crossings(box, segs) if schematic else 0
+			if crossings < fewest:
+				fewest = crossings
+				chosen = box
+				found = true
+				if crossings == 0:
+					break
 		if not found and schematic:
 			## No exceptions in the schematic: when every spot is taken the tag goes where it hides the least.
 			for box in sides:

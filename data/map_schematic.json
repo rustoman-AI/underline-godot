@@ -1,7 +1,7 @@
 {
   "_note": "Schematic layout of the station network: positions in schematic px, only for the Network view (the real-map layout stays in map_pins.json). Spread so the lines and the transfer stations read at a glance. Display only: nothing in the sim reads this file.",
   "size": [
-    1850,
+    1960,
     1100
   ],
   "boroughs": [
@@ -17,7 +17,7 @@
       "en": "BROOKLYN",
       "ru": "БРУКЛИН",
       "at": [
-        1150,
+        1241,
         1010
       ]
     },
@@ -25,7 +25,7 @@
       "en": "QUEENS",
       "ru": "КВИНС",
       "at": [
-        1672,
+        1776,
         170
       ]
     }
@@ -40,7 +40,7 @@
       310
     ],
     "northgate": [
-      767,
+      808,
       250
     ],
     "foundry": [
@@ -49,15 +49,15 @@
     ],
     "plaza": [
       390,
-      560
+      543
     ],
     "stadium": [
-      657,
-      570
+      684,
+      554
     ],
     "market": [
-      672,
-      690
+      701,
+      689
     ],
     "clocktower": [
       390,
@@ -65,71 +65,71 @@
     ],
     "dockyard": [
       390,
-      840
+      857
     ],
     "trampark": [
       249,
       970
     ],
     "eastwater": [
-      594,
+      613,
       970
     ],
     "quarry": [
-      720,
-      830
+      755,
+      846
     ],
     "harbor": [
-      908,
+      968,
       700
     ],
     "observatory": [
-      908,
-      790
+      968,
+      801
     ],
     "library": [
-      1071,
-      880
+      1152,
+      902
     ],
     "brickworks": [
-      1229,
-      840
+      1330,
+      857
     ],
     "riverside": [
-      1386,
-      770
+      1490,
+      778
     ],
     "southdepot": [
-      1603,
+      1707,
       950
     ],
     "mill": [
-      1170,
+      1264,
       480
     ],
     "garden": [
-      1672,
+      1776,
       310
     ],
     "westfield": [
-      1593,
-      640
+      1697,
+      633
     ],
     "archive": [
       154,
-      810
+      823
     ],
     "vault": [
-      861,
+      914,
       1010
     ],
     "oldcommand": [
-      1051,
+      1129,
       990
     ],
     "signal": [
-      1288,
-      640
+      1392,
+      633
     ]
   }
 }
