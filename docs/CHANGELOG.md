@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 203. Первый: 2026-10-02. Последний: 2026-10-14 38e4b75.
+Коммитов: 205. Первый: 2026-10-02. Последний: 2026-10-15 024798b.
 
 ## Этапы
 
@@ -19,8 +19,13 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-14 (18)
+### 2026-10-15 (1)
 
+- `024798b` Guard: soldiers are residents, people/beds chip, factions strike back
+
+### 2026-10-14 (19)
+
+- `133990c` Docs: playtest10 recorded
 - `38e4b75` Map: more air in the centre, tags placed clear of lines, ring colours on ordinary pins by holder
 - `56051ba` Map: more air between the left and middle stations, bolder tag outline and shadow in the schematic
 - `fe44b32` Map: council folded by default, every known station tagged, larger pins and gold rings for capitals, stations moved inward

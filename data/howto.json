@@ -22,16 +22,16 @@
       "ru": "Комнатам нужны люди. Нажми комнату, затем имя. У каждой комнаты свой главный навык, лучший человек для неё стоит первым."
     },
     {
-      "en": "Air, food, power, materials. Hope and discontent decide whether people stay.",
-      "ru": "Воздух, еда, энергия, материалы. Надежда и недовольство решают, останутся ли люди."
+      "en": "Air, food, power, materials. The people count at the top, like 25/20, is people against beds: past the beds, discontent climbs. Hope and discontent decide whether people stay.",
+      "ru": "Воздух, еда, энергия, материалы. Счётчик людей наверху, например 25/20, это люди против коек: сверх коек растёт недовольство. Надежда и недовольство решают, останутся ли люди."
     },
     {
       "en": "Leaders come to your door. Each has a price. You can hear them, refuse, or offer help.",
       "ru": "Лидеры приходят к твоей двери. У каждого своя цена. Можно выслушать, отказать или предложить помощь."
     },
     {
-      "en": "The Network button opens the map: trade, envoys, squads, bunkers. The Journal, then Truth, shows what you have learned about the Silence.",
-      "ru": "Кнопка «Сеть» открывает карту: торговля, послы, отряды, бункеры. Журнал, затем «Правда», показывает, что ты узнал о Тишине."
+      "en": "The Network button opens the map: trade, envoys, squads, bunkers. Marching needs soldiers, taken from your own people, and a faction you attack strikes back. The Journal, then Truth, shows what you have learned about the Silence.",
+      "ru": "Кнопка «Сеть» открывает карту: торговля, послы, отряды, бункеры. Для похода нужны бойцы из твоих же людей, а фракция, на которую ты напал, ответит ударом. Журнал, затем «Правда», показывает, что ты узнал о Тишине."
     }
   ]
 }
