@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 205. Первый: 2026-10-02. Последний: 2026-10-15 024798b.
+Коммитов: 206. Первый: 2026-10-02. Последний: 2026-10-15 293e10e.
 
 ## Этапы
 
@@ -19,8 +19,9 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-15 (1)
+### 2026-10-15 (2)
 
+- `293e10e` How-to: people against beds and soldiers for marches; changelog
 - `024798b` Guard: soldiers are residents, people/beds chip, factions strike back
 
 ### 2026-10-14 (19)
