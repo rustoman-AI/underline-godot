@@ -505,7 +505,9 @@ func _open_area() -> Rect2:
 		## The schematic sits clear of the council cards at the left and of the station's bottom buttons.
 		left = FIT_PAD + (COUNCIL_W + 12.0 if council_open else 190.0)
 		bottom = _chrome_top() - 4.0
-	return Rect2(left, top, maxf(size.x - left - FIT_PAD, 1.0), maxf(bottom - top, 1.0))
+	## Room at the right for the longest tag of the easternmost station and the people tab.
+	var right := 150.0 if schematic else FIT_PAD
+	return Rect2(left, top, maxf(size.x - left - right, 1.0), maxf(bottom - top, 1.0))
 
 
 ## Every station spot on the desk, hidden ones too, so the opening view does not change as stations turn up.
@@ -1570,14 +1572,15 @@ func _paint_tag(c: CanvasItem, box: Rect2, title: String, sub: String, fs: int, 
 	var pivot := box.get_center()
 	c.draw_set_transform(pivot, tilt)
 	var local := Rect2(box.position - pivot, box.size)
-	c.draw_rect(Rect2(local.position + Vector2(1.5, 2.0), local.size), Color(0, 0, 0, 0.35))
+	var bold := schematic
+	c.draw_rect(Rect2(local.position + (Vector2(2.5, 3.5) if bold else Vector2(1.5, 2.0)), local.size), Color(0, 0, 0, 0.6 if bold else 0.35))
 	c.draw_rect(local, TAG_PAPER)
 	if mark == null:
 		c.draw_rect(Rect2(local.position, Vector2(5.0, local.size.y)), strip)
 	else:
 		var line_h := _tag_font.get_height(fs) + 6.0
 		c.draw_texture_rect(mark, Rect2(local.position + Vector2(4.0, maxf(1.0, (line_h - badge) * 0.5)), Vector2(badge, badge)), false, tint)
-	c.draw_rect(local, Color(TAG_INK, 0.85), false, 1.0)
+	c.draw_rect(local, Color(TAG_INK, 1.0 if bold else 0.85), false, 2.6 if bold else 1.0)
 	var text_x := local.position.x + 10.0 + badge
 	var base := local.position.y + 3.0 + _tag_font.get_ascent(fs)
 	c.draw_string(_tag_font, Vector2(text_x, base), title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)

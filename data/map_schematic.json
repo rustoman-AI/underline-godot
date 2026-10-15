@@ -1,7 +1,7 @@
 {
   "_note": "Schematic layout of the station network: positions in schematic px, only for the Network view (the real-map layout stays in map_pins.json). Spread so the lines and the transfer stations read at a glance. Display only: nothing in the sim reads this file.",
   "size": [
-    1700,
+    1850,
     1100
   ],
   "boroughs": [
@@ -9,7 +9,7 @@
       "en": "MANHATTAN",
       "ru": "МАНХЭТТЕН",
       "at": [
-        60,
+        -3,
         260
       ]
     },
@@ -17,7 +17,7 @@
       "en": "BROOKLYN",
       "ru": "БРУКЛИН",
       "at": [
-        850,
+        1150,
         1010
       ]
     },
@@ -25,22 +25,22 @@
       "en": "QUEENS",
       "ru": "КВИНС",
       "at": [
-        1380,
+        1672,
         170
       ]
     }
   ],
   "stations": {
     "chapel": [
-      310,
+      390,
       150
     ],
     "central": [
-      310,
+      390,
       310
     ],
     "northgate": [
-      550,
+      767,
       250
     ],
     "foundry": [
@@ -48,87 +48,87 @@
       440
     ],
     "plaza": [
-      310,
+      390,
       560
     ],
     "stadium": [
-      480,
+      657,
       570
     ],
     "market": [
-      490,
+      672,
       690
     ],
     "clocktower": [
-      310,
+      390,
       700
     ],
     "dockyard": [
-      310,
+      390,
       840
     ],
     "trampark": [
-      220,
+      249,
       970
     ],
     "eastwater": [
-      440,
+      594,
       970
     ],
     "quarry": [
-      520,
+      720,
       830
     ],
     "harbor": [
-      640,
+      908,
       700
     ],
     "observatory": [
-      640,
+      908,
       790
     ],
     "library": [
-      770,
+      1071,
       880
     ],
     "brickworks": [
-      930,
+      1229,
       840
     ],
     "riverside": [
-      1090,
+      1386,
       770
     ],
     "southdepot": [
-      1310,
+      1603,
       950
     ],
     "mill": [
-      870,
+      1170,
       480
     ],
     "garden": [
-      1380,
+      1672,
       310
     ],
     "westfield": [
-      1300,
+      1593,
       640
     ],
     "archive": [
-      160,
+      154,
       810
     ],
     "vault": [
-      610,
+      861,
       1010
     ],
     "oldcommand": [
-      750,
+      1051,
       990
     ],
     "signal": [
-      990,
+      1288,
       640
     ]
   }
