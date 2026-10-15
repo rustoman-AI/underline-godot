@@ -82,3 +82,6 @@
 - Music soundtrack (14 Oct, owner): brief docs/briefs/muse_music.txt, research plus 5 sample tracks; integration (music player with crossfades by game state) is a later Cursor task after the owner approves the tracks.
 
 - POLISH 2 (14 Oct, F51): (1) small state icons on the station pins of the network map (trade open, expedition under way, pact, enemy), so the map shows what is going on without opening a card; (2) room card: keep output, slots and the main button on top, move the upgrade description and the minor lines under a "Details" fold. Not now: sprites in the yard after a deal (sacks at the gate), ink-dash route lines. Needs the next tester round first.
+
+- Pins on the schematic are still grey metal tokens; faction rings help, but real station tokens (shape and material per kind: city-state, empire hub, bunker) need new textures from ChatGPT. Not ordered. (15 Oct)
+- Schematic: the next step is the game meaning of the lines (passage, choke points, orders along lines), see docs/ORDERS_DESIGN.md; the owner said view only until then.

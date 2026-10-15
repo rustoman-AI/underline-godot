@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 196. Первый: 2026-10-02. Последний: 2026-10-14 8f37e5b.
+Коммитов: 203. Первый: 2026-10-02. Последний: 2026-10-14 38e4b75.
 
 ## Этапы
 
@@ -19,8 +19,15 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-14 (11)
+### 2026-10-14 (18)
 
+- `38e4b75` Map: more air in the centre, tags placed clear of lines, ring colours on ordinary pins by holder
+- `56051ba` Map: more air between the left and middle stations, bolder tag outline and shadow in the schematic
+- `fe44b32` Map: council folded by default, every known station tagged, larger pins and gold rings for capitals, stations moved inward
+- `a6c6a5c` Map: schematic network view by default (spread lines, transfer rings, line badges) with a Real map toggle
+- `679f918` Map: territories follow the land (raster with hatching and inked borders), routes as inked dashes with ticks
+- `84df45b` Docs: log F51 video reviews, park polish 2
+- `db10507` Docs: playtest9 recorded
 - `8f37e5b` Music: state-driven player with crossfades
 - `2569706` Docs: Cursor brief for the music player
 - `f156391` Audio: 5 music sample tracks from Muse (not wired), research notes
