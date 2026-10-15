@@ -144,6 +144,8 @@ var _land_h := 0
 ## The network view has two layouts: the schematic (default) and the real map. Each keeps its own station spots,
 ## paper size and desk transform; set_schematic swaps them.
 var schematic := true
+## The council cards are folded away until the player opens them, so they never cover a station.
+var council_open := false
 var _geo_spots := {}
 var _geo_size := Vector2(1024, 1536)
 var _geo_xf := Transform2D.IDENTITY
@@ -501,7 +503,7 @@ func _open_area() -> Rect2:
 	var bottom := size.y - FIT_PAD
 	if schematic:
 		## The schematic sits clear of the council cards at the left and of the station's bottom buttons.
-		left = FIT_PAD + COUNCIL_W + 12.0
+		left = FIT_PAD + (COUNCIL_W + 12.0 if council_open else 190.0)
 		bottom = _chrome_top() - 4.0
 	return Rect2(left, top, maxf(size.x - left - FIT_PAD, 1.0), maxf(bottom - top, 1.0))
 
@@ -1081,7 +1083,7 @@ func _draw_legend(c: CanvasItem, game) -> void:
 	if _zoom_bar != null and _zoom_bar.visible:
 		bottom = _zoom_bar.position.y - 8.0
 	var slip := Vector2(widest + icon + 26.0, step * rows.size() + 12.0)
-	var box := Rect2(Vector2(area.position.x + 4.0, bottom - slip.y), slip)
+	var box := Rect2(Vector2((FIT_PAD + 4.0) if schematic else (area.position.x + 4.0), bottom - slip.y), slip)
 	if council != null and council.visible and box.intersects(council.get_rect().grow(6.0)):
 		return
 	for sid in _layout:
@@ -1265,7 +1267,8 @@ func _draw_order_trails(c: CanvasItem, game) -> void:
 func _pin_px(game, sid: String) -> float:
 	var st: Dictionary = game.stations[sid]
 	var big := bool(st.get("capital", false)) or sid == str(game.capital_id)
-	return maxf(PIN_FLOOR, (PIN_CAPITAL if big else PIN_OTHER) * sqrt(zoom))
+	var base := (PIN_CAPITAL if big else PIN_OTHER) * (1.0 + (0.4 if big else 0.22) * (1.0 if schematic else 0.0))
+	return maxf(PIN_FLOOR, base * sqrt(zoom))
 
 
 func _layout_pins(game) -> void:
@@ -1333,6 +1336,12 @@ func _draw_junctions(c: CanvasItem, game) -> void:
 	for line_id in lines:
 		for stop in lines[line_id]:
 			count[str(stop)] = int(count.get(str(stop), 0)) + 1
+	for sid in _layout:
+		if bool(_layout[sid].known) and bool(_layout[sid].big):
+			var cap: Dictionary = _layout[sid]
+			var cr := float(cap.px) * 0.66
+			c.draw_arc(cap.at, cr + 6.0, 0.0, TAU, 56, Color(TAG_INK, 0.85), 3.0, true)
+			c.draw_arc(cap.at, cr + 2.0, 0.0, TAU, 56, Color("d9a93a"), 4.0, true)
 	for sid in _layout:
 		if int(count.get(str(sid), 0)) < 2 or not bool(_layout[sid].known):
 			continue
@@ -1516,7 +1525,7 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		if own or sid == _hover or sid == selected:
 			sides.append(Rect2(at + Vector2(-w * 0.5, -reach - h), Vector2(w, h)))
 			sides.append(Rect2(at + Vector2(-w * 0.5, reach), Vector2(w, h)))
-		if own or bool(info.big) or sid == _hover or sid == selected:
+		if own or bool(info.big) or sid == _hover or sid == selected or schematic:
 			for lean in [reach * 0.7, reach * 1.8, reach * 3.0]:
 				for corner in [Vector2(1, -1), Vector2(-1, -1), Vector2(1, 1), Vector2(-1, 1)]:
 					var x: float = at.x + lean if corner.x > 0.0 else at.x - lean - w
@@ -1534,6 +1543,16 @@ func _draw_tags(c: CanvasItem, game) -> void:
 			chosen = box
 			found = true
 			break
+		if not found and schematic:
+			## No exceptions in the schematic: when every spot is taken the tag goes where it hides the least.
+			for box in sides:
+				if not _hits(box, placed):
+					chosen = box
+					found = true
+					break
+			if not found:
+				chosen = sides[0]
+				found = true
 		if not found:
 			continue
 		placed.append(chosen.grow(3.0))
@@ -1995,6 +2014,15 @@ func _zoom_button(key: String) -> void:
 	_zoom_at(_open_area().get_center(), ZOOM_STEP if key == "in" else 1.0 / ZOOM_STEP)
 
 
+func _toggle_council() -> void:
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	council_open = not council_open
+	_fill_council()
+	_place_panels()
+	_redraw()
+
+
 func _fill_council() -> void:
 	if _council_body == null:
 		return
@@ -2003,10 +2031,29 @@ func _fill_council() -> void:
 	var game = _game()
 	if game == null:
 		return
-	var title := _lab(Copy.t("Council"), 15, true)
-	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	title.add_theme_constant_override("shadow_offset_y", 2)
-	_council_body.add_child(title)
+	var fold := Button.new()
+	fold.text = ("- " if council_open else "+ ") + Copy.t("Council")
+	fold.focus_mode = Control.FOCUS_NONE
+	fold.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	fold.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	for state in ["normal", "hover", "pressed"]:
+		var face := StyleBoxFlat.new()
+		face.bg_color = TAG_PAPER.darkened(0.12 if state == "pressed" else 0.0).lightened(0.06 if state == "hover" else 0.0)
+		face.border_color = Color(TAG_INK, 0.85)
+		face.set_border_width_all(1)
+		face.set_content_margin_all(6)
+		face.content_margin_left = 12
+		face.content_margin_right = 12
+		face.shadow_color = Color(0, 0, 0, 0.35)
+		face.shadow_size = 3
+		face.shadow_offset = Vector2(1, 2)
+		fold.add_theme_stylebox_override(state, face)
+	for colour in ["font_color", "font_hover_color", "font_pressed_color"]:
+		fold.add_theme_color_override(colour, TAG_INK)
+	fold.pressed.connect(_toggle_council)
+	_council_body.add_child(fold)
+	if not council_open:
+		return
 	_on_paper = true
 	var tilts := [-2.2, 1.6, -1.1]
 	var index := 0

@@ -1,36 +1,135 @@
 {
   "_note": "Schematic layout of the station network: positions in schematic px, only for the Network view (the real-map layout stays in map_pins.json). Spread so the lines and the transfer stations read at a glance. Display only: nothing in the sim reads this file.",
-  "size": [1600, 1000],
+  "size": [
+    1700,
+    1100
+  ],
   "boroughs": [
-    {"en": "MANHATTAN", "ru": "МАНХЭТТЕН", "at": [230, 60]},
-    {"en": "BROOKLYN", "ru": "БРУКЛИН", "at": [800, 960]},
-    {"en": "QUEENS", "ru": "КВИНС", "at": [1330, 120]}
+    {
+      "en": "MANHATTAN",
+      "ru": "МАНХЭТТЕН",
+      "at": [
+        60,
+        260
+      ]
+    },
+    {
+      "en": "BROOKLYN",
+      "ru": "БРУКЛИН",
+      "at": [
+        850,
+        1010
+      ]
+    },
+    {
+      "en": "QUEENS",
+      "ru": "КВИНС",
+      "at": [
+        1380,
+        170
+      ]
+    }
   ],
   "stations": {
-    "chapel": [260, 100],
-    "central": [260, 260],
-    "northgate": [500, 200],
-    "foundry": [120, 390],
-    "plaza": [260, 510],
-    "stadium": [430, 520],
-    "market": [440, 640],
-    "clocktower": [260, 650],
-    "dockyard": [260, 790],
-    "trampark": [170, 920],
-    "eastwater": [390, 920],
-    "quarry": [470, 780],
-    "harbor": [590, 650],
-    "observatory": [590, 740],
-    "library": [720, 830],
-    "brickworks": [880, 790],
-    "riverside": [1040, 720],
-    "southdepot": [1260, 900],
-    "mill": [820, 430],
-    "garden": [1330, 260],
-    "westfield": [1250, 590],
-    "archive": [110, 760],
-    "vault": [560, 960],
-    "oldcommand": [700, 940],
-    "signal": [940, 590]
+    "chapel": [
+      310,
+      150
+    ],
+    "central": [
+      310,
+      310
+    ],
+    "northgate": [
+      550,
+      250
+    ],
+    "foundry": [
+      170,
+      440
+    ],
+    "plaza": [
+      310,
+      560
+    ],
+    "stadium": [
+      480,
+      570
+    ],
+    "market": [
+      490,
+      690
+    ],
+    "clocktower": [
+      310,
+      700
+    ],
+    "dockyard": [
+      310,
+      840
+    ],
+    "trampark": [
+      220,
+      970
+    ],
+    "eastwater": [
+      440,
+      970
+    ],
+    "quarry": [
+      520,
+      830
+    ],
+    "harbor": [
+      640,
+      700
+    ],
+    "observatory": [
+      640,
+      790
+    ],
+    "library": [
+      770,
+      880
+    ],
+    "brickworks": [
+      930,
+      840
+    ],
+    "riverside": [
+      1090,
+      770
+    ],
+    "southdepot": [
+      1310,
+      950
+    ],
+    "mill": [
+      870,
+      480
+    ],
+    "garden": [
+      1380,
+      310
+    ],
+    "westfield": [
+      1300,
+      640
+    ],
+    "archive": [
+      160,
+      810
+    ],
+    "vault": [
+      610,
+      1010
+    ],
+    "oldcommand": [
+      750,
+      990
+    ],
+    "signal": [
+      990,
+      640
+    ]
   }
 }
