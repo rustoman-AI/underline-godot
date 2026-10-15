@@ -85,3 +85,5 @@
 
 - Pins on the schematic are still grey metal tokens; faction rings help, but real station tokens (shape and material per kind: city-state, empire hub, bunker) need new textures from ChatGPT. Not ordered. (15 Oct)
 - Schematic: the next step is the game meaning of the lines (passage, choke points, orders along lines), see docs/ORDERS_DESIGN.md; the owner said view only until then.
+
+- GEAR FOR THE GUARD (15 Oct, owner): random finds (armour, weapons, gas masks) from digs, expeditions, captured stations and event choices, kept in an armoury and issued to the guard to buff the squad (today gear is a flat 1.1 in balance.json player_squad). The Workshop gets a craft mode: materials into gear, so the workshop has a second job besides materials. The same gear also strengthens the guard at home when a provoked faction comes for your stations. Open questions: gear per soldier or per squad, does gear wear out in battle, is it lost when its soldier dies. Wait for playtest11 data on whether players use the guard at all.
