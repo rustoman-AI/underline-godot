@@ -126,6 +126,7 @@ var power_button: Button
 var forecast_button: Button
 var revolt_button: Button
 var chips := {}
+var pop_chip := {}
 var hope_label: Label
 var dis_label: Label
 var hope_fill: ColorRect
@@ -1072,6 +1073,7 @@ func _top_bar() -> PanelContainer:
 		pill.add_child(chip)
 		res_grid.add_child(pill)
 		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon, "name": name, "pill": pill}
+	title_row.add_child(_people_pill())
 
 	var meters := HBoxContainer.new()
 	meters.add_theme_constant_override("separation", 12)
@@ -1102,6 +1104,70 @@ func _top_bar() -> PanelContainer:
 	dismiss.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ticker.add_child(dismiss)
 	return panel
+
+
+## People against beds at a glance, "18/24", beside the stocks; soldiers under it. Red when beds run out.
+func _people_pill() -> PanelContainer:
+	var pill := PanelContainer.new()
+	var face := StyleBoxFlat.new()
+	face.bg_color = PILL
+	face.set_corner_radius_all(14)
+	face.content_margin_left = 8
+	face.content_margin_right = 10
+	face.content_margin_top = 1
+	face.content_margin_bottom = 1
+	pill.add_theme_stylebox_override("panel", face)
+	pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pill.mouse_filter = Control.MOUSE_FILTER_STOP
+	pill.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	pill.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_show_crowd()
+	)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill.add_child(row)
+	var icon := Glyph.new()
+	icon.kind = "people"
+	icon.custom_minimum_size = Vector2(22, 22)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", -4)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(col)
+	var value := _label("0/0", 22)
+	value.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if number_font != null:
+		value.add_theme_font_override("font", number_font)
+	col.add_child(value)
+	var guard := _label("", 11)
+	guard.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guard.add_theme_color_override("font_color", MUTED)
+	col.add_child(guard)
+	pop_chip = {"pill": pill, "value": value, "guard": guard}
+	return pill
+
+
+func _sync_people_pill() -> void:
+	if pop_chip.is_empty() or game == null:
+		return
+	var pop := game.residents.size()
+	var beds := game.housing()
+	var value: Label = pop_chip.value
+	value.text = "%d/%d" % [pop, beds]
+	var color := INK
+	if pop > beds:
+		color = STOCK_RED
+	elif pop == beds:
+		color = STOCK_AMBER
+	value.add_theme_color_override("font_color", color)
+	var guard: Label = pop_chip.guard
+	guard.text = Copy.t("Guard %d") % game.soldier_count()
+	var tip := "%s\n%s" % [game.crowd_tip(), Copy.t("Guard: %s. Soldiers eat and sleep here but work no room.") % Words.count(game.soldier_count(), "soldier")]
+	pop_chip.pill.tooltip_text = tip
 
 
 func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
@@ -1608,6 +1674,7 @@ func _refresh() -> void:
 	if not game.active_season.is_empty():
 		season = " · %s" % Copy.season(str(game.active_season.id))
 	week_label.text = Copy.t("Week %d%s") % [game.week, season]
+	_sync_people_pill()
 	var roll := stock_week > 0 and game.week != stock_week and not game.last_net.is_empty()
 	_paint_stocks(roll)
 	stock_week = game.week
@@ -1697,7 +1764,7 @@ func _fill_people() -> void:
 	_wipe(people_box)
 	var total := game.residents.size()
 	var working := 0
-	var grouped := {"free": [], "crew": []}
+	var grouped := {"free": [], "crew": [], "guard": []}
 	var room_order: Array = []
 	for person in game.residents:
 		var id := str(person.id)
@@ -1712,6 +1779,9 @@ func _fill_people() -> void:
 		elif post == "crew":
 			working += 1
 			grouped["crew"].append(person)
+		elif post == "guard":
+			working += 1
+			grouped["guard"].append(person)
 		else:
 			grouped["free"].append(person)
 	var free_n := total - working
@@ -1785,6 +1855,8 @@ func _fill_people() -> void:
 			_people_group(room_name, grouped[uid], skill, false, str(uid))
 		if (people_filter == "" or people_filter == "crew") and not grouped["crew"].is_empty():
 			_people_group(Copy.t("Crew"), grouped["crew"], "labor", false)
+		if (people_filter == "" or people_filter == "guard") and not grouped["guard"].is_empty():
+			_people_group(Copy.t("Guard"), grouped["guard"], "fight", false)
 	if showing_network and network_view != null:
 		network_view.refresh()
 
@@ -1821,6 +1893,8 @@ func _where(id: String) -> String:
 		for sid in room.staff:
 			if str(sid) == id:
 				return room_title(room)
+	if bool(game.people[id].get("soldier", false)):
+		return Copy.t("In the guard")
 	for wid in game._locked_ids():
 		if str(wid) == id:
 			return Copy.t("On a crew")
@@ -1843,6 +1917,8 @@ func _staff_room(id: String) -> String:
 func _person_post(id: String) -> String:
 	if _staff_room(id) != "":
 		return "room"
+	if bool(game.people[id].get("soldier", false)):
+		return "guard"
 	for wid in game._locked_ids():
 		if str(wid) == id:
 			return "crew"

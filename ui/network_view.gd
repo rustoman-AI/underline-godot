@@ -1712,6 +1712,9 @@ func _draw_squads(c: CanvasItem, game) -> void:
 			c.draw_texture_rect(icon, Rect2(at - Vector2(8, 8), Vector2(16, 16)), false, Color(0.25, 0.18, 0.12))
 		else:
 			c.draw_string(_font(), at + Vector2(-4, 4), str(sq.size), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TAG_INK)
+		var badge := at + Vector2(10, -9)
+		c.draw_circle(badge, 8.0, col)
+		c.draw_string(_font(), badge + Vector2(-8, 4), str(int(sq.size)), HORIZONTAL_ALIGNMENT_CENTER, 16, 11, TAG_PAPER)
 
 
 func _draw_intents(c: CanvasItem, game) -> void:
@@ -2551,6 +2554,8 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 		parent.add_child(open_b)
 	if game_now == null:
 		return
+	if home:
+		_add_guard(game_now, parent)
 	parent.add_child(_dawn_line(game_now))
 	var shown := 0
 	var later: Array = []
@@ -2563,6 +2568,44 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 			later.append(row)
 	for row in later:
 		_order_button(str(row[0]), str(row[1]), sid, details, details)
+
+
+## The guard on the home card: how many soldiers, and buttons to take a resident into it or send one back.
+## Soldiers come from your own people, so every recruit is a worker less.
+func _add_guard(game, parent: Node) -> void:
+	var n: int = game.soldier_count()
+	var line := _lab(Copy.t("Guard: %s (marches need %d).") % [Words.count(n, "soldier"), int(game.bal.guard.move_min)], 14, false)
+	line.set_meta("guard_line", true)
+	parent.add_child(line)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	parent.add_child(row)
+	var recruit := Button.new()
+	var price := int(game.bal.guard.recruit_materials)
+	recruit.text = Copy.t("Recruit soldier") if price == 0 else "%s  −%d %s" % [Copy.t("Recruit soldier"), price, Copy.res("materials")]
+	recruit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var why: String = game.recruit_block()
+	recruit.disabled = why != ""
+	recruit.tooltip_text = why if why != "" else Copy.t("%s leaves their work and joins the guard.") % str(game.recruit_preview())
+	recruit.pressed.connect(_guard_action.bind("recruit"))
+	row.add_child(recruit)
+	var dismiss := Button.new()
+	dismiss.text = Copy.t("Release")
+	var why_d: String = game.dismiss_block()
+	dismiss.disabled = why_d != ""
+	dismiss.tooltip_text = why_d if why_d != "" else Copy.t("One soldier goes back to work.")
+	dismiss.pressed.connect(_guard_action.bind("dismiss"))
+	row.add_child(dismiss)
+
+
+func _guard_action(kind: String) -> void:
+	var game = _game()
+	if game == null or not game.apply({"kind": kind}):
+		return
+	if host != null and host.has_method("_refresh"):
+		host._refresh()
+	if kind == "recruit" and host != null and host.has_method("note_spend"):
+		host.note_spend({"materials": int(game.bal.guard.recruit_materials)})
 
 
 ## Every order a station's card offers, in card order: [kind, label].

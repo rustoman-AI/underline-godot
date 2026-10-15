@@ -58,6 +58,7 @@ func _act(game: Game) -> void:
 	_answer_audience(game)
 	if _teller():
 		_listen(game)
+	_tend_guard(game)
 	if profile == "follower":
 		_follow(game)
 		return
@@ -101,6 +102,25 @@ func _act(game: Game) -> void:
 		spent += 1
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
+
+
+## Bots march only on the expedition, so they keep no guard until it is due: they send the start guard back to
+## work and recruit the soldiers the expedition needs once they mean to go.
+func _tend_guard(game: Game) -> void:
+	var tunnel := game._tunnel_by_id("to_ferry")
+	var due: bool = game.expedition.is_empty() and not tunnel.is_empty() and not bool(tunnel.get("dug", false))
+	if profile == "follower":
+		due = false
+	elif profile != "expander":
+		due = due and game.week >= 18 and int(game.stock.food) > 24 and not bool(game.at_war.get("directorate", false))
+	var want := int(game.bal.guard.move_min) if due else 0
+	var guard := 0
+	while game.soldier_count() > want and game.dismiss_block() == "" and guard < 12:
+		guard += 1
+		game.apply({"kind": "dismiss"})
+	while game.soldier_count() < want and game.recruit_block() == "" and guard < 24:
+		guard += 1
+		game.apply({"kind": "recruit"})
 
 
 func _teller() -> bool:

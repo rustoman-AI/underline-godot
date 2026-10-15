@@ -197,6 +197,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	_init_grid()
 	_init_map()
 	_init_squads()
+	_muster_start_guard()
 	_init_standing()
 	laws_on[str(cat.factions[player].law)] = true
 	_auto_staff()
@@ -335,6 +336,10 @@ func apply(action: Dictionary) -> bool:
 			ok = _move_power(str(action.get("room", "")), bool(action.get("up", false)))
 		"order":
 			ok = _apply_order(action)
+		"recruit":
+			ok = _apply_recruit()
+		"dismiss":
+			ok = _apply_dismiss()
 		"audience":
 			ok = _apply_help() if bool(action.get("help", false)) else _apply_audience(bool(action.get("accept", false)))
 		_:
@@ -788,7 +793,7 @@ func can_expedition() -> bool:
 	if not expedition.is_empty():
 		return false
 	var sq: Dictionary = squads[player]
-	if sq.away or str(sq.station) != capital_id:
+	if sq.away or str(sq.station) != capital_id or soldier_count() < int(bal.guard.move_min):
 		return false
 	var tunnel := _tunnel_by_id("to_ferry")
 	return not tunnel.is_empty() and not tunnel.dug
@@ -886,6 +891,7 @@ func _rival_phase() -> void:
 	telegraphed = []
 	for intent in batch:
 		_resolve_intent(intent)
+	_sorties()
 
 
 func _night() -> void:
@@ -2521,9 +2527,11 @@ func _apply_law(law_id: String) -> bool:
 		for fid in opinions:
 			_add_opinion(fid, int(defin.opinion_on_enact))
 	if law_id == "conscription":
-		var sq: Dictionary = squads[player]
-		sq.size = int(sq.size) + int(defin.squad_bonus)
-		sq.max_size = int(sq.max_size) + int(defin.squad_bonus)
+		for _i in int(defin.squad_bonus):
+			var pick := _recruit_pick()
+			if pick == "":
+				break
+			_enlist(pick)
 	decisions += 1
 	_log("LAW %s" % defin.name, true)
 	return true
@@ -2802,9 +2810,24 @@ func order_cost(kind: String, _sid: String = "") -> Dictionary:
 			return {"influence": 3}
 		"trade":
 			return {"influence": 4}
+		"move":
+			var food := move_food(_sid)
+			return {"food": food} if food > 0 else {}
 		_:
 			return {}
 	return {}
+
+
+## Rations for a march off your own ground: food per two soldiers, rounded up. Walking home or between your
+## own stations is free.
+func move_food(dest: String) -> int:
+	var sq: Dictionary = squads.get(player, {})
+	if sq.is_empty() or not stations.has(dest):
+		return 0
+	var path := _path(str(sq.station), dest)
+	if path.size() < 2 or str(stations[str(path[1])].owner) == player:
+		return 0
+	return int(ceil(float(soldier_count()) / 2.0)) * int(bal.guard.food_per_two)
 
 
 func queue_order(action: Dictionary) -> bool:
@@ -3059,16 +3082,18 @@ func order_risk(kind: String, sid: String = "") -> String:
 			var nxt := str(path[1])
 			var owner := str(stations[nxt].owner)
 			if owner == player or owner == "neutral" or owner == "ruin":
-				return Copy.t("No fight on the next step.")
+				return Copy.t("No fight on the next step. Marching: %s.") % Words.count(soldier_count(), "soldier")
 			var st: Dictionary = stations[nxt]
 			var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0)
 			var defense := float(st.garrison) * float(st.fort) * 1.3
 			var odds := 100
 			if attack > 0.0:
 				odds = int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
-			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [station_text(nxt, "community") if station_text(nxt, "community") != "" else Copy.t(str(st.name)), odds]
+			var line := Copy.t("Battle at %s: about %d%% to win with %s. A loss kills a third to half of them; even a win costs some.") % [station_text(nxt, "community") if station_text(nxt, "community") != "" else Copy.t(str(st.name)), odds, Words.count(soldier_count(), "soldier")]
 			if not bool(at_war.get(owner, false)):
 				line += " " + Copy.t("Their opinion of you drops by 20.")
+			if opinions.has(owner):
+				line += " " + Copy.t("They strike back for %s.") % Words.count(int(bal.guard.provoke_weeks), "week")
 			return line
 		"expedition":
 			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
@@ -3124,8 +3149,13 @@ func _move_block(dest: String) -> String:
 		return Copy.t("The squad is away.")
 	if not stations.has(dest):
 		return Copy.t("No open tunnel that way.")
-	if _path(str(sq.station), dest).size() < 2:
+	var path := _path(str(sq.station), dest)
+	if path.size() < 2:
 		return Copy.t("No open tunnel that way.")
+	if str(stations[str(path[1])].owner) != player and soldier_count() < int(bal.guard.move_min):
+		return Copy.t("Needs %d soldiers. Recruit them at your station.") % int(bal.guard.move_min)
+	if int(stock.food) < move_food(dest):
+		return Copy.t("Not enough food for the march.")
 	return ""
 
 
@@ -3135,6 +3165,8 @@ func _expedition_block() -> String:
 	var sq: Dictionary = squads.get(player, {})
 	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
 		return Copy.t("The squad must be home first.")
+	if soldier_count() < int(bal.guard.move_min):
+		return Copy.t("Needs %d soldiers. Recruit them at your station.") % int(bal.guard.move_min)
 	var tunnel := _tunnel_by_id("to_ferry")
 	if tunnel.is_empty() or bool(tunnel.get("dug", false)):
 		return Copy.t("South Ferry is already open.")
@@ -3206,9 +3238,10 @@ func _order_move(dest: String) -> bool:
 	var sq: Dictionary = squads[player]
 	if sq.away or not stations.has(dest):
 		return false
-	var path := _path(str(sq.station), dest)
-	if path.size() < 2:
+	if _move_block(dest) != "":
 		return false
+	var path := _path(str(sq.station), dest)
+	stock.food = int(stock.food) - move_food(dest)
 	return _step_squad(sq, str(path[1]), true)
 
 
@@ -3318,7 +3351,7 @@ func _tick_expedition() -> void:
 	st.garrison = 6
 	var sq: Dictionary = squads[player]
 	sq.away = false
-	sq.size = maxi(3, int(round(float(sq.size) * 0.85)))
+	_lose_soldiers(int(round(float(sq.size) * 0.15)), "The road to South Ferry")
 	stock.materials = int(stock.materials) + 10
 	_hire(2)
 	expedition = {}
@@ -3472,7 +3505,7 @@ func _plan_one(fid: String) -> Dictionary:
 		stations[target].known = true
 	if target == "":
 		return {"faction": fid, "kind": "hold"}
-	if fid == "exchange" and not bool(at_war.get(fid, false)):
+	if fid == "exchange" and not _hostile_to_player(fid):
 		return {"faction": fid, "kind": "buy", "station": target}
 	return {"faction": fid, "kind": "squad", "station": target}
 
@@ -3527,10 +3560,78 @@ func _resolve_squad(fid: String, target: String) -> void:
 		return
 	var nxt := str(path[1])
 	var owner := str(stations[nxt].owner)
-	if owner == player and not bool(at_war.get(fid, false)):
+	if owner == player and not _hostile_to_player(fid):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
 		return
 	_step_squad(sq, nxt, false)
+
+
+# --- retaliation: a faction you march on strikes back ---
+
+## Marching your squad into a faction's station provokes it for a few weeks: its squad comes for your stations
+## and its garrisons raid your squad when it stands next to them.
+func _provoke(fid: String) -> void:
+	var was := provoked(fid)
+	flags["provoked_" + fid] = week + int(bal.guard.provoke_weeks)
+	if not was:
+		var line := "%s will strike back." % _fname(fid)
+		if Copy.ru():
+			line = "%s ответит ударом." % Copy.t(_fname(fid))
+		_log(line, true)
+
+
+func provoked(fid: String) -> bool:
+	return int(flags.get("provoked_" + fid, 0)) >= week
+
+
+func provoked_weeks(fid: String) -> int:
+	return maxi(0, int(flags.get("provoked_" + fid, 0)) - week)
+
+
+func _hostile_to_player(fid: String) -> bool:
+	return bool(at_war.get(fid, false)) or provoked(fid)
+
+
+## The nearest station you hold to a provoked faction's squad, your capital aside; "" when none is in reach.
+func _strike_target(fid: String) -> String:
+	if not squads.has(fid):
+		return ""
+	var from := str(squads[fid].station)
+	var best := ""
+	var best_hops := 999
+	for sid in _owned_by(player):
+		if sid == capital_id:
+			continue
+		var hops := _hops(from, sid)
+		if hops >= 0 and hops < best_hops:
+			best_hops = hops
+			best = sid
+	return best
+
+
+## Garrisons of a provoked faction raid your squad when it stands on or next to their ground.
+func _sorties() -> void:
+	var sq: Dictionary = squads.get(player, {})
+	if sq.is_empty() or bool(sq.away) or soldier_count() == 0:
+		return
+	var here := str(sq.station)
+	for fid in opinions.keys():
+		if not provoked(fid):
+			continue
+		var raider := ""
+		for n in _neighbors(here):
+			if str(stations[n].owner) == fid and int(stations[n].garrison) > 0:
+				raider = n
+				break
+		if raider == "":
+			continue
+		if net_rng.randf() >= float(bal.guard.sortie_chance):
+			continue
+		var hit := net_rng.randi_range(1, 2)
+		var place := station_text(raider, "community")
+		if place == "":
+			place = Copy.t(str(stations[raider].name))
+		_lose_soldiers(hit, Copy.t("A raid from %s") % place)
 
 
 func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
@@ -3564,7 +3665,9 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		return false
 	if player_move and owner != player and not bool(at_war.get(owner, false)):
 		_add_opinion(owner, -20)
-	if not player_move and owner == player and not bool(at_war.get(sq.faction, false)):
+	if player_move and owner != player and opinions.has(owner):
+		_provoke(owner)
+	if not player_move and owner == player and not _hostile_to_player(str(sq.faction)):
 		return false
 	if not player_move and nxt == capital_id and (week <= max_weeks or int(ambition.get(str(sq.faction), 0)) < 100):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
@@ -3598,14 +3701,20 @@ func _battle(sq: Dictionary, sid: String) -> bool:
 	var defense := garrison * float(st.fort) * 1.3
 	var win := attack > defense
 	var loss := net_rng.randf_range(0.3, 0.6)
+	var ours := str(sq.faction) == player
 	if win:
 		st.garrison = clampi(int(round(float(st.garrison) * (1.0 - loss))), 2, 22)
 		_log("BATTLE %s takes %s" % [sq.name, st.name], true)
+		if ours:
+			_lose_soldiers(maxi(1, int(round(float(sq.size) * loss * 0.35))), "The garrison fought back")
 	else:
-		sq.size = clampi(int(round(float(sq.size) * (1.0 - loss))), 5, 20)
-		if not defender.is_empty():
-			defender.size = clampi(int(round(float(defender.size) * (1.0 - loss * 0.5))), 5, 20)
 		_log("BATTLE %s is thrown back from %s" % [sq.name, st.name], true)
+		if ours:
+			_lose_soldiers(maxi(1, int(round(float(sq.size) * loss))), "Thrown back")
+		else:
+			sq.size = clampi(int(round(float(sq.size) * (1.0 - loss))), 5, 20)
+		if not defender.is_empty():
+			_lose_soldiers(int(round(float(defender.size) * loss * 0.5)), "The guard held the station")
 	return win
 
 
@@ -3656,6 +3765,10 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 
 
 func _campaign_target(fid: String) -> String:
+	if provoked(fid):
+		var strike := _strike_target(fid)
+		if strike != "":
+			return strike
 	if int(stats.get("flip_week", 0)) == 0:
 		var locked := str(stats.get("flip_target", ""))
 		if locked != "" and stations.has(locked) and str(stations[locked].owner) == "neutral":
@@ -3674,7 +3787,7 @@ func _campaign_target(fid: String) -> String:
 			var owner := str(st.owner)
 			if owner == fid or owner == "bunker" or owner == "ruin":
 				continue
-			if owner == player and not bool(at_war.get(fid, false)):
+			if owner == player and not _hostile_to_player(fid):
 				continue
 			if owner != "neutral" and owner != player:
 				continue
@@ -3884,6 +3997,7 @@ func _locked_ids() -> Array:
 		ids.append_array(dig.workers)
 	if not build.is_empty():
 		ids.append_array(build.workers)
+	ids.append_array(soldier_ids())
 	return ids
 
 
@@ -3971,6 +4085,146 @@ func _remove_resident(id: String) -> void:
 		dig.workers = _without(dig.workers, id)
 	if not build.is_empty():
 		build.workers = _without(build.workers, id)
+	_sync_guard()
+
+
+# --- the guard: the player's squad is made of residents ---
+
+## Residents standing in the platform guard. They eat and take beds like everyone else but work no room.
+func soldier_ids() -> Array:
+	var ids: Array = []
+	for person in residents:
+		if bool(person.get("soldier", false)):
+			ids.append(str(person.id))
+	return ids
+
+
+func soldier_count() -> int:
+	return soldier_ids().size()
+
+
+## The player's squad is as big as the guard; nothing refills it but recruiting.
+func _sync_guard() -> void:
+	if not squads.has(player):
+		return
+	var n := soldier_count()
+	squads[player].size = n
+	squads[player].max_size = n
+	if n == 0 and not bool(squads[player].get("away", false)):
+		squads[player].station = capital_id
+
+
+## Who joins the guard next: the best fighter outside the council, crews and sickbeds; idle people first on a tie.
+func _recruit_pick() -> String:
+	var locked := _locked_ids()
+	var best := ""
+	var best_v := -1
+	for person in residents:
+		var id := str(person.id)
+		if locked.has(id) or _is_council(id) or int(person.sick) > 0 or int(person.absent) > 0:
+			continue
+		var v := int(person.skills.get("fight", 0)) * 2
+		if _staff_room_of(id) == "":
+			v += 1
+		if v > best_v:
+			best_v = v
+			best = id
+	return best
+
+
+func _staff_room_of(id: String) -> String:
+	for room in rooms:
+		for sid in room.staff:
+			if str(sid) == id:
+				return str(room.uid)
+	return ""
+
+
+func recruit_block() -> String:
+	var sq: Dictionary = squads.get(player, {})
+	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
+		return Copy.t("The squad must be home first.")
+	if soldier_count() >= int(bal.guard.max):
+		return Copy.t("The guard is full.")
+	if _recruit_pick() == "":
+		return Copy.t("Nobody is free to join the guard.")
+	if int(stock.materials) < int(bal.guard.recruit_materials):
+		return Copy.t("Not enough materials.")
+	return ""
+
+
+func dismiss_block() -> String:
+	var sq: Dictionary = squads.get(player, {})
+	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
+		return Copy.t("The squad must be home first.")
+	if soldier_count() == 0:
+		return Copy.t("The guard is empty.")
+	return ""
+
+
+## Who the next recruit would be, by name; "" when nobody can join.
+func recruit_preview() -> String:
+	var pick := _recruit_pick()
+	return Copy.person(str(people[pick].name)) if pick != "" else ""
+
+
+func _enlist(id: String) -> void:
+	_unassign(id)
+	people[id].soldier = true
+	_sync_guard()
+
+
+func _apply_recruit() -> bool:
+	if recruit_block() != "":
+		return false
+	var id := _recruit_pick()
+	stock.materials = int(stock.materials) - int(bal.guard.recruit_materials)
+	_enlist(id)
+	decisions += 1
+	_log("RECRUIT %s joins the guard (%d)" % [people[id].name, soldier_count()])
+	return true
+
+
+func _apply_dismiss() -> bool:
+	if dismiss_block() != "":
+		return false
+	var pick := ""
+	var low := 99
+	for id in soldier_ids():
+		var v := int(people[id].skills.get("fight", 0))
+		if v < low:
+			low = v
+			pick = id
+	people[pick].soldier = false
+	_sync_guard()
+	decisions += 1
+	_log("DISMISS %s goes back to work (%d)" % [people[pick].name, soldier_count()])
+	return true
+
+
+## Soldiers killed in a fight or lost on the road leave the station for good; the weakest fall first.
+func _lose_soldiers(n: int, why: String) -> int:
+	var ids := soldier_ids()
+	ids.sort_custom(func(a, b): return int(people[a].skills.get("fight", 0)) < int(people[b].skills.get("fight", 0)))
+	var lost := 0
+	while lost < n and not ids.is_empty():
+		_remove_resident(str(ids.pop_front()))
+		lost += 1
+	if lost > 0:
+		_log(Copy.t("%s. Killed: %s.") % [Copy.t(why), Words.count(lost, "soldier")], true)
+		_journal("deaths", {"n": lost})
+		_vo_cue("resident_lost")
+	return lost
+
+
+## The first guard of a new run, and of a save from before the guard was made of people.
+func _muster_start_guard() -> void:
+	squads[player].guard = true
+	for _i in int(bal.guard.start):
+		var pick := _recruit_pick()
+		if pick == "":
+			break
+		_enlist(pick)
 
 
 func _infect(n: int) -> void:
@@ -5919,6 +6173,8 @@ func _has_radio() -> bool:
 func _heal_squads() -> void:
 	for fid in squads:
 		var sq: Dictionary = squads[fid]
+		if fid == player:
+			continue
 		if not bool(sq.away) and int(sq.size) < int(sq.max_size):
 			sq.size = mini(int(sq.max_size), int(sq.size) + int(bal.squad_heal))
 
@@ -7141,6 +7397,11 @@ func import_state(data: Dictionary) -> bool:
 	story_rng.state = int(state.story_state)
 	last_check = {}
 	_init_standing()
+	if bal.is_empty():
+		bal = catalog.balance
+	if squads.has(player) and not bool(squads[player].get("guard", false)):
+		_muster_start_guard()
+	_sync_guard()
 	return true
 
 
