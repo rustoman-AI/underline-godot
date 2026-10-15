@@ -1,0 +1,36 @@
+{
+  "_note": "Schematic layout of the station network: positions in schematic px, only for the Network view (the real-map layout stays in map_pins.json). Spread so the lines and the transfer stations read at a glance. Display only: nothing in the sim reads this file.",
+  "size": [1600, 1000],
+  "boroughs": [
+    {"en": "MANHATTAN", "ru": "МАНХЭТТЕН", "at": [230, 60]},
+    {"en": "BROOKLYN", "ru": "БРУКЛИН", "at": [800, 960]},
+    {"en": "QUEENS", "ru": "КВИНС", "at": [1330, 120]}
+  ],
+  "stations": {
+    "chapel": [260, 100],
+    "central": [260, 260],
+    "northgate": [500, 200],
+    "foundry": [120, 390],
+    "plaza": [260, 510],
+    "stadium": [430, 520],
+    "market": [440, 640],
+    "clocktower": [260, 650],
+    "dockyard": [260, 790],
+    "trampark": [170, 920],
+    "eastwater": [390, 920],
+    "quarry": [470, 780],
+    "harbor": [590, 650],
+    "observatory": [590, 740],
+    "library": [720, 830],
+    "brickworks": [880, 790],
+    "riverside": [1040, 720],
+    "southdepot": [1260, 900],
+    "mill": [820, 430],
+    "garden": [1330, 260],
+    "westfield": [1250, 590],
+    "archive": [110, 760],
+    "vault": [560, 960],
+    "oldcommand": [700, 940],
+    "signal": [940, 590]
+  }
+}

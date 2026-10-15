@@ -51,6 +51,7 @@ const TERR_EDGE := 0.24
 const TERR_FILL := 0.62
 const TERR_HATCH := 3
 const TERR_LINE := 0.9
+const SCHEMATIC_FILE := "res://data/map_schematic.json"
 const TAG_REACH := -1
 const TAG_PAPER_EDGE := -2
 const PIN_CAPITAL := 52.0
@@ -140,6 +141,16 @@ var _terr_tex_key := "-"
 var _land := PackedByteArray()
 var _land_w := 0
 var _land_h := 0
+## The network view has two layouts: the schematic (default) and the real map. Each keeps its own station spots,
+## paper size and desk transform; set_schematic swaps them.
+var schematic := true
+var _geo_spots := {}
+var _geo_size := Vector2(1024, 1536)
+var _geo_xf := Transform2D.IDENTITY
+var _sch_spots := {}
+var _sch_size := Vector2(1600, 1000)
+var _sch_xf := Transform2D.IDENTITY
+var _sch_boroughs: Array = []
 var _dot: Texture2D
 var _back_layer: Control
 var _base_layer: Control
@@ -207,6 +218,23 @@ func _load_desk() -> void:
 	for spot in desk.get("weights", []):
 		_weights.append(_vec(spot, Vector2.ZERO))
 	_weight_radius = float(desk.get("weight_radius", 34.0))
+	_geo_spots = _spots
+	_geo_size = _map_size
+	_geo_xf = _map_xf
+	var sch := {}
+	var sf := FileAccess.open(SCHEMATIC_FILE, FileAccess.READ)
+	if sf != null:
+		var sparsed = JSON.parse_string(sf.get_as_text())
+		if sparsed is Dictionary:
+			sch = sparsed
+	if sch.has("stations"):
+		_sch_spots = sch.get("stations", {})
+		_sch_size = _vec(sch.get("size", []), _sch_size)
+		_sch_boroughs = sch.get("boroughs", [])
+		_sch_xf = Transform2D(0.0, Vector2.ONE, 0.0, _desk_size * 0.5) * Transform2D(0.0, -_sch_size * 0.5)
+	else:
+		schematic = false
+	_apply_mode()
 	var sheet_cfg: Dictionary = cfg.get("pins_sheet", {})
 	_pins = _map_tex("res://" + str(sheet_cfg.get("file", "assets/map/pins.webp")))
 	_head_anchor = _vec(sheet_cfg.get("head_anchor", []), _head_anchor)
@@ -216,6 +244,36 @@ func _load_desk() -> void:
 		if r is Array and r.size() >= 4:
 			var top_left := Vector2(float(r[0]), float(r[1]))
 			_pin_rects[str(key)] = Rect2(top_left, Vector2(float(r[2]), float(r[3])) - top_left)
+
+
+func _apply_mode() -> void:
+	if schematic and not _sch_spots.is_empty():
+		_spots = _sch_spots
+		_map_size = _sch_size
+		_map_xf = _sch_xf
+	else:
+		_spots = _geo_spots
+		_map_size = _geo_size
+		_map_xf = _geo_xf
+	_fitted = false
+	_near_span = 0.0
+	_terr_key = "-"
+	_terr_tex = null
+	_terr_tex_key = "-"
+	_land_w = 0
+	_land_h = 0
+	_layout.clear()
+
+
+func set_schematic(on: bool) -> void:
+	if on == schematic or _sch_spots.is_empty():
+		return
+	schematic = on
+	_apply_mode()
+	_name_zoom_bar()
+	if size.x > 10.0:
+		_fit()
+	_redraw()
 
 
 func _vec(raw, fallback: Vector2) -> Vector2:
@@ -439,7 +497,13 @@ func _hud_top() -> float:
 
 func _open_area() -> Rect2:
 	var top := _hud_top() + FIT_PAD
-	return Rect2(FIT_PAD, top, maxf(size.x - FIT_PAD * 2.0, 1.0), maxf(size.y - top - FIT_PAD, 1.0))
+	var left := FIT_PAD
+	var bottom := size.y - FIT_PAD
+	if schematic:
+		## The schematic sits clear of the council cards at the left and of the station's bottom buttons.
+		left = FIT_PAD + COUNCIL_W + 12.0
+		bottom = _chrome_top() - 4.0
+	return Rect2(left, top, maxf(size.x - left - FIT_PAD, 1.0), maxf(bottom - top, 1.0))
 
 
 ## Every station spot on the desk, hidden ones too, so the opening view does not change as stations turn up.
@@ -575,13 +639,39 @@ func _draw_base(c: CanvasItem) -> void:
 	var view := _view()
 	c.draw_set_transform_matrix(view * _map_xf)
 	_soft_rect(c, Rect2(Vector2(16, 26), _map_size - Vector2(8, 8)), 46.0, Color(0, 0, 0, 0.55))
-	if _map != null:
+	if schematic:
+		_draw_board(c)
+	elif _map != null:
 		c.draw_texture_rect(_map, Rect2(Vector2.ZERO, _map_size), false, Color(1.0, 0.96, 0.9))
 	else:
 		c.draw_rect(Rect2(Vector2.ZERO, _map_size), Color("d8c8a4"))
 	c.draw_set_transform_matrix(view)
 	_draw_weights(c)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## The schematic board: warm paper with a faint ruled grid, a thin border rule and the borough names in large
+## faded ink, the lines and stations drawn over it. Drawn in schematic px (the transform is set by the caller).
+func _draw_board(c: CanvasItem) -> void:
+	c.draw_rect(Rect2(Vector2.ZERO, _map_size), Color("dccfab"))
+	if _map != null:
+		c.draw_texture_rect(_map, Rect2(Vector2.ZERO, _map_size), false, Color(1.0, 1.0, 1.0, 0.13))
+	var grid := Color(0.35, 0.27, 0.16, 0.10)
+	var gx := 0.0
+	while gx <= _map_size.x:
+		c.draw_line(Vector2(gx, 0.0), Vector2(gx, _map_size.y), grid, 1.0)
+		gx += 100.0
+	var gy := 0.0
+	while gy <= _map_size.y:
+		c.draw_line(Vector2(0.0, gy), Vector2(_map_size.x, gy), grid, 1.0)
+		gy += 100.0
+	c.draw_rect(Rect2(Vector2(14, 14), _map_size - Vector2(28, 28)), Color(0.2, 0.15, 0.09, 0.55), false, 3.0)
+	_ready_fonts()
+	var font: Font = _tag_font if _tag_font != null else ThemeDB.fallback_font
+	for row in _sch_boroughs:
+		var label := str(row.get("ru" if Copy.ru() else "en", ""))
+		var at := _vec(row.get("at", []), Vector2.ZERO)
+		c.draw_string(font, at, label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 54, Color(0.25, 0.18, 0.1, 0.16))
 
 
 ## A bare table: plain wood from the middle of the desk picture (none of its props), tiled mirror-wise under
@@ -622,7 +712,7 @@ func _vignette(c: CanvasItem) -> void:
 
 
 func _draw_weights(c: CanvasItem) -> void:
-	if _desk == null:
+	if _desk == null or schematic:
 		return
 	for spot in _weights:
 		_shadow(c, spot + Vector2(4, 7), _weight_radius * 1.35, 0.55)
@@ -673,6 +763,10 @@ func _build_land() -> void:
 				var py := mini(img.get_height() - 1, int((float(y) + 0.5) * TERR_STEP * k.y))
 				var col := img.get_pixel(px, py)
 				raw[y * _land_w + x] = 1 if (col.r - col.b > 0.17 and col.r > 0.5) else 0
+	if schematic:
+		_land.resize(_land_w * _land_h)
+		_land.fill(1)
+		return
 	_land.resize(_land_w * _land_h)
 	for y in _land_h:
 		for x in _land_w:
@@ -728,7 +822,7 @@ func _territory_texture(game) -> ImageTexture:
 	if ids.is_empty():
 		_terr_tex = ImageTexture.create_from_image(img)
 		return _terr_tex
-	var reach := TERR_REACH / float(TERR_STEP)
+	var reach := TERR_REACH * (0.6 if schematic else 1.0) / float(TERR_STEP)
 	var infl: Array = []
 	for fi in ids.size():
 		var field := PackedFloat32Array()
@@ -906,7 +1000,9 @@ func _draw_ink(c: CanvasItem) -> void:
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_layout_pins(game)
 	_draw_leaders(c)
+	_draw_junctions(c, game)
 	_draw_pins(c, game)
+	_draw_line_badges(c, game)
 	_draw_tags(c, game)
 	_draw_flags(c, game)
 	_draw_squads(c, game)
@@ -1230,6 +1326,43 @@ func _draw_pins(c: CanvasItem, game) -> void:
 			_draw_unknown(c, str(sid), row)
 
 
+## Transfer stations (on two lines or more): a double ring round the pin, so the choke points read at a glance.
+func _draw_junctions(c: CanvasItem, game) -> void:
+	var lines: Dictionary = game.catalog.communities.get("lines", {})
+	var count := {}
+	for line_id in lines:
+		for stop in lines[line_id]:
+			count[str(stop)] = int(count.get(str(stop), 0)) + 1
+	for sid in _layout:
+		if int(count.get(str(sid), 0)) < 2 or not bool(_layout[sid].known):
+			continue
+		var row: Dictionary = _layout[sid]
+		var r := float(row.px) * 0.62
+		c.draw_arc(row.at, r + 4.0, 0.0, TAU, 48, Color(TAG_INK, 0.85), 3.0, true)
+		c.draw_arc(row.at, r, 0.0, TAU, 48, Color(TAG_PAPER, 0.95), 4.0, true)
+
+
+## A round badge with the line's letter at the first and the last stop of each line, in the line's colour.
+func _draw_line_badges(c: CanvasItem, game) -> void:
+	_ready_fonts()
+	var lines: Dictionary = game.catalog.communities.get("lines", {})
+	var font: Font = _tag_font if _tag_font != null else ThemeDB.fallback_font
+	for line_id in lines:
+		var stops: Array = lines[line_id]
+		if stops.size() < 2:
+			continue
+		var col: Color = LINE_COLOR.get(str(line_id), Color("3a3028"))
+		for end in [0, stops.size() - 1]:
+			var sid := str(stops[end])
+			if not _layout.has(sid) or not bool(_layout[sid].known):
+				continue
+			var row: Dictionary = _layout[sid]
+			var at: Vector2 = row.at + Vector2(float(row.px) * 0.52, -float(row.px) * 0.52)
+			c.draw_circle(at, 11.0, Color(TAG_INK, 0.9))
+			c.draw_circle(at, 9.0, col)
+			c.draw_string(font, at + Vector2(-5.0, 5.0), str(line_id).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14, Color.WHITE)
+
+
 func _pin_order(a, b) -> bool:
 	var fa := 1 if a == _hover or a == selected else 0
 	var fb := 1 if b == _hover or b == selected else 0
@@ -1330,7 +1463,7 @@ func _draw_tags(c: CanvasItem, game) -> void:
 		var st: Dictionary = game.stations[sid]
 		var own := str(st.owner) == str(game.player)
 		var focus: bool = sid == _hover or sid == selected
-		if level == 0 and not (bool(row.big) or own or focus):
+		if level == 0 and not schematic and not (bool(row.big) or own or focus):
 			continue
 		var weight := 10
 		if sid == str(game.capital_id):
@@ -1791,7 +1924,7 @@ func _build_zoom_bar() -> void:
 	_zoom_bar = HBoxContainer.new()
 	_zoom_bar.add_theme_constant_override("separation", 6)
 	_zoom_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for key in ["out", "in", "fit", "land"]:
+	for key in ["out", "in", "fit", "map", "land"]:
 		var button := Button.new()
 		button.custom_minimum_size = Vector2(44, 44)
 		button.focus_mode = Control.FOCUS_NONE
@@ -1830,10 +1963,13 @@ func _name_zoom_bar() -> void:
 	_zoom_buttons["in"].tooltip_text = Copy.t("Zoom in")
 	_zoom_buttons.fit.text = Copy.t("Whole map")
 	_zoom_buttons.fit.tooltip_text = Copy.t("Show the whole network")
+	_zoom_buttons.map.text = Copy.t("Real map") if schematic else Copy.t("Schematic")
+	_zoom_buttons.map.tooltip_text = Copy.t("Show the painted map of New York.") if schematic else Copy.t("Show the schematic of the lines.")
 	_zoom_buttons.land.text = Copy.t("Territories")
 	_zoom_buttons.land.tooltip_text = Copy.t("Colour each faction's land on the map.")
 	if _tag_font != null:
 		_zoom_buttons.fit.add_theme_font_override("font", _tag_font)
+		_zoom_buttons.map.add_theme_font_override("font", _tag_font)
 		_zoom_buttons.land.add_theme_font_override("font", _tag_font)
 
 
@@ -1849,6 +1985,9 @@ func _zoom_button(key: String) -> void:
 		host._ui_click()
 	if key == "land":
 		set_territories(_zoom_buttons.land.button_pressed)
+		return
+	if key == "map":
+		set_schematic(not schematic)
 		return
 	if key == "fit":
 		_fit()

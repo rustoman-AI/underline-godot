@@ -1162,5 +1162,9 @@
   "Show the whole network": "Показать всю сеть",
   "Territories": "Территории",
   "Colour each faction's land on the map.": "Закрасить на карте земли каждой фракции.",
-  "%s %+d a week: %s": "%s %+d в неделю: %s"
+  "%s %+d a week: %s": "%s %+d в неделю: %s",
+  "Real map": "Настоящая карта",
+  "Schematic": "Схема",
+  "Show the painted map of New York.": "Показать нарисованную карту Нью-Йорка.",
+  "Show the schematic of the lines.": "Показать схему линий."
 }
