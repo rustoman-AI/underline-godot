@@ -42,8 +42,8 @@ const TERRITORY_REACH := 165.0
 const TERRITORY_FILL := 0.32
 const TERRITORY_LINE := 1.2
 const TERRITORY_DASH := 7.0
-## Territory raster: one grid cell is TERR_STEP map px; a station's influence fades out over TERR_REACH map px,
-## a faction holds the land where its summed influence passes TERR_EDGE; fill strength, hatch period (cells) and
+## Territory raster: one grid cell is TERR_STEP map px; each known station claims the land nearest to it out to TERR_REACH map px,
+## with a ragged outer edge; TERR_EDGE is the wash strength at that edge; fill strength, hatch period (cells) and
 ## the border's strength.
 const TERR_STEP := 3
 const TERR_REACH := 250.0
@@ -806,62 +806,64 @@ func _territory_texture(game) -> ImageTexture:
 	_build_land()
 	var w := _land_w
 	var h := _land_h
+	## Every known station claims the land nearest to it, held or not, so a held station takes its whole share of
+	## the map up to the line halfway to its neighbours (Civilization style) instead of a ring around the pin.
+	## Neighbours of one holder merge into one area; open and unexplored stations keep theirs white.
 	var ids: Array = []
 	var seeds: Array = []
+	var seed_owner: Array = []
 	for sid in game.stations:
 		var st: Dictionary = game.stations[sid]
-		if _secret(st) or not bool(st.get("known", true)) or not _spots.has(str(sid)):
+		if _secret(st) or not _spots.has(str(sid)):
 			continue
 		var holder := territory_owner(game, str(sid))
-		if holder == "":
-			continue
-		var fi := ids.find(holder)
-		if fi < 0:
-			ids.append(holder)
-			seeds.append([])
-			fi = ids.size() - 1
-		seeds[fi].append(_map_spot(str(sid)) / float(TERR_STEP))
+		var fi := -1
+		if holder != "":
+			fi = ids.find(holder)
+			if fi < 0:
+				ids.append(holder)
+				fi = ids.size() - 1
+		seeds.append(_map_spot(str(sid)) / float(TERR_STEP))
+		seed_owner.append(fi)
 	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
 	img.fill(Color.WHITE)
 	if ids.is_empty():
 		_terr_tex = ImageTexture.create_from_image(img)
 		return _terr_tex
-	var reach := TERR_REACH * (0.6 if schematic else 1.0) / float(TERR_STEP)
-	var infl: Array = []
-	for fi in ids.size():
-		var field := PackedFloat32Array()
-		field.resize(w * h)
-		for at in seeds[fi]:
-			var x0 := maxi(0, floori(at.x - reach))
-			var x1 := mini(w - 1, ceili(at.x + reach))
-			var y0 := maxi(0, floori(at.y - reach))
-			var y1 := mini(h - 1, ceili(at.y + reach))
-			for y in range(y0, y1 + 1):
-				for x in range(x0, x1 + 1):
-					var d := Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(at) / reach
-					if d < 1.0:
-						var v := 1.0 - d
-						v = v * v * (3.0 - 2.0 * v) * _terr_noise(x, y)
-						field[y * w + x] += v
-		infl.append(field)
+	var reach := TERR_REACH / float(TERR_STEP)
+	var nearest := PackedFloat32Array()
+	nearest.resize(w * h)
+	nearest.fill(INF)
 	var owner_at := PackedInt32Array()
 	owner_at.resize(w * h)
+	owner_at.fill(-1)
+	for si in seeds.size():
+		var at: Vector2 = seeds[si]
+		var x0 := maxi(0, floori(at.x - reach * 1.3))
+		var x1 := mini(w - 1, ceili(at.x + reach * 1.3))
+		var y0 := maxi(0, floori(at.y - reach * 1.3))
+		var y1 := mini(h - 1, ceili(at.y + reach * 1.3))
+		for y in range(y0, y1 + 1):
+			for x in range(x0, x1 + 1):
+				var i := y * w + x
+				if _land[i] == 0:
+					continue
+				var d := Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(at)
+				if d < nearest[i]:
+					nearest[i] = d
+					owner_at[i] = int(seed_owner[si])
 	var strength := PackedFloat32Array()
 	strength.resize(w * h)
-	for i in w * h:
-		owner_at[i] = -1
-		if _land[i] == 0:
-			continue
-		var best := -1
-		var top := 0.0
-		for fi in ids.size():
-			var v: float = infl[fi][i]
-			if v > top:
-				top = v
-				best = fi
-		if best >= 0 and top >= TERR_EDGE:
-			owner_at[i] = best
-			strength[i] = top
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			if owner_at[i] < 0:
+				continue
+			var left := 1.0 - nearest[i] / (reach * lerpf(1.0, _terr_noise(x, y), 0.4))
+			if left <= 0.0:
+				owner_at[i] = -1
+				continue
+			strength[i] = TERR_EDGE + left
 	var colors: Array = []
 	for fi in ids.size():
 		colors.append(territory_color(game, str(ids[fi])))
