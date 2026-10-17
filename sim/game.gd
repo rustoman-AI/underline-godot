@@ -2001,7 +2001,7 @@ func _rival_agents() -> void:
 	if not hostile:
 		return
 	_add_discontent(int(bal.agent_discontent), "agent")
-	_note("AGENT a rival rumor moves through the yard", "AGENT По двору прошёл слух соперника.")
+	_note("AGENT a rival rumor moves through the yard", "AGENT По станции ползёт слух, пущенный соперником.")
 
 
 func _buffer_span() -> Dictionary:
@@ -4945,7 +4945,7 @@ func requires_reason(req) -> String:
 		return Copy.t("Not while an ending is open") if bool(req.ending_blocked) else Copy.t("Only while an ending is open")
 	if req.has("proofs_min") and proofs() < int(req.proofs_min):
 		if Copy.ru():
-			return "Нужно %d %s, у вас %d" % [int(req.proofs_min), Copy.plural(int(req.proofs_min), ["доказательство", "доказательства", "доказательств"]), proofs()]
+			return "Нужно %d %s, у тебя %d" % [int(req.proofs_min), Copy.plural(int(req.proofs_min), ["доказательство", "доказательства", "доказательств"]), proofs()]
 		return "Needs %d %s, you have %d" % [int(req.proofs_min), "proof" if int(req.proofs_min) == 1 else "proofs", proofs()]
 	if req.has("hope_min") and hope < int(req.hope_min):
 		return Copy.t("Needs hope %d, now %d") % [int(req.hope_min), hope]
@@ -5377,12 +5377,12 @@ func _retry_line(choice: Dictionary) -> String:
 	if retry.has("level"):
 		var named := str(catalog.rooms[str(retry.get("room", ""))].name)
 		if Copy.ru():
-			return "Повтор, когда %s достигнет уровня %d" % [Copy.t(named), int(retry.level)]
+			return "Повтор, когда %s дойдёт до ступени %d" % [Copy.t(named), int(retry.level)]
 		return "Retry after: %s level %d" % [named, int(retry.level)]
 	if retry.has("room"):
 		var name := str(catalog.rooms[str(retry.room)].name)
 		if Copy.ru():
-			return "Повтор, когда построите: %s" % Copy.t(name)
+			return "Повтор, когда построишь: %s" % Copy.t(name)
 		return "Retry after: build %s" % name
 	if retry.has("skill"):
 		var label := Copy.skill(str(retry.skill))
@@ -5441,7 +5441,7 @@ func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bo
 	if retried:
 		choice.locked = true
 		choice.spent = true
-		choice.lock_reason = "The roll stands." if not Copy.ru() else "Бросок остаётся."
+		choice.lock_reason = "The roll stands." if not Copy.ru() else "Перебросить нельзя."
 		return false
 	choice.locked = true
 	choice.retry_open = false

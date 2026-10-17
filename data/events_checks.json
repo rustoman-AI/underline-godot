@@ -7,7 +7,7 @@
       "banner": "expedition",
       "title": {"ru": "Экспедиция в Квинс", "en": "Expedition to Queens"},
       "intro": {
-        "ru": "Разведчики замерли перед ржавым гермозатвором заброшенной ветки на Квинс. Пахнет сыростью, машинным маслом и чем-то приторно-сладким. За дверью довоенный склад медикаментов, но туннель подозрительно тихо дышит.",
+        "ru": "Разведчики замерли перед ржавым гермозатвором заброшенной ветки на Квинс. Пахнет сыростью, машинным маслом и чем-то приторно-сладким. За дверью довоенный склад медикаментов, но тоннель подозрительно тихо дышит.",
         "en": "The scouts stop at a rusted blast door on the dead Queens branch. It smells of damp, machine oil and something sickly sweet. Behind the door is a pre-war medical store, and the tunnel is breathing far too quietly."
       },
       "options": [
@@ -30,7 +30,7 @@
           "skill": "senses", "target": 9, "color": "red",
           "text": {"ru": "Отрегулировать фонари и высмотреть засаду в щелях затвора.", "en": "Dim the headlamps and look for an ambush through the gaps."},
           "success": {
-            "text": {"ru": "Вы замечаете гнездо летучих мышей прямо над проходом и обходите его через вентиляцию. Добыча в руках без единого выстрела.", "en": "You spot a bat roost right over the passage and slip round it through the vents. The haul is yours without a shot fired."},
+            "text": {"ru": "Ты замечаешь гнездо летучих мышей прямо над проходом и обходишь его через вентиляцию. Добыча в руках без единого выстрела.", "en": "You spot a bat roost right over the passage and slip round it through the vents. The haul is yours without a shot fired."},
             "effects": {"flag": "medkits"}
           },
           "fail": {
@@ -74,7 +74,7 @@
             "effects": {"hope": 1}
           },
           "fail": {
-            "text": {"ru": "Вы ошиблись в расчётах. Пары вспыхивают и сносят половину стойки, агроном наглотался дыма. Половина запасов еды пропала.", "en": "The numbers were wrong. The fumes flash and take out half the rack, and the grower breathes the smoke. Half the food stores are gone."},
+            "text": {"ru": "Расчёт оказался неверным. Пары вспыхивают и сносят половину стойки, агроном наглотался дыма. Половина запасов еды пропала.", "en": "The numbers were wrong. The fumes flash and take out half the rack, and the grower breathes the smoke. Half the food stores are gone."},
             "effects": {"food_pct": -16, "injured": 1, "room_disabled": {"type": "hydroponics", "weeks": 2}}
           }
         }
@@ -96,11 +96,11 @@
           "skill": "voice", "target": 9, "color": "red",
           "text": {"ru": "Докричаться через решётку до их вожака, взывая к подземному братству.", "en": "Shout through the grate to their leader about the brotherhood of the deep."},
           "success": {
-            "text": {"ru": "Ваша тирада о «единой тьме для всех» трогает безумца. Кроты забирают вёдра и уходят молиться в другие туннели.", "en": "Your speech about one darkness for all moves the madman. The Moles take their buckets and go to pray in other tunnels."},
+            "text": {"ru": "Твоя речь о «единой тьме для всех» трогает безумца. Кроты забирают вёдра и уходят молиться в другие тоннели.", "en": "Your speech about one darkness for all moves the madman. The Moles take their buckets and go to pray in other tunnels."},
             "effects": {"hope": 1, "relation": {"moles": 10}}
           },
           "fail": {
-            "text": {"ru": "Сектант объявляет вас еретиком и швыряет сквозь решётку серную шашку. Ярус приходится временно эвакуировать.", "en": "The cultist calls you a heretic and throws a sulfur smoke bomb through the grate. The level has to be evacuated for a while."},
+            "text": {"ru": "Сектант объявляет тебя еретиком и швыряет сквозь решётку серную шашку. Ярус приходится временно эвакуировать.", "en": "The cultist calls you a heretic and throws a sulfur smoke bomb through the grate. The level has to be evacuated for a while."},
             "effects": {"air": -2, "sick": 1, "room_disabled": {"type": "air_filter", "weeks": 1}}
           }
         },
@@ -113,7 +113,7 @@
             "effects": {"hope": -1, "discontent": 1, "relation": {"moles": -15}}
           },
           "fail": {
-            "text": {"ru": "Вы задеваете ржавый болт, инструмент с грохотом летит вниз. Кроты замечают вас и забрасывают шахту камнями.", "en": "You knock a rusty bolt and the tools clatter down. The Moles spot you and rain stones into the shaft."},
+            "text": {"ru": "Ты задеваешь ржавый болт, инструмент с грохотом летит вниз. Кроты замечают тебя и забрасывают шахту камнями.", "en": "You knock a rusty bolt and the tools clatter down. The Moles spot you and rain stones into the shaft."},
             "effects": {"injured": 1, "air": -1},
             "retry_after": {"skill": "senses", "min": 2, "label": {"ru": "Житель с Чутьём 2", "en": "A resident with Senses 2"}}
           }
@@ -143,7 +143,7 @@
           "fail": {
             "text": {"ru": "Шланги лопаются и заливают комнату горючей смесью. Ремонт займёт вдвое больше времени.", "en": "The hoses burst and flood the room with fuel. The repair will take twice as long."},
             "effects": {"room_disabled": {"type": "generator", "weeks": 1}},
-            "retry_after": {"room_level": {"workshop": 2}, "label": {"ru": "Мастерская 2 уровня", "en": "Workshop level 2"}}
+            "retry_after": {"room_level": {"workshop": 2}, "label": {"ru": "Мастерская, ступень 2", "en": "Workshop level 2"}}
           }
         },
         {
@@ -177,11 +177,11 @@
           "stake": {"tokens": 6},
           "text": {"ru": "Изучить крыс, вычислить фаворита по шрамам и дыханию и поставить 6 жетонов.", "en": "Study the rats, pick the favourite by scars and breathing, and bet 6 tokens."},
           "success": {
-            "text": {"ru": "Аналитика побеждает рандом. Фаворит вырывает победу, вы забираете тройной банк и уважение ставочников.", "en": "Analysis beats chance. The favourite wins and you take triple the pot and the gamblers' respect."},
+            "text": {"ru": "Аналитика побеждает рандом. Фаворит вырывает победу, ты забираешь тройной банк и уважение ставочников.", "en": "Analysis beats chance. The favourite wins and you take triple the pot and the gamblers' respect."},
             "effects": {"tokens": 18, "hope": 1}
           },
           "fail": {
-            "text": {"ru": "Крыса-фаворит падает замертво прямо на старте. Жетоны пропали, а рабочие смеются вам вслед.", "en": "The favourite drops dead at the start. The tokens are gone and the workers laugh behind your back."},
+            "text": {"ru": "Крыса-фаворит падает замертво прямо на старте. Жетоны пропали, а рабочие смеются тебе вслед.", "en": "The favourite drops dead at the start. The tokens are gone and the workers laugh behind your back."},
             "effects": {"discontent": 1}
           }
         },
@@ -194,7 +194,7 @@
             "effects": {"tokens": 6, "materials": 1, "influence": 2, "discontent": 1}
           },
           "fail": {
-            "text": {"ru": "«Шоутайм» поднимает вас на смех, называет станцию дырой и уходит, прихватив с собой одного вашего жителя.", "en": "Showtime laughs at you, calls the station a dump and leaves, taking one of your residents along."},
+            "text": {"ru": "«Шоутайм» поднимает тебя на смех, называет станцию дырой и уходит, прихватив с собой одного из твоих жителей.", "en": "Showtime laughs at you, calls the station a dump and leaves, taking one of your residents along."},
             "effects": {"residents_lost": 1, "hope": -1},
             "retry_after": {"skill": "voice", "min": 2, "label": {"ru": "Житель с Речью 2", "en": "A resident with Voice 2"}}
           }

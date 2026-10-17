@@ -34,7 +34,7 @@
           "ru": "Свет у тебя горит. Это уже что-то. Говори коротко."
         },
         "useful": {
-          "en": "Your people hold their joints. I remember that. Sit. I'll pour tea.",
+          "en": "Your crews keep their rail joints tight. I don't forget that. Sit. I'll pour tea.",
           "ru": "Твои люди держат стыки. Я это помню. Садись, налью чаю."
         },
         "pact": {
@@ -103,7 +103,7 @@
         },
         "wary": {
           "en": "You are listed as pending. That is better than most.",
-          "ru": "Вы числитесь как «ожидает». Это лучше, чем у многих."
+          "ru": "Вы у нас пока в графе «на рассмотрении». Это лучше, чем у многих."
         },
         "useful": {
           "en": "Your reports arrive on time. That's rare. Please, sit.",
@@ -254,7 +254,7 @@
           "ru": "С тобой удобно. Платишь вовремя и не врёшь про вкус. Садись."
         },
         "pact": {
-          "en": "For you, no entry. People have been killed over that compliment. Don't abuse it.",
+          "en": "For you, I don't write it down. People have died for that kind of compliment. Don't abuse it.",
           "ru": "Для тебя без записи. Из-за такого комплимента у нас убивали. Не злоупотребляй."
         }
       },
@@ -263,8 +263,8 @@
         "ru": "Ты на моих рынках без бирки. Бирка стоит еды. Подойди и купи, пока я добрый."
       },
       "trade": {
-        "en": "Kerosene for bread, bread for plasters. Let me write it on my arm. You'll remember better.",
-        "ru": "Керосин на хлеб, хлеб на пластыри. Дай запишу на руке. Ты запомнишь лучше."
+        "en": "Kerosene for bread, bread for plasters. I'll write it on my arm. Debts don't get lost there.",
+        "ru": "Керосин на хлеб, хлеб на пластыри. Запишу себе на руке. Там долг не потеряется."
       },
       "pitch": {
         "en": "Forty sacks of grain today, from my own store. In return, your books. Who eats how much, what's hidden where, what you've found. I read them and give them back. I won't sell them to the Directorate. I won't promise I won't sell them to anyone.",
@@ -344,7 +344,7 @@
       },
       "accepted": {
         "en": "Done. At night you'll hear the lamps. Don't go out. It's only people walking.",
-        "ru": "Идёт. Ночью услышишь лампы. Не выходи. Это просто идут люди."
+        "ru": "Договорились. Ночью услышишь лампы. Не выходи. Это просто люди идут."
       },
       "declined": {
         "en": "Then they walk without light. I'll remember you chose that.",

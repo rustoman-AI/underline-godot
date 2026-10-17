@@ -22,6 +22,7 @@ Conditions the sim raises: `food_critical` (food under one week of meals), `powe
 | Phase 2 | resident stories: `ruth`, `benny`, `ellis`, `samira`, `owen`, `lila`, `pete`, `june`, `hal`, `nora`, `vic`, `ada`, `chris`, `mina`, `rob`, `tess`, `paul`, `kim`, `drew`, `ann`, `leo`, `fran` (`<id>_story`) |
 | Phase 3 | event resolves `event_<id>_resolve` (lamps, refugees, quarrel, smuggler, rumble, static, desertion, cough) and system lines `sys_<condition>` (all 8) |
 | Radio pilot 04 | `radio_flood_watch`, `radio_red_scarf`, `radio_purple_notice`, `radio_knock_twice` (from `data/vo/cable_radio.json`), delivered normalized to -23 LUFS. Not auditioned; ear review deferred until funding. |
+| Rewording 01 (17 Oct) | Re-recorded with the new wording of the literal translation pass (`docs/briefs/muse_vo_rewording.txt`): `event_desertion_resolve_ru`, `sys_caravan_arrived_ru`, `radio_news_002_ru` (announcer Daniel `onwK4e9ZLuTAKqWW03F9`) and six leader files (`lead_depot_band_useful_en`, `lead_exchange_band_pact_en`, `lead_exchange_trade_en`, `lead_exchange_trade_ru`, `lead_black_flag_accepted_ru`, `lead_directorate_band_wary_ru`). Take 2 of two installed (stability 0.65, flatter), same voices, eleven_v4. Delivery in `incoming-audio/vo-rewording-01/`; the replaced originals and installed files sit in `replaced_20261017/` inside each `_originals_*` folder. Passed technical QC; not auditioned. |
 
 Radio count: 14 of 26 bulletins voiced (`radio_news_001` to `radio_news_010` and pilot 04); 12 still text only, all in `data/vo/cable_radio.json`.
 

@@ -1,5 +1,5 @@
 {
-  "_note": "Russian subtitle rewrites applied by tools/import_vo.gd before em dashes are stripped. Each pair is [text in the script pack, subtitle text]. Only the on-screen text changes; the recorded audio keeps the original wording.",
+  "_note": "Russian subtitle rewrites applied by tools/import_vo.gd before em dashes are stripped. Each pair is [text in the script pack, subtitle text]. Only the on-screen text changes; the recorded audio keeps the original wording, except event_desertion_resolve, sys_caravan_arrived and radio_news_002 (RU), re-recorded with the new wording on 17 Oct 2026.",
   "jonah": [
     ["А ворота — ворота я удержал.", "А вот ворота я удержал."],
     ["что обещание — это броня.", "что обещание и есть броня."]
@@ -155,7 +155,19 @@
     ["Имя — на доске в зале собраний.", "Имя будет на доске в зале собраний."]
   ],
   "sys_caravan_arrived": [
-    ["У ворот двора торговцы — цвета Биржи", "У ворот двора торговцы: цвета Биржи"]
+    ["У ворот двора торговцы — цвета Биржи", "У ворот двора торговцы: цвета Биржи"],
+    ["У ворот двора", "У ворот станции"],
+    ["цены сговорчивы", "цены сговорчивые"]
+  ],
+  "event_desertion_resolve": [
+    ["две нары пустовали", "две койки пустовали"],
+    ["один жетон вернулся", "вернулся один номерок"],
+    ["номерок, лежал", "номерок: лежал"],
+    ["а кто вернулся, молчит", "а кто его вернул, молчит"],
+    ["Пустая нара остаётся застеленной", "Пустая койка так и стоит застеленной"]
+  ],
+  "radio_news_002": [
+    ["Хорошие вести со двора", "Хорошие вести со станции"]
   ],
   "sys_morale_high": [
     ["Такие дни — несущие.", "На таких днях всё и держится."]

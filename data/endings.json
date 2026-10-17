@@ -38,7 +38,7 @@
       },
       "text": {
         "en": "Week forty. The lights are on and your people are alive, and no one can tell you why the surface went quiet or what the tapping in the pipe is counting. Someone says: one more week. Nobody knows what they mean.",
-        "ru": "Сороковая неделя. Свет горит, твои люди живы, и никто не может сказать тебе, почему замолчала поверхность и что считает стук в трубе. Кто-то говорит: ещё одну неделю. Никто не знает, что он имеет в виду."
+        "ru": "Сороковая неделя. Свет горит, твои люди живы, и никто не может сказать тебе, почему замолчала поверхность и кто ведёт счёт, отстукивая его в трубе. Кто-то говорит: ещё одну неделю. Никто не знает, что он имеет в виду."
       }
     },
     "collapse": {
@@ -86,15 +86,15 @@
     "depot": {
       "accepted": {
         "en": "He burned the copy with you, and the Depot kept its crew whole. The yard still does not say what was in the stove.",
-        "ru": "Он сжёг копию вместе с тобой, и Депо сохранило бригаду целой. Двор до сих пор не говорит, что было в печи."
+        "ru": "Он сжёг копию вместе с тобой, и Депо сохранило бригаду целой. В депо до сих пор не говорят, что было в печи."
       },
       "refused": {
         "en": "He never asked again. The yard kept its parts for itself, and the switch at the platform stayed dark through the winter.",
-        "ru": "Он больше не просил. Двор оставил детали себе, и стрелка на платформе всю зиму оставалась тёмной."
+        "ru": "Он больше не просил. Депо оставило детали себе, и стрелка на платформе всю зиму оставалась тёмной."
       },
       "helped": {
         "en": "He kept the tea hot on the platform bench. Whatever you carried to his yard, he remembered.",
-        "ru": "Он держал чай горячим на платформенной скамье. Что бы ты ни приносил в его двор, он запомнил."
+        "ru": "Он держал чай горячим на платформенной скамье. Что бы ты ни приносил в его депо, он запомнил."
       },
       "none": {
         "en": "He never came to your platform. The Depot ran the line without you.",

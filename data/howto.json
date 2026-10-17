@@ -2,36 +2,36 @@
   "_note": "First-run 'How to play' card for the playtest build, written by the project lead. Shown once at the start of a new game, with a 'Do not show again' option and reachable again from the Menu. Six short lines.",
   "title": {
     "en": "How to hold a station",
-    "ru": "Как держать станцию"
+    "ru": "Как удержать станцию"
   },
   "lines": [
     {
       "en": "Your goal: keep your people alive for forty weeks, and find out why the surface went silent.",
-      "ru": "Твоя цель: сохранить людей живыми сорок недель и выяснить, почему замолчала поверхность."
+      "ru": "Твоя задача: продержаться сорок недель, сберечь людей и узнать, почему замолчала поверхность."
     },
     {
       "en": "Each week: read the dawn report, decide, put people to work in rooms, dig and build, then press End turn.",
-      "ru": "Каждая неделя: прочти утренний отчёт, прими решение, поставь людей на работу в комнаты, копай и строй, затем нажми «Конец хода»."
+      "ru": "Каждую неделю: прочти утреннюю сводку, прими решения, расставь людей по комнатам, копай и строй, потом нажми «Конец хода»."
     },
     {
       "en": "A card that opens at dawn is either the new week or an event. An event waits for your choice, and End turn stays dark until you make it.",
-      "ru": "Карточка на рассвете это либо новая неделя, либо событие. Событие ждёт твоего выбора, и «Конец хода» остаётся тёмным, пока ты не выберешь."
+      "ru": "Утром открывается карточка: новая неделя или событие. Пока событие ждёт ответа, «Конец хода» не нажимается."
     },
     {
       "en": "Rooms need people. Tap a room, then a name. Each room uses one skill; the best person for it is listed first.",
-      "ru": "Комнатам нужны люди. Нажми комнату, затем имя. У каждой комнаты свой главный навык, лучший человек для неё стоит первым."
+      "ru": "Комнатам нужны люди. Нажми на комнату, потом на имя. Каждой комнате важен свой навык, и лучший работник для неё стоит в списке первым."
     },
     {
-      "en": "Air, food, power, materials. The people count at the top, like 25/20, is people against beds: past the beds, discontent climbs. Hope and discontent decide whether people stay.",
-      "ru": "Воздух, еда, энергия, материалы. Счётчик людей наверху, например 25/20, это люди против коек: сверх коек растёт недовольство. Надежда и недовольство решают, останутся ли люди."
+      "en": "Air, food, power, materials. The count at the top, like 25/20, means 25 people for 20 beds. Anyone without a bed adds to discontent. Hope and discontent decide whether people stay.",
+      "ru": "Воздух, еда, энергия, материалы. Число наверху, например 25/20, значит 25 человек на 20 коек. Кому не хватило койки, тот злится. Надежда и недовольство решают, останутся ли люди."
     },
     {
       "en": "Leaders come to your door. Each has a price. You can hear them, refuse, or offer help.",
-      "ru": "Лидеры приходят к твоей двери. У каждого своя цена. Можно выслушать, отказать или предложить помощь."
+      "ru": "К тебе будут приходить главы фракций. У каждого своя цена. Можно выслушать, отказать или предложить помощь."
     },
     {
       "en": "The Network button opens the map: trade, envoys, squads, bunkers. Marching needs soldiers, taken from your own people, and a faction you attack strikes back. The Journal, then Truth, shows what you have learned about the Silence.",
-      "ru": "Кнопка «Сеть» открывает карту: торговля, послы, отряды, бункеры. Для похода нужны бойцы из твоих же людей, а фракция, на которую ты напал, ответит ударом. Журнал, затем «Правда», показывает, что ты узнал о Тишине."
+      "ru": "Кнопка «Сеть» открывает карту: торговля, посланники, отряды, бункеры. Для похода нужны бойцы из твоих же людей, а фракция, на которую нападёшь, ответит ударом. Что известно о Тишине, смотри в журнале на вкладке «Правда»."
     }
   ]
 }

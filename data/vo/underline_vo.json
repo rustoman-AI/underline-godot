@@ -350,7 +350,7 @@
       "mood": "light",
       "en": "Good news from the yard: Vic Ellis's missing toolbox turned up behind the generator housing. Vic would like everyone to know the tools are fine, the box is fine, and he is accepting apologies in the form of scrap metal. Business as usual at the mountain.",
       "audio_en": "res://assets/audio/vo/radio_news_002_en.ogg",
-      "ru": "Хорошие вести со двора: пропавший ящик Вика Эллиса нашёлся за кожухом генератора. Вик сообщает всем: инструменты целы, ящик цел, а извинения принимаются металлоломом. У горы всё по-прежнему.",
+      "ru": "Хорошие вести со станции: пропавший ящик Вика Эллиса нашёлся за кожухом генератора. Вик сообщает всем: инструменты целы, ящик цел, а извинения принимаются металлоломом. У горы всё по-прежнему.",
       "audio_ru": "res://assets/audio/vo/radio_news_002_ru.ogg"
     },
     {
@@ -508,7 +508,7 @@
       "event": "desertion",
       "en": "Two bunks were empty at count. By morning, one tag came back, left on the gate, no note. Whoever left, left quiet, and whoever came back isn't saying. The empty bunk stays made. Just in case.",
       "audio_en": "res://assets/audio/vo/event_desertion_resolve_en.ogg",
-      "ru": "На поверке две нары пустовали. К утру один жетон вернулся, лежал на воротах, без записки. Кто ушёл, ушёл тихо, а кто вернулся, молчит. Пустая нара остаётся застеленной. На всякий случай.",
+      "ru": "На поверке две койки пустовали. К утру вернулся один номерок: лежал на воротах, без записки. Кто ушёл, ушёл тихо, а кто его вернул, молчит. Пустая койка так и стоит застеленной. На всякий случай.",
       "audio_ru": "res://assets/audio/vo/event_desertion_resolve_ru.ogg"
     },
     {
@@ -568,7 +568,7 @@
       "condition": "caravan_arrived",
       "en": "Traders at the yard gate, Exchange colors, real goods, real prices. Benny Cho is already there, which tells you the prices are negotiable and the goods are probably worth it. Trade fair, Coney Island.",
       "audio_en": "res://assets/audio/vo/sys_caravan_arrived_en.ogg",
-      "ru": "У ворот двора торговцы: цвета Биржи, настоящий товар, настоящие цены. Бенни Чо уже там, а это значит: цены сговорчивы, а товар, скорее всего, того стоит. Торгуйте честно, Кони-Айленд.",
+      "ru": "У ворот станции торговцы: цвета Биржи, настоящий товар, настоящие цены. Бенни Чо уже там, а это значит: цены сговорчивые, а товар, скорее всего, того стоит. Торгуйте честно, Кони-Айленд.",
       "audio_ru": "res://assets/audio/vo/sys_caravan_arrived_ru.ogg"
     },
     {
