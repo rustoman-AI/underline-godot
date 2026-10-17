@@ -119,12 +119,22 @@ func _validate() -> void:
 	_expect(bad.is_empty() and not events.is_empty(),
 		"Leader events valid: %d events, %d catalog ids unique, every string has Russian, no dashes" % [events.size(), ids.size()],
 		"leader events: " + "; ".join(bad))
+	## Two waves at most per leader and answer, and their windows never overlap, so one never hides the other.
 	var pairs := {}
 	for ev in events:
 		var key := "%s/%s" % [ev.needs.leader, ev.needs.answer]
-		pairs[key] = int(pairs.get(key, 0)) + 1
-	_expect(pairs.size() == events.size(), "One consequence per leader and answer (%s)" % ", ".join(PackedStringArray(pairs.keys())),
-		"leader/answer pairs %s" % str(pairs))
+		if not pairs.has(key):
+			pairs[key] = []
+		pairs[key].append(ev.needs.after_weeks)
+	var clash: PackedStringArray = []
+	for key in pairs:
+		var spans: Array = pairs[key]
+		if spans.size() > 2:
+			clash.append("%s has %d" % [key, spans.size()])
+		elif spans.size() == 2 and int(spans[0][1]) >= int(spans[1][0]) and int(spans[1][1]) >= int(spans[0][0]):
+			clash.append("%s windows overlap" % key)
+	_expect(clash.is_empty(), "At most two consequences per leader and answer, windows apart (%d pairs)" % pairs.size(),
+		"leader/answer pairs %s" % "; ".join(clash))
 
 
 func _game() -> Game:
@@ -158,6 +168,7 @@ func _answers() -> void:
 
 
 ## The window opens after_weeks[0] weeks after the answer and closes after after_weeks[1]; refused matches silence.
+## Outside its window the other wave for the same answer may show; this event may not.
 func _windows() -> void:
 	var bad: PackedStringArray = []
 	for ev in _leader_events():
@@ -172,7 +183,7 @@ func _windows() -> void:
 				var other := "refused" if given == "accepted" else "accepted"
 				var shown := _dawn_offer(game)
 				var want := since >= int(span[0]) and since <= int(span[1])
-				if shown != (str(ev.id) if want else ""):
+				if (want and shown != str(ev.id)) or (not want and shown == str(ev.id)):
 					bad.append("%s %s +%d showed '%s'" % [ev.id, given, since, shown])
 				game = _game()
 				game.leader_answers = {fid: {"answer": other, "week": 5}}
@@ -202,7 +213,7 @@ func _windows() -> void:
 		seen.append(_dawn_offer(game))
 	var shown_once := {}
 	for id in seen:
-		if id != "":
+		if str(id).begins_with("lc_"):
 			shown_once[id] = int(shown_once.get(id, 0)) + 1
 	_expect(seen[0] == "lc_synod_accepted" and shown_once.size() == 5 and shown_once.values().max() == 1,
 		"Five due at once: one per dawn, closest window first (%s)" % " ".join(seen), "queue %s" % " ".join(seen))
@@ -251,7 +262,7 @@ func _deferral() -> void:
 			missed += 1
 	late.pending = []
 	late.week = 5 + int(ev.needs.after_weeks[1]) + 1
-	_expect(missed == 0 and _dawn_offer(late) == "" and not late.events_seen.has(str(ev.id)),
+	_expect(missed == 0 and _dawn_offer(late) != str(ev.id) and not late.events_seen.has(str(ev.id)),
 		"Window that passes under major events shows nothing", "late window fired %d / %s" % [missed, str(late.events_seen.get(str(ev.id), ""))])
 
 
