@@ -26,6 +26,17 @@ const SHOTS := [
 	["res://incoming-art/stations/style_v3/dockyard.png", 28.5, 31.0, 1.0, 1.08, Vector2(0.4, 0.5), Vector2(0.3, 0.55)],
 ]
 
+## The 9:16 cut sees a third of a wide picture, so each shot gets its own crop there, in SHOTS order:
+## [zoom from, zoom to, pan from, pan to].
+const PORTRAIT := [
+	[1.0, 1.05, Vector2(0.42, 0.5), Vector2(0.55, 0.5)],
+	[1.05, 1.0, Vector2(0.62, 0.5), Vector2(0.3, 0.5)],
+	[1.0, 1.08, Vector2(0.45, 0.5), Vector2(0.68, 0.5)],
+	[1.25, 1.2, Vector2(0.22, 0.52), Vector2(0.3, 0.52)],
+	[1.3, 1.45, Vector2(0.3, 0.55), Vector2(0.42, 0.6)],
+	[1.0, 1.05, Vector2(0.24, 0.55), Vector2(0.28, 0.55)],
+]
+
 ## Narration slots: [line number, start, end]. The subtitle shows for the slot; the voice starts a beat in.
 const LINES := [[1, 4.4, 9.8], [2, 10.4, 15.8], [3, 16.4, 21.8], [4, 22.2, 31.0], [5, 31.6, 35.8]]
 
@@ -53,6 +64,10 @@ const TEXT := {
 }
 
 var lang := "en"
+var portrait := false
+var vertical := false
+var frames_dir := ""
+var frame := 0
 var stills := false
 var t := 0.0
 var shot_nodes: Array = []
@@ -74,6 +89,13 @@ func _ready() -> void:
 			lang = str(arg).trim_prefix("--lang=")
 		if str(arg) == "--stills":
 			stills = true
+		if str(arg) == "--vertical":
+			vertical = true
+	if vertical and get_viewport() == get_tree().root:
+		_host_vertical()
+		return
+	var vp := get_viewport_rect().size
+	portrait = vp.y > vp.x
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var black := ColorRect.new()
 	black.color = Color.BLACK
@@ -95,6 +117,14 @@ func _ready() -> void:
 	subtitle.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	subtitle.add_theme_constant_override("outline_size", 8)
 	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	if portrait:
+		subtitle.add_theme_font_size_override("font_size", 46)
+		subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		subtitle.offset_left = 70
+		subtitle.offset_right = -70
+		subtitle.offset_top = -900
+		subtitle.offset_bottom = -560
+		band.offset_top = -1050
 	add_child(subtitle)
 	logo = _logo()
 	add_child(logo)
@@ -110,16 +140,35 @@ func _ready() -> void:
 			add_child(p)
 			voices[int(row[0])] = p
 	if stills:
-		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/teaser/stills_%s" % lang))
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/teaser/stills_%s%s" % [lang, "_v" if portrait else ""]))
 	_update()
+
+
+## A screen will not open a 1080x1920 window, so --vertical draws the teaser inside an off-screen viewport of that
+## size and saves every frame to build/teaser/frames_<lang>_v/. The sound is the same as the 16:9 recording;
+## ffmpeg puts the two together.
+func _host_vertical() -> void:
+	var sv := SubViewport.new()
+	sv.size = Vector2i(1080, 1920)
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(sv)
+	frames_dir = "res://build/teaser/frames_%s_v" % lang
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
+	var inner = load("res://tools/teaser/teaser.tscn").instantiate()
+	inner.frames_dir = frames_dir
+	sv.add_child(inner)
+	set_process(false)
 
 
 func _process(delta: float) -> void:
 	t += delta
 	_update()
+	if frames_dir != "":
+		get_viewport().get_texture().get_image().save_png("%s/f%05d.png" % [frames_dir, frame])
+		frame += 1
 	if stills and still_index < STILL_TIMES.size() and t >= float(STILL_TIMES[still_index]):
 		var img := get_viewport().get_texture().get_image()
-		img.save_png("res://build/teaser/stills_%s/t%04.1f.png" % [lang, float(STILL_TIMES[still_index])])
+		img.save_png("res://build/teaser/stills_%s%s/t%04.1f.png" % [lang, "_v" if portrait else "", float(STILL_TIMES[still_index])])
 		still_index += 1
 	if t >= LENGTH:
 		get_tree().quit()
@@ -203,7 +252,7 @@ func _add_shot(row: Array) -> void:
 	rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(rect)
-	shot_nodes.append({"node": rect, "row": row})
+	shot_nodes.append({"node": rect, "row": row, "index": shot_nodes.size()})
 
 
 ## Cover-fit the picture, zoomed and centred on the pan point, faded in and out at its ends.
@@ -218,8 +267,9 @@ func _place_shot(item: Dictionary, size: Vector2) -> void:
 		return
 	var k := clampf((t - a) / (b - a), 0.0, 1.0)
 	k = k * k * (3.0 - 2.0 * k)
-	var zoom := lerpf(float(row[3]), float(row[4]), k)
-	var pan: Vector2 = (row[5] as Vector2).lerp(row[6] as Vector2, k)
+	var crop: Array = PORTRAIT[int(item.index)] if portrait else [row[3], row[4], row[5], row[6]]
+	var zoom := lerpf(float(crop[0]), float(crop[1]), k)
+	var pan: Vector2 = (crop[2] as Vector2).lerp(crop[3] as Vector2, k)
 	var tex_size := rect.texture.get_size()
 	var cover := maxf(size.x / tex_size.x, size.y / tex_size.y) * zoom
 	var shown := tex_size * cover

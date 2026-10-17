@@ -27,4 +27,15 @@ godot --path . --resolution 1920x1080 --fixed-fps 30 --write-movie build/teaser/
 
 Скриншоты из игры снимаются так: `.tools/map_size_shots.gd -- --lang=<en|ru> --size=1920x1080 --tag=teaser`. Результат: `shots/map_size/teaser/`.
 
-AVI пишется в MJPEG. Для Steam и Shorts его нужно перегнать в MP4 (H.264) в DaVinci Resolve, CapCut или ffmpeg. Вертикальную версию 9:16 делаем там же, с центральной кадровкой.
+## Экспорт (ffmpeg из winget, Gyan.FFmpeg)
+
+1. 16:9: AVI → MP4 H.264 crf 18, звук AAC 320k, громкость −16 LUFS в два прохода loudnorm, пики не выше −1 dBTP. Файл: `build/teaser/underline_teaser_<lang>_1080p.mp4`.
+2. 9:16: экран не открывает окно 1080x1920, поэтому вертикальная версия рисуется в скрытый буфер и сохраняет кадры:
+
+```
+godot --path . --fixed-fps 30 res://tools/teaser/teaser.tscn -- --lang=en --vertical --stills
+```
+
+Кадры попадают в `build/teaser/frames_<lang>_v/`. Своя кадровка задана в `PORTRAIT` в teaser.gd, субтитры крупнее и подняты над интерфейсом Shorts. Звук берём из готового 16:9 MP4, тайминг у версий одинаковый. Файл: `build/teaser/underline_teaser_<lang>_vertical.mp4`.
+
+Окно Godot во время вертикального рендера пустое, так и должно быть. Не закрывать его, пока оно не закроется само.
