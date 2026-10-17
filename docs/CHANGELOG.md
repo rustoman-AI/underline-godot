@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 215. Первый: 2026-10-02. Последний: 2026-10-17 410afaa.
+Коммитов: 220. Первый: 2026-10-02. Последний: 2026-10-17 872bf75.
 
 ## Этапы
 
@@ -19,8 +19,13 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-17 (7)
+### 2026-10-17 (12)
 
+- `872bf75` Intro: the Silence teaser plays once on first launch, over the main menu
+- `37f8c60` Station view: camera back to the playtest 11 framing
+- `6bd849c` Map: own stations joined along their tunnels, and never blanked while contested
+- `6bfe374` Revert "Map: a held station colours all the land nearest to it"
+- `30860f3` Docs: playtest12 build, changelog
 - `410afaa` Add the Godot uid files for check_guard, check_music and the music player
 - `96b0e12` Docs: playtest 11 logged, release plan, Steam page drafts, decisions
 - `70aee47` Map: a held station colours all the land nearest to it
