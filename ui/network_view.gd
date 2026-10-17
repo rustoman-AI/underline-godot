@@ -51,6 +51,8 @@ const TERR_EDGE := 0.24
 const TERR_FILL := 0.62
 const TERR_HATCH := 3
 const TERR_LINE := 0.9
+## Half-width of the band that joins two stations of one holder along their tunnel, as a share of the reach.
+const TERR_BRIDGE := 0.38
 const SCHEMATIC_FILE := "res://data/map_schematic.json"
 const TAG_REACH := -1
 const TAG_PAPER_EDGE := -2
@@ -808,6 +810,7 @@ func _territory_texture(game) -> ImageTexture:
 	var h := _land_h
 	var ids: Array = []
 	var seeds: Array = []
+	var held := {}
 	for sid in game.stations:
 		var st: Dictionary = game.stations[sid]
 		if _secret(st) or not bool(st.get("known", true)) or not _spots.has(str(sid)):
@@ -821,6 +824,17 @@ func _territory_texture(game) -> ImageTexture:
 			seeds.append([])
 			fi = ids.size() - 1
 		seeds[fi].append(_map_spot(str(sid)) / float(TERR_STEP))
+		held[str(sid)] = fi
+	## Two stations of one holder joined by an open tunnel are joined on the map too: a band of their colour runs
+	## along the tunnel, so a holding reads as one land and not as islands.
+	var bridges: Array = []
+	for _fi in ids.size():
+		bridges.append([])
+	for tunnel in game.tunnels:
+		var a := str(tunnel.get("a", ""))
+		var b := str(tunnel.get("b", ""))
+		if held.has(a) and held.has(b) and int(held[a]) == int(held[b]) and game._edge_open(tunnel):
+			bridges[int(held[a])].append([_map_spot(a) / float(TERR_STEP), _map_spot(b) / float(TERR_STEP)])
 	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
 	img.fill(Color.WHITE)
 	if ids.is_empty():
@@ -843,6 +857,22 @@ func _territory_texture(game) -> ImageTexture:
 						var v := 1.0 - d
 						v = v * v * (3.0 - 2.0 * v) * _terr_noise(x, y)
 						field[y * w + x] += v
+		var band := reach * TERR_BRIDGE
+		for seg in bridges[fi]:
+			var p: Vector2 = seg[0]
+			var q: Vector2 = seg[1]
+			var x0 := maxi(0, floori(minf(p.x, q.x) - band))
+			var x1 := mini(w - 1, ceili(maxf(p.x, q.x) + band))
+			var y0 := maxi(0, floori(minf(p.y, q.y) - band))
+			var y1 := mini(h - 1, ceili(maxf(p.y, q.y) + band))
+			for y in range(y0, y1 + 1):
+				for x in range(x0, x1 + 1):
+					var at := Vector2(float(x) + 0.5, float(y) + 0.5)
+					var d := at.distance_to(Geometry2D.get_closest_point_to_segment(at, p, q)) / band
+					if d < 1.0:
+						var v := 1.0 - d
+						v = v * v * (3.0 - 2.0 * v) * _terr_noise(x, y) * 0.8
+						field[y * w + x] = maxf(field[y * w + x], v)
 		infl.append(field)
 	var owner_at := PackedInt32Array()
 	owner_at.resize(w * h)
@@ -903,7 +933,7 @@ func territory_color(game, fid: String) -> Color:
 
 
 ## "" when a station's ground stays open: unknown, neutral, ruined or enemy, or contested (a rival's move on it
-## shows on the map).
+## shows on the map). The player's own stations stay coloured while a rival moves on them.
 func territory_owner(game, sid: String) -> String:
 	var st: Dictionary = game.stations[sid]
 	if _secret(st) or not bool(st.get("known", true)):
@@ -913,6 +943,8 @@ func territory_owner(game, sid: String) -> String:
 		return ""
 	if not game.catalog.factions.has(owner) and game.leader(owner).is_empty():
 		return ""
+	if owner == str(game.player):
+		return owner
 	for intent in game.telegraphed:
 		if str(intent.get("station", "")) == sid and not bool(intent.get("hidden", false)):
 			return ""
