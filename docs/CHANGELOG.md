@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 206. Первый: 2026-10-02. Последний: 2026-10-15 293e10e.
+Коммитов: 215. Первый: 2026-10-02. Последний: 2026-10-17 410afaa.
 
 ## Этапы
 
@@ -19,8 +19,20 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-15 (2)
+### 2026-10-17 (7)
 
+- `410afaa` Add the Godot uid files for check_guard, check_music and the music player
+- `96b0e12` Docs: playtest 11 logged, release plan, Steam page drafts, decisions
+- `70aee47` Map: a held station colours all the land nearest to it
+- `765577a` Playtest 11 fixes: map orders report results, captures pay, people keep their seats
+- `db6f3bf` Teaser: vertical 9:16 cut, MP4 export at -16 LUFS
+- `b52c1e7` Teaser "The Silence": engine-rendered 40 s scene, EN and RU, narration brief
+- `14ebf4a` Wording: native RU and EN pass, «ты» for UI and narrator; re-recorded VO
+
+### 2026-10-15 (4)
+
+- `a7e84fd` Docs: park gear finds and workshop crafting for the guard
+- `5dfd11c` Docs: playtest11 recorded
 - `293e10e` How-to: people against beds and soldiers for marches; changelog
 - `024798b` Guard: soldiers are residents, people/beds chip, factions strike back
 
