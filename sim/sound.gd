@@ -53,8 +53,15 @@ const AFTER_END_TURN := ["build_done", "card_open", "new_week", "audience_open"]
 const END_TURN_MS := 1250
 const QUEUE_STEP_MS := 700
 ## Per-room trim on top of the open/hover level, and seconds open before the loop fades away.
-const ROOM_TRIM := {"hydroponics": -3.0}
-const ROOM_FADE_AFTER := {"hydroponics": 3.0}
+const ROOM_TRIM := {"hydroponics": -10.0}
+const ROOM_FADE_AFTER := {"hydroponics": 1.4}
+const CUE_CUT := {
+	"end_turn": [-9.0, 0.45, 0.18],
+	"dossier_open": [-8.0, 0.35, 0.12],
+	"dossier_tab": [-10.0, 0.2, 0.08],
+	"new_week": [-6.0, 0.55, 0.16],
+	"map_click": [-4.0, 0.16, 0.06],
+}
 const ROOM_FADE_OUT := 1.5
 
 static var host: Node
@@ -187,6 +194,10 @@ static func _play_now(cue: String) -> void:
 	var start := float(FILE_START.get(pick.name, 0.0))
 	if cue == "click":
 		_play_click(player, trim, start)
+		return
+	if CUE_CUT.has(cue):
+		var cut: Array = CUE_CUT[cue]
+		_slice(player, start, float(cut[0]) + trim, float(cut[1]), float(cut[2]))
 		return
 	if cue != "hover":
 		player.volume_db = trim
@@ -420,7 +431,7 @@ static func _loop_player(path: String, node_name: String) -> AudioStreamPlayer:
 	player.stream = stream
 	player.bus = "Music"
 	player.name = node_name
-	player.volume_db = -10.0
+	player.volume_db = -18.0 if node_name == "MenuTone" else -10.0
 	host.add_child(player)
 	return player
 

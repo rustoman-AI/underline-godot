@@ -48,7 +48,7 @@
     {"id": "work", "label": "Tell them to work through it", "sick": 3, "discontent": 2}
   ]},
   {"id": "leak", "title": "A drip over the bunks", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "follow": "leak_next", "who": "Pete", "text": "Pete finds a drip over the bunks. It will be a stream if nobody patches it.", "choices": [
-    {"id": "patch", "label": "Patch it with workshop cloth", "cost": {"materials": 3}, "hope": 0},
+    {"id": "patch", "label": "Patch it with workshop cloth", "cost": {"materials": 3}, "hope": 0, "flag": "leak_patched"},
     {"id": "buckets", "label": "Set buckets and move on", "discontent": 2, "hope": -1}
   ]},
   {"id": "nightshift", "title": "Hal will not sleep", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Hal", "text": "Hal is walking the platform again. The night shift wants him off the tools.", "choices": [
@@ -131,8 +131,8 @@
     {"id": "beds", "label": "Clear beds again", "food": -2, "hope": 0, "sick": 1},
     {"id": "push", "label": "Keep the shift", "discontent": 2, "sick": 2}
   ]},
-  {"id": "leak_next", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "Pete's patch held for a while. The drip has found a new seam.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
-    {"id": "patch", "label": "Patch the new seam", "cost": {"materials": 2}, "hope": 0},
+  {"id": "leak_next", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "The cloth held the first seam. Pete found one more, smaller.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
+    {"id": "patch", "label": "Patch the new seam", "cost": {"materials": 2}, "hope": 1, "flag": "leak_patched"},
     {"id": "move", "label": "Move the bunks", "discontent": 2, "hope": -1}
   ]}
 ]

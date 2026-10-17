@@ -128,6 +128,10 @@ func _run() -> void:
 	print("FILL %s territories: %d held cells" % [_key(), net.territory_cells(st.game).size()])
 	net.set_territories(false)
 	await _shot("network_territories_off")
+	net.set_territories(true)
+	net.set_schematic(false)
+	await _shot("network_real_map")
+	net.set_schematic(true)
 	quit(0)
 
 

@@ -278,7 +278,8 @@ static func _rated(game, defin: Dictionary, key: String, skill: int, count: int)
 	if factor <= 0.0:
 		return 0
 	var n := Formulas.room_output(amount, skills, float(game.bal.skill_coef), float(game.bal.output_cap))
-	return int(round(float(n) * factor))
+	n = int(round(float(n) * factor))
+	return n + int(game.crew_extra(skills, fake, n))
 
 
 static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: String) -> int:
@@ -296,7 +297,7 @@ static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: 
 	if not base.has(key):
 		return 0
 	var fake := {"type": str(room.type), "staff": ids}
-	var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+	var amount := float(base[key]) * float(game.output_scale(int(room.upgrade)))
 	var factor: float = game._output_factor(fake, defin)
 	var n := 0
 	if factor > 0.0:
@@ -308,8 +309,10 @@ static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: 
 		n = int(n / 2.0)
 	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		n = 0
-	if game.gen_down and str(room.type) == "generator" and key == "power":
-		n = int(n / 2.0)
+	else:
+		if game.gen_down and str(room.type) == "generator" and key == "power":
+			n = int(n / 2.0)
+		n += int(game.crew_extra(skills, room, n))
 	return n
 
 
@@ -325,7 +328,7 @@ static func _live(game, room: Dictionary, defin: Dictionary, upgrade: int, key: 
 	var base: Dictionary = defin.get("base", {})
 	if not base.has(key):
 		return 0
-	var amount := float(base[key]) * (1.0 + 0.25 * float(upgrade))
+	var amount := float(base[key]) * float(game.output_scale(int(upgrade)))
 	var factor: float = game._output_factor(room, defin)
 	var n := 0
 	if factor > 0.0:
@@ -337,8 +340,10 @@ static func _live(game, room: Dictionary, defin: Dictionary, upgrade: int, key: 
 		n = int(n / 2.0)
 	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		n = 0
-	if game.gen_down and str(room.type) == "generator" and key == "power":
-		n = int(n / 2.0)
+	else:
+		if game.gen_down and str(room.type) == "generator" and key == "power":
+			n = int(n / 2.0)
+		n += int(game.crew_extra(skills, room, n))
 	return n
 
 

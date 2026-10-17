@@ -21,7 +21,7 @@ static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {
 	if not base_table.has(key):
 		return out
 	var at_tier := int(room.upgrade) if tier < 0 else tier
-	var base := float(base_table[key]) * (1.0 + 0.25 * float(at_tier))
+	var base := float(base_table[key]) * float(game.output_scale(int(at_tier)))
 	out.base = base
 	if bool(room.get("switched_off", false)):
 		out.zero = "off"
@@ -78,6 +78,7 @@ static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {
 	if int(room.get("mold", 0)) > 0 and key == "food":
 		out.zero = "mold"
 		return out
+	n += int(game.crew_extra(skills, room, n))
 	out.amount = n
 	return out
 
@@ -186,11 +187,11 @@ static func _night(game, made: Dictionary, room_lines: Dictionary, dark: Diction
 			_take(rows.food, "flood", loss)
 			stock.food -= loss
 	for key in ["food", "air", "materials"]:
-		var cap: int = game.storage_cap(key)
+		var cap: int = _cap_tonight(game, key)
 		if int(stock[key]) > cap:
 			_take(rows[key], "full", int(stock[key]) - cap)
 			stock[key] = cap
-	var cap_food: int = game.storage_cap("food")
+	var cap_food: int = _cap_tonight(game, "food")
 	if cap_food > 0:
 		var line := int(float(cap_food) * float(game.bal.spoil_line))
 		var excess := int(stock.food) - line
@@ -257,6 +258,20 @@ static func _night(game, made: Dictionary, room_lines: Dictionary, dark: Diction
 			"cold": key == "power" and double,
 		}
 	return out
+
+
+## The night drops one week of "disabled" before it clamps the stores, so a room on its last dark week
+## holds goods again tonight.
+static func _cap_tonight(game, key: String) -> int:
+	var n := 0
+	for room in game.rooms:
+		var disabled := int(room.get("disabled", 0))
+		if disabled > 0:
+			disabled -= 1
+		if bool(room.offline) or game._flood_silences(room) or disabled > 0:
+			continue
+		n += int(game._room_store(room, key))
+	return n
 
 
 static func _take(rows: Array, what: String, amount: int) -> void:

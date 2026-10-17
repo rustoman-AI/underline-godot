@@ -1375,7 +1375,7 @@ func _place_chrome() -> void:
 		end_cover.offset_bottom = -margin
 		end_cover.offset_top = -margin - end_h
 	if network_button != null:
-		var net_w := 132.0
+		var net_w := 240.0 if showing_network else 132.0
 		network_button.anchor_left = 1.0
 		network_button.anchor_right = 1.0
 		network_button.anchor_top = 1.0
@@ -1385,7 +1385,8 @@ func _place_chrome() -> void:
 		network_button.offset_left = -margin - end_w - 8.0 - net_w
 		network_button.offset_bottom = -margin
 		network_button.offset_top = -margin - tool_h
-		network_button.text = Copy.t("Station") if showing_network else Copy.t("Network")
+		network_button.text = Copy.t("Back to your station") if showing_network else Copy.t("Network")
+		network_button.tooltip_text = Copy.t("Close the map and return to your own station.") if showing_network else Copy.t("Open the map of the tunnels.")
 	if hub_button != null and hub_button.visible:
 		var view_w := 210.0
 		var tray_right := margin + tool_w * 5.0 + 48.0
@@ -1685,16 +1686,23 @@ func _refresh() -> void:
 		var keep_delta: bool = hold_deltas and chips[key].delta.text != ""
 		var delta_text := ""
 		var color := MUTED
-		if not game.last_net.is_empty():
-			var d := int(game.last_net.get(key, 0))
-			if d != 0:
-				delta_text = "+%d" % d if d > 0 else str(d)
-			if d > 0:
-				color = DELTA_UP
-			elif d < 0:
-				color = DELTA_DOWN
+		var d := 0
+		var have_delta := false
+		if week_fc.has(key):
+			d = int(week_fc[key].net)
+			have_delta = true
+		elif not game.last_net.is_empty():
+			d = int(game.last_net.get(key, 0))
+			have_delta = true
+		if have_delta and d != 0:
+			delta_text = "+%d" % d if d > 0 else str(d)
+		if d > 0:
+			color = DELTA_UP
+		elif d < 0:
+			color = DELTA_DOWN
 		if not keep_delta:
 			chips[key].delta.text = delta_text
+			chips[key].delta.tooltip_text = Copy.t("This week, after upkeep") if delta_text != "" else ""
 			chips[key].delta.add_theme_color_override("font_color", color)
 		var alarm := ""
 		if week_fc.has(key):
@@ -1764,7 +1772,8 @@ func _fill_people() -> void:
 	_wipe(people_box)
 	var total := game.residents.size()
 	var working := 0
-	var grouped := {"free": [], "crew": [], "guard": []}
+	var grouped := {"free": [], "crew": [], "guard": [], "sick": []}
+	var sick_n := 0
 	var room_order: Array = []
 	for person in game.residents:
 		var id := str(person.id)
@@ -1782,11 +1791,14 @@ func _fill_people() -> void:
 		elif post == "guard":
 			working += 1
 			grouped["guard"].append(person)
+		elif post == "sick":
+			sick_n += 1
+			grouped["sick"].append(person)
 		else:
 			grouped["free"].append(person)
-	var free_n := total - working
+	var free_n := total - working - sick_n
 	if people_head != null:
-		people_head.text = _people_counts(total, working, free_n)
+		people_head.text = _people_counts(total, working, free_n, sick_n)
 		people_head.tooltip_text = game.crowd_tip()
 	if people_tab != null:
 		people_tab.tooltip_text = game.crowd_tip()
@@ -1843,6 +1855,8 @@ func _fill_people() -> void:
 		view = "free"
 	if view == "" or view == "free":
 		_people_group(Copy.t("Free"), grouped["free"], "", true, "")
+		if not grouped["sick"].is_empty():
+			_people_group(Copy.t("Cannot work"), grouped["sick"], "", true, "")
 	if view != "free":
 		for uid in room_order:
 			if people_filter != "" and people_filter != uid:
@@ -1922,6 +1936,9 @@ func _person_post(id: String) -> String:
 	for wid in game._locked_ids():
 		if str(wid) == id:
 			return "crew"
+	var person: Dictionary = game.people[id]
+	if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+		return "sick"
 	return "free"
 
 
@@ -1932,12 +1949,18 @@ func _people_tab_caption(free_n: int) -> String:
 	return "People %d free" % free_n
 
 
-func _people_counts(total: int, working: int, free_n: int) -> String:
+func _people_counts(total: int, working: int, free_n: int, sick_n: int) -> String:
 	if Copy.ru():
 		var work_word := "работает" if _ru_singular(working) else "работают"
 		var free_word := "свободен" if _ru_singular(free_n) else "свободны"
-		return "Люди: %d · %s %d · %s %d" % [total, work_word, working, free_word, free_n]
-	return "People: %d · working %d · free %d" % [total, working, free_n]
+		var line := "Люди: %d · %s %d · %s %d" % [total, work_word, working, free_word, free_n]
+		if sick_n > 0:
+			line += " · не могут %d" % sick_n
+		return line
+	var line := "People: %d · working %d · free %d" % [total, working, free_n]
+	if sick_n > 0:
+		line += " · cannot work %d" % sick_n
+	return line
 
 
 func _ru_singular(n: int) -> bool:
@@ -2431,7 +2454,7 @@ func room_title(room) -> String:
 	return Copy.t("%s, tier %s") % [name, roman(int(room.upgrade))]
 
 
-## "Mushroom beds: Food +25%, power use 2 -> 1." Built from the tier output bonus and balance.json upgrade_fx,
+## "Mushroom beds: Food +75%, power use 2 -> 1." Built from the tier output bonus and balance.json upgrade_fx,
 ## so the card says exactly what the sim does.
 func _upgrade_what(id: String) -> String:
 	var type := ""
@@ -2441,8 +2464,9 @@ func _upgrade_what(id: String) -> String:
 	if type == "":
 		return ""
 	var parts: PackedStringArray = []
+	var pct := int(round(float(game.bal.get("upgrade_output", 0.75)) * 100.0))
 	for key in game.catalog.rooms[type].get("base", {}):
-		parts.append(Copy.t("%s +%d%%") % [Copy.res(str(key)), 25])
+		parts.append(Copy.t("%s +%d%%") % [Copy.res(str(key)), pct])
 	parts.append_array(upgrade_fx_words(id))
 	if parts.is_empty():
 		return ""
@@ -2507,7 +2531,10 @@ func _stock_head(key: String) -> String:
 	var net := "%+d" % int(row.net)
 	if bool(row.random):
 		net = Copy.t("%+d (expected, ±%d)") % [int(row.net), int(row.swing)]
-	return Copy.t("%s: %d in store. This week: +%d made, -%d used, net %s.") % [Copy.res(key), int(row.stock), int(row.made), int(row.used), net]
+	var head := Copy.t("%s: %d in store. This week: +%d made, -%d used, net %s.") % [Copy.res(key), int(row.stock), int(row.made), int(row.used), net]
+	if not game.last_net.is_empty():
+		head += " " + Copy.t("Last week: %s.") % ("%+d" % int(game.last_net.get(key, 0)))
+	return head
 
 
 ## Sources and sinks merged by name, biggest first.
@@ -2556,7 +2583,7 @@ func _stock_notes(key: String) -> PackedStringArray:
 				names.append(Copy.t(str(game.catalog.rooms[room.type].name)))
 		notes.append(Copy.t("Not enough power: %s go dark tonight.") % ", ".join(names))
 	if game._season_is("cough") and not game.quarantine:
-		notes.append(Copy.t("Cough season: sick workers leave their rooms at night, so output can fall."))
+		notes.append(Copy.t("Cough season: a few workers fall sick, but they keep their posts. Output falls while they are ill."))
 	return notes
 
 
@@ -3298,10 +3325,10 @@ func _room_switch(uid: String) -> void:
 ## The room's current state first; the button next to it says what pressing it does.
 func _switch_state(on: bool, saves: int) -> String:
 	if on:
-		return Copy.t("State: Working")
+		return Copy.t("On. It is doing its work and drawing power. Switch it off to stop both.")
 	if saves == 1:
-		return Copy.t("State: Off, saving 1 power")
-	return Copy.t("State: Off, saving %d power") % saves
+		return Copy.t("Off. It is not working, and it saves 1 power.")
+	return Copy.t("Off. It is not working, and it saves %d power.") % saves
 
 
 func _switch_room(uid: String, on: bool) -> void:
@@ -3325,7 +3352,14 @@ func _show_assign(uid: String) -> void:
 			busy.append(row)
 	busy.sort_custom(func(a, b): return int(a.skill) > int(b.skill))
 	if free.is_empty():
-		_body("No free residents.")
+		var seated := 0
+		var room = game._room(uid)
+		if room != null:
+			seated = room.staff.size()
+		if int(detail.staff_max) > 0 and seated >= int(detail.staff_max):
+			_body(Copy.t("This room is full (%d seats). Take someone off a seat to free one.") % int(detail.staff_max))
+		else:
+			_body("No free residents.")
 	for row in free:
 		card_body.add_child(_assign_row(uid, row))
 	if not busy.is_empty():
@@ -4517,6 +4551,12 @@ func _show_audience() -> void:
 		said.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card_body.add_child(said)
 		_leader_voice(fid, "pitch", "%s:pitch" % audience_key)
+		if str(row.get("dirty_deal", {}).get("id", "")) == "the_list":
+			var taken := str(game.audience.get("target", ""))
+			var plain := Copy.t("In plain words: he wants one of your people. There is nobody to hand over.")
+			if game.people.has(taken):
+				plain = Copy.t("In plain words: he takes %s. That person leaves the station. You get a curfew and one free step on the air filter.") % _resident_name(game.people[taken])
+			_body(plain)
 	elif opening != "":
 		_body(opening)
 		var opening_key: String = game.audience_opening_key(fid)
@@ -4992,7 +5032,7 @@ func _morning_lines() -> PackedStringArray:
 		var text := str(entry.text)
 		if w == game.week and _starts(text, ["INTENT", "SEASON", "ULTIMATUM", "PRESSURE", "No warning"]):
 			lines.append(text)
-		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH", "WARN", "TRUTH", "TESTIMONY"]):
+		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH", "WARN", "TRUTH", "TESTIMONY", "LOST", "SICK", "BACK"]):
 			lines.append(text)
 	return lines
 
@@ -5219,9 +5259,14 @@ func _check_block(ev: Dictionary, choice: Dictionary) -> void:
 	var key := _check_key(str(ev.id), str(choice.id))
 	var preview: Dictionary = game.check_preview(choice, str(check_picks.get(key, "")))
 	check_picks[key] = str(preview.get("person", ""))
-	var kind_line := Copy.t("Red check. One roll. It stands.") if str(preview.get("color", "")) == "red" else Copy.t("White check")
-	_body("%s · %s" % [kind_line, Copy.t("Success %d%%") % int(preview.get("chance", 0))])
+	var chance := int(preview.get("chance", 0))
+	var odds := Copy.t("Unlikely.")
+	if chance >= 60:
+		odds = Copy.t("Likely.")
+	elif chance >= 40:
+		odds = Copy.t("Uncertain.")
 	var who := Copy.person(str(preview.get("name", "")))
+	_body(Copy.t("%s uses %s. %s") % [who, Copy.skill(str(preview.get("skill", ""))), odds])
 	var bits: PackedStringArray = ["%s · %s %d" % [who, Copy.skill(str(preview.skill)), int(preview.get("value", 0))]]
 	for row in preview.get("modifiers", []):
 		var amount := int(row.get("amount", 0))
@@ -5283,17 +5328,12 @@ func _check_result_line() -> String:
 		return Copy.t("The bet loses.")
 	var outcome := str(last.get("outcome", ""))
 	if outcome != "":
-		if bool(last.get("box", false)):
-			return "%s %s" % [Copy.t("Double 6. Success."), outcome]
-		if bool(last.get("snake", false)):
-			return "%s %s" % [Copy.t("Double 1. Failure."), outcome]
 		return outcome
-	if bool(last.get("box", false)):
-		return Copy.t("Double 6. Success.")
-	if bool(last.get("snake", false)):
-		return Copy.t("Double 1. Failure.")
-	var verdict := Copy.t("Success.") if bool(last.get("success", false)) else Copy.t("Failure.")
-	return "%s %d+%d. %s" % [Copy.skill(str(last.get("skill", ""))), int(last.get("d1", 0)), int(last.get("d2", 0)), verdict]
+	var who := Copy.person(str(last.get("name", "")))
+	var skill_name := Copy.skill(str(last.get("skill", "")))
+	if bool(last.get("success", false)):
+		return Copy.t("%s tries %s. It holds.") % [who, skill_name]
+	return Copy.t("%s tries %s. It does not hold.") % [who, skill_name]
 
 
 func _show_pending() -> void:
@@ -5350,6 +5390,7 @@ func _epilogue(id: String) -> void:
 	card_roomy = true
 	_fit_card()
 	_body(game.ending_text(id, "text"))
+	_body(Copy.t("The week closes. The tunnels will remember this."))
 	_heading_small("The leaders")
 	for row in game.catalog.leaders.get("factions", []):
 		var fid := str(row.get("id", ""))
@@ -6039,17 +6080,25 @@ func _makes_line(type: String, defin: Dictionary) -> HBoxContainer:
 		var lab := _label(text, 16)
 		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(lab)
+		if type == "platform":
+			var beds := _label(Copy.t("Housing %d") % int(defin.get("housing", 0)), 16)
+			beds.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(beds)
+		elif type == "radio":
+			var hears := _label(Copy.t("Reveals intents"), 16)
+			hears.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(hears)
 		return row
 	var words := ""
 	var glyph := ""
-	if type == "quarters":
+	if type == "quarters" or type == "platform":
 		words = Copy.t("Housing %d") % int(defin.get("housing", 0))
 		glyph = "people"
 	elif type == "meeting_hall":
 		words = Copy.t("Laws")
 		glyph = "influence"
 	elif type == "radio":
-		words = Copy.t("Reveals intents")
+		words = Copy.t("2 tokens a week. Reveals intents.")
 	elif type == "infirmary":
 		words = Copy.t("Clears sickness")
 		glyph = "quarantine"
@@ -6272,6 +6321,8 @@ func _effect_text(row: Dictionary) -> String:
 		var word := Copy.res(key)
 		if word.length() > 0:
 			word = word.substr(0, 1).to_lower() + word.substr(1)
+		if int(row.delta) <= 0:
+			return Copy.t("No extra this week")
 		return Copy.t("+%d %s / wk") % [int(row.delta), word]
 	var note := str(row.get("note", ""))
 	if note == "":
@@ -8129,7 +8180,7 @@ func _ensure_menu() -> void:
 	var layer := Control.new()
 	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.mouse_filter = Control.MOUSE_FILTER_STOP
-	layer.z_index = 60
+	layer.z_index = 220
 	var picture := TextureRect.new()
 	picture.set_anchors_preset(Control.PRESET_FULL_RECT)
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -8146,7 +8197,7 @@ func _ensure_menu() -> void:
 	var shade := ColorRect.new()
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	shade.color = dim.color if dim != null else Color(0, 0, 0, 0.62)
+	shade.color = Color(0, 0, 0, 0.78)
 	shade.visible = false
 	layer.add_child(shade)
 	menu_picture = picture
@@ -9352,8 +9403,8 @@ class Yard extends Control:
 	# Inner lip of each tunnel mouth, so the arches meet the station edges.
 	const BACKDROP_SIDE := 0.147
 	## Share of the view height the camera may show as sky above the station.
-	const SKY_SHARE := 0.2
-	const OPEN_WIDTH := 0.96
+	const SKY_SHARE := 0.04
+	const OPEN_WIDTH := 0.98
 	const PLATFORM_RAIL := 0.96
 	const SKYLINE_FRAC := 0.164
 	const SOIL_LIP := 0.032
@@ -9419,7 +9470,7 @@ class Yard extends Control:
 	const DOUBLE_MS := 320
 
 	func fit() -> void:
-		user_zoom = 1.0
+		user_zoom = 1.2
 		focused = Vector2i(-1, -1)
 		_frame_station()
 
@@ -10890,7 +10941,7 @@ class Yard extends Control:
 			_draw_more(rect, extra)
 
 	func _draw_more(rect: Rect2, extra: int, filter_id: String = "") -> void:
-		var label := "+%d" % extra
+		var label := Copy.t("%d more") % extra
 		var font: Font = ThemeDB.fallback_font
 		if station.body_font != null:
 			font = station.body_font

@@ -536,13 +536,13 @@ func _visit_sheet() -> void:
 ## Words a station's community, who or art line must contain for each room picture it may borrow.
 const BANNER_WORDS := {
 	"hydroponics": ["garden", "greenhouse", "mushroom", "beds"],
-	"workshop": ["machine", "iron", "workshop"],
+	"workshop": ["machine", "iron", "workshop", "junk", "warehouse"],
 	"air_filter": ["filter", "air"],
 	"generator": ["substation", "generator", "power"],
 	"radio": ["radio"],
-	"platform": ["platform", "cars"],
+	"platform": ["platform", "cars", "flooded", "tunnel"],
 	"infirmary": ["quarantine", "infirmary", "sick"],
-	"meeting_hall": ["meeting", "lecture", "debat", "court", "planning"],
+	"meeting_hall": ["meeting", "lecture", "debat", "court", "planning", "hall", "stage", "table"],
 }
 
 
@@ -568,8 +568,8 @@ func _banners() -> void:
 			fits = fits or said.contains(word)
 		if not fits:
 			bad.append("P1 %s (%s) shows room_%s, which its description does not name" % [sid, game.stations[sid].name, room])
-	if net.banner_path(game, "riverside").get_file() != "room_hydroponics.webp":
-		bad.append("P1 Botanic Garden shows %s, want the hydroponics beds" % net.banner_path(game, "riverside").get_file())
+	if net.banner_path(game, "riverside").get_file() != "riverside.webp":
+		bad.append("P1 Botanic Garden shows %s, want its placeholder hub" % net.banner_path(game, "riverside").get_file())
 	for sid in net.BANNER_ROOMS:
 		if not game.stations.has(sid):
 			bad.append("P1 BANNER_ROOMS names %s, which is not a station" % sid)
@@ -632,7 +632,7 @@ func _station_card() -> void:
 func _card_orders(game: Game, net, body: Control, sid: String, where: String) -> int:
 	var tag := "P6 %s %s (influence %d)" % [sid, where, int(game.stock.influence)]
 	var want: Array = []
-	for row in net.order_rows(game, str(game.stations[sid].owner) == str(game.player)):
+	for row in net.order_rows(game, str(game.stations[sid].owner) == str(game.player), str(sid)):
 		want.append(str(row[0]))
 	var seen: Array = []
 	var orders: Array = []
@@ -996,7 +996,7 @@ func _upgrade_view() -> void:
 		var head := _find_meta(st.card_body, "upgrade_title")
 		if head == null or int(head.get_meta("upgrade_title")) != tier + 1:
 			bad.append("U2 tier %d: the upgrade card does not name tier %s" % [tier, st.roman(tier + 1)])
-		if not _shows(st.card_body, "Grow lamps: Food +25%." if tier == 0 else "Mushroom beds: Food +25%, power use 2 -> 1."):
+		if not _shows(st.card_body, "Grow lamps: Food +150%." if tier == 0 else "Mushroom beds: Food +150%, power use 2 -> 1."):
 			bad.append("U2 tier %d: the upgrade's plain words are missing" % tier)
 		var shown := _find_meta(st.card_body, "upgrade_gain")
 		if shown == null:
@@ -1050,16 +1050,16 @@ func _upgrade_effects() -> void:
 	var lines := {
 		"bunks": "Bunks: +2 beds.",
 		"family": "Family: +2 beds, hope +1 a week.",
-		"grow_lamps": "Grow lamps: Food +25%.",
-		"mushroom_beds": "Mushroom beds: Food +25%, power use 2 -> 1.",
-		"charcoal": "Charcoal: Air +25%.",
-		"pressure_seals": "Pressure seals: Air +25%, upkeep 2 -> 1 materials a week.",
-		"dynamo": "Dynamo: Power +25%.",
-		"substation": "Substation: Power +25%, power use 2 -> 0.",
-		"drill_heads": "Drill heads: Materials +25%, digging takes 1 week less, at least 1 week.",
-		"armor": "Armor: Materials +25%, events cannot shut the workshop down.",
-		"quarantine_ward": "Quarantine ward: the Cough spreads 40% -> 20% a week.",
-		"loudspeakers": "Loudspeakers: Influence +25%, discontent -1 a week.",
+		"grow_lamps": "Grow lamps: Food +150%.",
+		"mushroom_beds": "Mushroom beds: Food +150%, power use 2 -> 1.",
+		"charcoal": "Charcoal: Air +150%.",
+		"pressure_seals": "Pressure seals: Air +150%, upkeep 2 -> 1 materials a week.",
+		"dynamo": "Dynamo: Power +150%.",
+		"substation": "Substation: Power +150%, power use 2 -> 0.",
+		"drill_heads": "Drill heads: Materials +150%, digging takes 1 week less, at least 1 week.",
+		"armor": "Armor: Materials +150%, events cannot shut the workshop down.",
+		"quarantine_ward": "Quarantine ward: the Cough spreads 30% -> 15% a week.",
+		"loudspeakers": "Loudspeakers: Influence +150%, discontent -1 a week.",
 		"antenna": "Antenna: flood warning 2 -> 3 weeks ahead.",
 	}
 	for id in lines:

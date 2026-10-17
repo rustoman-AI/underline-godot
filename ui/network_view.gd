@@ -66,11 +66,11 @@ const FLAG_CLOTH := Vector2(0.62, 0.42)
 const PANORAMA_HUBS := ["northgate", "chapel", "trampark", "brickworks"]
 ## Room picture for each station without its own hub art, chosen from what the station's community and art
 ## lines describe. A station missing here has no fitting picture and shows a dark plate with its name.
+## Stations that still borrow a room picture. The rest use assets/hubs/<id>.webp, a placeholder
+## until a finished painting replaces it. Capitals keep the hubs already accepted.
 const BANNER_ROOMS := {
-	"riverside": "hydroponics", "garden": "hydroponics", "foundry": "workshop", "eastwater": "air_filter",
-	"quarry": "generator", "signal": "radio", "oldcommand": "platform", "vault": "infirmary",
-	"plaza": "meeting_hall", "library": "meeting_hall", "stadium": "meeting_hall", "dockyard": "meeting_hall",
-	"archive": "meeting_hall",
+	"southdepot": "platform",
+	"stadium": "meeting_hall",
 }
 const PLATE := Color("1e1812")
 const HUB_MAX_H := 400.0
@@ -2366,6 +2366,18 @@ func _issue(kind: String, sid: String) -> void:
 	var game = _game()
 	if game == null:
 		return
+	if kind.begins_with("focus:"):
+		var focus := kind.trim_prefix("focus:")
+		if game.set_outpost_focus(sid, focus):
+			if host != null and host.has_method("_toast"):
+				var place := str(game.station_text(sid, "community"))
+				host._toast(Copy.t("%s will send %s home.") % [place, Copy.t(_focus_word(focus))])
+			refresh()
+			if visit != null and visit.visible:
+				_fill_visit(sid)
+			else:
+				_fill_sheet(sid)
+		return
 	var action := {"kind": "order", "order": kind}
 	if kind == "move":
 		action["dest"] = sid
@@ -2511,6 +2523,8 @@ func _add_own_facts(game, st: Dictionary, sid: String, parent: Node, details: No
 	parent.add_child(_lab("%s: %d" % [Copy.t("Population"), int(st.pop)], 14, false))
 	parent.add_child(_lab("%s: %d" % [Copy.t("Loyalty"), int(st.loyalty)], 14, false))
 	parent.add_child(_lab("%s: %d" % [Copy.t("Garrison"), int(st.garrison)], 14, false))
+	if str(sid) != str(game.capital_id):
+		parent.add_child(_lab("%s: %s" % [Copy.t("Sends home"), Copy.t(_focus_word(str(st.get("focus", "food"))))], 14, false))
 	parent.add_child(_lab(_supply_text(game, sid), 14, false))
 	parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
 	_add_needs(st, details)
@@ -2559,7 +2573,7 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 	parent.add_child(_dawn_line(game_now))
 	var shown := 0
 	var later: Array = []
-	for row in order_rows(game_now, own):
+	for row in order_rows(game_now, own, sid):
 		var kind := str(row[0])
 		if shown < CARD_ORDERS and not APPROACHES.has(kind) and game_now.order_block(kind, sid) == "":
 			_order_button(kind, str(row[1]), sid, parent, details)
@@ -2577,6 +2591,14 @@ func _add_guard(game, parent: Node) -> void:
 	var line := _lab(Copy.t("Guard: %s (marches need %d).") % [Words.count(n, "soldier"), int(game.bal.guard.move_min)], 14, false)
 	line.set_meta("guard_line", true)
 	parent.add_child(line)
+	var names: PackedStringArray = []
+	for id in game.soldier_ids():
+		if game.people.has(str(id)):
+			names.append(Copy.person(str(game.people[str(id)].name)))
+	if not names.is_empty():
+		var who := _lab(Copy.t("On the gate: %s.") % ", ".join(names), 13, false)
+		who.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		parent.add_child(who)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	parent.add_child(row)
@@ -2609,9 +2631,23 @@ func _guard_action(kind: String) -> void:
 
 
 ## Every order a station's card offers, in card order: [kind, label].
-func order_rows(game, own: bool) -> Array:
+const FOCUS_WORD := {"food": "Food", "air": "Air", "defense": "Defense", "influence": "Influence"}
+
+
+func _focus_word(focus: String) -> String:
+	return str(FOCUS_WORD.get(focus, "Food"))
+
+
+func order_rows(game, own: bool, sid: String = "") -> Array:
 	if own:
-		return [["move", "Garrison"]]
+		var rows: Array = []
+		if sid != "" and sid != str(game.capital_id):
+			rows.append(["focus:food", "Send food home"])
+			rows.append(["focus:air", "Send air home"])
+			rows.append(["focus:defense", "Fortify"])
+			rows.append(["focus:influence", "Spread our name"])
+		rows.append(["move", "Garrison"])
+		return rows
 	var rows := [["envoy", "Send envoy"], ["propaganda", "Propaganda"], ["move", "Move squad"], ["trade", "Open trade"], ["expedition", "Start expedition"]]
 	if not game.floor_met:
 		rows.append(["approach", "Approach the Floor"])

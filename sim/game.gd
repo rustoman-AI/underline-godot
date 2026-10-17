@@ -511,7 +511,12 @@ func housing() -> int:
 	return n
 
 
-## What a room's bought upgrades do beyond the +25% base output per tier (balance.json upgrade_fx), summed over
+## Base output multiplier for a room at this upgrade tier. One tier is upgrade_output (0.75 = +75%).
+func output_scale(tier: int) -> float:
+	return 1.0 + float(bal.get("upgrade_output", 0.75)) * float(tier)
+
+
+## What a room's bought upgrades do beyond that output step (balance.json upgrade_fx), summed over
 ## every tier bought. cough_spread multiplies, shrug_down is true if any tier has it, the rest add up.
 func upgrade_fx(room) -> Dictionary:
 	var out := {}
@@ -898,7 +903,6 @@ func _night() -> void:
 	if _season_is("cough"):
 		_spread_cough()
 		_cough_pull_workers()
-		_pull_sick_from_rooms()
 	_mark_brownout()
 	var produced := _tally(belt_down, workshop_down, gen_down)
 	var swing := int(bal.get("harvest_swing", 0))
@@ -913,6 +917,7 @@ func _night() -> void:
 	if vent_cut > 0:
 		stock.air = maxi(0, int(stock.air) - 2)
 		vent_cut = maxi(0, vent_cut - 1)
+	_tick_seats()
 	for room in rooms:
 		if int(room.get("mold", 0)) > 0:
 			room.mold = int(room.mold) - 1
@@ -1071,7 +1076,7 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false) -> 
 		for key in base:
 			if not out.has(key):
 				continue
-			var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+			var amount := float(base[key]) * output_scale(int(room.upgrade))
 			var n := 0
 			if factor > 0.0:
 				n = Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
@@ -1087,17 +1092,86 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false) -> 
 				n = int(n / 2.0)
 			if int(room.get("mold", 0)) > 0 and str(key) == "food":
 				n = 0
+			elif not (drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
+				n += crew_extra(skills, room, n)
 			out[key] = int(out[key]) + n
 	if quarantine:
 		for key in ["food", "air", "power", "materials", "influence"]:
 			out[key] = int(round(float(out[key]) * 0.75))
 	if _law_on("curfew"):
 		out.influence = int(round(float(out.influence) * float(catalog.laws.curfew.influence_mult)))
+	out.tokens = int(out.tokens) + radio_grant()
 	return out
 
 
+## A staffed radio that is actually running brings tokens. Flat, so an upgrade does not multiply it.
+func radio_grant() -> int:
+	var n := 0
+	for room in rooms:
+		if str(room.type) != "radio":
+			continue
+		if bool(room.get("offline", false)) or _flood_silences(room) or int(room.get("disabled", 0)) > 0:
+			continue
+		if bool(room.get("browned", false)):
+			continue
+		if _able_count(room) < 1:
+			continue
+		n += 2
+	return n
+
+
+## People on the roster who can actually work. Sick and absent stay listed, but they do not count.
+## What to add to a room's output (made) so each able worker is worth at least 1 of it, plus 1 for each
+## veteran (four weeks on the same seat), up to two.
+func crew_extra(skills: Array, room, made: int = 0) -> int:
+	var hands := 0
+	for s in skills:
+		if float(s) >= 1.0:
+			hands += 1
+	var vets := 0
+	if room is Dictionary:
+		for id in room.get("staff", []):
+			if not people.has(str(id)):
+				continue
+			var person: Dictionary = people[str(id)]
+			if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+				continue
+			if int(person.get("seat_weeks", 0)) >= 4:
+				vets += 1
+	return maxi(0, hands - made) + mini(vets, 2)
+
+
+func _tick_seats() -> void:
+	var seated := {}
+	for room in rooms:
+		for id in room.staff:
+			var key := str(id)
+			seated[key] = true
+			if people.has(key):
+				people[key]["seat_weeks"] = int(people[key].get("seat_weeks", 0)) + 1
+	for person in residents:
+		var key := str(person.id)
+		if seated.has(key):
+			continue
+		if str(person.get("post", "")) == "":
+			person["seat_weeks"] = 0
+
+
+func _able_count(room: Dictionary) -> int:
+	var n := 0
+	for id in room.get("staff", []):
+		if not people.has(str(id)):
+			continue
+		var person: Dictionary = people[str(id)]
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		n += 1
+	return n
+
+
 func _output_factor(room: Dictionary, defin: Dictionary) -> float:
-	var have := int(room.staff.size())
+	var listed := int(room.get("staff", []).size())
+	var have := _able_count(room)
 	var need := int(defin.get("staff_min", 0))
 	if str(room.type) == "generator":
 		if have <= 0:
@@ -1105,6 +1179,8 @@ func _output_factor(room: Dictionary, defin: Dictionary) -> float:
 		if have < need:
 			return 0.5
 		return 1.0
+	if need > 0 and have <= 0:
+		return 0.0 if listed > 0 else 0.5
 	if need > 0 and have < need:
 		return 0.5
 	return 1.0
@@ -2194,6 +2270,8 @@ func upgrade_preview(uid: String) -> Dictionary:
 	var defin: Dictionary = catalog.rooms[room.type]
 	var steps: Array = defin.get("upgrades", [])
 	info.materials = upgrade_cost(str(room.type), int(room.upgrade) + 1)
+	if steps.is_empty():
+		return info
 	if int(room.upgrade) >= steps.size():
 		info.reason = Copy.t("Nothing left to upgrade.")
 		return info
@@ -2284,6 +2362,8 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 	_unassign(person_id)
 	var room = _room(uid)
 	room.staff.append(person_id)
+	people[person_id]["post"] = uid
+	people[person_id]["seat_weeks"] = 0
 	decisions += 1
 	_log("ASSIGN %s to %s" % [people[person_id].name, catalog.rooms[room.type].name])
 	return true
@@ -2292,6 +2372,8 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 func _apply_unassign(person_id: String) -> bool:
 	if not people.has(person_id):
 		return false
+	people[person_id].erase("post")
+	people[person_id]["seat_weeks"] = 0
 	_unassign(person_id)
 	decisions += 1
 	_log("UNASSIGN %s" % people[person_id].name)
@@ -2391,7 +2473,7 @@ func room_detail(uid: String) -> Dictionary:
 	var outputs: Array = []
 	var base: Dictionary = defin.base
 	for key in base:
-		var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+		var amount := float(base[key]) * output_scale(int(room.upgrade))
 		var factor := _output_factor(room, defin)
 		var n := 0
 		if factor > 0.0:
@@ -2403,8 +2485,11 @@ func room_detail(uid: String) -> Dictionary:
 			n = int(n / 2.0)
 		if workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
 			n = 0
-		if gen_down and str(room.type) == "generator" and str(key) == "power":
+		elif gen_down and str(room.type) == "generator" and str(key) == "power":
 			n = int(n / 2.0)
+			n += crew_extra(skills, room, n)
+		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
+			n += crew_extra(skills, room, n)
 		outputs.append({"key": str(key), "amount": n, "base": amount})
 	var extra := 0.0
 	for value in skills:
@@ -2483,6 +2568,29 @@ func _apply_dig(for_space: bool) -> bool:
 	return true
 
 
+## Seasonal water leaves when the flood weeks end. A pump can clear it sooner. Rooms the player switched
+## off stay off.
+func _recede_flood() -> void:
+	var names: PackedStringArray = []
+	var any := false
+	for key in cells:
+		if not bool(cells[key].get("flooded", false)):
+			continue
+		any = true
+		cells[key].flooded = false
+		var uid := str(cells[key].room)
+		var flooded_room = _room(uid)
+		if uid != "" and flooded_room != null:
+			flooded_room.offline = bool(flooded_room.get("switched_off", false))
+			names.append(Copy.t(str(catalog.rooms[flooded_room.type].name)))
+	if not any:
+		return
+	if names.is_empty():
+		_note("SEASON The water is down.", "SEASON Вода сошла.")
+	else:
+		_note("SEASON The water is down. %s are working again." % ", ".join(names), "SEASON Вода сошла. Снова работают: %s." % ", ".join(names))
+
+
 func _apply_pump() -> bool:
 	if not can_pump():
 		return false
@@ -2541,17 +2649,28 @@ func _advance_jobs() -> void:
 	if not build.is_empty():
 		build.left = int(build.left) - 1
 		if int(build.left) <= 0:
+			var crew: Array = build.get("workers", []).duplicate()
 			_place_room(str(build.type), int(build.level), int(build.cell))
 			_log("%s is finished" % catalog.rooms[str(build.type)].name)
 			_journal("built", {"type": str(build.type)})
 			build = {}
+			_restore_posts(crew)
 	if not dig.is_empty():
 		dig.left = int(dig.left) - 1
 		if int(dig.left) <= 0:
+			var crew: Array = dig.get("workers", []).duplicate()
 			_finish_dig()
+			_restore_posts(crew)
+
+
+## "requires": "digging" holds while a crew is digging and the week after it breaks through, when the new
+## room is still open and nobody has cleared it.
+func _digging_now() -> bool:
+	return not dig.is_empty() or week - int(flags.get("dig_done_week", -99)) <= 1
 
 
 func _finish_dig() -> void:
+	flags["dig_done_week"] = week
 	var key := _ck(int(dig.level), int(dig.cell))
 	var cell: Dictionary = cells[key]
 	cell.dug = true
@@ -2652,9 +2771,14 @@ func _step_toward_find() -> Dictionary:
 func _apply_flood_if_needed() -> void:
 	if active_season.is_empty() or str(active_season.id) != "flood":
 		return
-	if week != int(active_season.start) or pumped or flood_guard:
-		if (pumped or flood_guard) and week == int(active_season.get("start", -1)):
-			_log("The Flood hits the pumps and holds.")
+	if week != int(active_season.start):
+		return
+	if flags.has("leak_patched"):
+		flood_guard = true
+		_note("SEASON The patched pipes hold. The flood does not reach the rooms.", "SEASON Заплатка держит. Паводок не доходит до комнат.")
+		return
+	if pumped or flood_guard:
+		_log("The Flood hits the pumps and holds.")
 		return
 	var lowest := -1
 	for key in cells:
@@ -2675,10 +2799,10 @@ func _apply_flood_if_needed() -> void:
 				names.append(Copy.t(str(catalog.rooms[room.type].name)))
 	if _any_trait("Claustrophobic"):
 		_add_hope(-2, "trait")
-	var flood_note := "SEASON flood on level %d (%s)" % [lowest, ", ".join(names)]
-	if Copy.ru():
-		flood_note = "SEASON Паводок на уровне %d (%s)." % [lowest, ", ".join(names)]
-	_log(flood_note, true)
+	if names.is_empty():
+		_note("SEASON Flood on level %d." % lowest, "SEASON Паводок на уровне %d." % lowest)
+	else:
+		_note("SEASON Flood on level %d (%s)." % [lowest, ", ".join(names)], "SEASON Паводок на уровне %d (%s)." % [lowest, ", ".join(names)])
 	_journal("flood", {"level": lowest})
 
 
@@ -2773,6 +2897,8 @@ func _order_deal(sid: String) -> bool:
 	st.deals = int(st.get("deals", 0)) + 1
 	st.passage = true
 	_bump_need(st, _lowest_need(st), 0.25)
+	stock.food = int(stock.food) + 4
+	stock.materials = int(stock.materials) + 2
 	_log("DEAL %s (%d)" % [st.name, int(st.deals)], true)
 	if int(st.deals) >= 3 and str(st.owner) == "neutral":
 		_log("DEAL %s asks to join" % st.name, true)
@@ -2892,6 +3018,7 @@ func _resolve_queued() -> void:
 		var kind := str(action.get("order", ""))
 		var sid := str(action.get("station", ""))
 		var host := _order_host(kind, action)
+		var before := _order_before(kind, action)
 		var ok := false
 		match kind:
 			"propaganda":
@@ -2930,11 +3057,10 @@ func _resolve_queued() -> void:
 			place = station_text(sid, "community")
 		seat_used.erase(str(row.get("role", "")))
 		var title := Copy.t("Dawn report")
-		var text := "%s · %s" % [Copy.person(str(row.get("name", ""))), place]
+		var who := Copy.person(str(row.get("name", "")))
+		var text := _order_result_text(kind, action, who, place, before, ok)
 		if ok:
 			title = Copy.t(_order_title(kind))
-		else:
-			text = "%s %s" % [Copy.t("The order failed."), text]
 		var report := {"title": title, "text": text, "ok": ok}
 		if ok and host != "":
 			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
@@ -2943,6 +3069,82 @@ func _resolve_queued() -> void:
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
+
+
+## Stock, sympathy and the squad, read after the order's cost is refunded and before it resolves.
+func _order_before(kind: String, action: Dictionary) -> Dictionary:
+	var sid := str(action.get("station", action.get("dest", "")))
+	var snap := {"stock": {}}
+	for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+		snap.stock[key] = int(stock.get(key, 0))
+	if stations.has(sid):
+		var st: Dictionary = stations[sid]
+		snap.sympathy = int(st.get("sympathy", 0))
+		snap.owner = str(st.owner)
+	var sq: Dictionary = squads.get(player, {})
+	snap.squad = str(sq.get("station", ""))
+	if kind == "move":
+		var path := _path(str(snap.squad), str(action.get("dest", "")))
+		var nxt := str(path[1]) if path.size() >= 2 else ""
+		snap.step = nxt
+		snap.step_owner = str(stations[nxt].owner) if stations.has(nxt) else ""
+	return snap
+
+
+## What the dawn card says the order did: a line from the councillor, then the change.
+func _order_result_text(kind: String, action: Dictionary, who: String, place: String, before: Dictionary, ok: bool) -> String:
+	if not ok:
+		return "%s %s · %s" % [Copy.t("The order failed."), who, place]
+	var bits: PackedStringArray = ["%s · %s" % [who, place]]
+	var sid := str(action.get("station", ""))
+	match kind:
+		"propaganda", "envoy":
+			if stations.has(sid):
+				var now := int(stations[sid].get("sympathy", 0))
+				var gain := now - int(before.get("sympathy", now))
+				if str(stations[sid].owner) == player and str(before.get("owner", "")) != player:
+					bits.append(Copy.t("%s stands with you.") % place)
+				elif gain != 0:
+					bits.append(Copy.t("Sympathy is now %d (+%d).") % [now, gain])
+			if kind == "envoy":
+				bits.append(Copy.t("Their weakest need eases."))
+		"trade":
+			if sid == "":
+				bits.append(Copy.t("The Exchange opinion is now %d. Tokens come every week.") % int(opinions.get("exchange", 0)))
+			elif stations.has(sid):
+				bits.append(Copy.t("Passage is open. Deals with them: %d.") % int(stations[sid].get("deals", 0)))
+				if str(stations[sid].owner) == player and str(before.get("owner", "")) != player:
+					bits.append(Copy.t("%s stands with you.") % place)
+		"move":
+			var here := str(squads.get(player, {}).get("station", ""))
+			var step := str(before.get("step", ""))
+			if step != "" and here == step and str(stations[step].owner) == player and str(before.get("step_owner", "")) != player:
+				bits.append(Copy.t("The squad takes %s.") % (station_text(step, "community") if station_text(step, "community") != "" else place))
+			elif here != str(before.get("squad", "")):
+				var arrived := station_text(here, "community")
+				bits.append(Copy.t("The squad reaches %s.") % (arrived if arrived != "" else place))
+			else:
+				bits.append(Copy.t("The squad is held up on the way."))
+		"expedition":
+			bits.append(Copy.t("The squad is away for %s.") % Words.count(3, "week"))
+	var gained := _gained_since(before)
+	if gained != "":
+		bits.append(gained)
+	if bits.size() == 1:
+		bits.append(Copy.t("It is done."))
+	return " ".join(bits)
+
+
+func _gained_since(before: Dictionary) -> String:
+	var was: Dictionary = before.get("stock", {})
+	var bits: PackedStringArray = []
+	for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+		var d := int(stock.get(key, 0)) - int(was.get(key, 0))
+		if d > 0:
+			bits.append(Copy.stock(d, key))
+	if bits.is_empty():
+		return ""
+	return Copy.t("They send %s.") % ", ".join(bits)
 
 
 ## The faction whose ground the order enters or whose trade it opens, read before the order resolves
@@ -2989,6 +3191,8 @@ func _order_title(kind: String) -> String:
 
 
 func order_block(kind: String, sid: String = "") -> String:
+	if kind.begins_with("focus:"):
+		return focus_block(sid, kind.trim_prefix("focus:"))
 	if orders_left <= 0:
 		return Copy.t("No council order left this week.")
 	if order_councillor().is_empty():
@@ -3060,6 +3264,8 @@ func can_approach_quarantine() -> bool:
 
 
 func order_risk(kind: String, sid: String = "") -> String:
+	if kind.begins_with("focus:"):
+		return Copy.t("No risk. Once the station can ship, this is what it sends home.")
 	match kind:
 		"envoy":
 			if not stations.has(sid):
@@ -3356,7 +3562,7 @@ func _tick_expedition() -> void:
 	_hire(2)
 	expedition = {}
 	flags[EXPEDITION_FLAG] = true
-	_log("South Ferry is open. Two people walk back with the squad.", true)
+	_note("BACK South Ferry is open. Two people walk back with the squad, and materials come with them.", "BACK Саут-Ферри открыт. Двое возвращаются с отрядом, и с ними материалы.")
 
 
 # --- rivals ---
@@ -3750,17 +3956,58 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_log("%s will remember %s." % [_fname(prev), st.name])
 	if fid == player:
 		_add_hope(int(bal.join_hope), "victory")
+		var shipment := _capture_shipment(st)
 		var how := "force" if force else "peace"
 		var joined := str(st.name)
 		if Copy.ru():
 			how = "силой" if force else "мирно"
 			joined = Copy.t(joined)
-		_log("JOIN %s (%s)" % [joined, how], true)
+		var line := "JOIN %s (%s)" % [joined, how]
+		if shipment != "":
+			line += ". " + shipment
+		_log(line, true)
 	else:
 		_log("%s takes %s" % [_fname(fid), st.name], true)
 	if sid == capital_id and fid != player and over == "":
 		over = "capital"
 		_log("The yard has fallen.", true)
+	return true
+
+
+## A station that comes over sends one load home the week it joins, so the capture is not only a new pin.
+func _capture_shipment(st: Dictionary) -> String:
+	var focus := str(st.get("focus", "food"))
+	var key := "food"
+	var n := 6
+	match focus:
+		"air":
+			key = "air"
+			n = 4
+		"defense":
+			key = "materials"
+			n = 4
+		"influence":
+			key = "influence"
+			n = 3
+	stock[key] = int(stock.get(key, 0)) + n
+	return Copy.t("They send %s.") % Copy.stock(n, key)
+
+
+func focus_block(sid: String, focus: String) -> String:
+	if focus not in ["food", "air", "defense", "influence"]:
+		return Copy.t("No such order.")
+	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
+		return Copy.t("That station is out of reach.")
+	if str(stations[sid].get("focus", "")) == focus:
+		return Copy.t("They already send this home.")
+	return ""
+
+
+func set_outpost_focus(sid: String, focus: String) -> bool:
+	if focus_block(sid, focus) != "":
+		return false
+	stations[sid].focus = focus
+	_log("ORDER %s focuses on %s" % [stations[sid].name, focus])
 	return true
 
 
@@ -3986,6 +4233,7 @@ func _pull_workers(n: int, skill: String) -> Array:
 	var chosen: Array = []
 	for i in n:
 		var id := str(pool[i].id)
+		_mark_post(id)
 		_unassign(id)
 		chosen.append(id)
 	return chosen
@@ -4069,12 +4317,28 @@ func _shed(n: int) -> void:
 	var lost := 0
 	while lost < n and not pool.is_empty():
 		var person: Dictionary = pool.pop_front()
-		_remove_resident(str(person.id))
+		_remove_resident(str(person.id), true)
 		lost += 1
 
 
-func _remove_resident(id: String) -> void:
+func _remove_resident(id: String, notice := false) -> void:
+	var gone := str(people[id].get("name", "")) if people.has(id) else ""
+	var seat := ""
+	if people.has(id):
+		var uid := _staff_room_of(id)
+		if uid == "":
+			uid = str(people[id].get("post", ""))
+		var room = _room(uid)
+		if room != null:
+			seat = Copy.t(str(catalog.rooms[room.type].name))
 	_unassign(id)
+	if notice and gone != "":
+		var name := Copy.person(gone)
+		var died := "умерла" if people.has(id) and sex_of(people[id]) == "f" else "умер"
+		if seat != "":
+			_note("LOST %s died. Their place in %s is empty." % [name, seat], "LOST %s %s. Место в «%s» пусто." % [name, died, seat])
+		else:
+			_note("LOST %s died." % name, "LOST %s %s." % [name, died])
 	people.erase(id)
 	var keep: Array = []
 	for person in residents:
@@ -4140,6 +4404,34 @@ func _staff_room_of(id: String) -> String:
 	return ""
 
 
+## The room a person was taken from, so a dig crew or the guard can put them back.
+func _mark_post(id: String) -> void:
+	if not people.has(id):
+		return
+	var uid := _staff_room_of(id)
+	if uid != "":
+		people[id]["post"] = uid
+
+
+func _restore_post(id: String) -> void:
+	if not people.has(id):
+		return
+	if _staff_room_of(id) != "" or bool(people[id].get("soldier", false)):
+		return
+	if int(people[id].get("sick", 0)) > 0 or int(people[id].get("absent", 0)) > 0:
+		return
+	var uid := str(people[id].get("post", ""))
+	if uid == "" or not bool(assign_preview(id, uid).ok):
+		return
+	var room = _room(uid)
+	room.staff.append(id)
+
+
+func _restore_posts(ids: Array) -> void:
+	for id in ids:
+		_restore_post(str(id))
+
+
 func recruit_block() -> String:
 	var sq: Dictionary = squads.get(player, {})
 	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
@@ -4169,6 +4461,7 @@ func recruit_preview() -> String:
 
 
 func _enlist(id: String) -> void:
+	_mark_post(id)
 	_unassign(id)
 	people[id].soldier = true
 	_sync_guard()
@@ -4197,6 +4490,7 @@ func _apply_dismiss() -> bool:
 			pick = id
 	people[pick].soldier = false
 	_sync_guard()
+	_restore_post(pick)
 	decisions += 1
 	_log("DISMISS %s goes back to work (%d)" % [people[pick].name, soldier_count()])
 	return true
@@ -4208,7 +4502,7 @@ func _lose_soldiers(n: int, why: String) -> int:
 	ids.sort_custom(func(a, b): return int(people[a].skills.get("fight", 0)) < int(people[b].skills.get("fight", 0)))
 	var lost := 0
 	while lost < n and not ids.is_empty():
-		_remove_resident(str(ids.pop_front()))
+		_remove_resident(str(ids.pop_front()), true)
 		lost += 1
 	if lost > 0:
 		_log(Copy.t("%s. Killed: %s.") % [Copy.t(why), Words.count(lost, "soldier")], true)
@@ -4260,10 +4554,13 @@ func _heal() -> void:
 
 func _tick_sickness() -> void:
 	for person in residents:
+		var was_out := int(person.absent) > 0 or int(person.sick) > 0
 		if int(person.absent) > 0:
 			person.absent = int(person.absent) - 1
 		if int(person.sick) > 0:
 			person.sick = int(person.sick) - 1
+		if was_out and int(person.absent) <= 0 and int(person.sick) <= 0:
+			_restore_post(str(person.id))
 
 
 func _double_shift_sickness() -> void:
@@ -4276,32 +4573,33 @@ func _double_shift_sickness() -> void:
 				people[id].sick = maxi(int(people[id].sick), 2)
 
 
+## A few workers fall ill during the Cough. They stay on the roster; output drops while they cannot work.
 func _cough_pull_workers() -> void:
 	if quarantine:
 		return
-	var pull := int(bal.cough_pull)
-	if pull <= 0:
+	var cap := int(bal.cough_pull)
+	if cap <= 0:
 		return
-	for room in rooms:
-		var removed := 0
-		var keep: Array = []
-		for id in room.staff:
-			if removed < pull and people.has(str(id)):
-				people[str(id)].sick = maxi(int(people[str(id)].sick), 2)
-				removed += 1
-				continue
-			keep.append(id)
-		room.staff = keep
+	var pool: Array = []
+	for person in residents:
+		if int(person.get("sick", 0)) > 0:
+			continue
+		if _staff_room_of(str(person.id)) == "":
+			continue
+		pool.append(person)
+	var hit := 0
+	while hit < cap and not pool.is_empty():
+		var person: Dictionary = pool.pop_at(rng.randi() % pool.size())
+		person.sick = maxi(int(person.sick), 2)
+		hit += 1
+	if hit > 0:
+		_note("SICK %s fall ill and stay at their posts." % Words.count(hit, "worker"), "SICK Заболели и остались на местах: %s." % Words.count(hit, "worker"))
 
 
+## Sick people used to be stripped off the roster here, which emptied rooms with no word why.
+## They stay listed. _output_factor ignores them until they are well.
 func _pull_sick_from_rooms() -> void:
-	for room in rooms:
-		var keep: Array = []
-		for id in room.staff:
-			if people.has(str(id)) and int(people[str(id)].sick) > 0:
-				continue
-			keep.append(id)
-		room.staff = keep
+	pass
 
 
 func _spread_cough() -> void:
@@ -4617,7 +4915,7 @@ func needs_window(ev: Dictionary) -> int:
 		left = mini(left, int(weeks[1]) - week)
 	if offers_ending(ev) and not _ending_open(ev):
 		return -1
-	if str(ev.get("requires", "")) == "digging" and dig.is_empty():
+	if str(ev.get("requires", "")) == "digging" and not _digging_now():
 		return -1
 	return left if needs_hold(needs) else -1
 
@@ -4835,7 +5133,7 @@ func _event_ok(ev: Dictionary) -> bool:
 	var cool := maxi(int(bal.get("event_cooldown", 8)), int(ev.get("cooldown", 8)))
 	if event_last.has(id) and week - int(event_last[id]) < cool:
 		return false
-	if not bool(ev.get("major", false)) and int(event_times.get(id, 0)) >= int(bal.get("event_minor_cap", 2)):
+	if not bool(ev.get("major", false)) and int(event_times.get(id, 0)) >= int(bal.get("event_minor_cap", 1)):
 		return false
 	if week < int(ev.get("min_week", 1)):
 		return false
@@ -4843,7 +5141,7 @@ func _event_ok(ev: Dictionary) -> bool:
 		return false
 	if discontent < int(ev.get("min_discontent", 0)):
 		return false
-	if str(ev.get("requires", "")) == "digging" and dig.is_empty():
+	if str(ev.get("requires", "")) == "digging" and not _digging_now():
 		return false
 	return true
 
@@ -5318,7 +5616,7 @@ func _offer_checks() -> void:
 				_apply_effect_block(live.get("effects_on_open", {}), "", false, live)
 				live.opened = true
 		else:
-			item.week = week + 1
+			item.week = week + 3
 
 
 func _release_white_checks() -> void:
@@ -5530,6 +5828,9 @@ func _apply_event(action: Dictionary) -> bool:
 	decisions += 1
 	if not keep:
 		return true
+	var mark := str(choice.get("flag", ""))
+	if mark != "":
+		flags[mark] = true
 	if bool(choice.get("crunch_suffer", false)):
 		var drops: Array = stats.get("crunch_drops", [])
 		drops.append(str(ev.title))
@@ -5679,7 +5980,6 @@ func _injure(n: int, first_id: String) -> void:
 		picked.append(id)
 	for id in picked:
 		people[id].absent = maxi(int(people[id].absent), 2)
-		_unassign(str(id))
 	if not picked.is_empty():
 		_log("INJURED %d" % picked.size(), true)
 
@@ -6118,6 +6418,8 @@ func _season_clock() -> void:
 			if str(season.id) == "cough":
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):
+		if str(active_season.id) == "flood":
+			_recede_flood()
 		active_season = {}
 	if flood_guard and _flood_eta() > flood_warning():
 		flood_guard = false
