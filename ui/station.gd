@@ -8344,6 +8344,7 @@ func _fill_menu_root() -> void:
 	menu_root.add_child(continue_button)
 	menu_root.add_child(_menu_choice("New game", _begin_new_game.bind(true), true))
 	menu_root.add_child(_menu_choice("How to play", _show_howto.bind(false), false))
+	menu_root.add_child(_menu_choice("Intro", _play_intro, false))
 	menu_root.add_child(_menu_choice("Settings", _open_settings.bind(false), false))
 	menu_root.add_child(_menu_choice("Credits", _open_credits, false))
 	menu_root.add_child(_menu_choice("Quit", _quit_game, false))
@@ -10969,14 +10970,14 @@ class Yard extends Control:
 			_draw_more(rect, extra)
 
 	func _draw_more(rect: Rect2, extra: int, filter_id: String = "") -> void:
-		var label := Copy.t("%d more") % extra
+		var label := ("ещё %s" % Words.count(extra, "person")) if Copy.ru() else "%d more %s" % [extra, "person" if extra == 1 else "people"]
 		var font: Font = ThemeDB.fallback_font
 		if station.body_font != null:
 			font = station.body_font
 		var font_size := 13
 		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 		var box := Vector2(text_size.x + 10.0, text_size.y + 4.0)
-		var origin := Vector2(rect.position.x + rect.size.x - box.x - 4.0, rect.position.y + rect.size.y - box.y - 6.0)
+		var origin := Vector2(rect.position.x + rect.size.x - box.x - 4.0, rect.position.y + rect.size.y - box.y - 24.0)
 		draw_rect(Rect2(origin, box), Color(0.09, 0.06, 0.04, 0.88))
 		draw_string(font, origin + Vector2(5.0, text_size.y * 0.82), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("efe6d2"))
 		if filter_id != "":

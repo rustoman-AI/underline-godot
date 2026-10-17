@@ -2382,9 +2382,12 @@ func _fit_order_button(button: Button, caption: Label) -> void:
 func _order_tip(game, kind: String, sid: String, why: String) -> String:
 	var cost: Dictionary = game.order_cost(kind, sid)
 	if why != "":
-		if why == Copy.t("Not enough influence."):
+		if why.begins_with(Copy.t("Not enough influence.")):
 			var need := int(cost.get("influence", 4))
-			return Copy.t("Not enough influence: need %d, have %d.") % [need, int(game.stock.get("influence", 0))]
+			var tip := Copy.t("Not enough influence: need %d, have %d.") % [need, int(game.stock.get("influence", 0))]
+			if game.room_count("meeting_hall") == 0:
+				tip += " " + Copy.t("A meeting hall makes it.")
+			return tip
 		return why
 	var who: Dictionary = game.order_councillor()
 	var lines: PackedStringArray = []

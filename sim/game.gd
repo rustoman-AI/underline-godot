@@ -2906,6 +2906,15 @@ func _order_deal(sid: String) -> bool:
 	return true
 
 
+## Why an order is short of influence; names the meeting hall while the station has none, since it makes nearly
+## all of it.
+func influence_short() -> String:
+	var why := Copy.t("Not enough influence.")
+	if room_count("meeting_hall") == 0:
+		why += " " + Copy.t("A meeting hall makes it.")
+	return why
+
+
 func _take_seat(order_name: String) -> void:
 	for seat in council:
 		var role := str(seat.role)
@@ -3212,7 +3221,7 @@ func order_block(kind: String, sid: String = "") -> String:
 			if int(opinions.get("exchange", -100)) < 0:
 				return Copy.t("The Exchange will not deal with you.")
 			if int(stock.influence) < 4:
-				return Copy.t("Not enough influence.")
+				return influence_short()
 			return ""
 		"expedition":
 			return _expedition_block()
@@ -3325,7 +3334,7 @@ func _propaganda_block(sid: String) -> String:
 	if why != "":
 		return why
 	if int(stock.influence) < int(bal.propaganda_influence):
-		return Copy.t("Not enough influence.")
+		return influence_short()
 	return ""
 
 
@@ -3334,7 +3343,7 @@ func _envoy_block(sid: String) -> String:
 	if why != "":
 		return why
 	if int(stock.influence) < 3:
-		return Copy.t("Not enough influence.")
+		return influence_short()
 	return ""
 
 
@@ -3345,7 +3354,7 @@ func _deal_block(sid: String) -> String:
 	if int(stations[sid].get("deals", 0)) >= 3:
 		return Copy.t("Three deals are already in force.")
 	if int(stock.influence) < 4:
-		return Copy.t("Not enough influence.")
+		return influence_short()
 	return ""
 
 
