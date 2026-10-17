@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 222. Первый: 2026-10-02. Последний: 2026-10-17 78f4dd7.
+Коммитов: 224. Первый: 2026-10-02. Последний: 2026-10-17 cb92b7c.
 
 ## Этапы
 
@@ -19,8 +19,10 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-17 (14)
+### 2026-10-17 (16)
 
+- `cb92b7c` Clearer people count, where influence comes from, and Intro in the main menu
+- `1b959ee` Docs: playtest14 build, changelog
 - `78f4dd7` Map: the station tip closes once its card opens; closed orders stay on the card
 - `767db2d` Docs: playtest13 build, changelog
 - `872bf75` Intro: the Silence teaser plays once on first launch, over the main menu
