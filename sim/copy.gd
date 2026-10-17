@@ -144,37 +144,41 @@ static func trait_list(names: Array) -> String:
 
 
 static func gloss(line: String) -> String:
-	if not ru() or line == "":
+	if line == "":
 		return line
-	var rival := _rival_line(line)
+	var rival := _rival_line(line) if ru() else ""
 	if rival != "":
 		return rival
+	## Log tags as the player reads them: [tag, Russian, English].
 	var tags := [
-		["No warning from ", "Нет вести от "],
-		["ULTIMATUM ", "Ультиматум. "],
-		["PRESSURE ", "Давление. "],
-		["SEASON ", "Сезон. "],
-		["SHORT ", "Нехватка. "],
-		["AGENT ", ""],
-		["FIND ", "Находка. "],
-		["JOIN ", "Пополнение. "],
-		["LOST ", "Потеря. "],
-		["SICK ", "Болезнь. "],
-		["BACK ", "Возвращение. "],
-		["BATTLE ", "Бой. "],
-		["WARN ", "Тревога. "],
-		["DEFECT ", "Уход. "],
-		["REVOLT ", "Бунт. "],
-		["DEAL ", "Сделка. "],
-		["PREACH ", "Проповедь. "],
-		["TRUTH ", "Правда. "],
-		["TESTIMONY ", "Свидетельство. "],
-		["ROT ", ""],
+		["No warning from ", "Нет вести от ", "No warning from "],
+		["ULTIMATUM ", "Ультиматум. ", "Ultimatum. "],
+		["PRESSURE ", "Давление. ", "Pressure. "],
+		["SEASON ", "Сезон. ", "Season. "],
+		["SHORT ", "Нехватка. ", "Shortage. "],
+		["AGENT ", "", ""],
+		["FIND ", "Находка. ", "Find. "],
+		["JOIN ", "Пополнение. ", "Joined. "],
+		["LOST ", "Потеря. ", "Lost. "],
+		["SICK ", "Болезнь. ", "Sickness. "],
+		["BACK ", "Возвращение. ", "Back. "],
+		["BATTLE ", "Бой. ", "Battle. "],
+		["WARN ", "Тревога. ", "Warning. "],
+		["DEFECT ", "Уход. ", "Defection. "],
+		["REVOLT ", "Бунт. ", "Revolt. "],
+		["DEAL ", "Сделка. ", "Deal. "],
+		["PREACH ", "Проповедь. ", "Sermon. "],
+		["TRUTH ", "Правда. ", "Truth. "],
+		["TESTIMONY ", "Свидетельство. ", "Testimony. "],
+		["ROT ", "", ""],
 	]
 	for pair in tags:
 		var prefix := str(pair[0])
 		if line.begins_with(prefix):
-			return str(pair[1]) + line.substr(prefix.length())
+			var rest := line.substr(prefix.length())
+			if not ru() and rest != "" and str(pair[2]).ends_with(". "):
+				rest = rest.substr(0, 1).to_upper() + rest.substr(1)
+			return str(pair[1] if ru() else pair[2]) + rest
 	return t(line)
 
 

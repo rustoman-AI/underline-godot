@@ -948,7 +948,7 @@ func _night() -> void:
 		var people_short := food_short * int(bal.food_per) + air_short * int(bal.air_per)
 		var deaths := int(people_short / 10)
 		week_short = true
-		_note("SHORT food %d air %d" % [food_short, air_short], "SHORT еды не хватило на %d, воздуха на %d." % [food_short, air_short])
+		_note("SHORT Food ran short by %d, air by %d." % [food_short, air_short], "SHORT еды не хватило на %d, воздуха на %d." % [food_short, air_short])
 		if deaths > 0:
 			_kill(deaths, "Supplies ran out")
 	var power_short := maxi(0, need_power - int(stock.power))
@@ -957,7 +957,7 @@ func _night() -> void:
 		_add_hope(int(bal.power_shortage_hope), "power")
 		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
-		_note("SHORT power %d" % power_short, "SHORT энергии не хватило на %d." % power_short)
+		_note("SHORT Power ran short by %d." % power_short, "SHORT энергии не хватило на %d." % power_short)
 	for room in rooms:
 		room.browned = false
 	if int(stock.power) <= 0:
