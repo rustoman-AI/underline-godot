@@ -2,7 +2,7 @@ extends Control
 
 ## The 40-second teaser "The Silence", drawn by the engine and recorded with Godot's Movie Maker:
 ##   godot --path . --resolution 1920x1080 --fixed-fps 30 --write-movie build/teaser/teaser_en.avi \
-##     res://tools/teaser/teaser.tscn -- --lang=en [--stills]
+##     res://ui/intro/teaser.tscn -- --lang=en [--stills]
 ## Script, slots and pictures are in docs/briefs/teaser_silence_edit.md. Narration plays from
 ## incoming-audio/teaser-vo-01/ogg/teaser_silence_<n>_<lang>_take1.ogg when the file is there; without it the
 ## subtitles carry the line. --stills also saves a PNG at each review time to build/teaser/stills_<lang>/.
@@ -10,6 +10,8 @@ extends Control
 const LENGTH := 40.5
 const FADE := 0.7
 const VO_DIR := "res://incoming-audio/teaser-vo-01/ogg/"
+## The takes the game ships, for the intro on first launch (the same take 1 files, imported).
+const VO_GAME_DIR := "res://assets/audio/vo/teaser/"
 const STILL_TIMES := [2.0, 7.0, 13.0, 19.0, 23.5, 27.0, 30.0, 33.5, 38.5]
 const AMBER := Color("e2a63a")
 const PAPER := Color("e8dcc4")
@@ -24,6 +26,16 @@ const SHOTS := [
 	["res://shots/map_size/teaser/{lang}_1920x1080/station_view.png", 22.0, 25.8, 1.32, 1.24, Vector2(0.4, 0.5), Vector2(0.5, 0.5)],
 	["res://shots/map_size/teaser/{lang}_1920x1080/network_territories_all.png", 25.5, 28.8, 1.3, 1.5, Vector2(0.5, 0.5), Vector2(0.62, 0.6)],
 	["res://incoming-art/stations/style_v3/dockyard.png", 28.5, 31.0, 1.0, 1.08, Vector2(0.4, 0.5), Vector2(0.3, 0.55)],
+]
+
+## In the game the intro runs before the player has seen anything, so it shows no screenshots of the game: the
+## line about stations plays over two accepted capitals instead.
+const GAME_SHOTS := [
+	["res://assets/hubs/hub_coney_island.webp", 4.0, 10.3, 1.0, 1.06, Vector2(0.38, 0.5), Vector2(0.55, 0.52)],
+	["res://assets/hubs/northgate.webp", 10.0, 16.3, 1.08, 1.0, Vector2(0.6, 0.55), Vector2(0.45, 0.5)],
+	["res://assets/hubs/brickworks.webp", 16.0, 22.3, 1.0, 1.1, Vector2(0.45, 0.55), Vector2(0.68, 0.5)],
+	["res://assets/hubs/trampark.webp", 22.0, 26.8, 1.0, 1.08, Vector2(0.4, 0.5), Vector2(0.55, 0.5)],
+	["res://assets/hubs/chapel.webp", 26.5, 31.0, 1.08, 1.0, Vector2(0.55, 0.5), Vector2(0.45, 0.5)],
 ]
 
 ## The 9:16 cut sees a third of a wide picture, so each shot gets its own crop there, in SHOTS order:
@@ -63,7 +75,12 @@ const TEXT := {
 	},
 }
 
+signal finished
+
 var lang := "en"
+## Set before the scene enters the tree when the game plays it as its intro: any click or key skips it, it frees
+## itself at the end and emits finished.
+var in_game := false
 var portrait := false
 var vertical := false
 var frames_dir := ""
@@ -91,6 +108,11 @@ func _ready() -> void:
 			stills = true
 		if str(arg) == "--vertical":
 			vertical = true
+	if in_game:
+		lang = "ru" if Copy.ru() else "en"
+		vertical = false
+		stills = false
+		mouse_filter = Control.MOUSE_FILTER_STOP
 	if vertical and get_viewport() == get_tree().root:
 		_host_vertical()
 		return
@@ -101,7 +123,7 @@ func _ready() -> void:
 	black.color = Color.BLACK
 	black.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(black)
-	for row in SHOTS:
+	for row in (GAME_SHOTS if in_game else SHOTS):
 		_add_shot(row)
 	add_child(_vignette())
 	place = _label(str(TEXT[lang].place), _font(true), 64, PAPER)
@@ -132,9 +154,13 @@ func _ready() -> void:
 	hiss = _player("res://assets/audio/radio.ogg", -80.0)
 	tick = _player("res://assets/audio/hover.ogg", -6.0)
 	for row in LINES:
-		var path := VO_DIR + "teaser_silence_%d_%s_take1.ogg" % [int(row[0]), lang]
-		if FileAccess.file_exists(path):
-			var stream := AudioStreamOggVorbis.load_from_file(ProjectSettings.globalize_path(path))
+		var path := (VO_GAME_DIR if in_game else VO_DIR) + "teaser_silence_%d_%s_take1.ogg" % [int(row[0]), lang]
+		var stream: AudioStream = null
+		if ResourceLoader.exists(path):
+			stream = load(path)
+		elif FileAccess.file_exists(path):
+			stream = AudioStreamOggVorbis.load_from_file(ProjectSettings.globalize_path(path))
+		if stream != null:
 			var p := AudioStreamPlayer.new()
 			p.stream = stream
 			add_child(p)
@@ -154,7 +180,7 @@ func _host_vertical() -> void:
 	add_child(sv)
 	frames_dir = "res://build/teaser/frames_%s_v" % lang
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
-	var inner = load("res://tools/teaser/teaser.tscn").instantiate()
+	var inner = load("res://ui/intro/teaser.tscn").instantiate()
 	inner.frames_dir = frames_dir
 	sv.add_child(inner)
 	set_process(false)
@@ -171,7 +197,28 @@ func _process(delta: float) -> void:
 		img.save_png("res://build/teaser/stills_%s%s/t%04.1f.png" % [lang, "_v" if portrait else "", float(STILL_TIMES[still_index])])
 		still_index += 1
 	if t >= LENGTH:
-		get_tree().quit()
+		if in_game:
+			_finish()
+		else:
+			get_tree().quit()
+
+
+func _input(event: InputEvent) -> void:
+	if not in_game or t < 0.4:
+		return
+	var click := event is InputEventMouseButton and (event as InputEventMouseButton).pressed
+	var key := event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo
+	if click or key:
+		get_viewport().set_input_as_handled()
+		_finish()
+
+
+func _finish() -> void:
+	if is_queued_for_deletion():
+		return
+	set_process(false)
+	finished.emit()
+	queue_free()
 
 
 func _update() -> void:
@@ -335,6 +382,8 @@ func _logo() -> Control:
 	gap.custom_minimum_size = Vector2(0, 18)
 	box.add_child(gap)
 	box.add_child(_label(str(TEXT[lang].tag), _font(false), 26, PAPER))
+	if in_game:
+		return box
 	var gap2 := Control.new()
 	gap2.custom_minimum_size = Vector2(0, 22)
 	box.add_child(gap2)

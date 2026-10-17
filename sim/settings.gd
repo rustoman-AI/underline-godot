@@ -29,6 +29,8 @@ static var people_free_only := false
 ## Playtest log: "" until the player answers the consent card, then "yes" or "no".
 static var log_consent := ""
 static var howto_hidden := false
+## The intro (ui/intro/teaser.tscn) plays once, on the first launch.
+static var intro_seen := false
 ## First-run hints: on by default; ids of the ones already dismissed, kept with the player, not the save.
 static var hints_on := true
 static var hints_seen: Array = []
@@ -68,6 +70,7 @@ static func load_file() -> void:
 	if log_consent != "yes" and log_consent != "no":
 		log_consent = ""
 	howto_hidden = bool(cfg.get_value("playtest", "howto_hidden", false))
+	intro_seen = bool(cfg.get_value("playtest", "intro_seen", false))
 	hints_on = bool(cfg.get_value("hints", "on", true))
 	hints_seen = []
 	var seen = cfg.get_value("hints", "seen", [])
@@ -96,6 +99,7 @@ static func save() -> void:
 	cfg.set_value("game", "people_free_only", people_free_only)
 	cfg.set_value("playtest", "log", log_consent)
 	cfg.set_value("playtest", "howto_hidden", howto_hidden)
+	cfg.set_value("playtest", "intro_seen", intro_seen)
 	cfg.set_value("hints", "on", hints_on)
 	cfg.set_value("hints", "seen", hints_seen.duplicate())
 	cfg.save(path)

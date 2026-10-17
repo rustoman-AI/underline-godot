@@ -1,7 +1,7 @@
 # Тизер «Тишина»: монтажный лист
 
 40 секунд, 1920x1080, 30 кадров в секунду. Версии на EN и RU.
-Сцена: `tools/teaser/teaser.tscn`. Картинки, тайминги и тексты заданы в `tools/teaser/teaser.gd`.
+Сцена: `ui/intro/teaser.tscn`. Картинки, тайминги и тексты заданы в `ui/intro/teaser.gd`.
 Голос: `docs/briefs/muse_teaser_vo.txt`. Тексты EN и RU написаны отдельно, это не перевод.
 
 | Время | Кадр | Звук | Текст |
@@ -19,7 +19,7 @@
 ## Запись
 
 ```
-godot --path . --resolution 1920x1080 --fixed-fps 30 --write-movie build/teaser/teaser_en.avi res://tools/teaser/teaser.tscn -- --lang=en --stills
+godot --path . --resolution 1920x1080 --fixed-fps 30 --write-movie build/teaser/teaser_en.avi res://ui/intro/teaser.tscn -- --lang=en --stills
 ```
 
 `--stills` сохраняет контрольные кадры в `build/teaser/stills_<lang>/`.
@@ -33,7 +33,7 @@ godot --path . --resolution 1920x1080 --fixed-fps 30 --write-movie build/teaser/
 2. 9:16: экран не открывает окно 1080x1920, поэтому вертикальная версия рисуется в скрытый буфер и сохраняет кадры:
 
 ```
-godot --path . --fixed-fps 30 res://tools/teaser/teaser.tscn -- --lang=en --vertical --stills
+godot --path . --fixed-fps 30 res://ui/intro/teaser.tscn -- --lang=en --vertical --stills
 ```
 
 Кадры попадают в `build/teaser/frames_<lang>_v/`. Своя кадровка задана в `PORTRAIT` в teaser.gd, субтитры крупнее и подняты над интерфейсом Shorts. Звук берём из готового 16:9 MP4, тайминг у версий одинаковый. Файл: `build/teaser/underline_teaser_<lang>_vertical.mp4`.

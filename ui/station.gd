@@ -345,6 +345,8 @@ func _ready() -> void:
 		if Settings.reopen == "settings":
 			Settings.reopen = ""
 			_open_settings(false)
+		elif not Settings.intro_seen:
+			_play_intro()
 	if _want_checks():
 		await _check_shots()
 	elif _want_polish():
@@ -8050,6 +8052,30 @@ func music_state() -> Dictionary:
 	at.flood = game._season_is("flood")
 	at.cough_call = game.can_quarantine()
 	return at
+
+
+## The intro about the Silence (ui/intro/teaser.tscn) over the main menu, once per player: any click or key
+## skips it. The menu music is muted under it so the intro's own score plays alone.
+func _play_intro() -> void:
+	var scene: PackedScene = load("res://ui/intro/teaser.tscn")
+	if scene == null:
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 120
+	add_child(layer)
+	var intro = scene.instantiate()
+	intro.in_game = true
+	var music_bus := AudioServer.get_bus_index("Music")
+	var was_muted := music_bus >= 0 and AudioServer.is_bus_mute(music_bus)
+	if music_bus >= 0:
+		AudioServer.set_bus_mute(music_bus, true)
+	intro.finished.connect(func():
+		if music_bus >= 0:
+			AudioServer.set_bus_mute(music_bus, was_muted)
+		Settings.intro_seen = true
+		Settings.save()
+		layer.queue_free())
+	layer.add_child(intro)
 
 
 func _show_main_menu() -> void:
