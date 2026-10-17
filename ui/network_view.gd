@@ -315,6 +315,9 @@ func _redraw() -> void:
 func open_sheet(sid: String) -> void:
 	_details_open = false
 	selected = sid
+	## The map tip points at one station; once its card is open the pointer has done its job.
+	if host != null and bool(host.get("net_guide")) and str(host.get("net_guide_sid")) == sid:
+		host._skip_guide()
 	sheet.visible = true
 	_fill_sheet(sid)
 	_clear_of_sheet(sid)
@@ -2603,12 +2606,27 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 	if home:
 		_add_guard(game_now, parent)
 	parent.add_child(_dawn_line(game_now))
+	## Open orders first; the card fills up with closed ones, greyed with the reason under them, so it never shows
+	## an empty card when nothing can be sent this week.
 	var shown := 0
 	var later: Array = []
+	var closed: Array = []
 	for row in order_rows(game_now, own, sid):
 		var kind := str(row[0])
-		if shown < CARD_ORDERS and not APPROACHES.has(kind) and game_now.order_block(kind, sid) == "":
+		if APPROACHES.has(kind):
+			later.append(row)
+		elif shown < CARD_ORDERS and game_now.order_block(kind, sid) == "":
 			_order_button(kind, str(row[1]), sid, parent, details)
+			shown += 1
+		else:
+			closed.append(row)
+	for row in closed:
+		if shown < CARD_ORDERS:
+			_order_button(str(row[0]), str(row[1]), sid, parent, details)
+			var why := _lab(str(game_now.order_block(str(row[0]), sid)), 12, false)
+			why.add_theme_color_override("font_color", CARD_MUTED if _on_paper else MUTED)
+			why.set_meta("closed_reason", str(row[0]))
+			parent.add_child(why)
 			shown += 1
 		else:
 			later.append(row)

@@ -1884,6 +1884,8 @@ func _toggle_network() -> void:
 		network_view.bind(self)
 	if yard != null:
 		yard.visible = not showing_network
+	if net_guide and not showing_network:
+		_skip_guide()
 	room_hover = ""
 	_sync_room_sound()
 	_place_chrome()
