@@ -9403,8 +9403,8 @@ class Yard extends Control:
 	# Inner lip of each tunnel mouth, so the arches meet the station edges.
 	const BACKDROP_SIDE := 0.147
 	## Share of the view height the camera may show as sky above the station.
-	const SKY_SHARE := 0.04
-	const OPEN_WIDTH := 0.98
+	const SKY_SHARE := 0.2
+	const OPEN_WIDTH := 0.96
 	const PLATFORM_RAIL := 0.96
 	const SKYLINE_FRAC := 0.164
 	const SOIL_LIP := 0.032
@@ -9470,7 +9470,7 @@ class Yard extends Control:
 	const DOUBLE_MS := 320
 
 	func fit() -> void:
-		user_zoom = 1.2
+		user_zoom = 1.0
 		focused = Vector2i(-1, -1)
 		_frame_station()
 
