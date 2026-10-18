@@ -248,6 +248,8 @@ var stock_shown := {}
 var stock_week := 0
 var stock_tween: Tween
 var modal_tween: Tween
+## Slides the People drawer open and shut.
+var drawer_tween: Tween
 var modal_open := false
 var dossier_tab := "profile"
 var journal_filter := ""
@@ -1497,7 +1499,15 @@ func _place_drawer() -> void:
 	var w := 60.0
 	if drawer_open:
 		w = minf(380.0, size.x * 0.42)
-	side.offset_left = size.x - w
+	var goal := size.x - w
+	if drawer_tween != null and drawer_tween.is_valid():
+		drawer_tween.kill()
+	var width_now := side.offset_right - side.offset_left
+	if _motion_off() or absf(width_now - w) < 1.0 or absf(side.offset_right - size.x) > 1.0:
+		side.offset_left = goal
+	else:
+		drawer_tween = create_tween()
+		drawer_tween.tween_property(side, "offset_left", goal, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	side.offset_right = size.x
 	side.offset_top = top
 	side.offset_bottom = size.y - chrome_bottom
@@ -7413,11 +7423,12 @@ func _reveal_modal() -> void:
 		return
 	dim.modulate.a = 0.0
 	card.modulate.a = 0.0
-	card.scale = Vector2(0.96, 0.96)
+	card.scale = Vector2(0.93, 0.93)
+	card.pivot_offset = Vector2(card.size.x * 0.5, card.size.y)
 	modal_tween = create_tween()
-	modal_tween.tween_property(dim, "modulate:a", 1.0, 0.15)
-	modal_tween.parallel().tween_property(card, "modulate:a", 1.0, 0.15)
-	modal_tween.parallel().tween_property(card, "scale", Vector2.ONE, 0.15)
+	modal_tween.tween_property(dim, "modulate:a", 1.0, 0.2)
+	modal_tween.parallel().tween_property(card, "modulate:a", 1.0, 0.18)
+	modal_tween.parallel().tween_property(card, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _hide_modal() -> void:
@@ -7433,9 +7444,9 @@ func _hide_modal() -> void:
 			card.modulate.a = 1.0
 		return
 	modal_tween = create_tween()
-	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.15)
-	modal_tween.parallel().tween_property(card, "modulate:a", 0.0, 0.15)
-	modal_tween.parallel().tween_property(card, "scale", Vector2(0.96, 0.96), 0.15)
+	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.16)
+	modal_tween.parallel().tween_property(card, "modulate:a", 0.0, 0.12)
+	modal_tween.parallel().tween_property(card, "scale", Vector2(0.97, 0.97), 0.14).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	modal_tween.finished.connect(_finish_hide_modal)
 
 

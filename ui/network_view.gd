@@ -294,6 +294,9 @@ func bind(station) -> void:
 
 func refresh() -> void:
 	_track_hops()
+	var game_seen = _game()
+	if game_seen != null:
+		_track_owners(game_seen)
 	_ready_fonts()
 	_name_zoom_bar()
 	_place_panels()
@@ -318,10 +321,27 @@ func open_sheet(sid: String) -> void:
 	## The map tip points at one station; once its card is open the pointer has done its job.
 	if host != null and bool(host.get("net_guide")) and str(host.get("net_guide_sid")) == sid:
 		host._skip_guide()
+	var was_open := sheet.visible
 	sheet.visible = true
 	_fill_sheet(sid)
 	_clear_of_sheet(sid)
 	_redraw()
+	if not was_open and not _motion_off():
+		_slide_in(sheet)
+
+
+## A panel slides in from the right and fades up, then sits where its layout put it.
+var _sheet_tween: Tween
+
+func _slide_in(panel: Control) -> void:
+	if _sheet_tween != null and _sheet_tween.is_valid():
+		_sheet_tween.kill()
+	var home := panel.position
+	panel.position = home + Vector2(36.0, 0.0)
+	panel.modulate.a = 0.0
+	_sheet_tween = create_tween().set_parallel(true)
+	_sheet_tween.tween_property(panel, "position", home, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_sheet_tween.tween_property(panel, "modulate:a", 1.0, 0.16)
 
 
 ## Slides the map so the chosen station is not under its own sheet, as far as the map's bounds allow.
@@ -416,15 +436,65 @@ func _game():
 
 
 func _motion_off() -> bool:
-	if host != null and bool(host.get("shot_mode")):
+	if host != null and bool(host.get("shot_mode")) and not bool(host.get("motion_in_shots")):
 		return true
 	return Settings.reduced()
+
+
+## Map motion: a wheel step eases toward its zoom instead of jumping; a station that comes over to the player
+## sends a wave of their colour out over the map; rival moves breathe so the eye finds them.
+const SPLASH_S := 1.4
+var _zoom_goal := 0.0
+var _zoom_anchor := Vector2.ZERO
+var _splashes: Array = []
+var _owners_seen := {}
+var _anim_t := 0.0
+
+
+## Notes every station that turned the player's since the last look and starts its wave; the first look only
+## remembers, so opening the map does not splash what was already held.
+func _track_owners(game) -> void:
+	var first := _owners_seen.is_empty()
+	for sid in game.stations:
+		var owner := str(game.stations[sid].owner)
+		if not first and owner == str(game.player) and str(_owners_seen.get(sid, "")) != owner and not _motion_off():
+			_splashes.append({"sid": str(sid), "age": 0.0})
+		_owners_seen[sid] = owner
+
+
+func _draw_splashes(c: CanvasItem, game) -> void:
+	for row in _splashes:
+		var sid := str(row.sid)
+		if not game.stations.has(sid):
+			continue
+		var k := clampf(float(row.age) / SPLASH_S, 0.0, 1.0)
+		var ease := 1.0 - pow(1.0 - k, 3.0)
+		var at := _pin_at(game, sid)
+		var col := territory_color(game, str(game.player))
+		var r := lerpf(10.0, 170.0, ease)
+		c.draw_circle(at, r, Color(col, 0.22 * (1.0 - k)))
+		c.draw_arc(at, r, 0.0, TAU, 64, Color(col.darkened(0.3), 0.85 * (1.0 - k)), 3.0, true)
 
 
 func _process(delta: float) -> void:
 	if not visible:
 		return
 	var busy := false
+	_anim_t += delta
+	if _zoom_goal > 0.0:
+		var step := pow(_zoom_goal / zoom, minf(1.0, delta * 14.0))
+		if absf(_zoom_goal - zoom) / zoom < 0.002:
+			step = _zoom_goal / zoom
+			_zoom_goal = 0.0
+		_zoom_at(_zoom_anchor, step)
+	if not _splashes.is_empty():
+		for row in _splashes:
+			row.age = float(row.age) + delta
+		_splashes = _splashes.filter(func(row): return float(row.age) < SPLASH_S)
+		busy = true
+	var game_now = _game()
+	if game_now != null and not game_now.telegraphed.is_empty() and not _motion_off():
+		busy = true
 	if _hop_left > 0.0:
 		_hop_left = maxf(0.0, _hop_left - delta)
 		busy = true
@@ -1039,6 +1109,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_layout_pins(game)
 	_draw_leaders(c)
+	_draw_splashes(c, game)
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
 	_draw_line_badges(c, game)
@@ -1765,10 +1836,13 @@ func _draw_intents(c: CanvasItem, game) -> void:
 		var icon := ArtPack.icon_texture(kind if kind != "buy" else "propaganda", 20.0)
 		if kind == "demand_posted":
 			icon = ArtPack.icon_texture("ultimatum", 20.0)
-		c.draw_circle(at + Vector2(1, 2), 11.0, Color(0, 0, 0, 0.35))
-		c.draw_circle(at, 11.0, Color("241c14"))
+		var beat := 1.0 if _motion_off() else 1.0 + 0.12 * sin(_anim_t * 3.2 + float(sid.length()))
+		if not _motion_off():
+			c.draw_arc(at, 11.0 + 6.0 * fmod(_anim_t * 0.8, 1.0), 0.0, TAU, 32, Color("f0b429", 0.5 * (1.0 - fmod(_anim_t * 0.8, 1.0))), 2.0, true)
+		c.draw_circle(at + Vector2(1, 2), 11.0 * beat, Color(0, 0, 0, 0.35))
+		c.draw_circle(at, 11.0 * beat, Color("241c14"))
 		if icon != null:
-			c.draw_texture_rect(icon, Rect2(at - Vector2(10, 10), Vector2(20, 20)), false)
+			c.draw_texture_rect(icon, Rect2(at - Vector2(10, 10) * beat, Vector2(20, 20) * beat), false)
 		else:
 			c.draw_circle(at, 6.0, Color("f0b429"))
 
@@ -1809,10 +1883,10 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
 		if button.button_index == MOUSE_BUTTON_WHEEL_UP and button.pressed:
-			_zoom_at(button.position, 1.12)
+			_wheel_zoom(button.position, 1.12)
 			accept_event()
 		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN and button.pressed:
-			_zoom_at(button.position, 1.0 / 1.12)
+			_wheel_zoom(button.position, 1.0 / 1.12)
 			accept_event()
 		elif button.button_index == MOUSE_BUTTON_LEFT:
 			if button.pressed and button.double_click:
@@ -1863,6 +1937,16 @@ func _glide_step(t: float, from: Vector2, to: Vector2) -> void:
 	origin = from.lerp(to, t)
 	_clamp_view()
 	_redraw()
+
+
+## A wheel step: eases there over a few frames, steps stacking while the wheel turns.
+func _wheel_zoom(screen_at: Vector2, factor: float) -> void:
+	if _motion_off():
+		_zoom_at(screen_at, factor)
+		return
+	var from := _zoom_goal if _zoom_goal > 0.0 else zoom
+	_zoom_goal = clampf(from * factor, _zoom_min, _zoom_max)
+	_zoom_anchor = screen_at
 
 
 func _zoom_at(screen_at: Vector2, factor: float) -> void:
