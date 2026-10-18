@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 226. Первый: 2026-10-02. Последний: 2026-10-17 3b0109f.
+Коммитов: 232. Первый: 2026-10-02. Последний: 2026-10-17 256f25b.
 
 ## Этапы
 
@@ -19,8 +19,14 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-17 (18)
+### 2026-10-17 (24)
 
+- `256f25b` Night between weeks, and a stock about to run out breathes in the top bar
+- `fac4966` Motion for cards, panels and the map
+- `28fee3b` Station: lamps flicker, machines steam, dust turns in the light, digs throw chips
+- `de14016` Station: people move. Workers keep a work rhythm, walk or breathe; the platform walks
+- `8f0fd9b` English log lines read like the Russian ones: tags become words
+- `568f890` Docs: playtest16 build, changelog
 - `3b0109f` Leader consequences, second wave: ten events 14 to 24 weeks after the answer
 - `7d2ff56` Docs: playtest15 build, changelog
 - `cb92b7c` Clearer people count, where influence comes from, and Intro in the main menu
