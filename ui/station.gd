@@ -10695,6 +10695,10 @@ class Yard extends Control:
 		var stems: Array = BUILDER_FIGS.filter(func(s): return fig_variants.has(s)) if building else body_figs
 		var looks := _figs_for_group(stems, workers.slice(0, shown))
 		var t := 0.3 if station._motion_off() else life_t
+		var kind := "build" if building else "dig"
+		if _anim_ready(kind):
+			_draw_site_anim(floor, workers, shown, slots, kind)
+			return
 		for i in shown:
 			var id := str(workers[i])
 			var x := floor.position.x + floor.size.x * float(slots[i])
@@ -10708,6 +10712,28 @@ class Yard extends Control:
 			_draw_dust(Vector2(x + floor.size.y * (-0.07 if i % 2 == 1 else 0.07), floor.end.y - 2.0), beat, floor.size.y)
 			if not building and not station._motion_off():
 				_draw_chips(Vector2(x + floor.size.y * (-0.1 if i % 2 == 1 else 0.1), floor.end.y - floor.size.y * 0.22), beat, floor.size.y, -1.0 if i % 2 == 1 else 1.0)
+
+	## The crew in real frames (docs/briefs/art_anim_set2.txt): each swings at 6 fps, every second one faces left,
+	## and dust (and chips at the rock) come off on the strike frame.
+	func _draw_site_anim(floor: Rect2, workers: Array, shown: int, slots: Array, kind: String) -> void:
+		var fps := float(ANIM_KINDS[kind][1])
+		var count := int(ANIM_KINDS[kind][0])
+		var h := floor.size.y * 0.58
+		for i in shown:
+			var id := str(workers[i])
+			var x := floor.position.x + floor.size.x * float(slots[i])
+			var body: String = ANIM_BODIES[(int(_id_hash(id)) + i) % ANIM_BODIES.size()]
+			var left := i % 2 == 1
+			var frame := _anim_frame(kind, id)
+			_draw_anim(kind, body, x, floor.end.y - 2.0, h, id, left, frame)
+			if station._motion_off():
+				continue
+			var off := int(_id_hash(id)) % count
+			var since := fmod(life_t * fps + float(off) - float(ANIM_STRIKE), float(count)) / float(count)
+			var side := -1.0 if left else 1.0
+			_draw_dust(Vector2(x + side * h * 0.12, floor.end.y - 2.0), since, floor.size.y)
+			if kind == "dig":
+				_draw_chips(Vector2(x + side * h * 0.42, floor.end.y - h * 0.35), since, floor.size.y, side)
 
 	## Rock chips thrown off the face on each strike, arcing out and dropping, gone by mid beat.
 	func _draw_chips(at: Vector2, beat: float, cell_h: float, side: float) -> void:
@@ -11066,7 +11092,11 @@ class Yard extends Control:
 	const ANIM_DIR := "res://assets/figures/anim/"
 	const ANIM_BODIES := ["body03", "body01", "body07", "body11"]
 	## kind: [frames, frames a second]
-	const ANIM_KINDS := {"walk": [8, 6.0], "stand": [4, 3.0], "work": [6, 5.0]}
+	const ANIM_KINDS := {"walk": [8, 6.0], "stand": [4, 3.0], "work": [6, 5.0], "dig": [6, 6.0], "build": [6, 6.0]}
+	## Where the body stands across its cell: dig and build cells are wider to hold the swing, body on the left.
+	const ANIM_BODY_X := {"dig": 0.4, "build": 0.4}
+	## The strike frame of dig and build, when dust and chips fly.
+	const ANIM_STRIKE := 2
 	const WALK_FLOOR := 488.0
 	const WALK_FIG := 464.0
 	## Ground covered in one full cycle (two steps), as a share of the figure height, so the feet do not slide.
@@ -11107,9 +11137,10 @@ class Yard extends Control:
 			return
 		var tex: Texture2D = frames[clampi(frame, 0, frames.size() - 1)]
 		var k := body_h / WALK_FIG
-		var size := Vector2(256.0, 512.0) * k
+		var size := tex.get_size() * k
+		var bx := float(ANIM_BODY_X.get(kind, 0.5))
 		_draw_shadow(Vector2(x, foot_y), body_h * 0.13, body_h * 0.02)
-		var dest := Rect2(x - size.x * 0.5, foot_y - WALK_FLOOR * k, size.x, size.y)
+		var dest := Rect2(x - size.x * ((1.0 - bx) if flip else bx), foot_y - WALK_FLOOR * k, size.x, size.y)
 		if flip:
 			dest.position.x += dest.size.x
 			dest.size.x = -dest.size.x
