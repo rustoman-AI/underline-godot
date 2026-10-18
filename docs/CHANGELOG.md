@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 237. Первый: 2026-10-02. Последний: 2026-10-17 1e4fbe4.
+Коммитов: 240. Первый: 2026-10-02. Последний: 2026-10-18 07faace.
 
 ## Этапы
 
@@ -19,8 +19,14 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-17 (29)
+### 2026-10-18 (2)
 
+- `07faace` Animation set 2: dig and build crews swing in real frames
+- `686ba96` Docs: ChatGPT brief for animation set 2 (dig and build for four residents)
+
+### 2026-10-17 (30)
+
+- `d88e815` Docs: playtest18 build, changelog
 - `1e4fbe4` Animation set 1 in the game: room crews work and the platform walks and stands
 - `4456215` Docs: ChatGPT brief for animation set 1 (walk, stand, work for four residents)
 - `efa726e` First real animation: an 8-frame walk on the platform, slow and stride-matched
