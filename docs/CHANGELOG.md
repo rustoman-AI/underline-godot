@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 240. Первый: 2026-10-02. Последний: 2026-10-18 07faace.
+Коммитов: 242. Первый: 2026-10-02. Последний: 2026-10-18 d84d10c.
 
 ## Этапы
 
@@ -19,8 +19,10 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-18 (2)
+### 2026-10-18 (4)
 
+- `d84d10c` Top bar as the station's ceiling beam: grouped stocks, weeks-left bars, hope and discontent dials
+- `f17d158` Docs: playtest19 build, changelog
 - `07faace` Animation set 2: dig and build crews swing in real frames
 - `686ba96` Docs: ChatGPT brief for animation set 2 (dig and build for four residents)
 
