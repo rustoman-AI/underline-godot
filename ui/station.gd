@@ -869,6 +869,7 @@ func _process(_delta: float) -> void:
 	if Time.get_ticks_msec() >= hint_next:
 		hint_next = Time.get_ticks_msec() + 200
 		_tick_hints()
+	_pulse_alarms()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -880,6 +881,22 @@ func _process(_delta: float) -> void:
 		return
 	var wave := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 2.4)
 	end_button.modulate = Color(1.0, 0.97 + 0.03 * wave, 0.82 + 0.1 * wave, 1.0)
+
+
+## A stock about to run out (red) breathes in the top bar so the eye finds it without reading the numbers.
+func _pulse_alarms() -> void:
+	if chips.is_empty():
+		return
+	var still := _motion_off()
+	var beat := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 4.0)
+	for key in chips:
+		var chip: Dictionary = chips[key]
+		if not chip.has("box") or chip.box == null:
+			continue
+		if str(chip.get("alarm", "")) == "red" and not still:
+			chip.box.modulate = Color(1.0, 0.82 + 0.18 * beat, 0.82 + 0.18 * beat, 1.0)
+		else:
+			chip.box.modulate = Color.WHITE
 
 
 func _build() -> void:
@@ -2242,8 +2259,65 @@ func _end_turn() -> void:
 	_refresh()
 	if game.over == "":
 		_show_dawn()
+		_play_night()
 	else:
 		_show_ending()
+
+
+## Between weeks: the screen goes dark over the morning card, the new week is named, and dawn comes up on the
+## card. Skipped with reduce motion; a click during it lets it go at once.
+var night: ColorRect
+var night_tween: Tween
+
+func _play_night() -> void:
+	if _motion_off():
+		return
+	if night == null:
+		night = ColorRect.new()
+		night.color = Color(0.02, 0.018, 0.015, 1.0)
+		night.set_anchors_preset(Control.PRESET_FULL_RECT)
+		night.mouse_filter = Control.MOUSE_FILTER_STOP
+		night.z_index = 200
+		var title := Label.new()
+		title.name = "Title"
+		title.set_anchors_preset(Control.PRESET_FULL_RECT)
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		title.add_theme_font_size_override("font_size", 54)
+		title.add_theme_color_override("font_color", Color("e8dcc4"))
+		if display_font != null:
+			title.add_theme_font_override("font", display_font)
+		night.add_child(title)
+		night.gui_input.connect(func(event: InputEvent):
+			if event is InputEventMouseButton and event.pressed:
+				_end_night())
+		add_child(night)
+	var season := ""
+	if not game.active_season.is_empty():
+		var name := Copy.season(str(game.active_season.id))
+		season = "
+" + name.substr(0, 1).to_upper() + name.substr(1)
+	var label := night.get_node("Title") as Label
+	label.text = (Copy.t("Week %d%s") % [game.week, ""]) + season
+	label.modulate.a = 0.0
+	night.visible = true
+	night.modulate.a = 0.0
+	if night_tween != null and night_tween.is_valid():
+		night_tween.kill()
+	night_tween = create_tween()
+	night_tween.tween_property(night, "modulate:a", 1.0, 0.22)
+	night_tween.tween_property(label, "modulate:a", 1.0, 0.3)
+	night_tween.tween_interval(0.55)
+	night_tween.tween_property(label, "modulate:a", 0.0, 0.2)
+	night_tween.tween_property(night, "modulate:a", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	night_tween.finished.connect(func(): night.visible = false)
+
+
+func _end_night() -> void:
+	if night_tween != null and night_tween.is_valid():
+		night_tween.kill()
+	if night != null:
+		night.visible = false
 
 
 func _auto_staff() -> void:
