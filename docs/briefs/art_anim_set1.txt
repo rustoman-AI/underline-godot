@@ -1,0 +1,61 @@
+ART: ANIMATION SET 1, FOUR RESIDENTS x WALK, STAND, WORK (ChatGPT image tool)
+
+WHERE WE ARE
+The walk pilot worked. Attempt v2 for the old man in the beanie is accepted and is in the game:
+incoming-art/anim_pilot/walk_body03_accepted_sheet.png. Its look, scale, side view, line weight and slow tired
+step are the standard for everything below. Match it.
+
+THE FOUR RESIDENTS (attach each reference when drawing that person)
+- body_03 (done for walk): slim older man, dark knitted beanie, white stubble and moustache, quilted navy coat
+  with a brown patch on the left shoulder, rust-red shirt, grey-brown trousers with patches and a torn knee,
+  brown boots. Reference: incoming-art/anim_pilot/reference_body_03.png
+- body_01: woman in her thirties, dark hair in a ponytail, rust-orange work jacket with patches, cream top,
+  tool belt with a pouch on the right hip, grey work trousers with knee patches, brown boots.
+  Reference: incoming-art/anim_pilot/reference_body_01.png
+- body_07: heavy older man, grey beard, navy cap, yellow high-visibility vest over a grey cardigan, dark navy
+  trousers with patches, black boots. Reference: incoming-art/anim_pilot/reference_body_07.png
+- body_11: tall broad man, short black hair, olive parka with pockets and a toggle front, cream jumper, brown
+  trousers with patches, tall rubber boots. Reference: incoming-art/anim_pilot/reference_body_11.png
+Every sheet keeps that person's clothes, colours and patches exactly, in every frame. Nothing appears, moves to
+another place or changes colour between frames (the pilot's one fault was boots changing colour: both boots
+the same colour in every frame).
+
+THE SHEETS (eleven, one image each, in this order)
+1. walk_body01   2. walk_body07   3. walk_body11
+4. stand_body03  5. stand_body01  6. stand_body07  7. stand_body11
+8. work_body03   9. work_body01   10. work_body07  11. work_body11
+Walk first, because it is the proven one.
+
+WALK (8 frames): exactly as the accepted body_03 sheet. True side view facing right, empty hands, arms swing
+against the legs. Frames in this order: 1 right heel contact, 2 down on the right leg, 3 left leg passing,
+4 up off the right toe, 5 left heel contact, 6 down on the left leg, 7 right leg passing, 8 up off the left toe.
+A calm, tired walk.
+
+STAND (4 frames): standing still at rest, side view facing right, weight on both feet, arms down or hands in
+coat pockets as fits the person. The frames are one slow breath: 1 neutral, 2 chest and shoulders up very
+slightly, 3 neutral, 4 shoulders down very slightly with the head dipping a hair. The difference between frames
+is tiny: a few pixels. Feet do not move at all.
+
+WORK (6 frames): side view facing right, working with both hands at waist height on something just outside the
+frame on the right (a bench, a valve, a plant rack): the tool or object itself is not drawn. One loop of a steady
+task: 1 hands at rest on the work, 2 reach forward, 3 press or turn, 4 hold, 5 draw back, 6 hands at rest again,
+matching frame 1 so it loops. Feet planted, they do not move; only arms, shoulders and head move. body_01 may hold
+a small spanner from her belt in frames 2 to 5, nobody else holds anything.
+
+STRICT LAYOUT (same as the pilot, this is what makes it usable)
+- Transparent background, real alpha, no white, no checkerboard, no glow, no halo.
+- One row, equal cells, 256 wide x 512 tall: walk 2048 x 512, stand 1024 x 512, work 1536 x 512.
+- Figures do not touch or overlap the neighbouring cell; leave clear space between them.
+- Soles on one line in every cell, 24 px above the bottom edge. Same scale in every cell and across all
+  sheets of one person: the top of the head about 40 px below the cell top.
+- No ground line, no shadow, no blur, no speed lines, no numbers, no grid lines, no text.
+- Same ink line weight, colours and light direction as the accepted body_03 walk.
+
+DELIVERY
+incoming-art/anim_set1/<sheet name>_v1.png (v2, v3 if retried), and <sheet name>_prompt.txt with the exact
+prompt. At most three attempts per sheet; if a sheet still drifts after three, keep the best and say which frame
+is wrong. Do not install anything into assets/.
+
+WHAT THE LEAD DOES AFTER
+Cuts the cells, lines the feet up, clears scraps, puts the frames in the game (walk 6 fps, stand 3 fps, work
+5 fps), records a clip of each in a real room and sends it to the owner. The owner accepts or rejects each sheet.
