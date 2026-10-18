@@ -9462,8 +9462,8 @@ class Yard extends Control:
 	const BUILDER_FIGS := ["workshop_02", "workshop_03"]
 	## Site crew loop: strokes a second, and how high the body rises between strokes (share of the cell height).
 	const CREW_BEAT := 1.1
-	const CREW_BOB := 0.022
-	const CREW_LEAN := 0.1
+	const CREW_BOB := 0.03
+	const CREW_LEAN := 0.16
 	## Warm rim on working figures: colour, screen px out from the silhouette, and the silhouette's cap in px.
 	const RIM := Color(1.0, 0.74, 0.4, 0.55)
 	const RIM_PX := 1.6
@@ -10128,7 +10128,14 @@ class Yard extends Control:
 			var texture = tier_tex if tier_tex != null else art.get(room_type, null)
 			if texture != null:
 				_blit_room(texture, rect)
-			_draw_lamp_glow(rect, room_type)
+			var salt := level * 6 + cell
+			var weak: bool = room != null and (bool(room.get("browned", false)) or station.dark_now.has(str(room.uid)) or station.power_loss.has(str(room.uid)))
+			var off: bool = room != null and bool(room.get("offline", false))
+			_draw_lamp_glow(rect, room_type, salt, weak, off)
+			if room != null and not off and not weak and room_type in ["generator", "air_filter"]:
+				_draw_steam(rect, room_type, salt)
+			if room != null and not off:
+				_draw_motes(rect, salt)
 			if room != null and int(room.upgrade) > 0 and tier_tex == null:
 				_draw_tier_light(rect, int(room.upgrade))
 		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
@@ -10338,10 +10345,13 @@ class Yard extends Control:
 		lamp_glow = ImageTexture.create_from_image(image)
 		return lamp_glow
 
-	func _draw_lamp_glow(rect: Rect2, room_type: String) -> void:
+	func _draw_lamp_glow(rect: Rect2, room_type: String, salt := 0, weak := false, off := false) -> void:
 		var tex := _lamp_texture()
 		if tex == null:
 			return
+		var lit := 0.0 if off else _flicker(salt, weak)
+		if lit < 1.0:
+			draw_rect(rect, Color(0, 0, 0, (1.0 - lit) * 0.3))
 		var warm := Color(1.0, 0.78, 0.46, 1.0)
 		var typed: Color = LAMP.get(room_type, warm)
 		var col := warm.lerp(Color(typed.r, typed.g, typed.b, 1.0), 0.12)
@@ -10349,7 +10359,65 @@ class Yard extends Control:
 		var glow_w := rect.size.x * 0.34
 		var glow_h := rect.size.y * 0.28
 		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.06)
+		col.a = lit
 		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
+
+	## How bright a room's lamps burn this frame, 0..1: a slow shimmer, and now and then a short stutter on bad
+	## wiring; a room short of power stutters often. Still with reduce motion.
+	func _flicker(salt: int, weak: bool) -> float:
+		if station == null or station._motion_off():
+			return 1.0
+		var t := life_t
+		var f := 0.95 + 0.05 * sin(t * 7.3 + float(salt) * 1.7) * sin(t * 3.1 + float(salt))
+		var period := 17.0 + float(salt % 9) * 2.0
+		var window := fmod(t / period + float(salt) * 0.37, 1.0)
+		if window < (0.22 if weak else 0.035):
+			f *= 0.35 + 0.65 * absf(sin(t * 38.0 + float(salt)))
+		return clampf(f, 0.0, 1.0)
+
+	## Steam from the machine in a generator or filter room: soft puffs that rise from the middle and fade.
+	var puff_tex: Texture2D
+
+	## A soft round puff, opaque in the middle, for steam.
+	func _puff_texture() -> Texture2D:
+		if puff_tex != null:
+			return puff_tex
+		var n := 48
+		var image := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var c := Vector2(float(n) * 0.5, float(n) * 0.5)
+		for y in n:
+			for x in n:
+				var d := Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(c) / (float(n) * 0.5)
+				image.set_pixel(x, y, Color(1, 1, 1, pow(maxf(0.0, 1.0 - d), 1.25)))
+		puff_tex = ImageTexture.create_from_image(image)
+		return puff_tex
+
+	func _draw_steam(rect: Rect2, room_type: String, salt: int) -> void:
+		var tex := _puff_texture()
+		if tex == null or station == null or station._motion_off():
+			return
+		var src := rect.position + rect.size * (Vector2(0.56, 0.62) if room_type == "generator" else Vector2(0.46, 0.58))
+		for k in 5:
+			var age := fmod(life_t / 3.6 + float(k) / 5.0 + float(salt) * 0.13, 1.0)
+			var rise := rect.size.y * 0.34 * age
+			var drift := sin(life_t * 0.8 + float(k) * 1.9) * rect.size.x * 0.06 * age
+			var r := rect.size.y * (0.09 + 0.24 * age)
+			var a := 0.55 * sin(age * PI) * (1.0 - age * 0.35)
+			var puff := Rect2(src + Vector2(drift - r, -rise - r), Vector2(r * 2.0, r * 2.0))
+			draw_texture_rect(tex, puff, false, Color(0.97, 0.96, 0.94, a))
+			draw_texture_rect(tex, puff.grow(-r * 0.35), false, Color(1.0, 1.0, 1.0, a * 0.6))
+
+	## Dust turning in the lamp light: a few warm specks drifting slowly down through the upper part of the room.
+	func _draw_motes(rect: Rect2, salt: int) -> void:
+		if station == null or station._motion_off():
+			return
+		for k in 7:
+			var n := _speck(salt + 3, k)
+			var fall := fmod(life_t * (0.025 + fmod(n, 7.0) * 0.004) + fmod(n * 0.013, 1.0), 1.0)
+			var x := rect.position.x + rect.size.x * (0.2 + fmod(n * 0.0071, 0.6)) + sin(life_t * 0.6 + n) * rect.size.x * 0.02
+			var y := rect.position.y + rect.size.y * (0.12 + 0.5 * fall)
+			var a := 0.5 * sin(fall * PI)
+			draw_circle(Vector2(x, y), maxf(0.8, rect.size.y * 0.0045), Color(1.0, 0.86, 0.6, a))
 
 	## An upgraded room's lamps burn warmer and wider and the room reads a little brighter, more with each tier.
 	func _draw_tier_light(rect: Rect2, tier: int) -> void:
@@ -10539,7 +10607,7 @@ class Yard extends Control:
 		var shown := mini(workers.size(), slots.size())
 		var stems: Array = BUILDER_FIGS.filter(func(s): return fig_variants.has(s)) if building else body_figs
 		var looks := _figs_for_group(stems, workers.slice(0, shown))
-		var t := 0.3 if station._motion_off() else Time.get_ticks_msec() / 1000.0
+		var t := 0.3 if station._motion_off() else life_t
 		for i in shown:
 			var id := str(workers[i])
 			var x := floor.position.x + floor.size.x * float(slots[i])
@@ -10551,6 +10619,21 @@ class Yard extends Control:
 			else:
 				_paint_pose(pose_name, x, foot, floor.size.y, id, i % 2 == 1, lean, true)
 			_draw_dust(Vector2(x + floor.size.y * (-0.07 if i % 2 == 1 else 0.07), floor.end.y - 2.0), beat, floor.size.y)
+			if not building and not station._motion_off():
+				_draw_chips(Vector2(x + floor.size.y * (-0.1 if i % 2 == 1 else 0.1), floor.end.y - floor.size.y * 0.22), beat, floor.size.y, -1.0 if i % 2 == 1 else 1.0)
+
+	## Rock chips thrown off the face on each strike, arcing out and dropping, gone by mid beat.
+	func _draw_chips(at: Vector2, beat: float, cell_h: float, side: float) -> void:
+		var age := beat / 0.45
+		if age >= 1.0:
+			return
+		for k in 4:
+			var spread := 0.6 + float(k) * 0.35
+			var vx := side * cell_h * 0.09 * spread
+			var vy := -cell_h * (0.09 + 0.03 * float(k % 2))
+			var p := at + Vector2(vx * age, vy * age + cell_h * 0.2 * age * age)
+			var sz := maxf(1.2, cell_h * (0.008 + 0.003 * float(k % 3)))
+			draw_rect(Rect2(p - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), Color(0.42, 0.36, 0.3, 1.0 - age))
 
 	## A small puff where the tool strikes, just after each downstroke (beat 0), drifting up and fading.
 	func _draw_dust(at: Vector2, beat: float, cell_h: float) -> void:
