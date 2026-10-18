@@ -33,6 +33,8 @@ const ROOM_COLOR := {
 }
 const URGENT_WEEKS := 2
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
+## Life support: air, food and power read larger, with a bar of the weeks they last.
+const LIFE_KEYS := ["air", "food", "power"]
 ## Top bar numbers: amber while the week's net is below zero, red when the stock runs out within two weeks.
 const STOCK_AMBER := Color("e8b04a")
 const STOCK_RED := Color("ff6a55")
@@ -143,6 +145,8 @@ var body_font: Font
 var hud: PanelContainer
 var hud_box: VBoxContainer
 var meter_box: HBoxContainer
+var hope_dial: Dial
+var dis_dial: Dial
 var ticker: HBoxContainer
 var ticker_label: Label
 var ticker_dismissed := false
@@ -1011,9 +1015,21 @@ func _style_tool(button: Button) -> void:
 	button.custom_minimum_size = Vector2(58, 66)
 
 
+## The top bar is the station's ceiling beam: dark riveted steel with a brass lip and a shadow on the rooms below.
 func _top_bar() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _steel_style())
+	var beam := _steel_style()
+	beam.bg_color = Color(0.085, 0.085, 0.095, 0.97)
+	beam.border_color = Color(0.62, 0.5, 0.3, 0.75)
+	beam.set_border_width_all(0)
+	beam.border_width_bottom = 2
+	beam.set_corner_radius_all(0)
+	beam.shadow_color = Color(0, 0, 0, 0.55)
+	beam.shadow_size = 10
+	beam.shadow_offset = Vector2(0, 5)
+	beam.content_margin_bottom = 10
+	panel.add_theme_stylebox_override("panel", beam)
+	panel.draw.connect(_draw_beam_rivets.bind(panel))
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
@@ -1027,7 +1043,22 @@ func _top_bar() -> PanelContainer:
 	week_label.custom_minimum_size = Vector2(108, 28)
 	week_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	week_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	title_row.add_child(week_label)
+	week_label.add_theme_color_override("font_color", Color("e9d6a6"))
+	var plaque := PanelContainer.new()
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.13, 0.11, 0.08, 1.0)
+	plate.border_color = Color(0.7, 0.55, 0.3, 0.9)
+	plate.set_border_width_all(1)
+	plate.set_corner_radius_all(3)
+	plate.content_margin_left = 10
+	plate.content_margin_right = 10
+	plate.shadow_color = Color(0, 0, 0, 0.5)
+	plate.shadow_size = 3
+	plaque.add_theme_stylebox_override("panel", plate)
+	plaque.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plaque.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plaque.add_child(week_label)
+	title_row.add_child(plaque)
 
 	res_grid = GridContainer.new()
 	res_grid.columns = 6
@@ -1058,28 +1089,52 @@ func _top_bar() -> PanelContainer:
 		name.visible = false
 		icon_col.add_child(icon)
 		icon_col.add_child(name)
-		var value := _label("0", 22)
+		var life := str(key) in LIFE_KEYS
+		var value := _label("0", 26 if life else 21)
+		value.add_theme_constant_override("outline_size", 4)
+		value.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		if number_font != null:
 			value.add_theme_font_override("font", number_font)
 		var digit := 12.0
 		if number_font != null:
-			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
-		value.custom_minimum_size = Vector2(digit * 4.0 + 2.0, 26)
-		var delta := _label("", 12)
+			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 26 if life else 21).x
+		value.custom_minimum_size = Vector2(digit * 3.4 + 2.0, 24)
+		var delta := _label("", 11)
 		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		delta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		if number_font != null:
 			delta.add_theme_font_override("font", number_font)
 		var small := 8.0
 		if number_font != null:
-			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-		delta.custom_minimum_size = Vector2(small * 4.0 + 4.0, 16)
+			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		delta.custom_minimum_size = Vector2(small * 3.0 + 2.0, 13)
 		chip.tooltip_text = Copy.res(str(key))
 		chip.add_child(icon_col)
-		chip.add_child(value)
-		chip.add_child(delta)
+		var stack := VBoxContainer.new()
+		stack.add_theme_constant_override("separation", -3)
+		stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		stack.add_child(value)
+		var under := HBoxContainer.new()
+		under.add_theme_constant_override("separation", 4)
+		under.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		under.add_child(delta)
+		var left_bar: ColorRect = null
+		if life:
+			var track := ColorRect.new()
+			track.color = Color(1, 1, 1, 0.12)
+			track.custom_minimum_size = Vector2(26, 3)
+			track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			left_bar = ColorRect.new()
+			left_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+			left_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			track.add_child(left_bar)
+			under.add_child(track)
+		stack.add_child(under)
+		chip.add_child(stack)
 		chip.gui_input.connect(_chip_input.bind(str(key)))
 		chip.mouse_entered.connect(_peek_source.bind(str(key)))
 		chip.mouse_exited.connect(_unpeek_source)
@@ -1095,9 +1150,21 @@ func _top_bar() -> PanelContainer:
 		pill.mouse_filter = Control.MOUSE_FILTER_PASS
 		pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		if life:
+			pill_face.bg_color = Color(0.0, 0.0, 0.0, 0.55)
+			pill_face.border_color = Color(0.62, 0.5, 0.3, 0.35)
+			pill_face.set_border_width_all(1)
 		pill.add_child(chip)
-		res_grid.add_child(pill)
-		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon, "name": name, "pill": pill}
+		var cell: Control = pill
+		if str(key) == "materials":
+			var gap := MarginContainer.new()
+			gap.add_theme_constant_override("margin_left", 14)
+			gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			gap.mouse_filter = Control.MOUSE_FILTER_PASS
+			gap.add_child(pill)
+			cell = gap
+		res_grid.add_child(cell)
+		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon, "name": name, "pill": pill, "left": left_bar}
 	title_row.add_child(_people_pill())
 
 	var meters := HBoxContainer.new()
@@ -1132,6 +1199,15 @@ func _top_bar() -> PanelContainer:
 
 
 ## People against beds at a glance, "18/24", beside the stocks; soldiers under it. Red when beds run out.
+func _draw_beam_rivets(panel: PanelContainer) -> void:
+	var y := panel.size.y - 6.0
+	var x := 10.0
+	while x < panel.size.x - 6.0:
+		panel.draw_circle(Vector2(x, y), 2.2, Color(0.02, 0.02, 0.02, 0.9))
+		panel.draw_circle(Vector2(x - 0.6, y - 0.6), 1.5, Color(0.42, 0.4, 0.37, 0.9))
+		x += 46.0
+
+
 func _people_pill() -> PanelContainer:
 	var pill := PanelContainer.new()
 	var face := StyleBoxFlat.new()
@@ -1204,12 +1280,24 @@ func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	box.gui_input.connect(_chip_input.bind(meter_key))
 	box.mouse_entered.connect(_peek_source.bind(meter_key))
 	box.mouse_exited.connect(_unpeek_source)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(row)
+	var dial := Dial.new()
+	dial.needle = fill_color
+	dial.danger_high = not hope
+	dial.custom_minimum_size = Vector2(46, 30)
+	dial.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(dial)
 	var lab := _label("Hope", 12)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(lab)
+	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(lab)
 	var track := ColorRect.new()
 	track.color = Color(1, 1, 1, 0.14)
 	track.custom_minimum_size = Vector2(0, 4)
+	track.visible = false
 	var fill := ColorRect.new()
 	fill.color = fill_color
 	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1219,9 +1307,11 @@ func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	track.add_child(fill)
 	box.add_child(track)
 	if hope:
+		hope_dial = dial
 		hope_label = lab
 		hope_fill = fill
 	else:
+		dis_dial = dial
 		dis_label = lab
 		dis_fill = fill
 	return box
@@ -1761,6 +1851,19 @@ func _refresh() -> void:
 	dis_label.text = Copy.t("Discontent %d  %s") % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
 	dis_fill.anchor_right = clampf(float(game.discontent) / 100.0, 0.0, 1.0)
+	if hope_dial != null:
+		hope_dial.value = float(game.hope)
+		hope_dial.queue_redraw()
+	if dis_dial != null:
+		dis_dial.value = float(game.discontent)
+		dis_dial.queue_redraw()
+	for key in LIFE_KEYS:
+		var bar = chips.get(key, {}).get("left", null)
+		if bar == null:
+			continue
+		var weeks: int = game._weeks_until_empty(str(key))
+		(bar as ColorRect).anchor_right = clampf(float(weeks) / 6.0, 0.0, 1.0)
+		(bar as ColorRect).color = STOCK_RED if weeks <= 1 else (STOCK_AMBER if weeks <= 3 else Color("7dba6a"))
 	hope_label.get_parent().tooltip_text = _meter_rule("hope")
 	dis_label.get_parent().tooltip_text = _meter_rule("discontent")
 	end_button.text = Copy.t("End turn") if game.over == "" else _ending()
@@ -11736,3 +11839,26 @@ class ToolButton extends Button:
 			lab.add_theme_font_override("font", get_meta("caption_font"))
 		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		box.add_child(lab)
+
+
+## A small half-round gauge behind glass: a needle over a scale with a red zone at the dangerous end.
+class Dial extends Control:
+	var value := 50.0
+	var needle := Color("d7a441")
+	var danger_high := false
+
+	func _draw() -> void:
+		var c := Vector2(size.x * 0.5, size.y - 3.0)
+		var r := minf(size.x * 0.5, size.y) - 2.0
+		draw_arc(c, (r + 1.5) * 0.5, PI, TAU, 24, Color(0.05, 0.05, 0.05, 1.0), r + 1.5, false)
+		draw_arc(c, r * 0.5, PI, TAU, 24, Color(0.85, 0.8, 0.68, 0.95), r, false)
+		var zone_from := PI * 1.75 if danger_high else PI
+		draw_arc(c, r - 2.0, zone_from, zone_from + PI * 0.25, 10, Color(0.75, 0.2, 0.16, 0.9), 4.0, true)
+		for k in 6:
+			var t := PI + PI * float(k) / 5.0
+			draw_line(c + Vector2.from_angle(t) * (r - 1.0), c + Vector2.from_angle(t) * (r - 5.0), Color(0.1, 0.1, 0.1, 0.9), 1.0, true)
+		var a := PI + PI * clampf(value / 100.0, 0.0, 1.0)
+		draw_line(c, c + Vector2.from_angle(a) * (r - 3.0), Color(0.1, 0.08, 0.06), 3.0, true)
+		draw_line(c, c + Vector2.from_angle(a) * (r - 3.0), needle.darkened(0.2), 1.5, true)
+		draw_circle(c, 2.5, Color(0.15, 0.12, 0.1))
+		draw_arc(c, r + 1.0, PI, TAU, 24, Color(0.62, 0.5, 0.3, 0.8), 1.2, true)
