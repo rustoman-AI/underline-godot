@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 232. Первый: 2026-10-02. Последний: 2026-10-17 256f25b.
+Коммитов: 237. Первый: 2026-10-02. Последний: 2026-10-17 1e4fbe4.
 
 ## Этапы
 
@@ -19,8 +19,13 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-17 (24)
+### 2026-10-17 (29)
 
+- `1e4fbe4` Animation set 1 in the game: room crews work and the platform walks and stands
+- `4456215` Docs: ChatGPT brief for animation set 1 (walk, stand, work for four residents)
+- `efa726e` First real animation: an 8-frame walk on the platform, slow and stride-matched
+- `f0f4ba9` Calm the station: people stay in place and barely breathe, lamps no longer strobe
+- `a0096d3` Docs: playtest17 build, changelog
 - `256f25b` Night between weeks, and a stock about to run out breathes in the top bar
 - `fac4966` Motion for cards, panels and the map
 - `28fee3b` Station: lamps flicker, machines steam, dust turns in the light, digs throw chips
