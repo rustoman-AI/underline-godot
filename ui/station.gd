@@ -716,8 +716,12 @@ func _tabular(base: Font) -> Font:
 	return variation
 
 
+## Shot scripts freeze motion for still frames; a recording of the station turns it back on with motion_in_shots.
+var motion_in_shots := false
+
+
 func _motion_off() -> bool:
-	return shot_mode or Settings.reduced()
+	return (shot_mode and not motion_in_shots) or Settings.reduced()
 
 
 func _load_fonts() -> void:
@@ -9749,6 +9753,7 @@ class Yard extends Control:
 		return out
 
 	func _process(_delta: float) -> void:
+		life_t += _delta
 		if pending_level >= 0 and Time.get_ticks_msec() - pending_at >= DOUBLE_MS:
 			var level := pending_level
 			var cell := pending_cell
@@ -10840,7 +10845,9 @@ class Yard extends Control:
 			var limit := floor.size.x * 0.34
 			if fitted.x > limit:
 				body_h *= limit / fitted.x
-			_paint_sprite(sprite, x, foot_y, body_h, id, flip, 0.0, true)
+			var margin := fitted.x * 0.5 + 4.0
+			var life := _life(id, x, floor.position.x + margin, floor.position.x + floor.size.x - margin, flip, true)
+			_paint_sprite(sprite, float(life.x), foot_y + float(life.bob), body_h, id, bool(life.flip), float(life.lean), true, float(life.breath))
 		if crew.size() > shown:
 			_draw_more(rect, crew.size() - shown, str(room.uid))
 		for id in crew:
@@ -10859,10 +10866,11 @@ class Yard extends Control:
 		for i in shown:
 			var x := rect.position.x + rect.size.x * (0.28 if i == 0 else 0.62)
 			var foot_y := rect.position.y + rect.size.y - 2.0
+			var life := _life(str(ids[i]), x, rect.position.x + rect.size.x * 0.1, rect.position.x + rect.size.x * 0.9, i == 0, false)
 			if looks[i] != null:
-				_paint_sprite(looks[i], x, foot_y, rect.size.y, str(ids[i]), i == 0)
+				_paint_sprite(looks[i], float(life.x), foot_y + float(life.bob), rect.size.y, str(ids[i]), bool(life.flip), float(life.lean), false, float(life.breath))
 			else:
-				_paint_pose(pose_name, x, foot_y, rect.size.y, str(ids[i]), i == 0)
+				_paint_pose(pose_name, float(life.x), foot_y + float(life.bob), rect.size.y, str(ids[i]), bool(life.flip), float(life.lean))
 		if ids.size() > shown:
 			_draw_more(rect, ids.size() - shown, "free")
 
@@ -11037,9 +11045,10 @@ class Yard extends Control:
 
 	## `lean` tips the figure about its feet (radians, toward the side it faces). Every figure stands on a soft
 	## shadow; a working one gets a thin warm rim so it separates from the machinery behind it.
-	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0, working := false) -> void:
+	func _paint_sprite(sprite: Texture2D, cx: float, foot_y: float, cell_h: float, id: String, flip: bool, lean := 0.0, working := false, breath := 0.0) -> void:
 		var scale := 0.94 + fmod(floor(_id_hash(id) / 11.0), 13.0) * 0.01
 		var fitted := _pose_size(sprite, cell_h) * scale
+		fitted.y *= 1.0 + breath
 		_draw_shadow(Vector2(cx, foot_y), fitted.x * 0.42, fitted.y * 0.035)
 		var tipped := lean != 0.0
 		if tipped:
@@ -11117,6 +11126,66 @@ class Yard extends Control:
 				continue
 			ids.append(id)
 		return ids
+
+	## How a figure moves this frame, from the clock and its id alone, so nothing is stored and a reload looks
+	## the same. A worker (at_work) either keeps the rhythm of the job, walks between their place and a second one
+	## in the room, or stands and breathes; someone on the platform walks or stands. x stays between lo and hi.
+	## Reduce motion (and still shots) keeps everyone where the room puts them.
+	## Seconds of frame time the station has been drawn; people move on it, so a Movie Maker recording plays at the
+	## right speed.
+	var life_t := 0.0
+
+	func _life(id: String, x: float, lo: float, hi: float, flip: bool, at_work: bool) -> Dictionary:
+		var out := {"x": x, "flip": flip, "lean": 0.0, "bob": 0.0, "breath": 0.0}
+		if station == null or station._motion_off():
+			return out
+		var t := life_t
+		var h := _id_hash(id)
+		var phase := fmod(h * 0.0137, 1.0)
+		out.breath = sin(t * 1.3 + phase * TAU) * 0.012
+		var kind := int(h) % 3
+		if not at_work and kind == 0:
+			kind = 1
+		match kind:
+			0:
+				out.lean = sin(t * 2.3 + phase * TAU) * 0.045
+				out.bob = -absf(sin(t * 2.3 + phase * TAU)) * 1.2
+			1:
+				var span := (hi - lo) * (0.35 if at_work else 0.45)
+				var home := clampf(x, lo, hi)
+				var dir := 1.0 if home + span <= hi else -1.0
+				var away := clampf(home + dir * span, lo, hi)
+				var period := 12.0 + fmod(h, 7.0)
+				var u := fmod(t / period + phase, 1.0)
+				var walking := false
+				var going := true
+				var k := 0.0
+				if u < 0.14:
+					out.x = home
+				elif u < 0.46:
+					walking = true
+					k = (u - 0.14) / 0.32
+					out.x = lerpf(home, away, k * k * (3.0 - 2.0 * k))
+				elif u < 0.62:
+					out.x = away
+					out.flip = dir < 0.0
+				elif u < 0.94:
+					walking = true
+					going = false
+					k = (u - 0.62) / 0.32
+					out.x = lerpf(away, home, k * k * (3.0 - 2.0 * k))
+				else:
+					out.x = home
+				if walking:
+					var heading := dir if going else -dir
+					out.flip = heading < 0.0
+					out.bob = -absf(sin(t * 6.5 + phase * TAU)) * 2.2
+					out.lean = 0.03
+					out.breath = 0.0
+			_:
+				if fmod(t / 9.0 + phase, 1.0) > 0.62:
+					out.flip = not flip
+		return out
 
 	func _id_hash(id: String) -> float:
 		var n := 17
