@@ -11036,6 +11036,10 @@ class Yard extends Control:
 		for i in shown:
 			var x := rect.position.x + rect.size.x * (0.28 if i == 0 else 0.62)
 			var foot_y := rect.position.y + rect.size.y - 2.0
+			if i == 0 and _walk_frames().size() == WALK_FRAMES:
+				var body_h := _pose_size(looks[i] if looks[i] != null else _walk_frames()[0], rect.size.y).y
+				_draw_walker(rect, foot_y, body_h, str(ids[i]))
+				continue
 			var life := _life(str(ids[i]), x, rect.position.x + rect.size.x * 0.1, rect.position.x + rect.size.x * 0.9, i == 0, false)
 			if looks[i] != null:
 				_paint_sprite(looks[i], float(life.x), foot_y + float(life.bob), rect.size.y, str(ids[i]), bool(life.flip), float(life.lean), false, float(life.breath))
@@ -11043,6 +11047,68 @@ class Yard extends Control:
 				_paint_pose(pose_name, float(life.x), foot_y + float(life.bob), rect.size.y, str(ids[i]), bool(life.flip), float(life.lean))
 		if ids.size() > shown:
 			_draw_more(rect, ids.size() - shown, "free")
+
+	## Real walk frames (docs/briefs/art_anim_pilot.txt): one resident on the platform walks with them, the rest
+	## still stand. Frames are 256 x 512 cells with the soles on WALK_FLOOR and the figure WALK_FIG tall.
+	const WALK_DIR := "res://assets/figures/anim/walk_body03/"
+	const WALK_FRAMES := 8
+	const WALK_FPS := 6.0
+	const WALK_FLOOR := 488.0
+	const WALK_FIG := 464.0
+	## Ground covered in one full cycle (two steps), as a share of the figure height, so the feet do not slide.
+	const WALK_STRIDE := 0.62
+	var walk_tex: Array = []
+
+	func _walk_frames() -> Array:
+		if walk_tex.is_empty():
+			for i in WALK_FRAMES:
+				var path := WALK_DIR + "f%d.png" % i
+				if not ResourceLoader.exists(path):
+					walk_tex = [null]
+					return []
+				walk_tex.append(load(path))
+		return [] if walk_tex.has(null) else walk_tex
+
+	## Walks the platform from one end to the other and back, stopping for a while at each end. Position and frame
+	## come from the clock, so nothing is stored. Reduce motion stands him still on a neutral frame.
+	func _draw_walker(rect: Rect2, foot_y: float, body_h: float, id: String) -> void:
+		var frames := _walk_frames()
+		var lo := rect.position.x + rect.size.x * 0.14
+		var hi := rect.position.x + rect.size.x * 0.86
+		var x := lo + (hi - lo) * 0.3
+		var frame := 2
+		var flip := false
+		if not station._motion_off():
+			var cycle := float(WALK_FRAMES) / WALK_FPS
+			var speed := body_h * WALK_STRIDE / cycle
+			var leg := (hi - lo) / speed
+			var rest := 3.0
+			var period := (leg + rest) * 2.0
+			var u := fmod(life_t + fmod(_id_hash(id), 7.0), period)
+			if u < leg:
+				x = lo + speed * u
+				frame = int(floor(u * WALK_FPS)) % WALK_FRAMES
+			elif u < leg + rest:
+				x = hi
+			elif u < leg * 2.0 + rest:
+				var back := u - leg - rest
+				x = hi - speed * back
+				flip = true
+				frame = int(floor(back * WALK_FPS)) % WALK_FRAMES
+			else:
+				x = lo
+				flip = true
+		var tex: Texture2D = frames[frame]
+		var k := body_h / WALK_FIG
+		var size := Vector2(256.0, 512.0) * k
+		_draw_shadow(Vector2(x, foot_y), body_h * 0.13, body_h * 0.02)
+		var dest := Rect2(x - size.x * 0.5, foot_y - WALK_FLOOR * k, size.x, size.y)
+		if flip:
+			dest.position.x += dest.size.x
+			dest.size.x = -dest.size.x
+		var shade := 0.36 + fmod(_id_hash(id), 5.0) * 0.02
+		var tint := Color(clampf(shade * 1.75, 0.6, 0.78), clampf(shade * 1.5, 0.52, 0.66), clampf(shade * 1.2, 0.42, 0.54)).lerp(Color.WHITE, fig_tint_mix)
+		draw_texture_rect(tex, dest, false, tint)
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))
