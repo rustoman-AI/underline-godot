@@ -9547,8 +9547,8 @@ class Yard extends Control:
 	const BUILDER_FIGS := ["workshop_02", "workshop_03"]
 	## Site crew loop: strokes a second, and how high the body rises between strokes (share of the cell height).
 	const CREW_BEAT := 1.1
-	const CREW_BOB := 0.03
-	const CREW_LEAN := 0.16
+	const CREW_BOB := 0.022
+	const CREW_LEAN := 0.1
 	## Warm rim on working figures: colour, screen px out from the silhouette, and the silhouette's cap in px.
 	const RIM := Color(1.0, 0.74, 0.4, 0.55)
 	const RIM_PX := 1.6
@@ -10447,17 +10447,19 @@ class Yard extends Control:
 		col.a = lit
 		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
 
-	## How bright a room's lamps burn this frame, 0..1: a slow shimmer, and now and then a short stutter on bad
-	## wiring; a room short of power stutters often. Still with reduce motion.
+	## How bright a room's lamps burn this frame, 0..1: a slow, barely visible breath; only a room short of power
+	## dips now and then, slowly enough not to strobe. Still with reduce motion.
 	func _flicker(salt: int, weak: bool) -> float:
 		if station == null or station._motion_off():
 			return 1.0
 		var t := life_t
-		var f := 0.95 + 0.05 * sin(t * 7.3 + float(salt) * 1.7) * sin(t * 3.1 + float(salt))
-		var period := 17.0 + float(salt % 9) * 2.0
+		var f := 0.98 + 0.02 * sin(t * 0.9 + float(salt) * 1.7)
+		if not weak:
+			return f
+		var period := 9.0 + float(salt % 5) * 2.0
 		var window := fmod(t / period + float(salt) * 0.37, 1.0)
-		if window < (0.22 if weak else 0.035):
-			f *= 0.35 + 0.65 * absf(sin(t * 38.0 + float(salt)))
+		if window < 0.06:
+			f *= 0.55 + 0.45 * absf(sin(t * 9.0 + float(salt)))
 		return clampf(f, 0.0, 1.0)
 
 	## Steam from the machine in a generator or filter room: soft puffs that rise from the middle and fade.
@@ -11295,64 +11297,19 @@ class Yard extends Control:
 			ids.append(id)
 		return ids
 
-	## How a figure moves this frame, from the clock and its id alone, so nothing is stored and a reload looks
-	## the same. A worker (at_work) either keeps the rhythm of the job, walks between their place and a second one
-	## in the room, or stands and breathes; someone on the platform walks or stands. x stays between lo and hi.
-	## Reduce motion (and still shots) keeps everyone where the room puts them.
-	## Seconds of frame time the station has been drawn; people move on it, so a Movie Maker recording plays at the
+	## Seconds of frame time the station has been drawn; motion runs on it, so a Movie Maker recording plays at the
 	## right speed.
 	var life_t := 0.0
 
-	func _life(id: String, x: float, lo: float, hi: float, flip: bool, at_work: bool) -> Dictionary:
+	## A still figure is a picture, not an animation: moving it around reads as jumping (owner, playtest 17). Until
+	## real animation exists, people stay in place and only breathe, slowly and barely. Reduce motion keeps
+	## them still. lo, hi and at_work are kept for the animated version.
+	func _life(id: String, x: float, _lo: float, _hi: float, flip: bool, _at_work: bool) -> Dictionary:
 		var out := {"x": x, "flip": flip, "lean": 0.0, "bob": 0.0, "breath": 0.0}
 		if station == null or station._motion_off():
 			return out
-		var t := life_t
-		var h := _id_hash(id)
-		var phase := fmod(h * 0.0137, 1.0)
-		out.breath = sin(t * 1.3 + phase * TAU) * 0.012
-		var kind := int(h) % 3
-		if not at_work and kind == 0:
-			kind = 1
-		match kind:
-			0:
-				out.lean = sin(t * 2.3 + phase * TAU) * 0.045
-				out.bob = -absf(sin(t * 2.3 + phase * TAU)) * 1.2
-			1:
-				var span := (hi - lo) * (0.35 if at_work else 0.45)
-				var home := clampf(x, lo, hi)
-				var dir := 1.0 if home + span <= hi else -1.0
-				var away := clampf(home + dir * span, lo, hi)
-				var period := 12.0 + fmod(h, 7.0)
-				var u := fmod(t / period + phase, 1.0)
-				var walking := false
-				var going := true
-				var k := 0.0
-				if u < 0.14:
-					out.x = home
-				elif u < 0.46:
-					walking = true
-					k = (u - 0.14) / 0.32
-					out.x = lerpf(home, away, k * k * (3.0 - 2.0 * k))
-				elif u < 0.62:
-					out.x = away
-					out.flip = dir < 0.0
-				elif u < 0.94:
-					walking = true
-					going = false
-					k = (u - 0.62) / 0.32
-					out.x = lerpf(away, home, k * k * (3.0 - 2.0 * k))
-				else:
-					out.x = home
-				if walking:
-					var heading := dir if going else -dir
-					out.flip = heading < 0.0
-					out.bob = -absf(sin(t * 6.5 + phase * TAU)) * 2.2
-					out.lean = 0.03
-					out.breath = 0.0
-			_:
-				if fmod(t / 9.0 + phase, 1.0) > 0.62:
-					out.flip = not flip
+		var phase := fmod(_id_hash(id) * 0.0137, 1.0)
+		out.breath = sin(life_t * 0.55 + phase * TAU) * 0.005
 		return out
 
 	func _id_hash(id: String) -> float:
