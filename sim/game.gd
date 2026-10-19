@@ -4020,6 +4020,49 @@ func set_outpost_focus(sid: String, focus: String) -> bool:
 	return true
 
 
+## What a held station ships home at next dawn: the same flow _deliver_outposts pays, one week older.
+## Empty for the capital and for stations that are not the player's.
+func outpost_yield(sid: String) -> Dictionary:
+	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
+		return {}
+	var st: Dictionary = stations[sid]
+	return Formulas.outpost_flow(int(st.get("held_weeks", 0)) + 1, _supply_hops(sid), str(st.get("focus", "")))
+
+
+## The chain of stations an outpost's loads walk home along, outpost first and capital last, through stations
+## that supply (the same rule as _supply_hops). Empty when the line is cut.
+func supply_route(sid: String) -> Array:
+	if not stations.has(sid) or sid == capital_id:
+		return []
+	var prev := {capital_id: ""}
+	var queue: Array = [capital_id]
+	var qi := 0
+	while qi < queue.size():
+		var cur: String = queue[qi]
+		qi += 1
+		for n in _neighbors(cur):
+			var nb := str(n)
+			if prev.has(nb) or not _supplies(nb):
+				continue
+			prev[nb] = cur
+			if nb == sid:
+				var chain: Array = []
+				var p := nb
+				while p != "":
+					chain.append(p)
+					p = str(prev[p])
+				return chain
+			queue.append(nb)
+	return []
+
+
+## The open tunnel chain from the capital to a station, capital first, for caravans that walk to a trade partner.
+func trade_route(sid: String) -> Array:
+	if not stations.has(sid) or sid == capital_id:
+		return []
+	return _path(capital_id, sid)
+
+
 func _campaign_target(fid: String) -> String:
 	if provoked(fid):
 		var strike := _strike_target(fid)

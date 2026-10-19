@@ -8114,6 +8114,7 @@ func _network_shots() -> void:
 	await _frame()
 	await _frame()
 	_save("network_intents")
+	await _caravan_shot()
 	network_view.open_sheet(game.capital_id)
 	await _frame()
 	await _frame()
@@ -8158,6 +8159,35 @@ func _network_shots() -> void:
 		await _frame()
 		_save("station_visit")
 	get_tree().quit()
+
+
+## Caravans on the map: borrows one deal with the nearest known foreign station and an expedition in its tunnel for
+## a single frame, then puts both back, so the rest of the run sees the bot's own state.
+func _caravan_shot() -> void:
+	var partner := ""
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if str(sid) == game.capital_id or str(st.owner) == game.player or not bool(st.get("known", false)):
+			continue
+		if game.trade_route(str(sid)).size() >= 2 and (partner == "" or game.trade_route(str(sid)).size() < game.trade_route(partner).size()):
+			partner = str(sid)
+	var deals_were := int(game.stations[partner].get("deals", 0)) if partner != "" else 0
+	var trip_was: Dictionary = game.expedition.duplicate()
+	var away_was := bool(game.squads[game.player].get("away", false))
+	if partner != "":
+		game.stations[partner].deals = maxi(1, deals_were)
+	game.expedition = {"left": 2, "tunnel": "to_ferry"}
+	game.squads[game.player].away = true
+	network_view.show_zoom(2.0, game.capital_id)
+	await _frame()
+	await _frame()
+	_save("network_caravans")
+	if partner != "":
+		game.stations[partner].deals = deals_were
+	game.expedition = trip_was
+	game.squads[game.player].away = away_was
+	network_view._fit()
+	await _frame()
 
 
 func _desk_zoom_shots(prefix: String) -> void:

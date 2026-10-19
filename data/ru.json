@@ -791,6 +791,7 @@
   "The supply line is cut.": "Линия снабжения перерезана.",
   "This is the capital.": "Это столица.",
   "Ships home": "Везут домой",
+  "cut": "обрыв",
   "It ships nothing home this week.": "На этой неделе домой ничего не везут.",
   "It costs 1 material a week until it can ship.": "Пока не везёт, станция стоит 1 материал в неделю.",
   "They trade": "Торгуют",

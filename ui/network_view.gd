@@ -184,6 +184,7 @@ func _ready() -> void:
 	mul.blend_mode = CanvasItemMaterial.BLEND_MODE_MUL
 	_wash_layer.material = mul
 	_ink_layer = _add_layer(_draw_ink)
+	_unit_layer = _add_layer(_draw_units)
 	_paper = _map_tex("res://assets/map/paper.webp")
 	_build_zoom_bar()
 	_build_sheet()
@@ -310,7 +311,7 @@ func refresh() -> void:
 
 func _redraw() -> void:
 	queue_redraw()
-	for layer in [_back_layer, _base_layer, _wash_layer, _ink_layer]:
+	for layer in [_back_layer, _base_layer, _wash_layer, _ink_layer, _unit_layer]:
 		if layer != null:
 			layer.queue_redraw()
 
@@ -511,6 +512,9 @@ func _process(delta: float) -> void:
 		busy = true
 	if busy and _ink_layer != null:
 		_ink_layer.queue_redraw()
+	var walking: bool = not _caravans.is_empty() or (game_now != null and not game_now.expedition.is_empty())
+	if _unit_layer != null and (busy or (walking and not _motion_off())):
+		_unit_layer.queue_redraw()
 
 
 func _on_resize() -> void:
@@ -1108,12 +1112,14 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_order_trails(c, game)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_layout_pins(game)
+	_caravans = _caravan_routes(game)
 	_draw_leaders(c)
 	_draw_splashes(c, game)
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
 	_draw_line_badges(c, game)
 	_draw_tags(c, game)
+	_draw_yields(c, game)
 	_draw_flags(c, game)
 	_draw_squads(c, game)
 	_draw_intents(c, game)
@@ -1798,7 +1804,7 @@ func _draw_squads(c: CanvasItem, game) -> void:
 	for fid in game.squads:
 		var sq: Dictionary = game.squads[fid]
 		var sid := str(sq.station)
-		if not game.stations.has(sid) or _secret(game.stations[sid]):
+		if not game.stations.has(sid) or _secret(game.stations[sid]) or bool(sq.get("away", false)):
 			continue
 		if not bool(game.stations[sid].get("known", false)) and str(fid) != game.player:
 			continue
@@ -1809,18 +1815,7 @@ func _draw_squads(c: CanvasItem, game) -> void:
 			at = _screen(from_world.lerp(to_world, 1.0 - _hop_left / 0.6))
 		var r := float(_layout[sid].r) if _layout.has(sid) else 12.0
 		at += Vector2(r * 0.9, r * 0.6)
-		var col := _faction_color(game, str(fid))
-		c.draw_circle(at + Vector2(1, 2), 10.0, Color(0, 0, 0, 0.35))
-		c.draw_circle(at, 10.0, TAG_PAPER)
-		c.draw_arc(at, 10.0, 0, TAU, 20, col, 2.0, true)
-		var icon := ArtPack.icon_texture("squad", 16.0)
-		if icon != null:
-			c.draw_texture_rect(icon, Rect2(at - Vector2(8, 8), Vector2(16, 16)), false, Color(0.25, 0.18, 0.12))
-		else:
-			c.draw_string(_font(), at + Vector2(-4, 4), str(sq.size), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TAG_INK)
-		var badge := at + Vector2(10, -9)
-		c.draw_circle(badge, 8.0, col)
-		c.draw_string(_font(), badge + Vector2(-8, 4), str(int(sq.size)), HORIZONTAL_ALIGNMENT_CENTER, 16, 11, TAG_PAPER)
+		_draw_squad_token(c, game, at, str(fid), int(sq.size))
 
 
 func _draw_intents(c: CanvasItem, game) -> void:
@@ -1845,6 +1840,268 @@ func _draw_intents(c: CanvasItem, game) -> void:
 			c.draw_texture_rect(icon, Rect2(at - Vector2(10, 10) * beat, Vector2(20, 20) * beat), false)
 		else:
 			c.draw_circle(at, 6.0, Color("f0b429"))
+
+
+## Yields and caravans. Under every held station a row of chips says what it ships home at next dawn (the focus
+## good ringed in gold, a clock while it is still settling in, a red mark when the line is cut). Over the map,
+## loads walk home along each supply line, building materials walk out to stations still settling in, and
+## traders walk out and back to every station with a deal. Pure view: the sim pays at dawn either way.
+const FOCUS_GOOD := {"food": "food", "air": "air", "defense": "materials", "influence": "influence"}
+const YIELD_KEYS := ["food", "materials", "air", "influence", "tokens"]
+const CARAVAN_SPEED := 34.0
+const CARAVAN_SPACING := 200.0
+const TRADE_GOLD := Color("c9a227")
+const SETTLE_WEEKS := 5
+var _unit_layer: Control
+var _caravans: Array = []
+var _chip_box: StyleBoxFlat
+
+
+func _draw_yields(c: CanvasItem, game) -> void:
+	if _chip_box == null:
+		_chip_box = StyleBoxFlat.new()
+		_chip_box.bg_color = Color(PAPER, 0.88)
+		_chip_box.set_corner_radius_all(7)
+		_chip_box.border_color = Color(TRADE_GOLD, 0.0)
+	var font := _font()
+	var fs := 12
+	for sid in _layout:
+		var st: Dictionary = game.stations[sid]
+		if str(st.owner) != str(game.player) or str(sid) == str(game.capital_id):
+			continue
+		var cells: Array = _yield_cells(game, str(sid), st)
+		if cells.is_empty():
+			continue
+		var widths: Array = []
+		var total := 0.0
+		for cell in cells:
+			var w := 18.0 + font.get_string_size(str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6.0
+			widths.append(w)
+			total += w + 2.0
+		total -= 2.0
+		var row: Dictionary = _layout[sid]
+		var x := (row.at as Vector2).x - total * 0.5
+		var y := (row.at as Vector2).y + float(row.r) + 4.0
+		for i in cells.size():
+			var cell: Dictionary = cells[i]
+			var box := Rect2(x, y, float(widths[i]), 18.0)
+			_chip_box.border_color = TRADE_GOLD if bool(cell.ring) else Color(TRADE_GOLD, 0.0)
+			_chip_box.set_border_width_all(2 if bool(cell.ring) else 0)
+			_chip_box.draw(c.get_canvas_item(), box)
+			var icon := ArtPack.icon_texture(str(cell.icon), 14.0)
+			if icon != null:
+				c.draw_texture_rect(icon, Rect2(box.position + Vector2(4, 2), Vector2(14, 14)), false)
+			c.draw_string(font, box.position + Vector2(19, 13.5), str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cell.col)
+			x += float(widths[i]) + 2.0
+
+
+## The chips under one held station, left to right: [{icon, text, col, ring}].
+func _yield_cells(game, sid: String, st: Dictionary) -> Array:
+	var cells: Array = []
+	if int(game._supply_hops(sid)) >= 900:
+		cells.append({"icon": "warning", "text": Copy.t("cut"), "col": Color("e0705a"), "ring": false})
+		return cells
+	var flow: Dictionary = game.outpost_yield(sid)
+	var upkeep := int(flow.get("upkeep_materials", 0))
+	if upkeep > 0:
+		cells.append({"icon": "materials", "text": "-%d" % upkeep, "col": Color("e0705a"), "ring": false})
+		var left := maxi(1, SETTLE_WEEKS - int(st.get("held_weeks", 0)))
+		cells.append({"icon": "clock", "text": str(left), "col": MUTED, "ring": false})
+		return cells
+	var focus_good := str(FOCUS_GOOD.get(str(st.get("focus", "food")), "food"))
+	for key in YIELD_KEYS:
+		var gain := int(flow.get(key, 0))
+		if gain > 0:
+			cells.append({"icon": key, "text": "+%d" % gain, "col": INK, "ring": key == focus_good})
+	return cells
+
+
+func _caravan_routes(game) -> Array:
+	var out: Array = []
+	var player := str(game.player)
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if _secret(st) or str(sid) == str(game.capital_id):
+			continue
+		if str(st.owner) == player:
+			var flow: Dictionary = game.outpost_yield(str(sid))
+			var route: Array = game.supply_route(str(sid))
+			if route.size() < 2 or not _route_shown(game, route):
+				continue
+			if int(flow.get("upkeep_materials", 0)) > 0:
+				route.reverse()
+				out.append({"route": route, "good": "materials", "kind": "settle", "seed": _hash(str(sid))})
+				continue
+			var good := _main_good(flow, str(st.get("focus", "food")))
+			if good != "":
+				out.append({"route": route, "good": good, "kind": "supply", "seed": _hash(str(sid))})
+		elif int(st.get("deals", 0)) > 0 and bool(st.get("known", false)):
+			var route: Array = game.trade_route(str(sid))
+			if route.size() >= 2 and _route_shown(game, route):
+				out.append({"route": route, "good": "tokens", "kind": "trade", "seed": _hash(str(sid))})
+	return out
+
+
+func _route_shown(game, route: Array) -> bool:
+	for sid in route:
+		if not _layout.has(str(sid)) or _secret(game.stations[str(sid)]):
+			return false
+	return true
+
+
+## The good a caravan carries: the focus good when the station ships it, otherwise the largest load.
+func _main_good(flow: Dictionary, focus: String) -> String:
+	var want := str(FOCUS_GOOD.get(focus, "food"))
+	if int(flow.get(want, 0)) > 0:
+		return want
+	var best := ""
+	for key in YIELD_KEYS:
+		if int(flow.get(key, 0)) > int(flow.get(best, 0)):
+			best = key
+	return best
+
+
+func _draw_units(c: CanvasItem) -> void:
+	var game = _game()
+	if game == null or _layout.is_empty():
+		return
+	var still := _motion_off()
+	var home_col := _faction_color(game, str(game.player))
+	for row in _caravans:
+		var pts := PackedVector2Array()
+		for sid in row.route:
+			pts.append((_layout[str(sid)] as Dictionary).at)
+		var length := _poly_length(pts)
+		if length < 12.0:
+			continue
+		var trade := str(row.kind) == "trade"
+		var col: Color = TRADE_GOLD if trade else home_col
+		_route_dots(c, pts, Color(col, 0.55))
+		var n := maxi(1, int(length / CARAVAN_SPACING))
+		var period := maxf(5.0, length / zoom * _zoom_min / CARAVAN_SPEED) * (2.0 if trade else 1.0)
+		var seed := float(int(row.seed) % 1000) * 0.001
+		for i in n:
+			var phase := (float(i) + 0.5) / float(n) if still else fmod(_anim_t / period + float(i) / float(n) + seed, 1.0)
+			if still and trade:
+				## A still frame spreads the traders along the route, every other one walking home.
+				var spread := (float(i) + 0.5) / float(n) * 0.5
+				phase = spread if i % 2 == 0 else 1.0 - spread
+			var good := str(row.good)
+			var leg := phase
+			if trade:
+				leg = phase * 2.0
+				if leg > 1.0:
+					leg = 2.0 - leg
+				else:
+					good = "trade"
+			var spot := _along(pts, leg * length)
+			var dir: Vector2 = spot[1]
+			if trade and phase * 2.0 > 1.0:
+				dir = -dir
+			var at: Vector2 = spot[0]
+			if not still:
+				at.y -= absf(sin(_anim_t * 7.0 + float(i) * 1.7)) * 1.6
+			_draw_caravan(c, at, dir, col, good)
+	_draw_expedition(c, game, home_col, still)
+
+
+func _poly_length(pts: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += pts[i].distance_to(pts[i + 1])
+	return total
+
+
+## [position, unit direction] at a distance along a polyline.
+func _along(pts: PackedVector2Array, dist: float) -> Array:
+	var left := dist
+	for i in pts.size() - 1:
+		var seg := pts[i].distance_to(pts[i + 1])
+		if seg <= 0.001:
+			continue
+		var dir := (pts[i + 1] - pts[i]) / seg
+		if left <= seg:
+			return [pts[i] + dir * left, dir]
+		left -= seg
+	var last := pts.size() - 1
+	return [pts[last], (pts[last] - pts[last - 1]).normalized()]
+
+
+func _route_dots(c: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
+	var length := _poly_length(pts)
+	var t := 6.0
+	while t < length - 6.0:
+		var dot: Vector2 = _along(pts, t)[0]
+		c.draw_circle(dot, 2.6, Color(TAG_PAPER, col.a))
+		c.draw_circle(dot, 1.8, col)
+		t += 10.0
+
+
+## A hand cart: wooden bed with the owner's colour on the rim, two wheels, the shaft pointing where it walks,
+## and the load it carries on a paper disc above it.
+func _draw_caravan(c: CanvasItem, at: Vector2, dir: Vector2, col: Color, good: String) -> void:
+	var face := -1.0 if dir.x < 0.0 else 1.0
+	c.draw_set_transform(at + Vector2(0, 10), 0.0, Vector2(1.0, 0.35))
+	c.draw_circle(Vector2.ZERO, 14.0, Color(0, 0, 0, 0.35))
+	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+	c.draw_line(at + Vector2(face * 11.0, -1.0), at + Vector2(face * 19.0, -5.0), Color("2b2118"), 2.2, true)
+	var bed := Rect2(at + Vector2(-12, -7), Vector2(24, 12))
+	c.draw_rect(bed, Color("5e4329"))
+	c.draw_rect(Rect2(bed.position + Vector2(2, 2), Vector2(bed.size.x - 4, 3)), Color("8a6a44"))
+	c.draw_rect(bed, col.darkened(0.2), false, 2.0)
+	for wx in [-7.0, 7.0]:
+		c.draw_circle(at + Vector2(wx, 6.0), 4.0, Color("1e1812"))
+		c.draw_circle(at + Vector2(wx, 6.0), 1.5, Color("a08560"))
+	var disc := at + Vector2(0, -20)
+	c.draw_circle(disc + Vector2(1, 1.5), 11.0, Color(0, 0, 0, 0.3))
+	c.draw_circle(disc, 11.0, TAG_PAPER)
+	c.draw_arc(disc, 11.0, 0.0, TAU, 24, col.darkened(0.1), 2.0, true)
+	var icon := ArtPack.icon_texture(good, 16.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(disc - Vector2(8, 8), Vector2(16, 16)), false)
+
+
+## The expedition party out in its tunnel: walks out the first week, digs at the far end, walks back.
+func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
+	if game.expedition.is_empty() or not game.squads.has(game.player):
+		return
+	var tunnel: Dictionary = game._tunnel_by_id(str(game.expedition.get("tunnel", "")))
+	if tunnel.is_empty():
+		return
+	var a := str(tunnel.get("a", ""))
+	var b := str(tunnel.get("b", ""))
+	if a != str(game.capital_id):
+		var swap := a
+		a = b
+		b = swap
+	if not _layout.has(a) or not _layout.has(b):
+		return
+	var from: Vector2 = (_layout[a] as Dictionary).at
+	var to: Vector2 = (_layout[b] as Dictionary).at
+	var left := int(game.expedition.get("left", 3))
+	var t := 0.3 if left >= 3 else (0.85 if left == 2 else 0.45)
+	if not still:
+		t += sin(_anim_t * 0.9) * 0.04
+	_route_dots(c, PackedVector2Array([from, to]), Color(col, 0.5))
+	var at := from.lerp(to, t)
+	if not still:
+		at.y -= absf(sin(_anim_t * 6.0)) * 1.8
+	_draw_squad_token(c, game, at, str(game.player), int(game.squads[game.player].size))
+
+
+func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int) -> void:
+	var col := _faction_color(game, fid)
+	c.draw_circle(at + Vector2(1, 2), 10.0, Color(0, 0, 0, 0.35))
+	c.draw_circle(at, 10.0, TAG_PAPER)
+	c.draw_arc(at, 10.0, 0, TAU, 20, col, 2.0, true)
+	var icon := ArtPack.icon_texture("squad", 16.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(at - Vector2(8, 8), Vector2(16, 16)), false, Color(0.25, 0.18, 0.12))
+	else:
+		c.draw_string(_font(), at + Vector2(-4, 4), str(size_n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TAG_INK)
+	var badge := at + Vector2(10, -9)
+	c.draw_circle(badge, 8.0, col)
+	c.draw_string(_font(), badge + Vector2(-8, 4), str(size_n), HORIZONTAL_ALIGNMENT_CENTER, 16, 11, TAG_PAPER)
 
 
 func _faction_color(game, fid: String) -> Color:
@@ -2664,8 +2921,7 @@ func _supply_text(game, sid: String) -> String:
 func _ships_text(game, st: Dictionary, sid: String) -> String:
 	if str(sid) == str(game.capital_id):
 		return Copy.t("Ships home") + ": " + Copy.t("This is the capital.")
-	var hops := int(game._supply_hops(str(sid)))
-	var flow: Dictionary = Formulas.outpost_flow(int(st.get("held_weeks", 0)), hops, str(st.get("focus", "")))
+	var flow: Dictionary = game.outpost_yield(str(sid))
 	if int(flow.get("upkeep_materials", 0)) > 0:
 		return Copy.t("It costs 1 material a week until it can ship.")
 	var bits: PackedStringArray = []
