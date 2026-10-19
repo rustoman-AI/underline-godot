@@ -4067,6 +4067,20 @@ func trade_route(sid: String) -> Array:
 	return _path(capital_id, sid)
 
 
+## The tunnel chain a squad walked from one station to another, for the map to animate; a straight hop when the
+## tunnels between them are closed now.
+func walk_route(from: String, to: String) -> Array:
+	var chain := _path(from, to)
+	return chain if not chain.is_empty() else [from, to]
+
+
+## The open tunnel chain from a rival station to its faction's seat, for the rival carts the map draws.
+func rival_route(sid: String, seat: String) -> Array:
+	if not stations.has(sid) or not stations.has(seat) or sid == seat:
+		return []
+	return _path(sid, seat)
+
+
 func _campaign_target(fid: String) -> String:
 	if provoked(fid):
 		var strike := _strike_target(fid)

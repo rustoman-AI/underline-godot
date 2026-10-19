@@ -108,8 +108,12 @@ var council: PanelContainer
 var _sheet_body: VBoxContainer
 var _council_body: VBoxContainer
 var _fitted := false
-var _hop := {}
-var _hop_left := 0.0
+## Squad moves seen since the last look: the station each squad stood on, and the walks under way
+## ({route, t, dur}), so a squad that moved three tunnels this week walks all three on the map.
+var _squad_seen := {}
+var _walks := {}
+const WALK_PER_HOP := 0.7
+const WALK_MAX := 2.8
 var _zoom_min := 1.0
 var _zoom_max := 3.5
 var _near_span := 0.0
@@ -496,8 +500,11 @@ func _process(delta: float) -> void:
 	var game_now = _game()
 	if game_now != null and not game_now.telegraphed.is_empty() and not _motion_off():
 		busy = true
-	if _hop_left > 0.0:
-		_hop_left = maxf(0.0, _hop_left - delta)
+	if not _walks.is_empty():
+		for fid in _walks.keys():
+			_walks[fid].t = float(_walks[fid].t) + delta
+			if float(_walks[fid].t) >= float(_walks[fid].dur):
+				_walks.erase(fid)
 		busy = true
 	if _hover != "" and not _lift.has(_hover):
 		_lift[_hover] = 0.0
@@ -1809,12 +1816,17 @@ func _draw_squads(c: CanvasItem, game) -> void:
 		if not bool(game.stations[sid].get("known", false)) and str(fid) != game.player:
 			continue
 		var at := _pin_at(game, sid)
-		if _hop.has(str(fid)) and _hop_left > 0.0 and not _motion_off():
-			var from_world: Vector2 = _hop[str(fid)]
-			var to_world := _station_world(game.stations[sid])
-			at = _screen(from_world.lerp(to_world, 1.0 - _hop_left / 0.6))
 		var r := float(_layout[sid].r) if _layout.has(sid) else 12.0
 		at += Vector2(r * 0.9, r * 0.6)
+		if _walks.has(str(fid)) and not _motion_off():
+			var walk: Dictionary = _walks[str(fid)]
+			var pts := PackedVector2Array()
+			for hop in walk.route:
+				pts.append(_pin_at(game, str(hop)) + Vector2(r * 0.9, r * 0.6))
+			var k := clampf(float(walk.t) / float(walk.dur), 0.0, 1.0)
+			k = k * k * (3.0 - 2.0 * k)
+			at = _along(pts, k * _poly_length(pts))[0]
+			at.y -= absf(sin(float(walk.t) * 9.0)) * 2.0
 		_draw_squad_token(c, game, at, str(fid), int(sq.size))
 
 
@@ -1852,6 +1864,8 @@ const CARAVAN_SPEED := 34.0
 const CARAVAN_SPACING := 200.0
 const TRADE_GOLD := Color("c9a227")
 const SETTLE_WEEKS := 5
+## What each rival's carts carry, by what the faction lives on.
+const RIVAL_GOOD := {"exchange": "tokens", "directorate": "materials", "synod": "influence", "depot": "food", "lamplighters": "air"}
 var _unit_layer: Control
 var _caravans: Array = []
 var _chip_box: StyleBoxFlat
@@ -2054,6 +2068,36 @@ func _caravan_routes(game) -> Array:
 			var route: Array = game.trade_route(str(sid))
 			if route.size() >= 2 and _route_shown(game, route):
 				out.append({"route": route, "good": "tokens", "kind": "trade", "seed": _hash(str(sid))})
+	out.append_array(_rival_routes(game))
+	return out
+
+
+## Rival stations send their own carts to their faction's seat, so the map shows a living economy and where each
+## rival's strength flows. Only routes the player can see end to end (every station on it known).
+func _rival_routes(game) -> Array:
+	var out: Array = []
+	var seats := {}
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if bool(st.get("capital", false)):
+			seats[str(st.owner)] = str(sid)
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		var owner := str(st.owner)
+		if owner == str(game.player) or not seats.has(owner) or str(seats[owner]) == str(sid):
+			continue
+		if not bool(st.get("known", false)) or _secret(st):
+			continue
+		var route: Array = game.rival_route(str(sid), str(seats[owner]))
+		if route.size() < 2 or not _route_shown(game, route):
+			continue
+		var known_all := true
+		for hop in route:
+			if not bool(game.stations[str(hop)].get("known", false)):
+				known_all = false
+				break
+		if known_all:
+			out.append({"route": route, "good": RIVAL_GOOD.get(owner, "materials"), "kind": "rival", "owner": owner, "seed": _hash(str(sid))})
 	return out
 
 
@@ -2090,9 +2134,12 @@ func _draw_units(c: CanvasItem) -> void:
 		if length < 12.0:
 			continue
 		var trade := str(row.kind) == "trade"
+		var rival := str(row.kind) == "rival"
 		var col: Color = TRADE_GOLD if trade else home_col
-		_route_dots(c, pts, Color(col, 0.55))
-		var n := maxi(1, int(length / CARAVAN_SPACING))
+		if rival:
+			col = _faction_color(game, str(row.owner))
+		_route_dots(c, pts, Color(col, 0.35 if rival else 0.55))
+		var n := 1 if rival else maxi(1, int(length / CARAVAN_SPACING))
 		var period := maxf(5.0, length / zoom * _zoom_min / CARAVAN_SPEED) * (2.0 if trade else 1.0)
 		var seed := float(int(row.seed) % 1000) * 0.001
 		for i in n:
@@ -2369,15 +2416,21 @@ func _track_hops() -> void:
 		return
 	for fid in game.squads:
 		var sq: Dictionary = game.squads[fid]
-		if not game.stations.has(str(sq.station)):
+		var now := str(sq.station)
+		if not game.stations.has(now):
 			continue
-		var now := _station_world(game.stations[str(sq.station)])
-		if _hop.has(str(fid)):
-			var prev: Vector2 = _hop[str(fid)]
-			if prev.distance_to(now) > 0.5 and not _motion_off():
-				_hop_left = 0.6
-		if _hop_left <= 0.0:
-			_hop[str(fid)] = now
+		var prev := str(_squad_seen.get(str(fid), ""))
+		_squad_seen[str(fid)] = now
+		if prev == "" or prev == now or _motion_off() or not game.stations.has(prev):
+			continue
+		var route: Array = game.walk_route(prev, now)
+		var shown := route.size() >= 2
+		for hop in route:
+			if _secret(game.stations[str(hop)]):
+				shown = false
+				break
+		if shown:
+			_walks[str(fid)] = {"route": route, "t": 0.0, "dur": minf(WALK_MAX, WALK_PER_HOP * float(route.size() - 1))}
 
 
 func _build_sheet() -> void:

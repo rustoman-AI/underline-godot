@@ -8193,12 +8193,50 @@ func _caravan_shot() -> void:
 		network_view._focus_menu.hide()
 		network_view._chip_hover = ""
 		break
+	await _squad_walk_shot()
 	if partner != "":
 		game.stations[partner].deals = deals_were
 	game.expedition = trip_was
 	game.squads[game.player].away = away_was
 	network_view._fit()
 	await _frame()
+
+
+## A rival squad caught halfway along a two-tunnel walk: the map is told it stood two stations back, with motion on
+## for this one frame.
+func _squad_walk_shot() -> void:
+	var walker := ""
+	var back := ""
+	for fid in game.squads:
+		if str(fid) == game.player:
+			continue
+		var here := str(game.squads[fid].station)
+		if not game.stations.has(here) or not bool(game.stations[here].get("known", false)):
+			continue
+		for n in game._neighbors(here):
+			for far in game._neighbors(str(n)):
+				if str(far) != here and bool(game.stations[str(far)].get("known", false)):
+					back = str(far)
+					break
+			if back != "":
+				break
+		if back != "":
+			walker = str(fid)
+			break
+	if walker == "":
+		return
+	var motion_was := motion_in_shots
+	motion_in_shots = true
+	var here := str(game.squads[walker].station)
+	network_view.show_zoom(1.6, here)
+	network_view._squad_seen[walker] = back
+	network_view.refresh()
+	if network_view._walks.has(walker):
+		network_view._walks[walker].t = float(network_view._walks[walker].dur) * 0.5
+	await _frame()
+	_save("network_squad_walk")
+	network_view._walks.clear()
+	motion_in_shots = motion_was
 
 
 func _desk_zoom_shots(prefix: String) -> void:
