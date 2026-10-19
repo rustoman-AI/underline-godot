@@ -794,6 +794,8 @@
   "cut": "обрыв",
   "Choose what this station sends home.": "Выбрать, что станция везёт домой.",
   "Ships once it has settled in.": "Начнёт возить, когда обживётся.",
+  "If ours": "Если станет нашей",
+  "no supply line": "нет линии снабжения",
   "It ships nothing home this week.": "На этой неделе домой ничего не везут.",
   "It costs 1 material a week until it can ship.": "Пока не везёт, станция стоит 1 материал в неделю.",
   "They trade": "Торгуют",

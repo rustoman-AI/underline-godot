@@ -1125,6 +1125,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
 	_draw_line_badges(c, game)
+	_plan_yields(game)
 	_draw_tags(c, game)
 	_draw_yields(c, game)
 	_draw_flags(c, game)
@@ -1664,6 +1665,8 @@ func _draw_tags(c: CanvasItem, game) -> void:
 	for panel in [council, sheet, _zoom_bar]:
 		if panel != null and panel.visible:
 			placed.append(panel.get_rect().grow(4.0))
+	for row in _yield_rows:
+		placed.append(Rect2(row.x - 2.0, row.y - 2.0, float(row.total) + 4.0, 22.0))
 	_tags.clear()
 	var segs := _line_segments(game)
 	var fs := maxi(14 if level < 2 else 15, ceili(TAG_MIN_PX / _window_scale()))
@@ -1870,6 +1873,7 @@ var _unit_layer: Control
 var _caravans: Array = []
 var _chip_box: StyleBoxFlat
 var _chip_hits := {}
+var _yield_rows: Array = []
 var _chip_hover := ""
 var _focus_menu: PopupMenu
 var _focus_menu_sid := ""
@@ -1970,6 +1974,36 @@ func _on_focus_picked(id: int) -> void:
 	refresh()
 
 
+## Lays out every chip row before the tags are placed, so name tags step around the chips instead of covering them.
+func _plan_yields(game) -> void:
+	_yield_rows.clear()
+	var font := _font()
+	var fs := 12
+	for sid in _layout:
+		var st: Dictionary = game.stations[sid]
+		if str(sid) == str(game.capital_id) or not bool(_layout[sid].known):
+			continue
+		var own := str(st.owner) == str(game.player)
+		## A station that is not ours shows, while hovered or picked, what it would ship once taken: faint, not a button.
+		var preview := not own and (str(sid) == _hover or str(sid) == selected)
+		if not own and not preview:
+			continue
+		var cells: Array = _yield_cells(game, str(sid), st) if own else _preview_cells(game, str(sid))
+		if cells.is_empty():
+			continue
+		var widths: Array = []
+		var total := 0.0
+		for cell in cells:
+			var w := font.get_string_size(str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6.0
+			w += 18.0 if str(cell.icon) != "" else 4.0
+			widths.append(w)
+			total += w + 2.0
+		total += -2.0 if preview else 16.0
+		var pin: Dictionary = _layout[sid]
+		_yield_rows.append({"sid": str(sid), "cells": cells, "widths": widths, "total": total, "preview": preview,
+			"x": (pin.at as Vector2).x - total * 0.5, "y": (pin.at as Vector2).y + float(pin.r) + 4.0})
+
+
 func _draw_yields(c: CanvasItem, game) -> void:
 	if _chip_box == null:
 		_chip_box = StyleBoxFlat.new()
@@ -1979,23 +2013,30 @@ func _draw_yields(c: CanvasItem, game) -> void:
 	var font := _font()
 	var fs := 12
 	_chip_hits.clear()
-	for sid in _layout:
-		var st: Dictionary = game.stations[sid]
-		if str(st.owner) != str(game.player) or str(sid) == str(game.capital_id):
+	for plan in _yield_rows:
+		var sid := str(plan.sid)
+		var cells: Array = plan.cells
+		var widths: Array = plan.widths
+		var total := float(plan.total)
+		var x := float(plan.x)
+		var y := float(plan.y)
+		if bool(plan.preview):
+			_chip_box.bg_color = Color(PAPER, 0.78)
+			_chip_box.border_color = Color(MUTED, 0.0)
+			_chip_box.set_border_width_all(0)
+			for i in cells.size():
+				var cell: Dictionary = cells[i]
+				var box := Rect2(x, y, float(widths[i]), 18.0)
+				_chip_box.draw(c.get_canvas_item(), box)
+				var tx := 4.0
+				var icon := ArtPack.icon_texture(str(cell.icon), 14.0) if str(cell.icon) != "" else null
+				if icon != null:
+					c.draw_texture_rect(icon, Rect2(box.position + Vector2(4, 2), Vector2(14, 14)), false, Color(1, 1, 1, 0.75))
+					tx = 19.0
+				c.draw_string(font, box.position + Vector2(tx, 13.5), str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cell.col)
+				x += float(widths[i]) + 2.0
+			_chip_box.bg_color = Color(PAPER, 0.88)
 			continue
-		var cells: Array = _yield_cells(game, str(sid), st)
-		if cells.is_empty():
-			continue
-		var widths: Array = []
-		var total := 0.0
-		for cell in cells:
-			var w := 18.0 + font.get_string_size(str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6.0
-			widths.append(w)
-			total += w + 2.0
-		total += 16.0
-		var row: Dictionary = _layout[sid]
-		var x := (row.at as Vector2).x - total * 0.5
-		var y := (row.at as Vector2).y + float(row.r) + 4.0
 		var hot: bool = str(sid) == _chip_hover
 		_chip_hits[str(sid)] = Rect2(x - 2.0, y - 2.0, total + 4.0, 22.0)
 		if hot:
@@ -2022,6 +2063,23 @@ func _draw_yields(c: CanvasItem, game) -> void:
 				c.draw_texture_rect(icon, Rect2(box.position + Vector2(4, 2), Vector2(14, 14)), false)
 			c.draw_string(font, box.position + Vector2(19, 13.5), str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cell.col)
 			x += float(widths[i]) + 2.0
+
+
+## The faint chips under a station that is not ours: "If ours" and what it would ship once settled in.
+func _preview_cells(game, sid: String) -> Array:
+	var flow: Dictionary = game.yield_if_taken(sid)
+	if flow.is_empty():
+		return []
+	var cells: Array = [{"icon": "", "text": Copy.t("If ours"), "col": MUTED}]
+	var any := false
+	for key in YIELD_KEYS:
+		var gain := int(flow.get(key, 0))
+		if gain > 0:
+			any = true
+			cells.append({"icon": key, "text": "+%d" % gain, "col": Color(INK, 0.85)})
+	if not any:
+		cells.append({"icon": "warning", "text": Copy.t("no supply line"), "col": Color("e0705a")})
+	return cells
 
 
 ## The chips under one held station, left to right: [{icon, text, col, ring}].

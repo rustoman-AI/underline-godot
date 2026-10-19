@@ -4033,6 +4033,20 @@ func outpost_yield(sid: String, focus: String = "", settled: bool = false) -> Di
 	return Formulas.outpost_flow(age, _supply_hops(sid), focus if focus != "" else str(st.get("focus", "")))
 
 
+## What a station the player does not hold would ship home once taken and settled in, at its current focus (food
+## when it has none): the supply line would run through the best neighbour that already supplies. Empty for the
+## player's own stations; all zero when no neighbour supplies (it would be cut off).
+func yield_if_taken(sid: String) -> Dictionary:
+	if not stations.has(sid) or str(stations[sid].owner) == player or sid == capital_id:
+		return {}
+	var hops := 999
+	for n in _neighbors(sid):
+		if _supplies(str(n)):
+			hops = mini(hops, _supply_hops(str(n)) + 1)
+	var focus := str(stations[sid].get("focus", ""))
+	return Formulas.outpost_flow(5, hops, focus if focus != "" else "food")
+
+
 ## The chain of stations an outpost's loads walk home along, outpost first and capital last, through stations
 ## that supply (the same rule as _supply_hops). Empty when the line is cut.
 func supply_route(sid: String) -> Array:
