@@ -1,0 +1,51 @@
+ART: MAP TOKENS, UNITS AND CARAVANS ON THE NETWORK MAP (ChatGPT image tool)
+
+WHERE WE ARE
+The network map now shows what moves between stations: carts carrying loads home along supply lines, traders
+walking to stations we have a deal with, squads standing on stations, and the expedition party in its tunnel.
+Today all of these are drawn by code as plain shapes (a brown box on two wheels, a paper disc with an icon).
+The owner wants them to look like a finished game: small painted tabletop miniatures standing on the paper map,
+the way a board game puts carved pieces on its board. This set replaces the code shapes with real art.
+
+LOOK
+- Painted tabletop miniatures, seen from about 30 degrees above (three-quarter top-down), side facing RIGHT.
+- Ink outline like the map pins and the hub banners, flat colour with one soft shade, no photo realism.
+- Underground post-collapse New York: patched canvas, scrap wood, rope, gas masks, lamps. No guns pointed at the
+  viewer, no gore, no flags or real emblems, no text, no numbers.
+- Every piece stands on the same small round base: dark wood disc, 1 px lighter rim, seen in the same perspective.
+- Colour rule: the part that shows who owns the piece is painted PLAIN LIGHT GREY (#C8C8C8) and nothing else in the
+  picture uses that grey. The game tints that part in the owner's colour (the Depot red, the Exchange green and so on).
+  Mark it on: the cloth band on a cart, the canopy of the trader cart, the armbands or scarves of the squad, the
+  pennant on the expedition pole.
+Attach as reference: assets/map/pins.webp (the station pins) and two hub banners from incoming-art/hubs/style_v2.
+
+THE PIECES (one image each, in this order)
+1. supply_cart: a two-wheeled hand cart of scrap planks with a grey cloth band (tint part) round the bed, the bed
+   EMPTY and open on top (the game draws the load above it), a pull shaft pointing right, a small lamp on a hook.
+2. supply_cart_pull: the same cart with one hooded porter in front, leaning into the shaft, mid-step.
+3. trader_cart: a bigger four-wheeled cart under a grey canvas canopy (tint part), bundles and a crate showing at the
+   back, a hanging lantern, one trader walking beside it.
+4. squad: three standing figures shoulder to shoulder on one base, gas masks, padded coats, grey armbands (tint
+   part), one holding a lamp up, one with a long pipe-spear resting on the shoulder, one with a scrap shield.
+5. squad_small: one figure from piece 4 alone on the base (used when the squad is very small or zoomed far out).
+6. expedition: two figures walking right, big packs and coiled rope, the front one holds a pole with a small grey
+   pennant (tint part) and a lamp, the back one carries a pick.
+7. settlers: one porter carrying a stack of planks and a sack on the back, walking right (building materials going out
+   to a newly taken station).
+
+STRICT LAYOUT
+- Transparent background, real alpha, no white, no checkerboard, no glow, no halo, no drop shadow (the game draws it).
+- Canvas 512 x 512 for each piece, the base centred horizontally, the bottom of the base 40 px above the bottom edge.
+- The base is 300 px wide in every image; pieces 1, 2, 5 and 7 fit inside a 360 px wide box, pieces 3, 4 and 6
+  inside 440 px. Nothing touches the canvas edge.
+- Must still read when the game shows it 40 px tall: big clear shapes, thick outline, few small details.
+
+DELIVERY
+incoming-art/map_tokens/<piece>_v1.png (v2, v3 if retried) and <piece>_prompt.txt with the exact prompt, plus
+HANDOFF.txt (preferred version per piece, known defects). At most three attempts per piece.
+Do not install anything into assets/.
+
+WHAT THE LEAD DOES AFTER
+Checks alpha and the tint grey, scales to 64 and 128 px, puts them on the map in place of the code shapes (tinted
+by owner, flipped when walking left, the load icon still above the cart), and sends the owner a clip of the map with
+carts, traders and squads moving.

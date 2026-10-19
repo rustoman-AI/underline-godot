@@ -1855,6 +1855,105 @@ const SETTLE_WEEKS := 5
 var _unit_layer: Control
 var _caravans: Array = []
 var _chip_box: StyleBoxFlat
+var _chip_hits := {}
+var _chip_hover := ""
+var _focus_menu: PopupMenu
+var _focus_menu_sid := ""
+const FOCUS_ORDER := ["food", "air", "defense", "influence"]
+
+
+func _chip_at(screen_at: Vector2) -> String:
+	for sid in _chip_hits:
+		if (_chip_hits[sid] as Rect2).has_point(screen_at):
+			return str(sid)
+	return ""
+
+
+## The focus menu under a held station's chips: one row per focus with what it would ship home, the current one
+## ticked. Picking a row is the same order as the focus buttons on the station card.
+func open_focus_menu(sid: String, screen_at: Vector2) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	if _focus_menu == null:
+		_focus_menu = PopupMenu.new()
+		_focus_menu.id_pressed.connect(_on_focus_picked)
+		var card := StyleBoxFlat.new()
+		card.bg_color = CARD
+		card.border_color = Color("8a6a44")
+		card.set_border_width_all(2)
+		card.set_corner_radius_all(4)
+		card.set_content_margin_all(8)
+		card.shadow_color = Color(0, 0, 0, 0.35)
+		card.shadow_size = 6
+		card.shadow_offset = Vector2(2, 3)
+		var lit := StyleBoxFlat.new()
+		lit.bg_color = Color(TRADE_GOLD, 0.28)
+		lit.set_corner_radius_all(3)
+		var rule := StyleBoxLine.new()
+		rule.color = Color(CARD_MUTED, 0.5)
+		rule.thickness = 1
+		_focus_menu.add_theme_stylebox_override("panel", card)
+		_focus_menu.add_theme_stylebox_override("hover", lit)
+		_focus_menu.add_theme_stylebox_override("separator", rule)
+		_focus_menu.add_theme_stylebox_override("labeled_separator_left", rule)
+		_focus_menu.add_theme_stylebox_override("labeled_separator_right", rule)
+		_focus_menu.add_theme_color_override("font_color", CARD_INK)
+		_focus_menu.add_theme_color_override("font_hover_color", CARD_INK)
+		_focus_menu.add_theme_color_override("font_separator_color", CARD_MUTED)
+		_focus_menu.add_theme_constant_override("v_separation", 10)
+		_focus_menu.add_theme_constant_override("h_separation", 8)
+		_focus_menu.add_theme_font_override("font", _font())
+		_focus_menu.add_theme_font_size_override("font_size", 15)
+		if _tag_font != null:
+			_focus_menu.add_theme_font_override("font_separator", _tag_font)
+		_focus_menu.add_theme_font_size_override("font_separator_size", 16)
+		add_child(_focus_menu)
+	_focus_menu.clear()
+	_focus_menu_sid = sid
+	var st: Dictionary = game.stations[sid]
+	var current := str(st.get("focus", "food"))
+	var settling := int(game.outpost_yield(sid).get("upkeep_materials", 0)) > 0
+	_focus_menu.add_separator(str(game.station_text(sid, "community")))
+	var labels := {}
+	for row in order_rows(game, true, sid):
+		labels[str(row[0]).trim_prefix("focus:")] = str(row[1])
+	for i in FOCUS_ORDER.size():
+		var focus: String = FOCUS_ORDER[i]
+		var flow: Dictionary = game.outpost_yield(sid, focus, true)
+		var bits: PackedStringArray = []
+		for key in YIELD_KEYS:
+			if int(flow.get(key, 0)) > 0:
+				bits.append("+%d %s" % [int(flow[key]), Copy.res(key)])
+		var text := Copy.t(str(labels.get(focus, _focus_word(focus))))
+		if not bits.is_empty():
+			text += "   " + ", ".join(bits)
+		_focus_menu.add_check_item(text, i)
+		var idx := _focus_menu.get_item_index(i)
+		_focus_menu.set_item_checked(idx, focus == current)
+		var icon := ArtPack.icon_texture(str(FOCUS_GOOD[focus]), 24.0)
+		if icon != null:
+			_focus_menu.set_item_icon(idx, icon)
+			_focus_menu.set_item_icon_max_width(idx, 20)
+	if settling:
+		_focus_menu.add_separator(Copy.t("Ships once it has settled in."))
+	_focus_menu.reset_size()
+	_focus_menu.popup(Rect2i(Vector2i(get_screen_position() + screen_at), Vector2i.ZERO))
+
+
+func _on_focus_picked(id: int) -> void:
+	if id < 0 or id >= FOCUS_ORDER.size() or _focus_menu_sid == "":
+		return
+	var game = _game()
+	var sid := _focus_menu_sid
+	var focus: String = FOCUS_ORDER[id]
+	if game == null or not game.set_outpost_focus(sid, focus):
+		return
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.t("%s will send %s home.") % [str(game.station_text(sid, "community")), Copy.t(_focus_word(focus))])
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	refresh()
 
 
 func _draw_yields(c: CanvasItem, game) -> void:
@@ -1865,6 +1964,7 @@ func _draw_yields(c: CanvasItem, game) -> void:
 		_chip_box.border_color = Color(TRADE_GOLD, 0.0)
 	var font := _font()
 	var fs := 12
+	_chip_hits.clear()
 	for sid in _layout:
 		var st: Dictionary = game.stations[sid]
 		if str(st.owner) != str(game.player) or str(sid) == str(game.capital_id):
@@ -1878,10 +1978,25 @@ func _draw_yields(c: CanvasItem, game) -> void:
 			var w := 18.0 + font.get_string_size(str(cell.text), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6.0
 			widths.append(w)
 			total += w + 2.0
-		total -= 2.0
+		total += 16.0
 		var row: Dictionary = _layout[sid]
 		var x := (row.at as Vector2).x - total * 0.5
 		var y := (row.at as Vector2).y + float(row.r) + 4.0
+		var hot: bool = str(sid) == _chip_hover
+		_chip_hits[str(sid)] = Rect2(x - 2.0, y - 2.0, total + 4.0, 22.0)
+		if hot:
+			_chip_box.border_color = TRADE_GOLD
+			_chip_box.set_border_width_all(1)
+			_chip_box.bg_color = Color(TRADE_GOLD, 0.35)
+			_chip_box.draw(c.get_canvas_item(), _chip_hits[str(sid)])
+			_chip_box.bg_color = Color(PAPER, 0.88)
+		## The last chip is a small caret: the row is a button that opens the focus menu.
+		var caret := Rect2(x + total - 16.0, y, 16.0, 18.0)
+		_chip_box.border_color = Color(TRADE_GOLD, 0.0)
+		_chip_box.set_border_width_all(0)
+		_chip_box.draw(c.get_canvas_item(), caret)
+		var mid := caret.get_center() + Vector2(0, 1)
+		c.draw_colored_polygon(PackedVector2Array([mid + Vector2(-4, -2), mid + Vector2(4, -2), mid + Vector2(0, 3)]), TRADE_GOLD if hot else MUTED)
 		for i in cells.size():
 			var cell: Dictionary = cells[i]
 			var box := Rect2(x, y, float(widths[i]), 18.0)
@@ -2153,8 +2268,11 @@ func _gui_input(event: InputEvent) -> void:
 					_glide_to(_station_world(game.stations[aimed]))
 				accept_event()
 			elif button.pressed:
+				var chip := _chip_at(button.position)
 				var hit := _station_at(button.position)
-				if hit != "":
+				if chip != "" and hit == "":
+					open_focus_menu(chip, button.position)
+				elif hit != "":
 					open_sheet(hit)
 					if host != null and host.has_method("_ui_click"):
 						host._ui_click()
@@ -2166,11 +2284,13 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		var hit := _station_at(motion.position)
-		if hit != _hover:
+		var chip := _chip_at(motion.position) if hit == "" else ""
+		if hit != _hover or chip != _chip_hover:
 			_hover = hit
+			_chip_hover = chip
 			_redraw()
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hit != "" else Control.CURSOR_ARROW
-		tooltip_text = _tip(hit)
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hit != "" or chip != "" else Control.CURSOR_ARROW
+		tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
 		if _drag:
 			origin -= motion.relative / zoom
 			_clamp_view()

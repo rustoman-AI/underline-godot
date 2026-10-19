@@ -8182,6 +8182,17 @@ func _caravan_shot() -> void:
 	await _frame()
 	await _frame()
 	_save("network_caravans")
+	for held in network_view._chip_hits:
+		var hit: Rect2 = network_view._chip_hits[held]
+		network_view._chip_hover = str(held)
+		network_view.open_focus_menu(str(held), hit.end)
+		network_view._redraw()
+		await _frame()
+		await _frame()
+		_save("network_focus_menu")
+		network_view._focus_menu.hide()
+		network_view._chip_hover = ""
+		break
 	if partner != "":
 		game.stations[partner].deals = deals_were
 	game.expedition = trip_was

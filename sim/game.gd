@@ -4021,12 +4021,16 @@ func set_outpost_focus(sid: String, focus: String) -> bool:
 
 
 ## What a held station ships home at next dawn: the same flow _deliver_outposts pays, one week older.
-## Empty for the capital and for stations that are not the player's.
-func outpost_yield(sid: String) -> Dictionary:
+## Empty for the capital and for stations that are not the player's. A focus previews that focus instead of the
+## current one; settled previews what it ships once it is past settling in.
+func outpost_yield(sid: String, focus: String = "", settled: bool = false) -> Dictionary:
 	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
 		return {}
 	var st: Dictionary = stations[sid]
-	return Formulas.outpost_flow(int(st.get("held_weeks", 0)) + 1, _supply_hops(sid), str(st.get("focus", "")))
+	var age := int(st.get("held_weeks", 0)) + 1
+	if settled:
+		age = maxi(age, 5)
+	return Formulas.outpost_flow(age, _supply_hops(sid), focus if focus != "" else str(st.get("focus", "")))
 
 
 ## The chain of stations an outpost's loads walk home along, outpost first and capital last, through stations
