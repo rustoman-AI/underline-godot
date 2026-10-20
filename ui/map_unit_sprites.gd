@@ -2,7 +2,7 @@ extends RefCounted
 
 ## Cached frames and pooled sprites keep texture loading and material allocation outside drawing.
 const TINT := preload("res://ui/shaders/owner_tint.gdshader")
-const KINDS := ["handcar_pump", "handcar_idle"]
+const KINDS := ["handcar_pump", "handcar_idle", "trader_roll"]
 var distance_per_frame := 4.25
 var frames := {}
 var anchors := {}

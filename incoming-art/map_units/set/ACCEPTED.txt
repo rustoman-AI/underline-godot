@@ -6,3 +6,10 @@ trader_reference_v3.png: ACCEPTED. Canopy is neutral grey (R, G, B within 2, val
   tint keys on neutral grey near the sheet's own value, so exact #B5B5B5 is not required. Note for the tint: the
   silver milk can on the deck is also neutral grey; limit the tint on trader sheets to the canopy region.
 Next: trader_roll (attach trader_reference_v3.png), then squad, expedition, puff, using the updated prompt file.
+
+20 Oct, second round:
+trader_roll_v1.png: ACCEPTED. Six frames, pump down, lowest, up, highest read clearly; car, canopy and cargo hold;
+  lantern swings; gaps narrow but clearly empty.
+squad_reference_v1.png: NOT YET. Style, faces, gear and stride are right. Two fixes: the armbands are warm
+  beige-grey (about 155,140,130), they must be neutral grey with no warm cast; the spear tip touches the top edge.
+  Use the squad correction prompt (attempt 2).

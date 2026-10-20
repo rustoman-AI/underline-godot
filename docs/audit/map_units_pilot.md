@@ -49,3 +49,15 @@ The real waiting capture holds the first supply car at elapsed 0.6 seconds and r
 All nine gates passed. Clarity remains 215 before and after (`build/idle_clarity_before.txt`, `build/idle_clarity_after.txt`). The earlier pilot count above is historical.
 
 New art candidates: `trader_roll_v1.png` and `squad_reference_v1.png`, with exact submitted prompts beside them. Every generation attached both pilot images; trader additionally used the accepted trader still, and squad used bodies 07 and 11. Neither new candidate is imported. Art generation stops at the squad reference for owner review; expedition and dust are queued.
+
+## 20 Oct: accepted trader integration and squad correction
+
+Owner acceptance in `incoming-art/map_units/set/ACCEPTED.txt` now includes `trader_roll_v1.png`. The cutter imports six alpha-separated frames: 5..353, 378..725, 746..1079, 1091..1438, 1457..1805 and 1818..2162. They share a 368 by 236 canvas, a (176, 230) rail anchor and a normalized 186.5-pixel wheelbase. The sampled canopy key is 169/255. The normalized tint region is [0, 0, 0.72, 0.55], covering the neutral canopy while excluding the milk can and lower cargo. RGB spread must still be at most 6.
+
+Trade routes select `trader_roll` and keep their existing lane, trade-gold colour, distance timing, waits and return-trip good tag. Waiting and reduced-motion traders hold frame zero because there is no accepted trader idle sheet. Missing trader art keeps the owner-token fallback. Parking clearance uses the trader's own width rather than the smaller handcar width. Simulation and deal rules are unchanged.
+
+`.tools/check_trader.gd` renders all six poses in actual Depot (#B46B4D) and Exchange (#77A993) colours. GPU comparisons verify substantial canopy recolouring and unchanged opaque pixels throughout the lower cargo, including neutral silver-can samples in every pose. `build/trader_two_factions_max_crop.png` shows both colours at the runtime maximum height of 76 pixels, enlarged four times for review. `build/trader_network_max_crop.png` exercises actual trade-route rendering at maximum zoom on a reproducible visible route, using the existing gold trade colour.
+
+All nine gates pass (`build/trader_gates.txt`). Clarity stays at 215 failures before and after (`build/trader_clarity_before.txt`, `build/trader_clarity_after.txt`). Trader GPU and route checks pass (`build/trader_review.txt`); shared animation/cache/fallback contracts pass (`build/trader_contracts.txt`).
+
+Squad attempt 2 is saved as `squad_reference_v2.png` beside the exact submitted correction prompt. The built-in image tool received squad v1 and both pilot images. It remains for owner review; no squad loop or further reference was generated in this pass.

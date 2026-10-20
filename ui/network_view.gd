@@ -2363,14 +2363,15 @@ func _draw_units(c: CanvasItem) -> void:
 			_unit_routes.erase(id)
 			continue
 		var row: Dictionary = state.row
+		var trade := str(row.kind) == "trade"
+		var kind := "trader_roll" if trade else "handcar_pump"
 		var pts := PackedVector2Array()
 		for sid in row.route:
 			pts.append((_layout[str(sid)] as Dictionary).at)
-		pts = _unit_route_bays(pts, str(row.route[0]), str(row.route[-1]))
+		pts = _unit_route_bays(pts, str(row.route[0]), str(row.route[-1]), kind)
 		var length := _poly_length(pts)
 		if length < 12.0:
 			continue
-		var trade := str(row.kind) == "trade"
 		var rival := str(row.kind) == "rival"
 		var col: Color = TRADE_GOLD if trade else home_col
 		if rival:
@@ -2379,7 +2380,7 @@ func _draw_units(c: CanvasItem) -> void:
 		var duration := length / speed + 0.45 * (pts.size() - 1)
 		var leg_period := duration + (1.2 if trade else 2.4)
 		var cycle := leg_period * (2.0 if trade else 1.0)
-		var car_width := _unit_width()
+		var car_width := _unit_width(kind)
 		var headway := 2.4 + 1.6 * car_width / speed + 0.45 * pts.size()
 		var n := maxi(1, int(leg_period / headway)) if str(row.kind) in ["supply", "settle"] else 1
 		var elapsed := _anim_t - float(state.born)
@@ -2429,8 +2430,7 @@ func _draw_units(c: CanvasItem) -> void:
 			if float(state.retire) >= 0 and not still:
 				alpha = minf(alpha, clampf((float(state.retire) - elapsed) / 0.25, 0, 1))
 			var key := "cart_%s_%s_%s_%d" % [row.kind, row.get("owner", "home"), row.seed, i]
-			var kind := "handcar_pump"
-			var accepted_car := str(row.kind) in ["supply", "settle"]
+			var accepted_car := str(row.kind) in ["supply", "settle", "trade"]
 			var height := _unit_height()
 			if height < 30 or not accepted_car:
 				_draw_unit_disc(c, at, col, good)
@@ -3958,9 +3958,9 @@ func _draw_unit_routes(c: CanvasItem, game) -> void:
 		_route_dots(c, pts, Color(col, 0.4))
 
 ## Use the shared normalized canvas so spacing follows car size rather than changing crew silhouettes.
-func _unit_width() -> float:
-	if _sprites.frames.has("handcar_pump"):
-		var texture: Texture2D = _sprites.frames.handcar_pump[0]
+func _unit_width(kind: String = "handcar_pump") -> float:
+	if _sprites.frames.has(kind):
+		var texture: Texture2D = _sprites.frames[kind][0]
 		return _unit_height() * texture.get_width() / texture.get_height()
 	return _unit_height() * 1.16
 
@@ -3991,13 +3991,13 @@ func _unit_station_bay(sid: String, direction: Vector2, width: float, slot: int)
 	return Vector2(pin.at) + direction * (distance + 128.0 * width)
 
 ## Join the tunnel to station-side parking bays so arrival and departure never jump onto a pin.
-func _unit_route_bays(points: PackedVector2Array, first: String, last: String) -> PackedVector2Array:
+func _unit_route_bays(points: PackedVector2Array, first: String, last: String, kind: String = "handcar_pump") -> PackedVector2Array:
 	if points.size() < 2:
 		return points
 	var start_dir := (points[1] - points[0]).normalized()
 	var end_dir := (points[-1] - points[-2]).normalized()
-	var out := PackedVector2Array([_unit_station_bay(first, start_dir, _unit_width(), 0)])
+	var out := PackedVector2Array([_unit_station_bay(first, start_dir, _unit_width(kind), 0)])
 	for i in range(1, points.size() - 1):
 		out.append(points[i])
-	out.append(_unit_station_bay(last, -end_dir, _unit_width(), 0))
+	out.append(_unit_station_bay(last, -end_dir, _unit_width(kind), 0))
 	return out

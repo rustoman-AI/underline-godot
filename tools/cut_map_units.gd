@@ -14,8 +14,8 @@ func _initialize() -> void:
 			source = arg.trim_prefix("--source=")
 		if arg.begins_with("--kind="):
 			kind = arg.trim_prefix("--kind=")
-	if kind not in ["handcar_pump", "handcar_idle"]:
-		push_error("Only accepted handcar sheets can be imported")
+	if kind not in ["handcar_pump", "handcar_idle", "trader_roll"]:
+		push_error("Only accepted car sheets can be imported")
 		quit(1)
 		return
 	var count := 4 if kind == "handcar_idle" else COUNT
@@ -64,7 +64,7 @@ func _initialize() -> void:
 			push_error("Idle art exceeds the pump canvas; no assets written")
 			quit(1)
 			return
-	var tint_key := _plate_grey(cells[0], marks[0])
+	var tint_key := _canopy_grey(cells[0]) if kind == "trader_roll" else _plate_grey(cells[0], marks[0])
 	DirAccess.make_dir_recursive_absolute(dest)
 	for i in count:
 		var wheel: Dictionary = marks[i]
@@ -85,9 +85,26 @@ func _initialize() -> void:
 			DirAccess.remove_absolute(dest.path_join(name))
 			DirAccess.remove_absolute(dest.path_join(name + ".import"))
 	var file := FileAccess.open(dest.path_join("frames.json"), FileAccess.WRITE)
-	file.store_string(JSON.stringify({"count": count, "anchor": [-origin.x, -origin.y], "wheelbase": target, "source": source, "landmarks": marks, "owner_grey": tint_key, "placeholder": false, "accepted": true}, "\t"))
+	var metadata := {"count": count, "anchor": [-origin.x, -origin.y], "wheelbase": target, "source": source, "landmarks": marks, "owner_grey": tint_key, "placeholder": false, "accepted": true}
+	if kind == "trader_roll":
+		metadata.tint_region = [0.0, 0.0, 0.72, 0.55]
+	file.store_string(JSON.stringify(metadata, "\t"))
 	print("%s: %d frames, size %s, anchor %s, owner grey %.4f" % [kind, count, extent, -origin, tint_key])
 	quit(0)
+
+## Sample the canopy interior rather than the neutral silver cargo below it.
+func _canopy_grey(image: Image) -> float:
+	var used := image.get_used_rect()
+	var samples: Array[float] = []
+	for y in range(used.position.y + int(used.size.y * 0.3), used.position.y + int(used.size.y * 0.5)):
+		for x in range(int(image.get_width() * 0.1), int(image.get_width() * 0.5)):
+			var pixel := image.get_pixel(x, y)
+			var high := maxf(pixel.r, maxf(pixel.g, pixel.b))
+			var low := minf(pixel.r, minf(pixel.g, pixel.b))
+			if pixel.a > 0.9 and high - low <= 6.0 / 255.0 and high > 0.45 and high < 0.9:
+				samples.append(high)
+	samples.sort()
+	return samples[samples.size() / 2] if not samples.is_empty() else 166.0 / 255.0
 
 ## Sample the central owner plate so each accepted sheet keeps its own neutral-grey key.
 func _plate_grey(image: Image, wheel: Dictionary) -> float:

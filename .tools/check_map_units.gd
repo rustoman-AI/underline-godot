@@ -13,7 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	root.add_child(layer)
 	renderer.setup(layer)
-	assert(renderer.frames.size() == 2 and renderer.frames.handcar_pump.size() == 6 and renderer.frames.handcar_idle.size() == 4, "Only accepted pump and idle frames may load")
+	assert(renderer.frames.size() == 3 and renderer.frames.handcar_pump.size() == 6 and renderer.frames.handcar_idle.size() == 4 and renderer.frames.trader_roll.size() == 6, "Only accepted car frames may load")
 	assert(is_equal_approx(Renderer.travel(0, 4), 0))
 	assert(is_equal_approx(Renderer.travel(4, 4), 1))
 	var last := 0.0
