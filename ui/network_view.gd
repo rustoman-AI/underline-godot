@@ -3,6 +3,10 @@ extends Control
 
 ## The overseer's desk: the painted city map pinned under the lamp. The week still lives on Game.
 
+const UnitSprites = preload("res://ui/map_unit_sprites.gd")
+var _sprites := UnitSprites.new()
+var _unit_routes := {}
+
 const ArtPack = preload("res://ui/art_pack.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
@@ -189,6 +193,7 @@ func _ready() -> void:
 	_wash_layer.material = mul
 	_ink_layer = _add_layer(_draw_ink)
 	_unit_layer = _add_layer(_draw_units)
+	_sprites.setup(_unit_layer)
 	_paper = _map_tex("res://assets/map/paper.webp")
 	_build_zoom_bar()
 	_build_sheet()
@@ -485,6 +490,7 @@ func _process(delta: float) -> void:
 	if not visible:
 		return
 	var busy := false
+	var ink_busy := false
 	_anim_t += delta
 	if _zoom_goal > 0.0:
 		var step := pow(_zoom_goal / zoom, minf(1.0, delta * 14.0))
@@ -505,7 +511,6 @@ func _process(delta: float) -> void:
 			_walks[fid].t = float(_walks[fid].t) + delta
 			if float(_walks[fid].t) >= float(_walks[fid].dur):
 				_walks.erase(fid)
-		busy = true
 	if _hover != "" and not _lift.has(_hover):
 		_lift[_hover] = 0.0
 	for sid in _lift.keys():
@@ -517,9 +522,10 @@ func _process(delta: float) -> void:
 			continue
 		_lift[sid] = goal if _motion_off() else move_toward(now, goal, delta / 0.12)
 		busy = true
-	if busy and _ink_layer != null:
+		ink_busy = true
+	if ink_busy and _ink_layer != null:
 		_ink_layer.queue_redraw()
-	var walking: bool = not _caravans.is_empty() or (game_now != null and not game_now.expedition.is_empty())
+	var walking: bool = not _unit_routes.is_empty() or not _walks.is_empty() or not _caravans.is_empty() or (game_now != null and (not game_now.expedition.is_empty() or not game_now.squads.is_empty()))
 	if _unit_layer != null and (busy or (walking and not _motion_off())):
 		_unit_layer.queue_redraw()
 
@@ -1121,7 +1127,6 @@ func _draw_ink(c: CanvasItem) -> void:
 	_layout_pins(game)
 	_caravans = _caravan_routes(game)
 	_draw_leaders(c)
-	_draw_splashes(c, game)
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
 	_draw_line_badges(c, game)
@@ -1130,8 +1135,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_yields(c, game)
 	_draw_governors(c, game)
 	_draw_flags(c, game)
-	_draw_squads(c, game)
-	_draw_intents(c, game)
+	_draw_unit_routes(c, game)
 	_draw_legend(c, game)
 
 
@@ -1811,6 +1815,7 @@ func _pin_at(game, sid: String) -> Vector2:
 	return _screen(_station_world(game.stations[sid]))
 
 
+## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_squads(c: CanvasItem, game) -> void:
 	for fid in game.squads:
 		var sq: Dictionary = game.squads[fid]
@@ -1822,6 +1827,9 @@ func _draw_squads(c: CanvasItem, game) -> void:
 		var at := _pin_at(game, sid)
 		var r := float(_layout[sid].r) if _layout.has(sid) else 12.0
 		at += Vector2(r * 0.9, r * 0.6)
+		var direction := Vector2.RIGHT
+		var distance := 0.0
+		var kind := "squad_stand"
 		if _walks.has(str(fid)) and not _motion_off():
 			var walk: Dictionary = _walks[str(fid)]
 			var pts := PackedVector2Array()
@@ -1829,9 +1837,12 @@ func _draw_squads(c: CanvasItem, game) -> void:
 				pts.append(_pin_at(game, str(hop)) + Vector2(r * 0.9, r * 0.6))
 			var k := clampf(float(walk.t) / float(walk.dur), 0.0, 1.0)
 			k = k * k * (3.0 - 2.0 * k)
-			at = _along(pts, k * _poly_length(pts))[0]
-			at.y -= absf(sin(float(walk.t) * 9.0)) * 2.0
-		_draw_squad_token(c, game, at, str(fid), int(sq.size))
+			distance = k * _poly_length(pts)
+			var spot := _along(pts, distance)
+			at = spot[0]
+			direction = spot[1]
+			kind = "squad_walk"
+		_draw_squad_token(c, game, at, str(fid), int(sq.size), kind, direction, distance)
 
 
 func _draw_intents(c: CanvasItem, game) -> void:
@@ -2325,13 +2336,32 @@ func _main_good(flow: Dictionary, focus: String) -> String:
 	return best
 
 
+## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_units(c: CanvasItem) -> void:
 	var game = _game()
 	if game == null or _layout.is_empty():
 		return
+	_sprites.begin()
+	_draw_splashes(c, game)
+	_draw_intents(c, game)
+	_draw_squads(c, game)
 	var still := _motion_off()
 	var home_col := _faction_color(game, str(game.player))
+	var active := {}
 	for row in _caravans:
+		var id := "%s_%s_%s" % [row.kind, row.get("owner", "home"), row.seed]
+		active[id] = true
+		if not _unit_routes.has(id):
+			_unit_routes[id] = {"row": row, "born": _anim_t, "retire": -1.0}
+		else:
+			_unit_routes[id].row = row
+			_unit_routes[id].retire = -1.0
+	for id in _unit_routes.keys():
+		var state: Dictionary = _unit_routes[id]
+		if still and not active.has(id):
+			_unit_routes.erase(id)
+			continue
+		var row: Dictionary = state.row
 		var pts := PackedVector2Array()
 		for sid in row.route:
 			pts.append((_layout[str(sid)] as Dictionary).at)
@@ -2343,36 +2373,75 @@ func _draw_units(c: CanvasItem) -> void:
 		var col: Color = TRADE_GOLD if trade else home_col
 		if rival:
 			col = _faction_color(game, str(row.owner))
-		_route_dots(c, pts, Color(col, 0.35 if rival else 0.55))
-		var n := 1 if rival else maxi(1, int(length / CARAVAN_SPACING))
-		var period := maxf(5.0, length / zoom * _zoom_min / CARAVAN_SPEED) * (2.0 if trade else 1.0)
-		var seed := float(int(row.seed) % 1000) * 0.001
+		## One representative per route guarantees separation even during station dwell.
+		var n := 1
+		var speed := CARAVAN_SPEED * zoom / _zoom_min
+		var duration := length / speed + 0.45 * (pts.size() - 1)
+		var leg_period := duration + (1.2 if trade else 2.4)
+		var cycle := leg_period * (2.0 if trade else 1.0)
+		var elapsed := _anim_t - float(state.born)
+		if not active.has(id) and float(state.retire) < 0:
+			state.retire = elapsed + leg_period - fmod(elapsed, leg_period) + (0.25 if trade else 0.0)
+		if float(state.retire) >= 0 and elapsed >= float(state.retire):
+			_unit_routes.erase(id)
+			continue
 		for i in n:
-			var phase := (float(i) + 0.5) / float(n) if still else fmod(_anim_t / period + float(i) / float(n) + seed, 1.0)
-			if still and trade:
-				## A still frame spreads the traders along the route, every other one walking home.
-				var spread := (float(i) + 0.5) / float(n) * 0.5
-				phase = spread if i % 2 == 0 else 1.0 - spread
-			var good := str(row.good)
-			var leg := phase
-			if trade:
-				leg = phase * 2.0
-				if leg > 1.0:
-					leg = 2.0 - leg
-				else:
-					good = "trade"
-			var spot := _along(pts, leg * length)
-			var dir: Vector2 = spot[1]
-			if trade and phase * 2.0 > 1.0:
-				dir = -dir
+			var clock := minf(elapsed, float(state.retire) - 0.25001) if trade and float(state.retire) >= 0 else elapsed
+			var time := fmod(clock + float(i) * cycle / n, cycle)
+			var returning := trade and time >= leg_period and not still
+			var local := fmod(time, leg_period)
+			var idle := local < 1.2 or local >= duration + 1.2
+			var progress := _unit_progress(pts, local - 1.2, speed)
+			var distance := float(progress.x)
+			if still:
+				distance = (float(i) + 0.5) / n * length
+				idle = true
+			if trade and float(state.retire) >= 0 and elapsed >= float(state.retire) - 0.25:
+				distance = length
+				idle = true
+			var along := length - distance if returning else distance
+			if still and trade and i % 2 == 1:
+				returning = true
+			var spot := _along(pts, along)
+			var dir: Vector2 = -spot[1] if returning else spot[1]
 			var at: Vector2 = spot[0]
-			## Traders and rivals keep their own lane beside the track, so routes that share tunnels do not stack.
 			if trade or rival:
 				var lane: Vector2 = spot[1]
-				at += Vector2(-lane.y, lane.x) * (9.0 if trade else -9.0)
-			var beat := 0.9 if still else _anim_t + float(i) * 1.3 + seed * 7.0
-			_draw_handcar(c, at, dir, col, good, beat, not still)
+				if lane.x < 0 or (is_zero_approx(lane.x) and lane.y < 0):
+					lane = -lane
+				var lane_offset := 10.0 if trade else -10.0 * (1 + maxi(0, game.catalog.factions.keys().find(str(row.get("owner", "")))))
+				at += Vector2(-lane.y, lane.x) * lane_offset * zoom / _zoom_min
+			var good := "tokens" if returning else str(row.good)
+			var alpha := 1.0
+			if not still:
+				alpha = clampf(elapsed / 0.25, 0, 1)
+				if not trade:
+					alpha = minf(alpha, clampf((leg_period - local) / 0.25, 0, 1))
+				if not trade:
+					alpha = minf(alpha, clampf(local / 0.25, 0, 1))
+			if float(state.retire) >= 0 and not still:
+				alpha = minf(alpha, clampf((float(state.retire) - elapsed) / 0.25, 0, 1))
+			var key := "cart_%s_%s_%s_%d" % [row.kind, row.get("owner", "home"), row.seed, i]
+			var kind := "handcar_idle" if idle else ("trader_car" if trade else "handcar_pump")
+			var height := _unit_height()
+			if height < 30:
+				_draw_unit_disc(c, at, col, good)
+				continue
+			c.draw_texture_rect(_sprites.shadow, Rect2(at - Vector2(height * 0.6, height * 0.12), Vector2(height * 1.2, height * 0.3)), false, Color(1, 1, 1, alpha * minf(1, zoom / _zoom_min * 0.65)))
+			if not _sprites.paint(key, kind, at, dir, col, height, distance, _anim_t, still, idle, alpha):
+				_draw_handcar(c, at, dir, col, good, distance / maxf(1, height), not idle and not still)
+				continue
+			var unloading := not trade and local >= duration + 1.2
+			var drop := clampf((local - duration - 1.2) / 0.45, 0, 1) if unloading and not still else 0.0
+			var tag := at + Vector2(-height * 0.35, -height * 0.25 + drop * 12 - sin(drop * PI * 3) * (1.0 - drop) * 3)
+			var swing := 0.0 if still or idle else sin(_anim_t * 4) * 0.08
+			_sprites.tag(key + "_tag", tag, good, swing, alpha * (1.0 - drop))
+			var cruise := progress.y > 0.4 and progress.z > 0.5
+			var puff_age := fmod(local - 1.2, 0.6)
+			if not still and not idle and (cruise or local < 1.55):
+				_sprites.paint(key + "_puff", "puff", at - dir * height * 0.45, dir, Color.WHITE, height * 0.4, puff_age * height * 2, _anim_t, false, false, 1.0 - puff_age / 0.6)
 	_draw_expedition(c, game, home_col, still)
+	_sprites.finish()
 
 
 func _poly_length(pts: PackedVector2Array) -> float:
@@ -2480,6 +2549,7 @@ func _draw_handcar(c: CanvasItem, at: Vector2, dir: Vector2, col: Color, good: S
 		c.draw_texture_rect(icon, Rect2(disc - Vector2(7, 7), Vector2(14, 14)), false)
 
 
+## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 	if game.expedition.is_empty() or not game.squads.has(game.player):
 		return
@@ -2498,17 +2568,27 @@ func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 	var to: Vector2 = (_layout[b] as Dictionary).at
 	var left := int(game.expedition.get("left", 3))
 	var t := 0.3 if left >= 3 else (0.85 if left == 2 else 0.45)
+	var returning := left < 2
 	if not still:
-		t += sin(_anim_t * 0.9) * 0.04
+		var phase := fmod(_anim_t / maxf(3.0, from.distance_to(to) / 34.0), 2.0)
+		returning = phase > 1.0
+		t = 2.0 - phase if returning else phase
 	_route_dots(c, PackedVector2Array([from, to]), Color(col, 0.5))
 	var at := from.lerp(to, t)
-	if not still:
-		at.y -= absf(sin(_anim_t * 6.0)) * 1.8
-	_draw_squad_token(c, game, at, str(game.player), int(game.squads[game.player].size))
+	var direction := (from - to).normalized() if returning else (to - from).normalized()
+	_draw_squad_token(c, game, at, str(game.player), int(game.squads[game.player].size), "expedition_walk", direction, t * from.distance_to(to))
 
 
-func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int) -> void:
+## Draw cached map miniatures using presentation state while preserving the simulation's orders.
+func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int, kind: String = "squad_stand", direction: Vector2 = Vector2.RIGHT, distance: float = 0.0) -> void:
 	var col := _faction_color(game, fid)
+	var height := _unit_height()
+	if height < 30:
+		_draw_unit_disc(c, at, col, "squad")
+		return
+	c.draw_texture_rect(_sprites.shadow, Rect2(at - Vector2(height * 0.55, 4), Vector2(height * 1.1, 12)), false)
+	if _sprites.paint("squad_" + fid + kind, kind, at, direction, col, height, distance, _anim_t, _motion_off(), kind == "squad_stand"):
+		return
 	c.draw_circle(at + Vector2(1, 2), 10.0, Color(0, 0, 0, 0.35))
 	c.draw_circle(at, 10.0, TAG_PAPER)
 	c.draw_arc(at, 10.0, 0, TAU, 20, col, 2.0, true)
@@ -3925,3 +4005,41 @@ func _lean_name(lean: String) -> String:
 			return "Craft"
 		_:
 			return lean
+
+## Size in screen pixels keeps art readable at fit zoom and bounded when inspecting a station.
+func _unit_height() -> float:
+	return minf(76.0, 44.0 * zoom / maxf(0.001, _zoom_min))
+
+
+## A compact owner disc stays crisp when there is too little space for a full miniature.
+func _draw_unit_disc(c: CanvasItem, at: Vector2, col: Color, good: String) -> void:
+	c.draw_circle(at + Vector2(1, 2), 9, Color(0, 0, 0, 0.3))
+	c.draw_circle(at, 9, col)
+	var icon: Texture2D = _sprites.icons.get(good)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(at - Vector2(6, 6), Vector2(12, 12)), false)
+
+## Integrate each real tunnel separately so a cart eases at intermediate stations as well as terminals.
+func _unit_progress(pts: PackedVector2Array, time: float, speed: float) -> Vector3:
+	var remaining := maxf(0.0, time)
+	var distance := 0.0
+	for i in pts.size() - 1:
+		var length := pts[i].distance_to(pts[i + 1])
+		var duration := length / speed + 0.45
+		if remaining <= duration:
+			return Vector3(distance + UnitSprites.travel(remaining, duration) * length, remaining, duration - remaining)
+		remaining -= duration
+		distance += length
+	return Vector3(distance, 0, 0)
+
+## Draw the static dotted routes with the map ink so motion redraws only the moving miniatures.
+func _draw_unit_routes(c: CanvasItem, game) -> void:
+	for row in _caravans:
+		var pts := PackedVector2Array()
+		for sid in row.route:
+			if _layout.has(str(sid)):
+				pts.append((_layout[str(sid)] as Dictionary).at)
+		if pts.size() < 2:
+			continue
+		var col := TRADE_GOLD if str(row.kind) == "trade" else _faction_color(game, str(row.get("owner", game.player)))
+		_route_dots(c, pts, Color(col, 0.4))
