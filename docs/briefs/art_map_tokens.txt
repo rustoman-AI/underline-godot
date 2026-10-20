@@ -1,51 +1,59 @@
-ART: MAP TOKENS, UNITS AND CARAVANS ON THE NETWORK MAP (ChatGPT image tool)
+ART: MAP UNITS, ANIMATED (ChatGPT image tool) — version 2, replaces version 1 of 19 Oct
 
 WHERE WE ARE
-The network map now shows what moves between stations: carts carrying loads home along supply lines, traders
-walking to stations we have a deal with, squads standing on stations, and the expedition party in its tunnel.
-Today all of these are drawn by code as plain shapes (a brown box on two wheels, a paper disc with an icon).
-The owner wants them to look like a finished game: small painted tabletop miniatures standing on the paper map,
-the way a board game puts carved pieces on its board. This set replaces the code shapes with real art.
+The network map shows what moves between stations: handcars carrying loads home along supply lines, trader
+handcars going to stations we have a deal with, rival handcars going to their seats, squads walking from station
+to station, and the expedition party in its tunnel. Today all of them are drawn by code with lines and circles.
+The owner calls that a meme and wants finished, painted art that moves in real frames, like the residents in the
+station (animation sets 1 and 2, incoming-art/anim_set1, incoming-art/anim_set2). This set gives the map that.
 
-LOOK
-- Painted tabletop miniatures, seen from about 30 degrees above (three-quarter top-down), side facing RIGHT.
-- Ink outline like the map pins and the hub banners, flat colour with one soft shade, no photo realism.
-- Underground post-collapse New York: patched canvas, scrap wood, rope, gas masks, lamps. No guns pointed at the
-  viewer, no gore, no flags or real emblems, no text, no numbers.
-- Every piece stands on the same small round base: dark wood disc, 1 px lighter rim, seen in the same perspective.
-- Colour rule: the part that shows who owns the piece is painted PLAIN LIGHT GREY (#C8C8C8) and nothing else in the
-  picture uses that grey. The game tints that part in the owner's colour (the Depot red, the Exchange green and so on).
-  Mark it on: the cloth band on a cart, the canopy of the trader cart, the armbands or scarves of the squad, the
-  pennant on the expedition pole.
-Attach as reference: assets/map/pins.webp (the station pins) and two hub banners from incoming-art/hubs/style_v2.
+LOOK (same for every sheet)
+- Painted miniatures seen from about 30 degrees above (three-quarter top-down), moving to the RIGHT.
+- Ink outline and flat colour with one soft shade, the same hand as the station pins (assets/map/pins.webp) and the
+  hub banners (assets/hubs/*.webp). No photo realism, no 3D render look, no glow.
+- Underground post-collapse New York: scrap wood, riveted iron, patched canvas, rope, gas masks, oil lamps.
+  No flags, no real emblems, no text, no numbers, no guns pointed at the viewer, no gore.
+- OWNER COLOUR: the part that tells whose unit it is is painted PLAIN LIGHT GREY #C8C8C8 and nothing else in the
+  picture uses that grey (the game tints it: Depot rust, Exchange green, Directorate red, Synod blue, Lamplighters
+  amber). Tint parts: the cloth band on a handcar, the trader's canopy, the squad's armbands, the expedition pennant.
+- Attach as reference for every sheet: assets/map/pins.webp, two banners from assets/hubs (riverside.webp,
+  brickworks.webp), and for the people one accepted set 1 sheet (incoming-art/anim_set1/walk_body01_v1.png) so faces
+  and clothes match the station.
 
-THE PIECES (one image each, in this order)
-1. supply_cart: a two-wheeled hand cart of scrap planks with a grey cloth band (tint part) round the bed, the bed
-   EMPTY and open on top (the game draws the load above it), a pull shaft pointing right, a small lamp on a hook.
-2. supply_cart_pull: the same cart with one hooded porter in front, leaning into the shaft, mid-step.
-3. trader_cart: a bigger four-wheeled cart under a grey canvas canopy (tint part), bundles and a crate showing at the
-   back, a hanging lantern, one trader walking beside it.
-4. squad: three standing figures shoulder to shoulder on one base, gas masks, padded coats, grey armbands (tint
-   part), one holding a lamp up, one with a long pipe-spear resting on the shoulder, one with a scrap shield.
-5. squad_small: one figure from piece 4 alone on the base (used when the squad is very small or zoomed far out).
-6. expedition: two figures walking right, big packs and coiled rope, the front one holds a pole with a small grey
-   pennant (tint part) and a lamp, the back one carries a pick.
-7. settlers: one porter carrying a stack of planks and a sack on the back, walking right (building materials going out
-   to a newly taken station).
+THE SHEETS (one image each, in this order)
+1. handcar_pump: a railway handcar on two iron wheels, a plank deck with a grey cloth band (tint part) along the
+   side, a see-saw pump lever on a post in the middle, two crew facing each other pumping it, sacks lashed at the
+   back. 8 frames, one full pump cycle: lever level, front end down, front end lowest, back to level, back end
+   down, back end lowest, rising, level. Wheels turn a quarter turn per two frames (four spokes, so it loops). The
+   crew bend and straighten with their end of the lever. Same handcar size and position in every frame.
+2. handcar_idle: the same handcar standing still at a station, crew resting, one wiping the brow, one checking a
+   sack. 4 frames, slow breathing loop.
+3. trader_car: a bigger handcar with a grey canvas canopy (tint part) over crates and bundles, a hanging lantern
+   that swings, one trader pumping a side lever. 8 frames, one cycle, wheels turning as in sheet 1.
+4. squad_walk: three figures in step on foot (no base): gas masks, padded coats, grey armbands (tint part), one
+   with a lamp held up, one with a long pipe-spear on the shoulder, one with a scrap shield. 8 frames, one full walk
+   cycle (two steps), feet planted cleanly, nobody slides.
+5. squad_stand: the same three standing guard, small shifts of weight, the lamp flame flickering. 4 frames.
+6. expedition_walk: two figures with big packs and coiled rope, the front one with a pole carrying a small grey
+   pennant (tint part) and a lamp, the back one with a pick. 8 frames, one walk cycle, heavier and slower than 4.
+7. puff: a small grey-brown dust puff kicked up by wheels, 6 frames from appearing to gone. Separate, so the game
+   can place it behind any unit.
 
 STRICT LAYOUT
-- Transparent background, real alpha, no white, no checkerboard, no glow, no halo, no drop shadow (the game draws it).
-- Canvas 512 x 512 for each piece, the base centred horizontally, the bottom of the base 40 px above the bottom edge.
-- The base is 300 px wide in every image; pieces 1, 2, 5 and 7 fit inside a 360 px wide box, pieces 3, 4 and 6
-  inside 440 px. Nothing touches the canvas edge.
-- Must still read when the game shows it 40 px tall: big clear shapes, thick outline, few small details.
+- Transparent background, real alpha, no white, no checkerboard, no glow, no halo, no drop shadow (the game draws
+  the shadow).
+- One row of equal cells, each 384 wide x 384 tall: 8 frames = 3072 x 384, 4 frames = 1536 x 384, 6 = 2304 x 384.
+- The unit sits centred in every cell; the rails or the soles on one line 48 px above the bottom edge in every
+  frame. Handcars and the trader car fill about 300 px of width; the squad and expedition about 260 px; nothing
+  touches or crosses into the next cell.
+- Must still read when shown 48 px tall: big clear shapes, thick outline, few small details.
+- No ground line, no grid lines, no motion blur, no speed lines, no text.
 
 DELIVERY
-incoming-art/map_tokens/<piece>_v1.png (v2, v3 if retried) and <piece>_prompt.txt with the exact prompt, plus
-HANDOFF.txt (preferred version per piece, known defects). At most three attempts per piece.
-Do not install anything into assets/.
+incoming-art/map_units/<sheet name>_v1.png (v2, v3 if retried) and <sheet name>_prompt.txt with the exact prompt,
+plus HANDOFF.txt (preferred version per sheet, frame defects, where the tint grey is). At most three attempts per
+sheet. Do not install anything into assets/.
 
-WHAT THE LEAD DOES AFTER
-Checks alpha and the tint grey, scales to 64 and 128 px, puts them on the map in place of the code shapes (tinted
-by owner, flipped when walking left, the load icon still above the cart), and sends the owner a clip of the map with
-carts, traders and squads moving.
+WHAT HAPPENS AFTER
+Codex (docs/briefs/codex_map_units.txt) cuts the cells, lines up the rails and soles, puts the frames into
+assets/map/units/, and plays them on the map tinted by owner, flipped when moving left, at the fps in its brief.

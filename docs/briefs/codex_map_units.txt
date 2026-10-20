@@ -1,0 +1,97 @@
+CODEX ASSIGNMENT: PROFESSIONAL MAP UNITS (art pipeline, animation, motion design)
+
+THE GAME
+Underline: a turn-based survival strategy game about one New York subway station after the surface went silent.
+Godot 4.7.2, GDScript, Windows. Repo root: C:\Users\V\Desktop\Underline_Godot (git, branch master, local only:
+never push). Two screens: the station cross-section (ui/station.gd, yard drawing inside it) and the network map of
+stations and tunnels (ui/network_view.gd). Under review for Steam and Epic, so everything shipped must look like a
+finished commercial game.
+
+THE PROBLEM
+The network map shows units moving between stations, but they are drawn with code primitives (lines, circles,
+rectangles) and look like a placeholder: tiny handcars with stick crews, flat discs for squads, a floating icon
+bubble over each cart. The owner wants painted art in real animation frames, moving with proper motion design.
+
+WHAT MOVES ON THE MAP TODAY (keep every rule, change only how it looks and moves)
+- ui/network_view.gd, layer _unit_layer, function _draw_units(): for every route in _caravans (built by
+  _caravan_routes(): kinds "supply" home to the capital, "settle" out to a station still settling in, "trade" out
+  and back to deal partners, "rival" from rival stations to their seat), _draw_handcar() draws a handcar along the route.
+  Routes are station id chains; screen points come from _layout[sid].at. Helpers: _along(), _poly_length(),
+  _route_dots().
+- _draw_handcar(): the current code-drawn handcar. _draw_squad_token(): squads on station pins (from
+  _draw_squads() in the ink layer) and the expedition party (_draw_expedition()). Squad walks between stations
+  use _walks (filled by _track_hops(), eased over WALK_PER_HOP per tunnel).
+- Owner colour: _faction_color(game, fid). Trade units use TRADE_GOLD. Load icon: ArtPack.icon_texture(good, px).
+- Motion is off when _motion_off() (Settings reduced motion, or screenshot mode without motion_in_shots): units
+  stand still at fixed points along their route. Keep that.
+- Station view for reference of how frame animation is done in this project: ui/station.gd, ANIM_DIR, ANIM_KINDS,
+  _anim(), _anim_frame(), _draw_anim() (frames as assets/figures/anim/<kind>_<body>/f<N>.png, played at a fixed fps,
+  offset per person, cut from ChatGPT sheets in incoming-art/anim_set1 and anim_set2).
+
+THE ART
+Painted sprite sheets are ordered from ChatGPT with docs/briefs/art_map_tokens.txt (version 2): handcar_pump (8),
+handcar_idle (4), trader_car (8), squad_walk (8), squad_stand (4), expedition_walk (8), puff (6). Cells 384 x 384,
+transparent, units facing right, rails or soles 48 px above the cell bottom, the owner-colour parts painted exactly
+#C8C8C8. They arrive in incoming-art/map_units/ with a HANDOFF.txt. If they are not there yet, build everything
+below against simple placeholder sheets you make from the current code drawing (render it into frames), so the art
+drops in by replacing files and nothing else.
+
+TASKS
+1. Asset pipeline. A small tool script (tools/cut_map_units.gd, run headless) that cuts each sheet into frames,
+   trims to a shared bounding box per sheet so the rails or soles stay on one line, and writes
+   assets/map/units/<sheet>/f<N>.png. Report frames per sheet and any frame whose content touches a cell edge.
+   Never write into assets/ from incoming-art without this tool.
+2. Owner tint. A canvas_item shader (ui/shaders/owner_tint.gdshader) that replaces pixels near #C8C8C8 with the
+   owner colour while keeping their shading (multiply by the grey's luminance relative to 0.784), leaves every other
+   pixel alone, and respects alpha. One material per owner colour, cached.
+3. Unit renderer. Replace _draw_handcar and the squad and expedition tokens with sprite drawing from the frames:
+   - Scale: units 44 px tall at fit zoom, growing with zoom to at most 76 px; below 30 px switch to a small owner
+     disc with the load icon (level of detail), never a smeared sprite.
+   - Frame timing tied to distance travelled, so wheels and feet never slide: one pump or walk cycle per
+     1.1 x unit width of travel. Idle sheets play at 4 fps when a unit waits.
+   - Facing: flip when the unit moves left; smooth the turn over 0.15 s at a route corner instead of popping.
+   - Tilt to follow the track, at most 10 degrees, smoothed; people never tilt more than 4 degrees.
+   - Soft elliptical shadow under every unit (a small pre-blurred texture), darker when zoomed in.
+   - Load: a small paper tag with the good's icon tied to the cart (part of the cart, swinging gently), not a
+     bubble floating above it. Trader cars show the deal's goods on the way out and tokens on the way back.
+4. Motion design (the part that makes it feel professional):
+   - Units ease out of a station (0.4 s) and ease into the next (0.5 s); constant speed between.
+   - At each end of a supply or trade route the unit stops for 1.2 s, plays its idle sheet, and a puff plays when
+     it starts again. Supply cars unload at the capital (the tag drops off with a tiny bounce), settle cars unload at
+     the outpost.
+   - Spawn and despawn by fading in or out over 0.25 s at a station, never appearing mid-track.
+   - Spacing: units on the same route keep at least 1.6 unit widths apart; on tunnels shared by several routes,
+     each owner keeps its own lane offset to the side of the line (supply on the line, trade and rival 10 px to
+     either side at fit zoom, scaling with zoom).
+   - Squads walking between stations use squad_walk along the real tunnel path (the existing _walks data), then
+     squad_stand on the pin. The expedition uses expedition_walk out and back along its tunnel.
+   - Puffs behind wheels every 0.6 s while moving fast, none while easing.
+5. Performance: only _unit_layer redraws every frame; target under 1 ms per frame with 40 units on a mid laptop.
+   Load textures once (no load() in draw calls).
+6. Reduced motion and screenshots: with _motion_off() everything stands still at its current fixed points in
+   frame 0 (handcar_idle for stopped cars), as today.
+7. Verification you must do yourself:
+   - Run the screenshot pass: Godot console exe with --path . -- --network (writes shots/network_*.png, including
+     network_caravans.png, network_handcar.png, network_squad_walk.png). Look at the images, crop and enlarge the
+     unit areas, and compare with the brief.
+   - Record a 10-second clip of the map with units moving using Godot's movie maker (--write-movie
+     build/clips/map_units.avi --fixed-fps 30 on a scene or flag that opens the network view at week 20 with
+     motion on) for the owner.
+   - Run all gates: powershell -File .tools/gates.ps1 (9 gates, all must pass). sim/check_clarity.gd already has
+     215 known failures about upgrade percentages; do not add new ones (compare the count before and after).
+
+RULES OF THE REPO
+- Do not change game rules, balance or data numbers (sim/, data/balance.json). This is presentation only.
+- Code style: match the surrounding code, tabs, typed GDScript, ## doc comments in plain English above each
+  function saying what it does and why. No new dependencies.
+- Text shown to players exists in English and Russian (data/ru.json), each written natively, never word for word;
+  no dashes in Russian text. This task should need no new text.
+- Commits: one per topic, short imperative subject, a body saying what changed and why. Local only, never push.
+- Add one row to docs/DECISIONS.md (section "Геймдизайн и баланс", newest on top, Russian like the rest) and update
+  docs/MAP_STRATEGY.md item 1 to done when finished.
+- Leave the procedural drawing as the fallback when a sheet is missing, so a build never breaks.
+
+DONE MEANS
+The map units are painted, tinted by owner, animated without sliding, ease in and out of stations, pause and
+unload, keep their lanes, switch to a clean small token when zoomed out, stand still with reduced motion, all 9
+gates pass, the screenshots and the 10-second clip show it, and the commits are in master locally.
