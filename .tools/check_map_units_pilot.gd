@@ -59,6 +59,13 @@ func _run() -> void:
 	var pin: Dictionary = net._layout[str(route.route[0])]
 	var bay: Vector2 = net._unit_station_bay(str(route.route[0]), Vector2.RIGHT, net._unit_width(), 0)
 	assert(bay.distance_to(pin.at) > float(pin.r) + net._unit_height() * 0.7)
+	assert(net._unit_bay_clear(bay, net._unit_width()), "Waiting bay overlaps a pin, chip row or name tag")
+	for sid in net._layout:
+		for direction in [Vector2.RIGHT, Vector2.DOWN, Vector2(1, 1).normalized(), Vector2(1, -1).normalized()]:
+			var parked: Vector2 = net._unit_station_bay(str(sid), direction, net._unit_width(), 0)
+			assert(net._unit_bay_clear(parked, net._unit_width()), "Blocked bays must search further along the route")
+	assert(net._sprites.paint("tilt_check", "handcar_pump", Vector2.ZERO, Vector2(0.01, 1), Color.WHITE, 76, 0, 0, true, true))
+	assert(absf(net._sprites.sprites.tilt_check.rotation) <= deg_to_rad(6.0) + 0.0001)
 	_check_spacing(net)
 	await _tints(net)
 	print("PILOT REVIEW OK: five shader colours, protected trousers/sacks, long-route spacing, off-pin bay, fit/max crops")

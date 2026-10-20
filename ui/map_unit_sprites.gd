@@ -115,7 +115,7 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	node.visible = true
 	var facing := -1.0 if direction.x < 0 else 1.0
 	var people := kind.begins_with("squad") or kind == "expedition_walk"
-	var limit := deg_to_rad(4.0 if people else 10.0)
+	var limit := deg_to_rad(4.0 if people else 6.0)
 	var angle := clampf(atan2(direction.y * facing, absf(direction.x)), -limit, limit)
 	var dt := clampf(time - float(node.get_meta("time", time)), 0.0, 0.1)
 	var face_now := facing if fresh or still else move_toward(float(node.get_meta("face", facing)), facing, dt * 2.0 / 0.15)

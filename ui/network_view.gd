@@ -3964,13 +3964,31 @@ func _unit_width() -> float:
 		return _unit_height() * texture.get_width() / texture.get_height()
 	return _unit_height() * 1.16
 
-## Park waiting cars outside the station pin, choosing a side clear of its name tag.
+## Keep the entire waiting miniature clear of pins, chip rows and placed name tags.
+func _unit_bay_clear(at: Vector2, width: float) -> bool:
+	var height := _unit_height()
+	var box := Rect2(at - Vector2(width * 0.6, height * 1.05), Vector2(width * 1.2, height * 1.2)).grow(4.0)
+	for tag in _tags.values():
+		if box.intersects(tag):
+			return false
+	for row in _yield_rows:
+		if box.intersects(Rect2(float(row.x), float(row.y), float(row.total), 18.0)):
+			return false
+	for pin in _layout.values():
+		if box.intersects(Rect2(Vector2(pin.at) - Vector2.ONE * float(pin.r), Vector2.ONE * float(pin.r) * 2.0)):
+			return false
+	return true
+
+## Try both sides along the route, then search further out when nearby bays are occupied.
 func _unit_station_bay(sid: String, direction: Vector2, width: float, slot: int) -> Vector2:
 	var pin: Dictionary = _layout[sid]
-	var normal := Vector2(-direction.y, direction.x)
-	if normal.y < 0:
-		normal = -normal
-	return Vector2(pin.at) + normal * (float(pin.r) + _unit_height() * 0.8) + direction * slot * width * 1.6
+	var distance := float(pin.r) + width * (0.8 + slot * 1.6)
+	for step in 128:
+		for side in [1.0, -1.0]:
+			var at: Vector2 = Vector2(pin.at) + direction * side * (distance + step * width * 0.5)
+			if _unit_bay_clear(at, width):
+				return at
+	return Vector2(pin.at) + direction * (distance + 128.0 * width)
 
 ## Join the tunnel to station-side parking bays so arrival and departure never jump onto a pin.
 func _unit_route_bays(points: PackedVector2Array, first: String, last: String) -> PackedVector2Array:
@@ -3979,11 +3997,7 @@ func _unit_route_bays(points: PackedVector2Array, first: String, last: String) -
 	var start_dir := (points[1] - points[0]).normalized()
 	var end_dir := (points[-1] - points[-2]).normalized()
 	var out := PackedVector2Array([_unit_station_bay(first, start_dir, _unit_width(), 0)])
-	var start_clear := minf(points[0].distance_to(points[1]) * 0.3, float(_layout[first].r) + _unit_width() * 0.5)
-	out.append(points[0] + start_dir * start_clear)
 	for i in range(1, points.size() - 1):
 		out.append(points[i])
-	var end_clear := minf(points[-1].distance_to(points[-2]) * 0.3, float(_layout[last].r) + _unit_width() * 0.5)
-	out.append(points[-1] - end_dir * end_clear)
-	out.append(_unit_station_bay(last, end_dir, _unit_width(), 0))
+	out.append(_unit_station_bay(last, -end_dir, _unit_width(), 0))
 	return out
