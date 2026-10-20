@@ -108,3 +108,7 @@ ADDENDUM (19 Oct, after the placeholder round was rejected by the owner)
   token (a small brass-rimmed disc in the owner colour with the load icon, soft shadow, eased motion).
 - A waiting unit must stand beside its station pin, not on it: routes end one pin radius plus half a unit short of
   the pin centre. Long routes may carry more than one unit again, keeping the 1.6-unit spacing.
+- Accepted handcar reference (incoming-art/map_units/pilot/handcar_reference_v1.png, 1774 x 887): the owner plate
+  came out flat #B5B5B5, not #C8C8C8. Key the owner tint on neutral grey near #B5B5B5 (R, G and B within 6 of each
+  other, value within 16 of 0xB5) so the woman's blue-grey trousers and the beige sacks stay untouched; keep the
+  key colour a per-sheet value in frames.json.
