@@ -1,0 +1,49 @@
+MAP UNIT SET GENERATION REVIEW
+20 Oct owner acceptance supersedes the original rejection notes below:
+handcar_idle_v3 and trader_reference_v3 are ACCEPTED; see ACCEPTED.txt.
+Neutral grey without a colour cast is sufficient; exact hex is not required.
+Clearly empty gaps are sufficient; quarter-width gaps are not an acceptance test.
+handcar_idle_v3 is now imported as four normalized frames and used during station waits.
+trader_roll_v1.png is a new six-frame candidate, pending owner review; not imported.
+squad_reference_v1.png is pending owner review. Its spear tip reaches the top edge;
+review the framing before animation. No squad loop generated.
+Art sequence stopped at the squad reference as requested. Expedition and puff remain queued.
+Both mandatory handcar references were attached to these generations; squad also used bodies 07 and 11.
+
+HISTORICAL GENERATION NOTES (superseded where acceptance above applies):
+2026-10-20. Built-in image_gen tool. No assets integrated into the game.
+
+Every generation attached both mandatory references:
+  ../pilot/handcar_reference_v1.png
+  ../pilot/handcar_pump_attempt3.png
+Idle v1 additionally attached handcar_idle_reference_v1.png.
+Each correction attached the preceding attempt as well as both mandatory references.
+The adjacent *_prompt.txt files contain the actual submitted prompt text.
+The source prompts are docs/briefs/art_map_units_set_prompts.txt at commit 07da815.
+
+HANDCAR IDLE
+handcar_idle_reference_v1.png: visually approved for the idle loop. Same crew, car, cargo and level lever.
+handcar_idle_v1.png: four idle poses, gaps too narrow; rail line missing.
+handcar_idle_v2.png: separate rail segments restored; gaps still narrow.
+handcar_idle_v3.png: best candidate, NOT approved for integration.
+Alpha-column bounds at alpha > 24: 25..485, 581..1039, 1131..1590, 1668..2130.
+Gaps: 95, 91, 77 px. Cars: 461, 459, 460, 463 px.
+Required quarter-width gaps would be at least 116 px. Three-attempt limit reached.
+The loop action is present, but exact static geometry and owner-plate colour are not certified.
+
+TRADER
+trader_reference_v1.png: style and design candidate; canopy warm/shaded, not flat #B5B5B5.
+trader_reference_v2.png: correction still shaded; sample (500,200) RGB 165,162,159.
+trader_reference_v3.png: NOT approved; correction still shaded.
+v3 opaque-interior samples (x,y -> R,G,B,A):
+  500,200 -> 167,167,165,254
+  700,200 -> 166,165,166,254
+  900,200 -> 166,165,165,254
+Required RGB is 181,181,181. The still also needs a final rail-line and margin check.
+Three-attempt limit reached. Trader loop deliberately not generated from a rejected reference.
+
+SQUAD, EXPEDITION, DUST
+Not started. Continue only after resolving the current units, following the requested one-unit-at-a-time order.
+
+The source file says "At most three attempts per image." No fourth attempts were made.
+No candidate is marked accepted in runtime metadata. No gameplay/rendering code changed.
