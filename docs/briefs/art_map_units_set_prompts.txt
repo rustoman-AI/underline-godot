@@ -1,0 +1,140 @@
+MAP UNITS SET: EXACT PROMPTS FOR THE CHATGPT IMAGE TOOL (paste as is, one unit at a time)
+
+Accepted pilot, attach to EVERY prompt below:
+  incoming-art/map_units/pilot/handcar_reference_v1.png
+  incoming-art/map_units/pilot/handcar_pump_attempt3.png
+Save results in incoming-art/map_units/set/ as <name>_v1.png (v2, v3) with <name>_prompt.txt next to each.
+At most three attempts per image. For a second or third attempt use the CORRECTION prompt at the end.
+Do every REFERENCE first and wait for the owner's yes before its loop.
+
+==================================================================
+1. HANDCAR IDLE  (no new reference; loop only)
+Save as: handcar_idle
+------------------------------------------------------------------
+Draw an animation sheet of the attached handcar and its two crew standing still at a station: 4 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, handcar, crew, clothes and size as the attached reference. The lever stays level in every frame.
+
+Frame 1: both workers at rest, hands on the lever handles.
+Frame 2: the man at the front lifts his right forearm and wipes his brow with his sleeve; the woman at the back leans a little on her end of the lever.
+Frame 3: the man's sleeve is still at his brow; the woman breathes out, shoulders slightly lower.
+Frame 4: both back at rest, the same as frame 1.
+
+The handcar, wheels, sacks, crate, lamp and the grey plate never move or change. The rails are one thin straight line at the same height in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames, at least a quarter of one frame's width. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no grid lines, no numbers, no text.
+
+==================================================================
+2a. TRADER CAR REFERENCE
+Save as: trader_reference
+------------------------------------------------------------------
+Draw a single still image of a trader's handcar from abandoned New York subway tunnels, in strict side view facing right, in exactly the same style, materials, scale of people and line weight as the attached handcar: one dark ink outline, flat colour with light texture, muted palette, warm lamp light, no gloss, no 3D render look.
+
+The car: longer than the attached handcar, a plank deck on a riveted iron frame with four small iron rail wheels with four spokes each. A canvas canopy stretched over three iron hoops covers crates, bundles and a rolled rug on the deck; paint the canopy in plain flat light grey, hex #B5B5B5, and use that grey nowhere else in the image. A lantern hangs from the front hoop. At the front stands one trader working a short side pump handle with both hands: a middle-aged man in a long patched brown coat, a striped scarf, fingerless gloves and a flat cap. The wheels sit on rails drawn as one thin straight horizontal line.
+
+Transparent background with real alpha: no white, no checkerboard, no glow, no halo. Canvas about 1280 by 512, the car centred with plenty of empty space around it. No ground, no shadow, no text, no numbers.
+
+==================================================================
+2b. TRADER CAR LOOP  (only after 2a is accepted; also attach the accepted trader_reference)
+Save as: trader_roll
+------------------------------------------------------------------
+Draw an animation sheet of the attached trader's car rolling: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, car, canopy, cargo, trader and size as the attached trader reference. Nothing changes between frames except what moves.
+
+Frame 1: pump handle level, trader upright.
+Frame 2: handle going down, trader leaning forward pushing down.
+Frame 3: handle at its lowest, trader bent deepest.
+Frame 4: handle level again, trader upright.
+Frame 5: handle going up, trader pulling up, leaning back a little.
+Frame 6: handle at its highest, trader straight with arms raised.
+The lantern swings a little forward in frames 2 and 3 and back in frames 5 and 6. The wheels turn one sixth of a turn each frame. The canopy (#B5B5B5), hoops, crates and bundles never move or change. The rails are one thin straight line at the same height in every frame, and the car is the same size in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames, at least a quarter of one frame's width. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+
+==================================================================
+3a. SQUAD REFERENCE  (also attach incoming-art/anim_pilot/reference_body_07.png and reference_body_11.png)
+Save as: squad_reference
+------------------------------------------------------------------
+Draw a single still image of three subway guards walking in step, in strict side view facing right, in exactly the same style, scale of people and line weight as the attached handcar crew: one dark ink outline, flat colour with light texture, muted palette, no gloss, no 3D render look.
+
+They walk one behind the other, slightly overlapping, all on the same ground line. Each wears a padded dark coat, heavy boots and a gas mask pushed up on top of the head, and a cloth armband on the upper arm; paint the three armbands in plain flat light grey, hex #B5B5B5, and use that grey nowhere else in the image. The front guard is the heavy older man with a grey beard from the attached reference, holding an oil lamp up in front. The middle guard is the tall broad man from the attached reference, a long pipe-spear resting on his shoulder. The back guard is a lean young woman with short dark hair, a round shield made of a scrap metal sign on her arm. Mid-stride, left legs forward.
+
+Transparent background with real alpha: no white, no checkerboard, no glow, no halo. Canvas about 1024 by 512, the group centred with plenty of empty space around it. No ground, no shadow, no text, no numbers.
+
+==================================================================
+3b. SQUAD WALK  (only after 3a is accepted; also attach the accepted squad_reference)
+Save as: squad_walk
+------------------------------------------------------------------
+Draw an animation sheet of the attached three guards marching: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, clothes, gear and size as the attached squad reference. All three are in step in every frame.
+
+Frame 1: right heels touch the ground in front, left legs behind (contact).
+Frame 2: weight down on the right legs, bodies lowest (down).
+Frame 3: left legs pass the right, bodies upright (passing).
+Frame 4: left heels touch the ground in front, right legs behind (contact, mirror of frame 1).
+Frame 5: weight down on the left legs (down).
+Frame 6: right legs pass the left (passing).
+Arms swing against the legs. The lamp, the spear and the shield keep their size and shape; the grey armbands (#B5B5B5) stay the same. The soles touching the ground sit on the same line in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames, at least a quarter of one frame's width. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+
+==================================================================
+3c. SQUAD STAND  (also attach the accepted squad_reference)
+Save as: squad_stand
+------------------------------------------------------------------
+Draw an animation sheet of the attached three guards standing guard: 4 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, clothes, gear and size as the attached squad reference. Feet planted on the same line in every frame.
+
+Frame 1: standing at rest, lamp held at chest height, spear upright on the ground, shield at the side.
+Frame 2: the front guard lifts the lamp a little higher; the others shift their weight to one leg.
+Frame 3: the lamp back at chest height; the woman lifts the shield slightly.
+Frame 4: the same as frame 1.
+The lamp flame changes shape a little in each frame. Nothing else changes.
+
+Leave a wide empty transparent gap between neighbouring frames, at least a quarter of one frame's width. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no grid lines, no numbers, no text.
+
+==================================================================
+4a. EXPEDITION REFERENCE  (also attach incoming-art/anim_pilot/reference_body_01.png)
+Save as: expedition_reference
+------------------------------------------------------------------
+Draw a single still image of two scouts setting out into the subway tunnels, in strict side view facing right, in exactly the same style, scale of people and line weight as the attached handcar crew: one dark ink outline, flat colour with light texture, muted palette, no gloss, no 3D render look.
+
+They walk one behind the other on the same ground line, carrying big framed backpacks with coiled rope, a bedroll and a hanging tin cup. The front scout is the woman with the dark ponytail from the attached reference in a rust work jacket, carrying a long pole over her shoulder with a small triangular pennant and a lamp hanging from its tip; paint the pennant in plain flat light grey, hex #B5B5B5, and use that grey nowhere else in the image. The back scout is a wiry man with a short grey beard in an olive canvas coat, a pickaxe over his shoulder. Mid-stride, left legs forward, leaning a little under the weight.
+
+Transparent background with real alpha: no white, no checkerboard, no glow, no halo. Canvas about 1024 by 512, the pair centred with plenty of empty space around it. No ground, no shadow, no text, no numbers.
+
+==================================================================
+4b. EXPEDITION WALK  (only after 4a is accepted; also attach the accepted expedition_reference)
+Save as: expedition_walk
+------------------------------------------------------------------
+Draw an animation sheet of the attached two scouts walking: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, packs, gear and size as the attached expedition reference. A heavy, slow walk; both in step.
+
+Frame 1: right heels touch the ground in front, left legs behind (contact).
+Frame 2: weight down on the right legs, bodies lowest, packs sagging a little (down).
+Frame 3: left legs pass the right, bodies upright (passing).
+Frame 4: left heels touch the ground in front, right legs behind (contact, mirror of frame 1).
+Frame 5: weight down on the left legs (down).
+Frame 6: right legs pass the left (passing).
+The pole, pennant (#B5B5B5), lamp, pick and packs keep their size and shape; the lamp sways a little. The soles touching the ground sit on the same line in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames, at least a quarter of one frame's width. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+
+==================================================================
+5. DUST PUFF  (loop only)
+Save as: puff
+------------------------------------------------------------------
+Draw an animation sheet of a small puff of tunnel dust kicked up by a rail wheel: 6 frames in one horizontal row, left to right, side view, in the same ink-and-flat-colour style as the attached handcar. Grey-brown dust with a thin dark outline.
+
+Frame 1: a tiny tight puff just appearing at the bottom.
+Frame 2: it grows and rises a little, drifting left.
+Frame 3: biggest, three soft round lobes.
+Frame 4: it thins and drifts further left and up.
+Frame 5: broken into two faint wisps.
+Frame 6: one last faint wisp.
+The bottom of the puff starts on the same line in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no grid lines, no numbers, no text.
+
+==================================================================
+CORRECTION (second or third attempt of any loop; attach the previous sheet too)
+------------------------------------------------------------------
+Keep frame 1 exactly as it is in the attached sheet. Redraw the other frames so they match frame 1 exactly in the people, their clothes, the gear, the vehicle, the size and the ground or rail height, and follow the frame list from the first prompt exactly. Keep the wide empty gaps between frames and the transparent background.
+
+CORRECTION (second or third attempt of any reference)
+------------------------------------------------------------------
+Redraw this so it matches the attached handcar exactly in style, line weight, colour palette and the size of the people. Keep the grey part flat #B5B5B5 and use that grey nowhere else. Strict side view facing right, transparent background, plenty of empty space around it.
