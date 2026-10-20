@@ -5297,6 +5297,34 @@ func front_event() -> Dictionary:
 	return pending[0]
 
 
+## Big decisions are the ones the dawn card opens with: major events, story beats (st1_, st2_, st3_), forced
+## scenes, crisis legs and leader consequences (lc_, lc2_). The rest are small: the player meets them during the
+## week (ui/station.gd), one at a time as they work, and all that are left when they end the week.
+func event_is_big(ev: Dictionary) -> bool:
+	var id := str(ev.get("id", ""))
+	if bool(ev.get("major", false)) or ev.has("trigger") or not crunch_leg(id).is_empty():
+		return true
+	return id.begins_with("st1_") or id.begins_with("st2_") or id.begins_with("st3_") or id.begins_with("lc_") or id.begins_with("lc2_")
+
+
+## Moves the big decisions to the front of the queue, keeping each group's order, so dawn shows those first and
+## the small ones wait. Only the player's screen calls this; bots answer the queue as it was drawn.
+func big_first() -> void:
+	var big: Array = []
+	var small: Array = []
+	for ev in pending:
+		(big if event_is_big(ev) else small).append(ev)
+	pending = big + small
+
+
+func small_pending() -> int:
+	var n := 0
+	for ev in pending:
+		if not event_is_big(ev):
+			n += 1
+	return n
+
+
 func modal_ids() -> Array:
 	var ids: Array = []
 	var seen := {}

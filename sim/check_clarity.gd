@@ -102,10 +102,14 @@ func _clear_modals() -> void:
 ## End turn: dark while the dawn choice waits, lit (brass ready face) when the week can end, off at the end.
 func _end_turn_logic() -> void:
 	var game: Game = st.game
-	if game.pending.is_empty():
-		game.pending.append(_plain_event())
+	await _small_events_wait()
+	game.pending.clear()
+	var big := _plain_event()
+	big["major"] = true
+	game.pending.append(big)
 	st._show_dawn()
 	await process_frame
+	st._sync_waiting()
 	if st._end_state() != "waiting" or not st.end_button.disabled:
 		bad.append("end turn: pending choice gives %s, disabled %s" % [st._end_state(), st.end_button.disabled])
 	var tag := _find_meta(st.card_body, "card_tag")
@@ -319,6 +323,36 @@ func _settings_sheet() -> void:
 			bad.append("C9: Esc did not close Settings")
 	st.size = Vector2(1280, 720)
 	st._layout()
+
+
+## Small events wait for the week: dawn shows the new-week card with a count instead of the event, End turn stays
+## lit, and End turn brings the small event up.
+func _small_events_wait() -> void:
+	var game: Game = st.game
+	_clear_modals()
+	game.pending.clear()
+	var small := _plain_event()
+	small["major"] = false
+	small["id"] = "probe_small"
+	game.pending.append(small)
+	st.event_mode = "dawn"
+	st._show_dawn()
+	await process_frame
+	if not _shows(st.card_body, "Dawn of week %d" % game.week) or _find_meta(st.card_body, "card_tag") != null:
+		bad.append("small event: dawn did not hold it back")
+	_clear_modals()
+	game.pending.append(small)
+	st._sync_waiting()
+	if st._end_state() != "ready" or st.end_button.disabled:
+		bad.append("small event: end turn %s, disabled %s" % [st._end_state(), st.end_button.disabled])
+	st._end_turn()
+	await process_frame
+	var tag := _find_meta(st.card_body, "card_tag")
+	if tag == null or str(tag.get_meta("card_tag")) != "Event" or int(game.week) < 1:
+		bad.append("small event: end turn did not bring it up (tag %s, deck %s, pending %d, reports %d, audience %s, mode %s)" % [str(tag.get_meta("card_tag")) if tag != null else "none", str(st.deck.top_token()), game.pending.size(), game.order_reports.size(), str(game.audience), st.event_mode])
+	_clear_modals()
+	game.pending.clear()
+	st.event_mode = "dawn"
 
 
 func _plain_event() -> Dictionary:

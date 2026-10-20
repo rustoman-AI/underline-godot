@@ -1794,6 +1794,7 @@ func _shrink_card() -> void:
 func _refresh() -> void:
 	if game == null:
 		return
+	_watch_work()
 	var season := ""
 	if not game.active_season.is_empty():
 		season = " · %s" % Copy.season(str(game.active_season.id))
@@ -2011,8 +2012,63 @@ func _fill_people() -> void:
 		network_view.refresh()
 
 
+## Small events during the week (game.event_is_big): dawn opens with the big decisions only. After that, each time
+## the player gets something done (assigns, builds, digs, staffs, sends an order) or opens the map, one small event
+## waiting in the queue comes up a moment later. End turn shows whatever is left before the week can end.
+## event_mode: "dawn" shows big events only, "one" shows the front small event and closes, "all" shows the rest.
+var event_mode := "dawn"
+var _work_seen := -1
+var _release_due := false
+var _snoozed := {}
+const RELEASE_DELAY := 0.8
+
+
+func _watch_work() -> void:
+	var done := int(game.decisions)
+	if _work_seen < 0 or done < _work_seen:
+		_work_seen = done
+		return
+	if done == _work_seen:
+		return
+	_work_seen = done
+	if not modal_open and deck.is_empty():
+		_queue_release()
+
+
+func _queue_release() -> void:
+	if _release_due or shot_mode or game == null or game.small_pending() == 0:
+		return
+	_release_due = true
+	get_tree().create_timer(RELEASE_DELAY).timeout.connect(_release_small)
+
+
+func _release_small() -> void:
+	_release_due = false
+	if game == null or game.over != "" or at_menu or shot_mode or modal_open or not deck.is_empty():
+		return
+	game.big_first()
+	if game.pending.is_empty() or game.event_is_big(game.front_event()):
+		return
+	## A small event put off with "Not now" sleeps until End turn; the next one waiting comes up instead.
+	var pick := -1
+	for i in game.pending.size():
+		if not _snoozed.has("%d:%s" % [game.week, str(game.pending[i].get("id", ""))]):
+			pick = i
+			break
+	if pick < 0:
+		return
+	if pick > 0:
+		var ev: Dictionary = game.pending[pick]
+		game.pending.remove_at(pick)
+		game.pending.push_front(ev)
+	event_mode = "one"
+	_show_dawn()
+
+
 func _toggle_network() -> void:
 	showing_network = not showing_network
+	if showing_network:
+		_queue_release()
 	if network_view != null:
 		network_view.visible = showing_network
 		network_view.bind(self)
@@ -2241,7 +2297,8 @@ func _sync_shelf() -> void:
 func _end_state() -> String:
 	if game == null or game.over != "":
 		return "over"
-	if not game.pending.is_empty():
+	## Only a big decision holds the week; small ones come up when End turn is pressed.
+	if game.pending.size() > game.small_pending():
 		return "waiting"
 	return "ready"
 
@@ -2339,6 +2396,7 @@ func _end_turn() -> void:
 	if game.over != "":
 		return
 	if not game.pending.is_empty():
+		event_mode = "all"
 		_show_dawn()
 		return
 	var before := {}
@@ -4469,6 +4527,12 @@ func _show_dawn() -> void:
 	if game != null and game.over == "" and not game.audience.is_empty():
 		_show_audience()
 		return
+	if game != null:
+		game.big_first()
+		## Every waiting event marks the room it names right away, so a small one shows on the station before it
+		## comes up.
+		for ev in game.pending:
+			note_incident(ev)
 	if not _claim(ModalDeck.NARRATIVE, "dawn", _show_dawn):
 		return
 	if footer.text == WAITING or footer.text == Copy.t(WAITING):
@@ -4479,7 +4543,8 @@ func _show_dawn() -> void:
 
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
-	if game.pending.is_empty():
+	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(game.front_event()))
+	if not show_event:
 		var dawn_key := "%d:%d" % [game.get_instance_id(), game.week]
 		if dawn_heard != dawn_key:
 			dawn_heard = dawn_key
@@ -4499,7 +4564,11 @@ func _paint_dawn() -> void:
 		if urgent.is_empty() or not rest.is_empty():
 			_morning_notes(rest)
 		_forecast_buttons(_forecast_rows(99, URGENT_WEEKS))
-		_body("No one is waiting on a decision.")
+		var later_n: int = game.small_pending()
+		if later_n > 0:
+			_body(Copy.t("%s will come up during the week.") % Words.count(later_n, "smaller matter", "smaller matters"))
+		else:
+			_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
 	Sound.play("card_open")
@@ -4557,8 +4626,13 @@ func _paint_dawn() -> void:
 			pick.tooltip_text = why
 			if why != "":
 				card_body.add_child(_choice_reason(why))
-	if game.pending.size() > 1:
-		_body(Copy.t("%s waiting after this one.") % Words.count(game.pending.size() - 1, "other", "others"))
+	var after_n: int = game.pending.size() - 1
+	if event_mode == "dawn":
+		after_n = game.pending.size() - game.small_pending() - 1
+	elif event_mode == "one":
+		after_n = 0
+	if after_n > 0:
+		_body(Copy.t("%s waiting after this one.") % Words.count(after_n, "other", "others"))
 	var later := _button("Not now", _close_card)
 	_style_choice(later)
 	later.custom_minimum_size.y = 40
@@ -5648,12 +5722,24 @@ func _dismiss_dawn() -> void:
 
 
 func _advance_dawn(before: String) -> void:
+	var mode := event_mode
 	if game.pending.is_empty():
 		_close_card()
-		_maybe_guide()
+		event_mode = "dawn"
+		if mode == "all":
+			_end_turn.call_deferred()
+		else:
+			_maybe_guide()
 		return
 	if str(game.front_event().get("id", "")) == before:
 		_close_card()
+		return
+	if mode == "one" or (mode == "dawn" and not game.event_is_big(game.front_event())):
+		## The small ones wait for the week: one per piece of work, the rest at End turn.
+		_close_card()
+		event_mode = "dawn"
+		if mode == "dawn":
+			_maybe_guide()
 		return
 	_show_dawn()
 
@@ -5983,6 +6069,10 @@ func _close_card() -> void:
 	if Voice.now_kind == "leader":
 		Voice.stop()
 	var token := deck.top_token()
+	if token == "dawn":
+		if event_mode == "one" and game != null and not game.pending.is_empty():
+			_snoozed["%d:%s" % [game.week, str(game.front_event().get("id", ""))]] = true
+		event_mode = "dawn"
 	if token == "dawn" and game != null and not game.pending.is_empty():
 		shelved_event = str(game.front_event().get("id", ""))
 	deck.pop()
