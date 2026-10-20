@@ -118,7 +118,7 @@
       "id": "st1_floor_rumor",
       "title": "A meeting that never ended",
       "major": false,
-      "weight": 5,
+      "weight": 7,
       "cooldown": 99,
       "needs": {
         "week": [

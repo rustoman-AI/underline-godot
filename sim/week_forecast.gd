@@ -165,7 +165,7 @@ static func _night(game, made: Dictionary, room_lines: Dictionary, dark: Diction
 		var hops: int = game._supply_hops(str(sid))
 		if hops >= 900:
 			continue
-		var flow: Dictionary = Formulas.outpost_flow(int(st.get("held_weeks", 0)) + 1, hops, str(st.focus))
+		var flow: Dictionary = game.outpost_yield(str(sid))
 		var upkeep := int(flow.upkeep_materials)
 		if upkeep > 0:
 			var left := maxi(0, int(stock.materials) - upkeep)

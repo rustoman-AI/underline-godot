@@ -66,7 +66,44 @@ func load_all() -> bool:
 	communities = _obj("station_communities.json")
 	communities_en = _obj("station_communities_en.json")
 	geo = _obj("map_geo.json")
+	var bad_goods := goods_problems()
+	if error == "" and not bad_goods.is_empty():
+		error = "station goods: " + "; ".join(bad_goods)
 	return error == ""
+
+
+const GOODS := ["food", "materials", "tokens", "influence", "air"]
+const GOODS_TOTAL := 10
+
+
+## What a held station ships before distance and focus (docs/STATION_GOODS_PLAN.md). Stations without a table
+## ship the old flat base.
+func station_goods(sid: String) -> Dictionary:
+	var row = communities.get("stations", {}).get(sid, {}).get("goods", {})
+	if row is Dictionary and not (row as Dictionary).is_empty():
+		return row
+	return {"food": 5, "materials": 3, "tokens": 2}
+
+
+## Every "goods" table: known goods only, positive whole numbers, three of them, summing to GOODS_TOTAL.
+func goods_problems() -> PackedStringArray:
+	var bad := PackedStringArray()
+	var rows: Dictionary = communities.get("stations", {})
+	for sid in rows:
+		var goods = rows[sid].get("goods", null)
+		if goods == null:
+			continue
+		if not (goods is Dictionary) or goods.size() != 3:
+			bad.append("%s needs three goods" % sid)
+			continue
+		var total := 0
+		for key in goods:
+			if not GOODS.has(str(key)) or typeof(goods[key]) not in [TYPE_INT, TYPE_FLOAT] or int(goods[key]) < 1:
+				bad.append("%s has %s %s" % [sid, str(key), str(goods[key])])
+			total += int(goods[key])
+		if total != GOODS_TOTAL:
+			bad.append("%s sums to %d" % [sid, total])
+	return bad
 
 
 ## Random pool batches, leader consequence and story events (data/events_pool.json, data/events_leaders.json,

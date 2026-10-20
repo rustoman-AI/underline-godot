@@ -3993,21 +3993,18 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 
 ## A station that comes over sends one load home the week it joins, so the capture is not only a new pin.
 func _capture_shipment(st: Dictionary) -> String:
-	var focus := str(st.get("focus", "food"))
+	var goods: Dictionary = catalog.station_goods(str(st.get("id", "")))
 	var key := "food"
-	var n := 6
-	match focus:
-		"air":
-			key = "air"
-			n = 4
-		"defense":
-			key = "materials"
-			n = 4
-		"influence":
-			key = "influence"
-			n = 3
+	for good in goods:
+		if int(goods[good]) > int(goods.get(key, 0)):
+			key = str(good)
+	var n := int(CAPTURE_LOAD.get(key, 4))
 	stock[key] = int(stock.get(key, 0)) + n
 	return Copy.t("They send %s.") % Copy.stock(n, key)
+
+
+## The one load a station sends home the week it joins, by its biggest good.
+const CAPTURE_LOAD := {"food": 6, "materials": 4, "tokens": 4, "air": 4, "influence": 3}
 
 
 func focus_block(sid: String, focus: String) -> String:
@@ -4040,7 +4037,7 @@ func outpost_yield(sid: String, focus: String = "", settled: bool = false) -> Di
 		age = maxi(age, 5)
 	var use := focus if focus != "" else str(st.get("focus", ""))
 	var gov := str(st.get("governor", ""))
-	return Formulas.outpost_flow(age, _supply_hops(sid), use, governor_bonus(gov, use), governor_settle(gov))
+	return Formulas.outpost_flow(age, _supply_hops(sid), use, governor_bonus(gov, use), governor_settle(gov), catalog.station_goods(sid))
 
 
 # --- governors ---
@@ -4215,7 +4212,7 @@ func yield_if_taken(sid: String) -> Dictionary:
 		if _supplies(str(n)):
 			hops = mini(hops, _supply_hops(str(n)) + 1)
 	var focus := str(stations[sid].get("focus", ""))
-	return Formulas.outpost_flow(5, hops, focus if focus != "" else "food")
+	return Formulas.outpost_flow(5, hops, focus if focus != "" else "food", 0, 4, catalog.station_goods(sid))
 
 
 ## The chain of stations an outpost's loads walk home along, outpost first and capital last, through stations
@@ -4312,7 +4309,7 @@ func _deliver_outposts() -> void:
 		if hops >= 900:
 			continue
 		var gov := str(st.get("governor", ""))
-		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus), governor_bonus(gov, str(st.focus)), governor_settle(gov))
+		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus), governor_bonus(gov, str(st.focus)), governor_settle(gov), catalog.station_goods(str(sid)))
 		var upkeep := int(flow.upkeep_materials)
 		if upkeep > 0:
 			stock.materials = maxi(0, int(stock.materials) - upkeep)

@@ -693,8 +693,11 @@ func _order_expander(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "propaganda", "station": border}
 	for sid in game.stations:
 		var held: Dictionary = game.stations[sid]
-		if str(held.owner) == game.player and str(sid) != game.capital_id and str(held.focus) != "influence":
-			return {"kind": "order", "order": "focus", "station": str(sid), "focus": "influence"}
+		if str(held.owner) != game.player or str(sid) == game.capital_id:
+			continue
+		var want := _station_focus(game, str(sid), "influence")
+		if str(held.focus) != want:
+			return {"kind": "order", "order": "focus", "station": str(sid), "focus": want}
 	if game.can_expedition():
 		return {"kind": "order", "order": "expedition"}
 	if game.can_approach():
@@ -742,6 +745,14 @@ func _avg_need(st: Dictionary) -> float:
 	for need in needs:
 		sum += float(need.fill)
 	return sum / float(needs.size())
+
+
+## Focus by what a station grows (docs/STATION_GOODS_PLAN.md): a station whose own goods are mostly food stays on
+## food, as a player would; every other station takes the profile's own choice.
+func _station_focus(game: Game, sid: String, otherwise: String) -> String:
+	if int(game.catalog.station_goods(sid).get("food", 0)) >= 5:
+		return "food"
+	return otherwise
 
 
 func _focus_for(game: Game) -> String:

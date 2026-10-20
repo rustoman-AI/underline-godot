@@ -26,7 +26,7 @@ Each is one package. The ones marked **balance** change numbers and need the 30-
 4. **Governors** (Crusader Kings, done 19 Oct, see docs/GOVERNORS_PLAN.md). Put a named council member or resident in charge of a held
    station. Their main skill adds to its yield (Tech to materials, Speech to influence), their traits colour events
    ("the governor of Spring St is stealing"). Opinion of the governor feeds the station's loyalty. **balance**
-5. **Each station its own goods** (Civ resources). Today one formula gives every outpost the same base. Give each
+5. **Each station its own goods** (Civ resources, done 19 Oct, see docs/STATION_GOODS_PLAN.md). Today one formula gives every outpost the same base. Give each
    station a base from data (pump station air, market tokens, farm food) and one special good. Makes the map a
    real choice. **balance**
 6. **Neutral stations as small allies** (Civ city-states). Envoys already exist. Add the suzerain idea: the faction

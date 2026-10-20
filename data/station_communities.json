@@ -3,6 +3,7 @@
   "stations": {
     "northgate": {
       "name": "Grand Central",
+      "goods": {"materials": 3, "tokens": 4, "influence": 3},
       "lat": 40.7527,
       "lon": -73.9772,
       "community": "Железная Дирекция",
@@ -15,6 +16,7 @@
     },
     "foundry": {
       "name": "Penn Station",
+      "goods": {"materials": 6, "tokens": 2, "influence": 2},
       "lat": 40.7506,
       "lon": -73.9935,
       "community": "Дети Машины",
@@ -27,6 +29,7 @@
     },
     "plaza": {
       "name": "Union Sq",
+      "goods": {"food": 5, "materials": 3, "influence": 2},
       "lat": 40.7359,
       "lon": -73.9906,
       "community": "Коммунары",
@@ -39,6 +42,7 @@
     },
     "central": {
       "name": "Times Sq",
+      "goods": {"food": 2, "tokens": 4, "influence": 4},
       "lat": 40.7559,
       "lon": -73.9871,
       "community": "Свободный город",
@@ -51,6 +55,7 @@
     },
     "market": {
       "name": "Spring St",
+      "goods": {"food": 4, "materials": 1, "tokens": 5},
       "lat": 40.7223,
       "lon": -73.9973,
       "community": "Хранители Родника",
@@ -63,6 +68,7 @@
     },
     "riverside": {
       "name": "Botanic Garden",
+      "goods": {"food": 5, "materials": 3, "tokens": 2},
       "lat": 40.6706,
       "lon": -73.9592,
       "community": "Сёстры Сада",
@@ -87,6 +93,7 @@
     },
     "westfield": {
       "name": "Aqueduct",
+      "goods": {"food": 3, "materials": 5, "tokens": 2},
       "lat": 40.672,
       "lon": -73.8355,
       "community": "Закрытая Линия",
@@ -99,6 +106,7 @@
     },
     "brickworks": {
       "name": "Atlantic Av",
+      "goods": {"food": 2, "materials": 4, "tokens": 4},
       "lat": 40.6843,
       "lon": -73.9776,
       "community": "Фонарщики",
@@ -111,6 +119,7 @@
     },
     "library": {
       "name": "Jay St",
+      "goods": {"materials": 3, "tokens": 3, "influence": 4},
       "lat": 40.6922,
       "lon": -73.9873,
       "community": "Учёные",
@@ -123,6 +132,7 @@
     },
     "observatory": {
       "name": "High St",
+      "goods": {"food": 5, "tokens": 3, "air": 2},
       "lat": 40.6993,
       "lon": -73.9906,
       "community": "Речные",
@@ -135,6 +145,7 @@
     },
     "trampark": {
       "name": "Wall St",
+      "goods": {"food": 2, "materials": 2, "tokens": 6},
       "lat": 40.7068,
       "lon": -74.009,
       "community": "Свободная Биржа",
@@ -147,6 +158,7 @@
     },
     "eastwater": {
       "name": "Bowling Green",
+      "goods": {"food": 2, "tokens": 4, "air": 4},
       "lat": 40.7043,
       "lon": -74.014,
       "community": "Дыхатели",
@@ -159,6 +171,7 @@
     },
     "chapel": {
       "name": "Cathedral Pkwy",
+      "goods": {"food": 3, "materials": 2, "influence": 5},
       "lat": 40.8036,
       "lon": -73.9667,
       "community": "Синод тоннеля",
@@ -171,6 +184,7 @@
     },
     "garden": {
       "name": "Flushing",
+      "goods": {"food": 6, "materials": 2, "air": 2},
       "lat": 40.7596,
       "lon": -73.8301,
       "community": "Тихоходы",
@@ -183,6 +197,7 @@
     },
     "stadium": {
       "name": "Astor Pl",
+      "goods": {"food": 2, "tokens": 2, "influence": 6},
       "lat": 40.729,
       "lon": -73.991,
       "community": "Свободное Слово",
@@ -195,6 +210,7 @@
     },
     "harbor": {
       "name": "Delancey St",
+      "goods": {"food": 1, "materials": 3, "tokens": 6},
       "lat": 40.7183,
       "lon": -73.9879,
       "community": "Гильдия",
@@ -207,6 +223,7 @@
     },
     "dockyard": {
       "name": "Chambers St",
+      "goods": {"materials": 4, "tokens": 4, "influence": 2},
       "lat": 40.7154,
       "lon": -74.0093,
       "community": "Последний Участок",
@@ -219,6 +236,7 @@
     },
     "quarry": {
       "name": "Fulton St",
+      "goods": {"food": 1, "materials": 6, "tokens": 3},
       "lat": 40.7104,
       "lon": -74.0074,
       "community": "Диггеры",
@@ -231,6 +249,7 @@
     },
     "mill": {
       "name": "Greenpoint",
+      "goods": {"food": 7, "materials": 1, "tokens": 2},
       "lat": 40.7314,
       "lon": -73.9544,
       "community": "Свинари",
@@ -243,6 +262,7 @@
     },
     "clocktower": {
       "name": "Canal St",
+      "goods": {"food": 1, "materials": 4, "tokens": 5},
       "lat": 40.7186,
       "lon": -74.0002,
       "community": "Барахольщики",
@@ -267,6 +287,7 @@
     },
     "vault": {
       "name": "South Ferry",
+      "goods": {"food": 1, "materials": 5, "tokens": 4},
       "lat": 40.7019,
       "lon": -74.013,
       "community": "бункер «Карантин»",

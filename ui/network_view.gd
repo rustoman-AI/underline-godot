@@ -2952,6 +2952,9 @@ func _fill_sheet_body(sid: String) -> void:
 		head.add_child(title)
 		_sheet_body.add_child(head)
 	_sheet_body.add_child(_lab(Copy.t(str(st.name)), 14, false))
+	var known := _known_for(game, sid)
+	if known != "":
+		_sheet_body.add_child(_lab(known, 14, false))
 	var details := _details_box()
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body, details)
@@ -3263,6 +3266,21 @@ func _add_needs(st: Dictionary, parent: Node) -> void:
 	parent.add_child(_lab(Copy.t("Needs"), 14, true))
 	for need in needs:
 		parent.add_child(_need_bar(str(need.id), float(need.fill)))
+
+
+## "Known for: food, materials": a station's two biggest own goods (data, docs/STATION_GOODS_PLAN.md). Empty for the
+## capital, bunkers and ruins, which ship nothing.
+func _known_for(game, sid: String) -> String:
+	var st: Dictionary = game.stations.get(sid, {})
+	if st.is_empty() or sid == str(game.capital_id) or str(st.owner) in ["bunker", "ruin"] or str(st.get("bunker", "")) != "":
+		return ""
+	var goods: Dictionary = game.catalog.station_goods(sid)
+	var keys: Array = goods.keys()
+	keys.sort_custom(func(a, b): return int(goods[a]) > int(goods[b]) or (int(goods[a]) == int(goods[b]) and YIELD_KEYS.find(a) < YIELD_KEYS.find(b)))
+	var words: PackedStringArray = []
+	for key in keys.slice(0, 2):
+		words.append(Copy.res(str(key)))
+	return "%s: %s" % [Copy.t("Known for"), ", ".join(words)]
 
 
 func _trade_line(st: Dictionary) -> String:
