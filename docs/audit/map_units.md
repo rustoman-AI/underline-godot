@@ -1,5 +1,7 @@
 # Map unit implementation, 19 October 2026
 
+Historical implementation report. Superseded by the accepted handcar pilot in [map_units_pilot.md](map_units_pilot.md); generated figure placeholders were removed during pilot integration.
+
 The implementation is ready for the v2 drawing delivery. The checked-in frames are development placeholders, not painted production art. Each sheet's `frames.json` records `placeholder: true`. No balance, simulation, saved-game schema or player-facing strings were changed.
 
 ## Import
