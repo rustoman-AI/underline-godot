@@ -13,7 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	root.add_child(layer)
 	renderer.setup(layer)
-	assert(renderer.frames.size() == 7, "Seven complete sheets required")
+	assert(renderer.frames.size() == 1 and renderer.frames.handcar_pump.size() == 6, "Only the six accepted pump frames may load")
 	assert(is_equal_approx(Renderer.travel(0, 4), 0))
 	assert(is_equal_approx(Renderer.travel(4, 4), 1))
 	var last := 0.0
@@ -39,9 +39,9 @@ func _run() -> void:
 	assert(renderer.materials.size() == 2, "Materials shared per owner")
 	assert(renderer.sprites.size() == 40, "Pool must not grow over time")
 	renderer.begin()
-	renderer.paint("0", "handcar_idle", Vector2(55, 180), Vector2.RIGHT, Color("c65c42"), 44, 500, 20, true, true)
+	renderer.paint("0", "handcar_pump", Vector2(55, 180), Vector2.RIGHT, Color("c65c42"), 44, 500, 20, true, true)
 	renderer.finish()
-	assert(renderer.sprites["0"].texture == renderer.frames.handcar_idle[0])
+	assert(renderer.sprites["0"].texture == renderer.frames.handcar_pump[0])
 	assert(not renderer.sprites["1"].visible)
 	print("MAP UNITS: contracts pass; 40 sprite updates mean %.3f ms, worst %.3f ms (CPU submission only)" % [total / 300000.0, worst / 1000.0])
 	for file in ["network_caravans", "network_handcar", "network_squad_walk"]:

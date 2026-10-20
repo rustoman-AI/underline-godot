@@ -2,7 +2,8 @@ extends RefCounted
 
 ## Cached frames and pooled sprites keep texture loading and material allocation outside drawing.
 const TINT := preload("res://ui/shaders/owner_tint.gdshader")
-const KINDS := ["handcar_pump", "handcar_idle", "trader_car", "squad_walk", "squad_stand", "expedition_walk", "puff"]
+const KINDS := ["handcar_pump"]
+var distance_per_frame := 4.25
 var frames := {}
 var anchors := {}
 var materials := {}
@@ -21,7 +22,7 @@ func setup(layer: CanvasItem) -> void:
 		if not FileAccess.file_exists(path.path_join("frames.json")):
 			continue
 		var meta = JSON.parse_string(FileAccess.get_file_as_string(path.path_join("frames.json")))
-		if not meta is Dictionary:
+		if not meta is Dictionary or bool(meta.get("placeholder", true)) or not bool(meta.get("accepted", false)):
 			continue
 		var list: Array[Texture2D] = []
 		for i in int(meta.count):
@@ -105,8 +106,7 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	var list: Array = frames[kind]
 	var size: Vector2 = (list[0] as Texture2D).get_size()
 	var factor := height / size.y
-	var width := size.x * factor
-	var index := 0 if still else (int(time * 4.0) % list.size() if idle else int(distance / maxf(1.0, width * 1.1) * list.size()) % list.size())
+	var index := 0 if still or idle else int(distance / maxf(0.01, distance_per_frame)) % list.size()
 	node.texture = list[index]
 	node.offset = -Vector2(anchors[kind])
 	node.position = at

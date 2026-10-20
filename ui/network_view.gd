@@ -2342,6 +2342,7 @@ func _draw_units(c: CanvasItem) -> void:
 	if game == null or _layout.is_empty():
 		return
 	_sprites.begin()
+	_sprites.distance_per_frame = CARAVAN_SPEED / 8.0 * zoom / _zoom_min
 	_draw_splashes(c, game)
 	_draw_intents(c, game)
 	_draw_squads(c, game)
@@ -2365,6 +2366,7 @@ func _draw_units(c: CanvasItem) -> void:
 		var pts := PackedVector2Array()
 		for sid in row.route:
 			pts.append((_layout[str(sid)] as Dictionary).at)
+		pts = _unit_route_bays(pts, str(row.route[0]), str(row.route[-1]))
 		var length := _poly_length(pts)
 		if length < 12.0:
 			continue
@@ -2373,12 +2375,13 @@ func _draw_units(c: CanvasItem) -> void:
 		var col: Color = TRADE_GOLD if trade else home_col
 		if rival:
 			col = _faction_color(game, str(row.owner))
-		## One representative per route guarantees separation even during station dwell.
-		var n := 1
 		var speed := CARAVAN_SPEED * zoom / _zoom_min
 		var duration := length / speed + 0.45 * (pts.size() - 1)
 		var leg_period := duration + (1.2 if trade else 2.4)
 		var cycle := leg_period * (2.0 if trade else 1.0)
+		var car_width := _unit_width()
+		var headway := 2.4 + 1.6 * car_width / speed + 0.45 * pts.size()
+		var n := maxi(1, int(leg_period / headway)) if str(row.kind) in ["supply", "settle"] else 1
 		var elapsed := _anim_t - float(state.born)
 		if not active.has(id) and float(state.retire) < 0:
 			state.retire = elapsed + leg_period - fmod(elapsed, leg_period) + (0.25 if trade else 0.0)
@@ -2386,8 +2389,12 @@ func _draw_units(c: CanvasItem) -> void:
 			_unit_routes.erase(id)
 			continue
 		for i in n:
+			## Stagger departures from the station rather than creating the later cars mid-track.
+			var launch := float(i) * cycle / n
+			if not still and elapsed < launch:
+				continue
 			var clock := minf(elapsed, float(state.retire) - 0.25001) if trade and float(state.retire) >= 0 else elapsed
-			var time := fmod(clock + float(i) * cycle / n, cycle)
+			var time := fmod(maxf(0.0, clock - launch), cycle)
 			var returning := trade and time >= leg_period and not still
 			var local := fmod(time, leg_period)
 			var idle := local < 1.2 or local >= duration + 1.2
@@ -2422,24 +2429,21 @@ func _draw_units(c: CanvasItem) -> void:
 			if float(state.retire) >= 0 and not still:
 				alpha = minf(alpha, clampf((float(state.retire) - elapsed) / 0.25, 0, 1))
 			var key := "cart_%s_%s_%s_%d" % [row.kind, row.get("owner", "home"), row.seed, i]
-			var kind := "handcar_idle" if idle else ("trader_car" if trade else "handcar_pump")
+			var kind := "handcar_pump"
+			var accepted_car := str(row.kind) in ["supply", "settle"]
 			var height := _unit_height()
-			if height < 30:
+			if height < 30 or not accepted_car:
 				_draw_unit_disc(c, at, col, good)
 				continue
 			c.draw_texture_rect(_sprites.shadow, Rect2(at - Vector2(height * 0.6, height * 0.12), Vector2(height * 1.2, height * 0.3)), false, Color(1, 1, 1, alpha * minf(1, zoom / _zoom_min * 0.65)))
 			if not _sprites.paint(key, kind, at, dir, col, height, distance, _anim_t, still, idle, alpha):
-				_draw_handcar(c, at, dir, col, good, distance / maxf(1, height), not idle and not still)
+				_draw_unit_disc(c, at, col, good)
 				continue
 			var unloading := not trade and local >= duration + 1.2
 			var drop := clampf((local - duration - 1.2) / 0.45, 0, 1) if unloading and not still else 0.0
 			var tag := at + Vector2(-height * 0.35, -height * 0.25 + drop * 12 - sin(drop * PI * 3) * (1.0 - drop) * 3)
 			var swing := 0.0 if still or idle else sin(_anim_t * 4) * 0.08
 			_sprites.tag(key + "_tag", tag, good, swing, alpha * (1.0 - drop))
-			var cruise := progress.y > 0.4 and progress.z > 0.5
-			var puff_age := fmod(local - 1.2, 0.6)
-			if not still and not idle and (cruise or local < 1.55):
-				_sprites.paint(key + "_puff", "puff", at - dir * height * 0.45, dir, Color.WHITE, height * 0.4, puff_age * height * 2, _anim_t, false, false, 1.0 - puff_age / 0.6)
 	_draw_expedition(c, game, home_col, still)
 	_sprites.finish()
 
@@ -2476,79 +2480,6 @@ func _route_dots(c: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
 		t += 10.0
 
 
-## A railway handcar riding the tunnel line: a plank deck on two spoked wheels that turn as it rolls, a see-saw
-## pump lever on a post, two crew in the owner's colour pumping it up and down in turn, sacks lashed at the back,
-## grit kicked up behind, and the load it carries on a paper disc above. Tilted to follow the track, mirrored to
-## face where it rolls. beat drives the pump, the wheels and the dust; moving false draws a still pose.
-const CAR_WOOD := Color("6b4a2c")
-const CAR_WOOD_LIT := Color("9a7448")
-const CAR_IRON := Color("1e1812")
-const CAR_SKIN := Color("c9a07a")
-const CAR_SCALE := 1.35
-
-
-func _draw_handcar(c: CanvasItem, at: Vector2, dir: Vector2, col: Color, good: String, beat: float, moving: bool) -> void:
-	var face := -1.0 if dir.x < 0.0 else 1.0
-	var slope := atan2(dir.y * face, absf(dir.x)) if absf(dir.x) > 0.01 else 0.0
-	slope = clampf(slope, -0.55, 0.55)
-	var pump := sin(beat * 4.2)
-	c.draw_set_transform(at + Vector2(0, 9) * CAR_SCALE, slope, Vector2(1.0, 0.32) * CAR_SCALE)
-	c.draw_circle(Vector2.ZERO, 17.0, Color(0, 0, 0, 0.32))
-	c.draw_set_transform(at, slope, Vector2(face, 1.0) * CAR_SCALE)
-	# Grit behind the rear wheel, drifting back and fading.
-	if moving:
-		for k in 3:
-			var life := fmod(beat * 1.6 + float(k) / 3.0, 1.0)
-			c.draw_circle(Vector2(-14.0 - life * 12.0, 5.0 - life * 5.0), 1.6 + life * 2.4, Color(0.55, 0.47, 0.38, 0.45 * (1.0 - life)))
-	# Rails under the wheels.
-	c.draw_line(Vector2(-19, 9.5), Vector2(19, 9.5), Color(CAR_IRON, 0.75), 1.6, true)
-	# Wheels with turning spokes.
-	var spin := -beat * 7.0 if moving else 0.4
-	for wx in [-9.0, 9.0]:
-		var hub := Vector2(wx, 5.0)
-		c.draw_circle(hub, 4.6, CAR_IRON)
-		for s in 3:
-			var a := spin + float(s) * PI / 3.0
-			var d := Vector2(cos(a), sin(a)) * 3.6
-			c.draw_line(hub - d, hub + d, CAR_WOOD_LIT, 1.0, true)
-		c.draw_circle(hub, 1.3, CAR_WOOD_LIT)
-	# Deck, with the owner's colour on the side board.
-	c.draw_rect(Rect2(-15, -1, 30, 4), CAR_WOOD)
-	c.draw_rect(Rect2(-15, -1, 30, 1.4), CAR_WOOD_LIT)
-	c.draw_rect(Rect2(-13, 3, 26, 2), col.darkened(0.15))
-	# Sacks lashed at the back.
-	c.draw_circle(Vector2(-12, -3.5), 3.0, Color("b8a27a"))
-	c.draw_circle(Vector2(-9.0, -3.0), 2.6, Color("a68f68"))
-	c.draw_line(Vector2(-14.5, -3.5), Vector2(-7, -3.5), Color(CAR_IRON, 0.6), 0.8, true)
-	# Pump post and the see-saw beam.
-	var pivot := Vector2(0, -12)
-	c.draw_line(Vector2(0, -1), pivot, CAR_IRON, 2.0, true)
-	var arm := Vector2(cos(pump * 0.38), sin(pump * 0.38)) * 10.0
-	var front := pivot + arm
-	var back := pivot - arm
-	c.draw_line(back, front, CAR_WOOD, 2.2, true)
-	c.draw_circle(pivot, 1.6, CAR_IRON)
-	# Two crew, each pushing their end of the beam: body bends with the stroke.
-	for end in [front, back]:
-		var foot_x: float = clampf(end.x * 0.75, -9.0, 9.0)
-		var shoulder := Vector2(foot_x + (1.5 if end.x < 0.0 else -1.5), end.y + 4.5)
-		var hip := Vector2(foot_x, -3.0)
-		c.draw_line(Vector2(foot_x - 1.5, -1), hip, Color("3a3028"), 2.0, true)
-		c.draw_line(Vector2(foot_x + 1.5, -1), hip, Color("3a3028"), 2.0, true)
-		c.draw_line(hip, shoulder, col.darkened(0.1), 4.0, true)
-		c.draw_line(shoulder, end, col.darkened(0.25), 1.6, true)
-		c.draw_circle(shoulder + Vector2(0, -3.2), 2.4, CAR_SKIN)
-		c.draw_arc(shoulder + Vector2(0, -3.6), 2.6, PI, TAU, 8, Color("2b2118"), 1.4, true)
-	c.draw_set_transform_matrix(Transform2D.IDENTITY)
-	var disc := at + Vector2(0, -32) * CAR_SCALE
-	c.draw_circle(disc + Vector2(1, 1.5), 9.5, Color(0, 0, 0, 0.3))
-	c.draw_circle(disc, 9.5, TAG_PAPER)
-	c.draw_arc(disc, 9.5, 0.0, TAU, 24, col.darkened(0.1), 2.0, true)
-	var icon := ArtPack.icon_texture(good, 14.0)
-	if icon != null:
-		c.draw_texture_rect(icon, Rect2(disc - Vector2(7, 7), Vector2(14, 14)), false)
-
-
 ## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 	if game.expedition.is_empty() or not game.squads.has(game.player):
@@ -2581,25 +2512,7 @@ func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 
 ## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int, kind: String = "squad_stand", direction: Vector2 = Vector2.RIGHT, distance: float = 0.0) -> void:
-	var col := _faction_color(game, fid)
-	var height := _unit_height()
-	if height < 30:
-		_draw_unit_disc(c, at, col, "squad")
-		return
-	c.draw_texture_rect(_sprites.shadow, Rect2(at - Vector2(height * 0.55, 4), Vector2(height * 1.1, 12)), false)
-	if _sprites.paint("squad_" + fid + kind, kind, at, direction, col, height, distance, _anim_t, _motion_off(), kind == "squad_stand"):
-		return
-	c.draw_circle(at + Vector2(1, 2), 10.0, Color(0, 0, 0, 0.35))
-	c.draw_circle(at, 10.0, TAG_PAPER)
-	c.draw_arc(at, 10.0, 0, TAU, 20, col, 2.0, true)
-	var icon := ArtPack.icon_texture("squad", 16.0)
-	if icon != null:
-		c.draw_texture_rect(icon, Rect2(at - Vector2(8, 8), Vector2(16, 16)), false, Color(0.25, 0.18, 0.12))
-	else:
-		c.draw_string(_font(), at + Vector2(-4, 4), str(size_n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TAG_INK)
-	var badge := at + Vector2(10, -9)
-	c.draw_circle(badge, 8.0, col)
-	c.draw_string(_font(), badge + Vector2(-8, 4), str(size_n), HORIZONTAL_ALIGNMENT_CENTER, 16, 11, TAG_PAPER)
+	_draw_unit_disc(c, at, _faction_color(game, fid), "squad")
 
 
 func _faction_color(game, fid: String) -> Color:
@@ -4043,3 +3956,34 @@ func _draw_unit_routes(c: CanvasItem, game) -> void:
 			continue
 		var col := TRADE_GOLD if str(row.kind) == "trade" else _faction_color(game, str(row.get("owner", game.player)))
 		_route_dots(c, pts, Color(col, 0.4))
+
+## Use the shared normalized canvas so spacing follows car size rather than changing crew silhouettes.
+func _unit_width() -> float:
+	if _sprites.frames.has("handcar_pump"):
+		var texture: Texture2D = _sprites.frames.handcar_pump[0]
+		return _unit_height() * texture.get_width() / texture.get_height()
+	return _unit_height() * 1.16
+
+## Park waiting cars outside the station pin, choosing a side clear of its name tag.
+func _unit_station_bay(sid: String, direction: Vector2, width: float, slot: int) -> Vector2:
+	var pin: Dictionary = _layout[sid]
+	var normal := Vector2(-direction.y, direction.x)
+	if normal.y < 0:
+		normal = -normal
+	return Vector2(pin.at) + normal * (float(pin.r) + _unit_height() * 0.8) + direction * slot * width * 1.6
+
+## Join the tunnel to station-side parking bays so arrival and departure never jump onto a pin.
+func _unit_route_bays(points: PackedVector2Array, first: String, last: String) -> PackedVector2Array:
+	if points.size() < 2:
+		return points
+	var start_dir := (points[1] - points[0]).normalized()
+	var end_dir := (points[-1] - points[-2]).normalized()
+	var out := PackedVector2Array([_unit_station_bay(first, start_dir, _unit_width(), 0)])
+	var start_clear := minf(points[0].distance_to(points[1]) * 0.3, float(_layout[first].r) + _unit_width() * 0.5)
+	out.append(points[0] + start_dir * start_clear)
+	for i in range(1, points.size() - 1):
+		out.append(points[i])
+	var end_clear := minf(points[-1].distance_to(points[-2]) * 0.3, float(_layout[last].r) + _unit_width() * 0.5)
+	out.append(points[-1] - end_dir * end_clear)
+	out.append(_unit_station_bay(last, end_dir, _unit_width(), 0))
+	return out
