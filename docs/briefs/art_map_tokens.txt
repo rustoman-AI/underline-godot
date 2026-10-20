@@ -1,3 +1,5 @@
+SUPERSEDED on 19 Oct by docs/briefs/art_map_units_pilot.txt (pilot first) and art_map_units_set.txt. Kept for history; do not send.
+
 ART: MAP UNITS, ANIMATED (ChatGPT image tool) — version 2, replaces version 1 of 19 Oct
 
 WHERE WE ARE

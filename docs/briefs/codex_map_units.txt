@@ -95,3 +95,16 @@ DONE MEANS
 The map units are painted, tinted by owner, animated without sliding, ease in and out of stations, pause and
 unload, keep their lanes, switch to a clean small token when zoomed out, stand still with reduced motion, all 9
 gates pass, the screenshots and the 10-second clip show it, and the commits are in master locally.
+
+ADDENDUM (19 Oct, after the placeholder round was rejected by the owner)
+- The art now comes from docs/briefs/art_map_units_pilot.txt (handcar first) and art_map_units_set.txt, not from
+  art_map_tokens.txt. Units are TRUE SIDE VIEW. Sheet names and frames: handcar_pump 6, handcar_idle 4,
+  trader_roll 6, squad_walk 6, squad_stand 4, expedition_walk 6, puff 6 (plus *_reference stills, not played).
+- The image tool does not obey canvas sizes (earlier sets came out 2172 x 724 and similar) and frames are separated
+  by wide empty gaps instead of equal cells. tools/cut_map_units.gd must find frames by the transparent gaps
+  (alpha columns), report the count it found against the expected count, and align every frame on its lowest
+  opaque row (the rail or sole line) before the shared crop.
+- Do not show the placeholder figures to players: until a sheet passes, draw nothing fancier than a clean owner
+  token (a small brass-rimmed disc in the owner colour with the load icon, soft shadow, eased motion).
+- A waiting unit must stand beside its station pin, not on it: routes end one pin radius plus half a unit short of
+  the pin centre. Long routes may carry more than one unit again, keeping the 1.6-unit spacing.
