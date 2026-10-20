@@ -2869,12 +2869,32 @@ func _apply_order(action: Dictionary) -> bool:
 	return ok
 
 
+## What propaganda adds at a station: the full swing, or only what is left to 100, so the last push does not
+## waste sympathy.
+func propaganda_gain(sid: String) -> int:
+	if not stations.has(sid):
+		return 0
+	var gap := maxi(0, 100 - int(stations[sid].get("sympathy", 0)))
+	return mini(sympathy_preview(sid), gap)
+
+
+## Propaganda's price: the full price for a full swing, or that share of it when the station needs less (rounded
+## up, at least 1), so five pushes of 22 toward 100 cost 6 + 6 + 6 + 6 + 4.
+func propaganda_cost(sid: String) -> int:
+	var full := int(bal.propaganda_influence)
+	var swing := sympathy_preview(sid)
+	var gain := propaganda_gain(sid)
+	if swing <= 0 or gain >= swing:
+		return full
+	return maxi(1, int(ceil(float(full) * float(gain) / float(swing))))
+
+
 func _order_propaganda(sid: String) -> bool:
 	if _propaganda_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
-	stock.influence = int(stock.influence) - int(bal.propaganda_influence)
-	var gain := sympathy_preview(sid)
+	stock.influence = int(stock.influence) - propaganda_cost(sid)
+	var gain := propaganda_gain(sid)
 	st.sympathy = int(st.sympathy) + gain
 	_log("ORDER propaganda %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
 	if int(st.sympathy) >= 100:
@@ -2947,7 +2967,7 @@ func order_councillor() -> Dictionary:
 func order_cost(kind: String, _sid: String = "") -> Dictionary:
 	match kind:
 		"propaganda":
-			return {"influence": int(bal.propaganda_influence)}
+			return {"influence": propaganda_cost(_sid)}
 		"envoy":
 			return {"influence": 3}
 		"trade":
@@ -3290,7 +3310,7 @@ func order_risk(kind: String, sid: String = "") -> String:
 			var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
 			return Copy.t("No risk. Sympathy +%d, and their weakest need improves.") % gain
 		"propaganda":
-			return Copy.t("No risk. Sympathy +%d.") % sympathy_preview(sid)
+			return Copy.t("No risk. Sympathy +%d.") % propaganda_gain(sid)
 		"trade":
 			if sid != "":
 				return Copy.t("No risk. A deal opens passage; three deals and a neutral station joins you.")
@@ -3341,7 +3361,7 @@ func _propaganda_block(sid: String) -> String:
 	var why := _court_block(sid)
 	if why != "":
 		return why
-	if int(stock.influence) < int(bal.propaganda_influence):
+	if int(stock.influence) < propaganda_cost(sid):
 		return influence_short()
 	return ""
 

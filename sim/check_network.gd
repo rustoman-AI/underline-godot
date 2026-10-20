@@ -4,6 +4,30 @@ extends SceneTree
 ##   godot --headless --path . -s res://sim/check_network.gd
 
 
+## Propaganda's last push toward 100 adds only what is left and costs only that share of the price.
+func _last_push_ok(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	var sid := ""
+	for n in game._neighbors(game.capital_id):
+		if str(game.stations[str(n)].owner) == "neutral" and game.sympathy_preview(str(n)) > 4:
+			sid = str(n)
+			break
+	if sid == "":
+		print("LAST PUSH no neutral neighbour")
+		return false
+	var swing := game.sympathy_preview(sid)
+	var full := int(game.bal.propaganda_influence)
+	game.stations[sid].sympathy = 0
+	var fresh_ok := game.propaganda_gain(sid) == swing and game.propaganda_cost(sid) == full
+	game.stations[sid].sympathy = 100 - swing / 2
+	var left := 100 - int(game.stations[sid].sympathy)
+	var want := maxi(1, int(ceil(float(full) * float(left) / float(swing))))
+	var last_ok := game.propaganda_gain(sid) == left and game.propaganda_cost(sid) == want and want < full
+	print("Last push: swing %d costs %d; %d left costs %d: %s" % [swing, full, left, game.propaganda_cost(sid), "ok" if fresh_ok and last_ok else "FAIL"])
+	return fresh_ok and last_ok
+
+
 func _init() -> void:
 	Copy.set_lang("en")
 	var failed := false
@@ -51,6 +75,8 @@ func _init() -> void:
 			print("FLIP gate missed")
 		if not game.errors.is_empty():
 			failed = true
+	if not _last_push_ok(catalog):
+		failed = true
 	if failed:
 		print("NETWORK CHECK FAILED")
 		quit(1)
