@@ -17,8 +17,8 @@ Underline: stations in the tunnels, five leader factions, the council, residents
 ## Next, in the order I recommend
 Each is one package. The ones marked **balance** change numbers and need the 30-seed gates and a decision record.
 
-1. **Art for map pieces** (ChatGPT, brief `docs/briefs/art_map_tokens.txt`). Painted miniatures for carts, traders,
-   squads, expedition; tinted by owner. Biggest single jump in looking professional.
+1. **Art for map pieces** (code done 19 Oct; painted delivery pending; ChatGPT brief `docs/briefs/art_map_tokens.txt`). Painted miniatures for carts, traders,
+   squads, expedition; tinted by owner. Frame pipeline, motion, fallback and review clip are implemented against explicit placeholders. Final painted-art acceptance remains pending. See `docs/audit/map_units.md`.
 2. **Rival units and caravans** (done 19 Oct). Rival squads walk tunnel by tunnel when they move; rival stations send their own carts
    to their seat. The map shows a living world, and a player sees a rival build-up before it hits. View only.
 3. **Yield preview on stations you do not hold** (done 19 Oct). Hover a known station: faint chips of what it would ship once
