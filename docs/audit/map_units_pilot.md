@@ -33,3 +33,19 @@ Routes enter side bays outside station pins through short approach segments, avo
 - Movie Maker records `build/clips/map_units_pilot.avi`; the H.264 viewing copy is `build/clips/map_units_pilot.mp4`, 300 frames at 30 fps, exactly 10 seconds. Review contact sheet: `build/map_units_pilot_movie_review.png`.
 
 No new playtest build or push was made. The remaining unit types stay tokens until their art is accepted.
+
+## 20 Oct: accepted idle integration
+
+The owner accepted `incoming-art/map_units/set/handcar_idle_v3.png` and `trader_reference_v3.png` in `ACCEPTED.txt`. Clearly empty frame gaps and a neutral grey without colour cast are sufficient; exact hex and quarter-width gaps are not acceptance requirements.
+
+The cutter imports four idle frames with source column spans 26..485, 581..1039, 1131..1590 and 1669..2130. It normalizes wheelbases to the pump sheet's 163 pixels and reuses its 303 by 262 canvas and (153, 253) rail anchor. This keeps the car aligned and the same scale across movement and waiting. Only accepted handcar sheets are supported by this import path.
+
+Each sheet records its sampled neutral owner key in `frames.json`: pump 184/255 and idle 185/255. Materials are cached by sheet and owner colour. The shader still requires RGB channel spread at most 6, preserves relative luminance, and supports an optional normalized tint region for future canopy-only trader tinting. Trader art is not imported yet.
+
+Waiting cars select `handcar_idle` at 4 fps. Reduced-motion views use its frame zero. If the idle sheet is missing, cars keep the accepted pump frame-zero fallback. Focused checks cover all four idle poses, matching canvas/anchors, separate sheet materials, cache reuse and missing-idle fallback. Forty moving sprites measured 0.181 ms average and 0.356 ms worst CPU submission in this pass.
+
+The real waiting capture holds the first supply car at elapsed 0.6 seconds and route distance zero. It asserts both bay clearance and use of an idle texture. See `build/network_pilot_fit_waiting_crop.png` and `build/idle_wait_tints_review.txt`. GPU tint checks pass for both sheets in five faction colours, preserving sampled trousers and sacks. Outputs: `build/map_units_handcar_pump_five_tints.png` and `build/map_units_handcar_idle_five_tints.png`.
+
+All nine gates passed. Clarity remains 215 before and after (`build/idle_clarity_before.txt`, `build/idle_clarity_after.txt`). The earlier pilot count above is historical.
+
+New art candidates: `trader_roll_v1.png` and `squad_reference_v1.png`, with exact submitted prompts beside them. Every generation attached both pilot images; trader additionally used the accepted trader still, and squad used bodies 07 and 11. Neither new candidate is imported. Art generation stops at the squad reference for owner review; expedition and dust are queued.

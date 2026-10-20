@@ -13,7 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	root.add_child(layer)
 	renderer.setup(layer)
-	assert(renderer.frames.size() == 1 and renderer.frames.handcar_pump.size() == 6, "Only the six accepted pump frames may load")
+	assert(renderer.frames.size() == 2 and renderer.frames.handcar_pump.size() == 6 and renderer.frames.handcar_idle.size() == 4, "Only accepted pump and idle frames may load")
 	assert(is_equal_approx(Renderer.travel(0, 4), 0))
 	assert(is_equal_approx(Renderer.travel(4, 4), 1))
 	var last := 0.0
@@ -41,7 +41,18 @@ func _run() -> void:
 	renderer.begin()
 	renderer.paint("0", "handcar_pump", Vector2(55, 180), Vector2.RIGHT, Color("c65c42"), 44, 500, 20, true, true)
 	renderer.finish()
-	assert(renderer.sprites["0"].texture == renderer.frames.handcar_pump[0])
+	assert(renderer.sprites["0"].texture == renderer.frames.handcar_idle[0])
+	for tick in 4:
+		renderer.paint("0", "handcar_pump", Vector2.ZERO, Vector2.RIGHT, Color.RED, 44, 0, tick * 0.25, false, true)
+		assert(renderer.sprites["0"].texture == renderer.frames.handcar_idle[tick], "Waiting cars play the idle sheet at 4 fps")
+	assert(renderer.anchors.handcar_idle == renderer.anchors.handcar_pump, "Waiting and pumping share their rail anchor")
+	assert(renderer.frames.handcar_idle[0].get_size() == renderer.frames.handcar_pump[0].get_size())
+	assert(renderer._material(Color.RED, "handcar_idle") != renderer._material(Color.RED, "handcar_pump"))
+	var saved_idle: Array = renderer.frames.handcar_idle
+	renderer.frames.erase("handcar_idle")
+	renderer.paint("0", "handcar_pump", Vector2.ZERO, Vector2.RIGHT, Color.RED, 44, 0, 0.5, false, true)
+	assert(renderer.sprites["0"].texture == renderer.frames.handcar_pump[0], "Missing idle art keeps the accepted pump fallback")
+	renderer.frames.handcar_idle = saved_idle
 	assert(not renderer.sprites["1"].visible)
 	print("MAP UNITS: contracts pass; 40 sprite updates mean %.3f ms, worst %.3f ms (CPU submission only)" % [total / 300000.0, worst / 1000.0])
 	for file in ["network_caravans", "network_handcar", "network_squad_walk"]:

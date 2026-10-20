@@ -2,10 +2,12 @@ extends RefCounted
 
 ## Cached frames and pooled sprites keep texture loading and material allocation outside drawing.
 const TINT := preload("res://ui/shaders/owner_tint.gdshader")
-const KINDS := ["handcar_pump"]
+const KINDS := ["handcar_pump", "handcar_idle"]
 var distance_per_frame := 4.25
 var frames := {}
 var anchors := {}
+var tint_keys := {}
+var tint_regions := {}
 var materials := {}
 var sprites := {}
 var used := {}
@@ -32,6 +34,9 @@ func setup(layer: CanvasItem) -> void:
 		if list.size() == int(meta.count):
 			frames[kind] = list
 			anchors[kind] = Vector2(meta.anchor[0], meta.anchor[1])
+			tint_keys[kind] = float(meta.get("owner_grey", 181.0 / 255.0))
+			var region: Array = meta.get("tint_region", [0.0, 0.0, 1.0, 1.0])
+			tint_regions[kind] = Vector4(region[0], region[1], region[2], region[3])
 	var image := Image.create(64, 32, false, Image.FORMAT_RGBA8)
 	for y in 32:
 		for x in 64:
@@ -80,18 +85,22 @@ func tag(key: String, at: Vector2, good: String, swing: float, alpha: float) -> 
 	if icon.texture != null:
 		icon.scale = Vector2.ONE * 16.0 / maxf(icon.texture.get_width(), icon.texture.get_height())
 
-## Cache one shader material per owner colour so each sprite has an independent faction tint.
-func _material(col: Color) -> ShaderMaterial:
-	var key := col.to_html()
+## Cache by sheet and owner so different neutral greys share the same owner colour setting.
+func _material(col: Color, kind: String = "handcar_pump") -> ShaderMaterial:
+	var key := kind + ":" + col.to_html()
 	if not materials.has(key):
 		var material := ShaderMaterial.new()
 		material.shader = TINT
 		material.set_shader_parameter("owner_color", col)
+		material.set_shader_parameter("owner_grey", tint_keys.get(kind, 181.0 / 255.0))
+		material.set_shader_parameter("tint_region", tint_regions.get(kind, Vector4(0, 0, 1, 1)))
 		materials[key] = material
 	return materials[key]
 
 ## Draw a sprite anchored to its original rail or sole line, with a softened turn and restrained slope.
 func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Color, height: float, distance: float, time: float, still: bool, idle: bool, alpha: float = 1.0) -> bool:
+	if kind == "handcar_pump" and (idle or still) and frames.has("handcar_idle"):
+		kind = "handcar_idle"
 	if not frames.has(kind):
 		return false
 	used[key] = true
@@ -106,11 +115,16 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	var list: Array = frames[kind]
 	var size: Vector2 = (list[0] as Texture2D).get_size()
 	var factor := height / size.y
-	var index := 0 if still or idle else int(distance / maxf(0.01, distance_per_frame)) % list.size()
+	var index := 0
+	if not still:
+		if idle and kind == "handcar_idle":
+			index = int(time * 4.0) % list.size()
+		elif not idle:
+			index = int(distance / maxf(0.01, distance_per_frame)) % list.size()
 	node.texture = list[index]
 	node.offset = -Vector2(anchors[kind])
 	node.position = at
-	node.material = _material(col)
+	node.material = _material(col, kind)
 	node.modulate = Color(1, 1, 1, alpha)
 	node.visible = true
 	var facing := -1.0 if direction.x < 0 else 1.0

@@ -17,8 +17,8 @@ Underline: stations in the tunnels, five leader factions, the council, residents
 ## Next, in the order I recommend
 Each is one package. The ones marked **balance** change numbers and need the 30-seed gates and a decision record.
 
-1. **Art for map pieces** (handcar pilot integrated 19 Oct; remaining art pending; ChatGPT brief `docs/briefs/art_map_tokens.txt`). Painted miniatures for carts, traders,
-   squads, expedition; tinted by owner. The accepted six-frame handcar runs on supply and settle routes; every other kind stays a clean token until accepted. See `docs/audit/map_units_pilot.md` for import and verification.
+1. **Art for map pieces** (handcar pump and idle done 20 Oct; remaining art pending owner review; ChatGPT brief `docs/briefs/art_map_units_set_prompts.txt`). Painted miniatures for carts, traders,
+   squads, expedition; tinted by owner. The accepted six-frame handcar runs on supply and settle routes, switching to the four-frame idle sheet while waiting. Each sheet keys tint on its own neutral grey. Every other kind stays a clean token until accepted. See `docs/audit/map_units_pilot.md` for import and verification.
 2. **Rival units and caravans** (done 19 Oct). Rival squads walk tunnel by tunnel when they move; rival stations send their own carts
    to their seat. The map shows a living world, and a player sees a rival build-up before it hits. View only.
 3. **Yield preview on stations you do not hold** (done 19 Oct). Hover a known station: faint chips of what it would ship once

@@ -8,24 +8,36 @@ const COUNT := 6
 ## Validate all six images before replacing any imported frames.
 func _initialize() -> void:
 	var source := SOURCE
+	var kind := "handcar_pump"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--source="):
 			source = arg.trim_prefix("--source=")
+		if arg.begins_with("--kind="):
+			kind = arg.trim_prefix("--kind=")
+	if kind not in ["handcar_pump", "handcar_idle"]:
+		push_error("Only accepted handcar sheets can be imported")
+		quit(1)
+		return
+	var count := 4 if kind == "handcar_idle" else COUNT
+	var dest := "res://assets/map/units/" + kind
+	var template: Dictionary = {}
+	if kind == "handcar_idle":
+		template = JSON.parse_string(FileAccess.get_file_as_string(DEST.path_join("frames.json")))
 	var sheet := Image.load_from_file(source)
 	if sheet == null or sheet.is_empty():
 		push_error("Missing pilot: " + source)
 		quit(1)
 		return
 	var spans := _spans(sheet)
-	if spans.size() != COUNT:
-		push_error("handcar_pump: expected 6 alpha-separated frames, found %d; no assets written" % spans.size())
+	if spans.size() != count:
+		push_error("%s: expected %d alpha-separated frames, found %d; no assets written" % [kind, count, spans.size()])
 		quit(1)
 		return
 	var cells: Array[Image] = []
 	var marks: Array[Dictionary] = []
 	var shared := Rect2()
 	var target := 0.0
-	for i in COUNT:
+	for i in count:
 		var span: Vector2i = spans[i]
 		var cell := sheet.get_region(Rect2i(span.x, 0, span.y - span.x + 1, sheet.get_height()))
 		_clean(cell)
@@ -35,7 +47,7 @@ func _initialize() -> void:
 			quit(1)
 			return
 		if i == 0:
-			target = wheel.base
+			target = float(template.get("wheelbase", wheel.base))
 		var factor: float = target / float(wheel.base)
 		var used := cell.get_used_rect()
 		var box := Rect2((Vector2(used.position) - Vector2(wheel.center, wheel.rail)) * factor, Vector2(used.size) * factor)
@@ -45,8 +57,16 @@ func _initialize() -> void:
 		print("f%d columns %d..%d hubs %.2f / %.2f base %.2f rail %d scale %.5f" % [i, span.x, span.y, wheel.left, wheel.right, wheel.base, wheel.rail, factor])
 	var origin := shared.position.floor() - Vector2(3, 3)
 	var extent := Vector2i(shared.end.ceil() - origin + Vector2(3, 3))
-	DirAccess.make_dir_recursive_absolute(DEST)
-	for i in COUNT:
+	if not template.is_empty():
+		origin = -Vector2(template.anchor[0], template.anchor[1])
+		extent = Image.load_from_file(DEST.path_join("f0.png")).get_size()
+		if not Rect2(origin, Vector2(extent)).encloses(shared):
+			push_error("Idle art exceeds the pump canvas; no assets written")
+			quit(1)
+			return
+	var tint_key := _plate_grey(cells[0], marks[0])
+	DirAccess.make_dir_recursive_absolute(dest)
+	for i in count:
 		var wheel: Dictionary = marks[i]
 		var factor: float = target / float(wheel.base)
 		var anchor := Vector2(wheel.center, wheel.rail)
@@ -56,18 +76,31 @@ func _initialize() -> void:
 				var p := Vector2i(((Vector2(x, y) + origin) / factor + anchor).round())
 				if p.x >= 0 and p.y >= 0 and p.x < cells[i].get_width() and p.y < cells[i].get_height():
 					out.set_pixel(x, y, cells[i].get_pixelv(p))
-		if out.save_png(DEST.path_join("f%d.png" % i)) != OK:
+		if out.save_png(dest.path_join("f%d.png" % i)) != OK:
 			push_error("Could not save pilot frame %d" % i)
 			quit(1)
 			return
-	for name in DirAccess.get_files_at(DEST):
-		if name.begins_with("f") and name.get_extension() == "png" and int(name.trim_prefix("f").get_basename()) >= COUNT:
-			DirAccess.remove_absolute(DEST.path_join(name))
-			DirAccess.remove_absolute(DEST.path_join(name + ".import"))
-	var file := FileAccess.open(DEST.path_join("frames.json"), FileAccess.WRITE)
-	file.store_string(JSON.stringify({"count": COUNT, "anchor": [-origin.x, -origin.y], "wheelbase": target, "source": source, "landmarks": marks, "placeholder": false, "accepted": true}, "\t"))
-	print("PILOT: 6 frames, size %s, anchor %s" % [extent, -origin])
+	for name in DirAccess.get_files_at(dest):
+		if name.begins_with("f") and name.get_extension() == "png" and int(name.trim_prefix("f").get_basename()) >= count:
+			DirAccess.remove_absolute(dest.path_join(name))
+			DirAccess.remove_absolute(dest.path_join(name + ".import"))
+	var file := FileAccess.open(dest.path_join("frames.json"), FileAccess.WRITE)
+	file.store_string(JSON.stringify({"count": count, "anchor": [-origin.x, -origin.y], "wheelbase": target, "source": source, "landmarks": marks, "owner_grey": tint_key, "placeholder": false, "accepted": true}, "\t"))
+	print("%s: %d frames, size %s, anchor %s, owner grey %.4f" % [kind, count, extent, -origin, tint_key])
 	quit(0)
+
+## Sample the central owner plate so each accepted sheet keeps its own neutral-grey key.
+func _plate_grey(image: Image, wheel: Dictionary) -> float:
+	var samples: Array[float] = []
+	for y in range(int(wheel.rail - wheel.base * 0.27), int(wheel.rail - wheel.base * 0.20)):
+		for x in range(int(wheel.center - wheel.base * 0.25), int(wheel.center + wheel.base * 0.25)):
+			var pixel := image.get_pixel(x, y)
+			var high := maxf(pixel.r, maxf(pixel.g, pixel.b))
+			var low := minf(pixel.r, minf(pixel.g, pixel.b))
+			if pixel.a > 0.9 and high - low <= 6.0 / 255.0 and high > 0.45 and high < 0.9:
+				samples.append(high)
+	samples.sort()
+	return samples[samples.size() / 2] if not samples.is_empty() else 181.0 / 255.0
 
 ## Detect occupied column runs using alpha greater than 60, independent of nominal cell dimensions.
 func _spans(image: Image) -> Array[Vector2i]:

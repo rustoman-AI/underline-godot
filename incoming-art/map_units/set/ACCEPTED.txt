@@ -1,0 +1,8 @@
+OWNER-SIDE ACCEPTANCE (lead review, 20 Oct)
+handcar_idle_v3.png: ACCEPTED. Gaps 77..95 px are ample (the cutter split 16..20 px gaps in the pilot); the
+  quarter-width gap rule is guidance for generation, not an acceptance test. Same crew, car and level lever; brow
+  wipe in frames 2 and 3.
+trader_reference_v3.png: ACCEPTED. Canopy is neutral grey (R, G, B within 2, value about 166) and nearly flat; the
+  tint keys on neutral grey near the sheet's own value, so exact #B5B5B5 is not required. Note for the tint: the
+  silver milk can on the deck is also neutral grey; limit the tint on trader sheets to the canopy region.
+Next: trader_roll (attach trader_reference_v3.png), then squad, expedition, puff, using the updated prompt file.

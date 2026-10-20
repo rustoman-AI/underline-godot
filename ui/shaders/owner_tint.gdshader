@@ -1,6 +1,8 @@
 shader_type canvas_item;
 
 uniform vec4 owner_color : source_color = vec4(1.0);
+uniform float owner_grey = 0.70980392;
+uniform vec4 tint_region = vec4(0.0, 0.0, 1.0, 1.0);
 varying vec4 unit_modulate;
 
 void vertex() {
@@ -13,7 +15,9 @@ void fragment() {
 	float chroma = max(pixel.r, max(pixel.g, pixel.b)) - min(pixel.r, min(pixel.g, pixel.b));
 	float value = max(pixel.r, max(pixel.g, pixel.b));
 	float mask = step(chroma, 6.0 / 255.0 + 0.00001)
-		* step(abs(value - 181.0 / 255.0), 16.0 / 255.0 + 0.00001);
-	pixel.rgb = mix(pixel.rgb, owner_color.rgb * light / (181.0 / 255.0), mask);
+		* step(abs(value - owner_grey), 16.0 / 255.0 + 0.00001)
+		* step(tint_region.x, UV.x) * step(tint_region.y, UV.y)
+		* step(UV.x, tint_region.z) * step(UV.y, tint_region.w);
+	pixel.rgb = mix(pixel.rgb, owner_color.rgb * light / max(owner_grey, 0.001), mask);
 	COLOR = pixel * unit_modulate;
 }

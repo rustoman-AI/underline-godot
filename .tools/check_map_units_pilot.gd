@@ -69,6 +69,7 @@ func _run() -> void:
 	assert(absf(net._sprites.sprites.tilt_check.rotation) <= deg_to_rad(6.0) + 0.0001)
 	_check_spacing(net)
 	await _tints(net)
+	await _tints(net, "handcar_idle")
 	print("PILOT REVIEW OK: five shader colours, protected trousers/sacks, long-route spacing, off-pin bay, fit/max crops")
 	quit(0)
 
@@ -84,6 +85,7 @@ func _waiting_shot(net, route: Dictionary) -> void:
 	await RenderingServer.frame_post_draw
 	var key := "cart_%s_%s_%s_0" % [route.kind, route.get("owner", "home"), route.seed]
 	var car: Sprite2D = net._sprites.sprites[key]
+	assert(car.texture in net._sprites.frames.handcar_idle, "Actual waiting car must use the accepted idle sheet")
 	var sid := str(route.route[0])
 	var direction: Vector2 = (Vector2(net._layout[str(route.route[1])].at) - Vector2(net._layout[sid].at)).normalized()
 	var bay: Vector2 = net._unit_station_bay(sid, direction, net._unit_width(), 0)
@@ -147,8 +149,8 @@ func _check_spacing(net) -> void:
 			assert(positions[i] - positions[i - 1] >= gap - 0.1, "Cars violated 1.6 widths")
 
 ## Compare actual GPU shader output with untouched trouser and sack regions for every faction.
-func _tints(net) -> void:
-	var source: Image = net._sprites.frames.handcar_pump[0].get_image()
+func _tints(net, kind: String = "handcar_pump") -> void:
+	var source: Image = net._sprites.frames[kind][0].get_image()
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(source.get_width() * 5, source.get_height())
 	viewport.transparent_bg = true
@@ -157,16 +159,16 @@ func _tints(net) -> void:
 	var names := ["depot", "directorate", "synod", "exchange", "black_flag"]
 	for i in 5:
 		var sprite := Sprite2D.new()
-		sprite.texture = net._sprites.frames.handcar_pump[0]
+		sprite.texture = net._sprites.frames[kind][0]
 		sprite.centered = false
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		sprite.position.x = i * source.get_width()
-		sprite.material = net._sprites._material(net._faction_color(station.game, names[i]))
+		sprite.material = net._sprites._material(net._faction_color(station.game, names[i]), kind)
 		viewport.add_child(sprite)
 	await process_frame
 	await RenderingServer.frame_post_draw
 	var rendered := viewport.get_texture().get_image()
-	rendered.save_png("res://build/map_units_pilot_five_tints.png")
+	rendered.save_png("res://build/map_units_%s_five_tints.png" % kind)
 	for i in 5:
 		var checks := 0
 		var changed := 0
