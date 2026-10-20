@@ -4583,6 +4583,9 @@ func _show_order_report() -> void:
 		return
 	var row: Dictionary = game.order_reports[0]
 	_open_card(str(row.get("title", Copy.t("Dawn report"))))
+	var art := _order_art(row)
+	if art != null:
+		card_body.add_child(art)
 	_body(str(row.get("text", "")))
 	var said := _leader_said(str(row.get("faction", "")), row.get("line", {}))
 	if said != "":
@@ -4591,6 +4594,94 @@ func _show_order_report() -> void:
 		if line_key != "":
 			_leader_voice(str(row.faction), line_key, "report:%d:%s:%s" % [game.week, str(row.faction), str(row.get("text", ""))])
 	card_body.add_child(_button("Continue", _next_order_report))
+
+
+## The picture on an order's dawn card: the station's banner across the card, the councillor who carried the order
+## in a gold-rimmed portrait on its lower left, and the order's map icon on a paper disc at the right. A failed
+## order dims the banner. Null when the report names no station with a picture.
+func _order_art(row: Dictionary) -> Control:
+	var sid := str(row.get("station", ""))
+	if sid == "" or not game.stations.has(sid) or network_view == null:
+		return null
+	var path: String = network_view.banner_path(game, sid)
+	if path == "":
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null:
+		return null
+	var frame := Control.new()
+	frame.custom_minimum_size = Vector2(0, 170)
+	frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.clip_contents = true
+	var banner := TextureRect.new()
+	banner.texture = tex
+	banner.set_anchors_preset(Control.PRESET_FULL_RECT)
+	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not bool(row.get("ok", true)):
+		banner.modulate = Color(0.55, 0.5, 0.48)
+	frame.add_child(banner)
+	var fade := Gradient.new()
+	fade.set_color(0, Color(0, 0, 0, 0.0))
+	fade.set_color(1, Color(0, 0, 0, 0.65))
+	var ramp := GradientTexture2D.new()
+	ramp.gradient = fade
+	ramp.fill_from = Vector2(0.5, 0.35)
+	ramp.fill_to = Vector2(0.5, 1.0)
+	var under := TextureRect.new()
+	under.texture = ramp
+	under.set_anchors_preset(Control.PRESET_FULL_RECT)
+	under.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	under.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(under)
+	var place := _label(str(game.station_text(sid, "community")), 18, true)
+	place.add_theme_color_override("font_color", Color("f4efe4"))
+	place.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	place.add_theme_constant_override("shadow_offset_x", 1)
+	place.add_theme_constant_override("shadow_offset_y", 2)
+	place.position = Vector2(96, 136)
+	frame.add_child(place)
+	var pid := str(row.get("person", ""))
+	if pid != "" and game.people.has(pid):
+		var rim := PanelContainer.new()
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color("1e1812")
+		style.border_color = Color("c9a227")
+		style.set_border_width_all(3)
+		style.set_corner_radius_all(6)
+		style.shadow_color = Color(0, 0, 0, 0.5)
+		style.shadow_size = 4
+		rim.add_theme_stylebox_override("panel", style)
+		rim.add_child(_portrait_box(pid, 72))
+		rim.position = Vector2(10, 82)
+		frame.add_child(rim)
+	var kind := str(row.get("kind", ""))
+	var icon := ArtPack.icon_texture(str({"move": "squad", "expedition": "squad", "aid": "food", "address": "hope"}.get(kind, kind)), 32.0)
+	if icon != null:
+		var disc := PanelContainer.new()
+		var paper := StyleBoxFlat.new()
+		paper.bg_color = Color("efe4c8")
+		paper.border_color = Color("c9a227") if bool(row.get("ok", true)) else Color("8a3a3a")
+		paper.set_border_width_all(3)
+		paper.set_corner_radius_all(26)
+		paper.set_content_margin_all(8)
+		disc.add_theme_stylebox_override("panel", paper)
+		var mark := TextureRect.new()
+		mark.texture = icon
+		mark.custom_minimum_size = Vector2(32, 32)
+		mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		disc.add_child(mark)
+		disc.anchor_left = 1.0
+		disc.anchor_right = 1.0
+		disc.offset_left = -62.0
+		disc.offset_right = -10.0
+		disc.offset_top = 10.0
+		disc.offset_bottom = 62.0
+		frame.add_child(disc)
+	return frame
 
 
 ## Leader text from data/faction_leaders.json, which carries en and ru side by side.
@@ -8185,6 +8276,17 @@ func _caravan_shot() -> void:
 	await _frame()
 	await _frame()
 	_save("network_caravans")
+	var motion_was := motion_in_shots
+	motion_in_shots = true
+	network_view.show_zoom(3.5, game.capital_id)
+	network_view._anim_t = 7.3
+	network_view.refresh()
+	await _frame()
+	_save("network_handcar")
+	motion_in_shots = motion_was
+	network_view.show_zoom(2.0, game.capital_id)
+	network_view.refresh()
+	await _frame()
 	for held in network_view._chip_hits:
 		var hit: Rect2 = network_view._chip_hits[held]
 		network_view._chip_hover = str(held)

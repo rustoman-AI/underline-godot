@@ -2366,9 +2366,12 @@ func _draw_units(c: CanvasItem) -> void:
 			if trade and phase * 2.0 > 1.0:
 				dir = -dir
 			var at: Vector2 = spot[0]
-			if not still:
-				at.y -= absf(sin(_anim_t * 7.0 + float(i) * 1.7)) * 1.6
-			_draw_caravan(c, at, dir, col, good)
+			## Traders and rivals keep their own lane beside the track, so routes that share tunnels do not stack.
+			if trade or rival:
+				var lane: Vector2 = spot[1]
+				at += Vector2(-lane.y, lane.x) * (9.0 if trade else -9.0)
+			var beat := 0.9 if still else _anim_t + float(i) * 1.3 + seed * 7.0
+			_draw_handcar(c, at, dir, col, good, beat, not still)
 	_draw_expedition(c, game, home_col, still)
 
 
@@ -2404,31 +2407,79 @@ func _route_dots(c: CanvasItem, pts: PackedVector2Array, col: Color) -> void:
 		t += 10.0
 
 
-## A hand cart: wooden bed with the owner's colour on the rim, two wheels, the shaft pointing where it walks,
-## and the load it carries on a paper disc above it.
-func _draw_caravan(c: CanvasItem, at: Vector2, dir: Vector2, col: Color, good: String) -> void:
+## A railway handcar riding the tunnel line: a plank deck on two spoked wheels that turn as it rolls, a see-saw
+## pump lever on a post, two crew in the owner's colour pumping it up and down in turn, sacks lashed at the back,
+## grit kicked up behind, and the load it carries on a paper disc above. Tilted to follow the track, mirrored to
+## face where it rolls. beat drives the pump, the wheels and the dust; moving false draws a still pose.
+const CAR_WOOD := Color("6b4a2c")
+const CAR_WOOD_LIT := Color("9a7448")
+const CAR_IRON := Color("1e1812")
+const CAR_SKIN := Color("c9a07a")
+const CAR_SCALE := 1.35
+
+
+func _draw_handcar(c: CanvasItem, at: Vector2, dir: Vector2, col: Color, good: String, beat: float, moving: bool) -> void:
 	var face := -1.0 if dir.x < 0.0 else 1.0
-	c.draw_set_transform(at + Vector2(0, 10), 0.0, Vector2(1.0, 0.35))
-	c.draw_circle(Vector2.ZERO, 14.0, Color(0, 0, 0, 0.35))
+	var slope := atan2(dir.y * face, absf(dir.x)) if absf(dir.x) > 0.01 else 0.0
+	slope = clampf(slope, -0.55, 0.55)
+	var pump := sin(beat * 4.2)
+	c.draw_set_transform(at + Vector2(0, 9) * CAR_SCALE, slope, Vector2(1.0, 0.32) * CAR_SCALE)
+	c.draw_circle(Vector2.ZERO, 17.0, Color(0, 0, 0, 0.32))
+	c.draw_set_transform(at, slope, Vector2(face, 1.0) * CAR_SCALE)
+	# Grit behind the rear wheel, drifting back and fading.
+	if moving:
+		for k in 3:
+			var life := fmod(beat * 1.6 + float(k) / 3.0, 1.0)
+			c.draw_circle(Vector2(-14.0 - life * 12.0, 5.0 - life * 5.0), 1.6 + life * 2.4, Color(0.55, 0.47, 0.38, 0.45 * (1.0 - life)))
+	# Rails under the wheels.
+	c.draw_line(Vector2(-19, 9.5), Vector2(19, 9.5), Color(CAR_IRON, 0.75), 1.6, true)
+	# Wheels with turning spokes.
+	var spin := -beat * 7.0 if moving else 0.4
+	for wx in [-9.0, 9.0]:
+		var hub := Vector2(wx, 5.0)
+		c.draw_circle(hub, 4.6, CAR_IRON)
+		for s in 3:
+			var a := spin + float(s) * PI / 3.0
+			var d := Vector2(cos(a), sin(a)) * 3.6
+			c.draw_line(hub - d, hub + d, CAR_WOOD_LIT, 1.0, true)
+		c.draw_circle(hub, 1.3, CAR_WOOD_LIT)
+	# Deck, with the owner's colour on the side board.
+	c.draw_rect(Rect2(-15, -1, 30, 4), CAR_WOOD)
+	c.draw_rect(Rect2(-15, -1, 30, 1.4), CAR_WOOD_LIT)
+	c.draw_rect(Rect2(-13, 3, 26, 2), col.darkened(0.15))
+	# Sacks lashed at the back.
+	c.draw_circle(Vector2(-12, -3.5), 3.0, Color("b8a27a"))
+	c.draw_circle(Vector2(-9.0, -3.0), 2.6, Color("a68f68"))
+	c.draw_line(Vector2(-14.5, -3.5), Vector2(-7, -3.5), Color(CAR_IRON, 0.6), 0.8, true)
+	# Pump post and the see-saw beam.
+	var pivot := Vector2(0, -12)
+	c.draw_line(Vector2(0, -1), pivot, CAR_IRON, 2.0, true)
+	var arm := Vector2(cos(pump * 0.38), sin(pump * 0.38)) * 10.0
+	var front := pivot + arm
+	var back := pivot - arm
+	c.draw_line(back, front, CAR_WOOD, 2.2, true)
+	c.draw_circle(pivot, 1.6, CAR_IRON)
+	# Two crew, each pushing their end of the beam: body bends with the stroke.
+	for end in [front, back]:
+		var foot_x: float = clampf(end.x * 0.75, -9.0, 9.0)
+		var shoulder := Vector2(foot_x + (1.5 if end.x < 0.0 else -1.5), end.y + 4.5)
+		var hip := Vector2(foot_x, -3.0)
+		c.draw_line(Vector2(foot_x - 1.5, -1), hip, Color("3a3028"), 2.0, true)
+		c.draw_line(Vector2(foot_x + 1.5, -1), hip, Color("3a3028"), 2.0, true)
+		c.draw_line(hip, shoulder, col.darkened(0.1), 4.0, true)
+		c.draw_line(shoulder, end, col.darkened(0.25), 1.6, true)
+		c.draw_circle(shoulder + Vector2(0, -3.2), 2.4, CAR_SKIN)
+		c.draw_arc(shoulder + Vector2(0, -3.6), 2.6, PI, TAU, 8, Color("2b2118"), 1.4, true)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
-	c.draw_line(at + Vector2(face * 11.0, -1.0), at + Vector2(face * 19.0, -5.0), Color("2b2118"), 2.2, true)
-	var bed := Rect2(at + Vector2(-12, -7), Vector2(24, 12))
-	c.draw_rect(bed, Color("5e4329"))
-	c.draw_rect(Rect2(bed.position + Vector2(2, 2), Vector2(bed.size.x - 4, 3)), Color("8a6a44"))
-	c.draw_rect(bed, col.darkened(0.2), false, 2.0)
-	for wx in [-7.0, 7.0]:
-		c.draw_circle(at + Vector2(wx, 6.0), 4.0, Color("1e1812"))
-		c.draw_circle(at + Vector2(wx, 6.0), 1.5, Color("a08560"))
-	var disc := at + Vector2(0, -20)
-	c.draw_circle(disc + Vector2(1, 1.5), 11.0, Color(0, 0, 0, 0.3))
-	c.draw_circle(disc, 11.0, TAG_PAPER)
-	c.draw_arc(disc, 11.0, 0.0, TAU, 24, col.darkened(0.1), 2.0, true)
-	var icon := ArtPack.icon_texture(good, 16.0)
+	var disc := at + Vector2(0, -32) * CAR_SCALE
+	c.draw_circle(disc + Vector2(1, 1.5), 9.5, Color(0, 0, 0, 0.3))
+	c.draw_circle(disc, 9.5, TAG_PAPER)
+	c.draw_arc(disc, 9.5, 0.0, TAU, 24, col.darkened(0.1), 2.0, true)
+	var icon := ArtPack.icon_texture(good, 14.0)
 	if icon != null:
-		c.draw_texture_rect(icon, Rect2(disc - Vector2(8, 8), Vector2(16, 16)), false)
+		c.draw_texture_rect(icon, Rect2(disc - Vector2(7, 7), Vector2(14, 14)), false)
 
 
-## The expedition party out in its tunnel: walks out the first week, digs at the far end, walks back.
 func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 	if game.expedition.is_empty() or not game.squads.has(game.player):
 		return

@@ -3077,7 +3077,8 @@ func _resolve_queued() -> void:
 		var text := _order_result_text(kind, action, who, place, before, ok)
 		if ok:
 			title = Copy.t(_order_title(kind))
-		var report := {"title": title, "text": text, "ok": ok}
+		var report := {"title": title, "text": text, "ok": ok, "kind": kind, "person": str(row.get("person", "")),
+			"station": str(action.get("dest", "")) if kind == "move" else sid}
 		if ok and host != "":
 			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
 		order_reports.append(report)
