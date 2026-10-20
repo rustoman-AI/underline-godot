@@ -1,4 +1,11 @@
 MAP UNIT SET GENERATION REVIEW
+LATEST OWNER REVIEW, 20 Oct:
+trader_roll_v1 is ACCEPTED and imported as six frames. See ACCEPTED.txt.
+Tint is limited to the canopy; lower cargo including the milk can stays unchanged.
+squad_reference_v2.png uses the exact SQUAD REFERENCE CORRECTION prompt with v1 and both pilot images.
+Only attempt 2 was generated in this pass. It remains pending owner review; no squad loops generated.
+This status supersedes the earlier trader/squad candidate notes below.
+
 20 Oct owner acceptance supersedes the original rejection notes below:
 handcar_idle_v3 and trader_reference_v3 are ACCEPTED; see ACCEPTED.txt.
 Neutral grey without a colour cast is sufficient; exact hex is not required.
