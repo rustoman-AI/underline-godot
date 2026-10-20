@@ -142,3 +142,12 @@ Keep frame 1 exactly as it is in the attached sheet. Redraw the other frames so 
 CORRECTION (second or third attempt of any reference)
 ------------------------------------------------------------------
 Redraw this so it matches the attached handcar exactly in style, line weight, colour palette and the size of the people. Keep the grey part one plain neutral grey with no colour tint, and use no other neutral grey. Strict side view facing right, transparent background, plenty of empty space around it.
+
+==================================================================
+SQUAD REFERENCE CORRECTION (attempt 2, 20 Oct; attach squad_reference_v1.png plus the two pilot images)
+------------------------------------------------------------------
+Keep this picture exactly as it is: the same three guards, faces, clothes, gear, poses, style and size. Change only
+two things. First, repaint the three armbands in one plain neutral light grey with no warm, beige or blue cast,
+like a grey card, the same grey on all three. Second, make the canvas taller and move everything down so the
+spear tip and every other part stay well inside the image with clear empty space above. Transparent background
+with real alpha, no glow, no halo, no ground, no shadow, no text.
