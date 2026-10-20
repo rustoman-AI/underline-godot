@@ -1,8 +1,55 @@
 {
+	"accepted": true,
 	"anchor": [
-		110,
-		190
+		153.0,
+		253.0
 	],
-	"count": 8,
-	"placeholder": true
+	"count": 6,
+	"landmarks": [
+		{
+			"base": 163.0,
+			"center": 150.0,
+			"left": 68.5,
+			"rail": 486,
+			"right": 231.5
+		},
+		{
+			"base": 160.5,
+			"center": 147.25,
+			"left": 67.0,
+			"rail": 486,
+			"right": 227.5
+		},
+		{
+			"base": 157.5,
+			"center": 143.25,
+			"left": 64.5,
+			"rail": 486,
+			"right": 222.0
+		},
+		{
+			"base": 162.5,
+			"center": 147.75,
+			"left": 66.5,
+			"rail": 486,
+			"right": 229.0
+		},
+		{
+			"base": 158.5,
+			"center": 142.75,
+			"left": 63.5,
+			"rail": 486,
+			"right": 222.0
+		},
+		{
+			"base": 159.0,
+			"center": 143.5,
+			"left": 64.0,
+			"rail": 486,
+			"right": 223.0
+		}
+	],
+	"placeholder": false,
+	"source": "res://incoming-art/map_units/pilot/handcar_pump_attempt3.png",
+	"wheelbase": 163.0
 }

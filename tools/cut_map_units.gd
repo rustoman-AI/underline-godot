@@ -1,111 +1,161 @@
 extends SceneTree
 
-## Import 384 px cells through one checked pipeline. Use -- --placeholders before the painted delivery arrives.
-const COUNTS := {"handcar_pump": 8, "handcar_idle": 4, "trader_car": 8, "squad_walk": 8, "squad_stand": 4, "expedition_walk": 8, "puff": 6}
-const CELL := 384
-var failed := false
+## Cut the accepted six-frame pilot by alpha gaps and normalize around its wheel hubs and rail.
+const SOURCE := "res://incoming-art/map_units/pilot/handcar_pump_attempt3.png"
+const DEST := "res://assets/map/units/handcar_pump"
+const COUNT := 6
 
-## Cut supplied sheets, or explicitly generate replaceable development sheets, without silently mixing sources.
+## Validate all six images before replacing any imported frames.
 func _initialize() -> void:
-	var placeholders := OS.get_cmdline_user_args().has("--placeholders")
-	for kind in COUNTS:
-		var path := "res://incoming-art/map_units/" + str(kind) + ".png"
-		var sheet: Image
-		if placeholders:
-			sheet = _placeholder(str(kind), int(COUNTS[kind]))
-			var source := "res://incoming-art/map_units/placeholders"
-			DirAccess.make_dir_recursive_absolute(source)
-			sheet.save_png(source.path_join(str(kind) + ".png"))
-		else:
-			sheet = Image.load_from_file(path)
-		if sheet == null or sheet.is_empty():
-			push_error("Missing sheet: " + path)
-			failed = true
-			continue
-		_cut(str(kind), sheet, int(COUNTS[kind]))
-	quit(1 if failed else 0)
-
-## Share one crop and record the original sole anchor so replacement art cannot bob between frames.
-func _cut(kind: String, sheet: Image, count: int) -> void:
-	var cols := sheet.get_width() / CELL
-	if sheet.get_width() % CELL != 0 or sheet.get_height() % CELL != 0 or cols * (sheet.get_height() / CELL) != count:
-		push_error("Invalid cell grid: " + kind)
-		failed = true
+	var source := SOURCE
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--source="):
+			source = arg.trim_prefix("--source=")
+	var sheet := Image.load_from_file(source)
+	if sheet == null or sheet.is_empty():
+		push_error("Missing pilot: " + source)
+		quit(1)
+		return
+	var spans := _spans(sheet)
+	if spans.size() != COUNT:
+		push_error("handcar_pump: expected 6 alpha-separated frames, found %d; no assets written" % spans.size())
+		quit(1)
 		return
 	var cells: Array[Image] = []
-	var shared := Rect2i()
-	for i in count:
-		var cell := sheet.get_region(Rect2i((i % cols) * CELL, (i / cols) * CELL, CELL, CELL))
+	var marks: Array[Dictionary] = []
+	var shared := Rect2()
+	var target := 0.0
+	for i in COUNT:
+		var span: Vector2i = spans[i]
+		var cell := sheet.get_region(Rect2i(span.x, 0, span.y - span.x + 1, sheet.get_height()))
+		_clean(cell)
+		var wheel := _wheels(cell)
+		if wheel.is_empty():
+			push_error("Invalid wheel landmarks in frame %d; no assets written" % i)
+			quit(1)
+			return
+		if i == 0:
+			target = wheel.base
+		var factor: float = target / float(wheel.base)
 		var used := cell.get_used_rect()
-		if used.has_area():
-			shared = used if not shared.has_area() else shared.merge(used)
-			if used.position.x == 0 or used.position.y == 0 or used.end.x == CELL or used.end.y == CELL:
-				push_warning("Cell edge touched: %s f%d" % [kind, i])
+		var box := Rect2((Vector2(used.position) - Vector2(wheel.center, wheel.rail)) * factor, Vector2(used.size) * factor)
+		shared = box if i == 0 else shared.merge(box)
 		cells.append(cell)
-	if not shared.has_area():
-		push_error("Empty sheet: " + kind)
-		failed = true
-		return
-	shared = shared.grow(2).intersection(Rect2i(0, 0, CELL, CELL))
-	var dest := "res://assets/map/units/" + kind
-	DirAccess.make_dir_recursive_absolute(dest)
-	for i in count:
-		if cells[i].get_region(shared).save_png(dest.path_join("f%d.png" % i)) != OK:
-			failed = true
-	var file := FileAccess.open(dest.path_join("frames.json"), FileAccess.WRITE)
-	file.store_string(JSON.stringify({"count": count, "anchor": [192 - shared.position.x, 336 - shared.position.y], "placeholder": OS.get_cmdline_user_args().has("--placeholders")}, "\t"))
-	print("%s: %d frames, shared crop %s" % [kind, count, shared])
+		marks.append(wheel)
+		print("f%d columns %d..%d hubs %.2f / %.2f base %.2f rail %d scale %.5f" % [i, span.x, span.y, wheel.left, wheel.right, wheel.base, wheel.rail, factor])
+	var origin := shared.position.floor() - Vector2(3, 3)
+	var extent := Vector2i(shared.end.ceil() - origin + Vector2(3, 3))
+	DirAccess.make_dir_recursive_absolute(DEST)
+	for i in COUNT:
+		var wheel: Dictionary = marks[i]
+		var factor: float = target / float(wheel.base)
+		var anchor := Vector2(wheel.center, wheel.rail)
+		var out := Image.create(extent.x, extent.y, false, Image.FORMAT_RGBA8)
+		for y in extent.y:
+			for x in extent.x:
+				var p := Vector2i(((Vector2(x, y) + origin) / factor + anchor).round())
+				if p.x >= 0 and p.y >= 0 and p.x < cells[i].get_width() and p.y < cells[i].get_height():
+					out.set_pixel(x, y, cells[i].get_pixelv(p))
+		if out.save_png(DEST.path_join("f%d.png" % i)) != OK:
+			push_error("Could not save pilot frame %d" % i)
+			quit(1)
+			return
+	for name in DirAccess.get_files_at(DEST):
+		if name.begins_with("f") and name.get_extension() == "png" and int(name.trim_prefix("f").get_basename()) >= COUNT:
+			DirAccess.remove_absolute(DEST.path_join(name))
+			DirAccess.remove_absolute(DEST.path_join(name + ".import"))
+	var file := FileAccess.open(DEST.path_join("frames.json"), FileAccess.WRITE)
+	file.store_string(JSON.stringify({"count": COUNT, "anchor": [-origin.x, -origin.y], "wheelbase": target, "source": source, "landmarks": marks, "placeholder": false, "accepted": true}, "\t"))
+	print("PILOT: 6 frames, size %s, anchor %s" % [extent, -origin])
+	quit(0)
 
-## Rasterize simple development poses derived from the old handcar and crew, with neutral owner cloth.
-func _placeholder(kind: String, count: int) -> Image:
-	var sheet := Image.create(CELL * count, CELL, false, Image.FORMAT_RGBA8)
-	var grey := Color("c8c8c8")
-	var iron := Color("29231e")
-	var wood := Color("987346")
-	for i in count:
-		var o := Vector2(i * CELL + 192, 336)
-		var phase := float(i) / count * TAU
-		if kind == "puff":
-			for j in 5:
-				_disc(sheet, o + Vector2(-float(i) * 9 + j * 9, -12 - i * 5 - j * 3), 9 + i * 2, Color(0.66, 0.59, 0.48, (1.0 - float(i) / count) * 0.35))
-		elif kind.begins_with("handcar") or kind == "trader_car":
-			for x in [-65, 65]:
-				var hub := o + Vector2(x, -22)
-				_disc(sheet, hub, 22, iron)
-				for spoke in 4:
-					var v := Vector2.from_angle(phase + spoke * PI / 4) * 17
-					_line(sheet, hub - v, hub + v, 3, wood)
-			_line(sheet, o + Vector2(-100, -49), o + Vector2(100, -49), 17, wood)
-			_line(sheet, o + Vector2(-90, -40), o + Vector2(90, -40), 8, grey)
-			_line(sheet, o + Vector2(0, -50), o + Vector2(0, -130), 7, iron)
-			var arm := Vector2(63, sin(phase) * 18)
-			_line(sheet, o + Vector2(0, -130) - arm, o + Vector2(0, -130) + arm, 8, wood)
-			for side in [-1, 1]:
-				_person(sheet, o + Vector2(side * 58, -53), sin(phase) * side * 6, grey)
-		else:
-			for j in 3:
-				_person(sheet, o + Vector2((j - 1) * 70, -absf(j - 1) * 8), 0.0 if kind == "squad_stand" else sin(phase + j) * 15, grey)
-	return sheet
+## Detect occupied column runs using alpha greater than 60, independent of nominal cell dimensions.
+func _spans(image: Image) -> Array[Vector2i]:
+	var spans: Array[Vector2i] = []
+	var start := -1
+	for x in image.get_width() + 1:
+		var occupied := false
+		if x < image.get_width():
+			for y in image.get_height():
+				if image.get_pixel(x, y).a > 60.0 / 255.0:
+					occupied = true
+					break
+		if occupied and start < 0:
+			start = x
+		if not occupied and start >= 0:
+			spans.append(Vector2i(start, x - 1))
+			start = -1
+	return spans
 
-## Draw crew with distinct heads, coats and walking feet for readable placeholder poses.
-func _person(img: Image, foot: Vector2, stride: float, grey: Color) -> void:
-	_line(img, foot + Vector2(-12 - stride, -4), foot + Vector2(-8, -50), 12, Color("3e3933"))
-	_line(img, foot + Vector2(12 + stride, -4), foot + Vector2(8, -50), 12, Color("3e3933"))
-	_line(img, foot + Vector2(0, -48), foot + Vector2(stride * 0.25, -98), 28, grey)
-	_disc(img, foot + Vector2(stride * 0.25, -119), 16, Color("c9a07a"))
-	_line(img, foot + Vector2(-17, -130), foot + Vector2(17, -130), 10, Color("403329"))
-	_line(img, foot + Vector2(-12, -90), foot + Vector2(-27, -57 + stride), 9, grey)
-	_line(img, foot + Vector2(12, -90), foot + Vector2(27, -57 - stride), 9, grey)
+## Remove alpha below 40 and eight-connected islands smaller than thirty pixels.
+func _clean(image: Image) -> void:
+	var w := image.get_width()
+	var h := image.get_height()
+	var seen := PackedByteArray()
+	seen.resize(w * h)
+	for y in h:
+		for x in w:
+			if image.get_pixel(x, y).a < 40.0 / 255.0:
+				image.set_pixel(x, y, Color.TRANSPARENT)
+	for y in h:
+		for x in w:
+			if seen[y * w + x] != 0 or image.get_pixel(x, y).a == 0:
+				continue
+			var queue: Array[Vector2i] = [Vector2i(x, y)]
+			seen[y * w + x] = 1
+			var head := 0
+			while head < queue.size():
+				var p := queue[head]
+				head += 1
+				for dy in range(-1, 2):
+					for dx in range(-1, 2):
+						var q := p + Vector2i(dx, dy)
+						if q.x < 0 or q.y < 0 or q.x >= w or q.y >= h:
+							continue
+						var index := q.y * w + q.x
+						if seen[index] == 0 and image.get_pixelv(q).a > 0:
+							seen[index] = 1
+							queue.append(q)
+			if queue.size() < 30:
+				for p in queue:
+					image.set_pixelv(p, Color.TRANSPARENT)
 
-## Stamp a filled disc without requiring a rendering device in the headless import tool.
-func _disc(img: Image, at: Vector2, radius: float, col: Color) -> void:
-	for y in range(maxi(0, int(at.y - radius)), mini(img.get_height(), int(at.y + radius + 1))):
-		for x in range(maxi(0, int(at.x - radius)), mini(img.get_width(), int(at.x + radius + 1))):
-			if Vector2(x, y).distance_squared_to(at) <= radius * radius:
-				img.set_pixel(x, y, col)
-
-## Stroke between points with round caps for the old renderer's simple shapes.
-func _line(img: Image, a: Vector2, b: Vector2, width: float, col: Color) -> void:
-	var steps := maxi(1, int(a.distance_to(b)))
-	for i in steps + 1:
-		_disc(img, a.lerp(b, float(i) / steps), width * 0.5, col)
+## Find the two lower wheel silhouettes, excluding the thin rail, and use their symmetry axes as hub centres.
+func _wheels(image: Image) -> Dictionary:
+	var used := image.get_used_rect()
+	var rail := used.end.y - 1
+	for y in range(used.end.y - 1, used.end.y - 12, -1):
+		var pixels := 0
+		for x in image.get_width():
+			if image.get_pixel(x, y).a > 60.0 / 255.0:
+				pixels += 1
+		if pixels > image.get_width() * 0.65:
+			rail = y
+	var top := rail - int(image.get_width() * 0.05)
+	var runs: Array[Vector2i] = []
+	var start := -1
+	for x in image.get_width() + 1:
+		var occupied := false
+		if x < image.get_width():
+			for y in range(top, rail - 4):
+				if image.get_pixel(x, y).a > 60.0 / 255.0:
+					occupied = true
+					break
+		if occupied and start < 0:
+			start = x
+		if not occupied and start >= 0:
+			if x - start >= 12:
+				runs.append(Vector2i(start, x - 1))
+			start = -1
+	if runs.size() != 2:
+		push_error("Expected two wheel silhouettes, found %s" % str(runs))
+		return {}
+	var left := (runs[0].x + runs[0].y) * 0.5
+	var right := (runs[1].x + runs[1].y) * 0.5
+	var bottom := 0
+	for run in runs:
+		for x in range(run.x, run.y + 1):
+			for y in range(top, rail):
+				if image.get_pixel(x, y).a > 60.0 / 255.0:
+					bottom = maxi(bottom, y)
+	return {"left": left, "right": right, "center": (left + right) * 0.5, "base": right - left, "rail": bottom}
