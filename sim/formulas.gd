@@ -41,11 +41,12 @@ static func sympathy_gain(base: float, player_lean: String, station_lean: String
 
 
 ## First 4 weeks the capital pays upkeep. After that the outpost ships surplus, minus 1 per tunnel segment.
-static func outpost_flow(age: int, hops: int, focus: String) -> Dictionary:
+## A governor adds bonus to the focus good after the distance penalty, and may shorten settling in (settle weeks).
+static func outpost_flow(age: int, hops: int, focus: String, bonus: int = 0, settle: int = 4) -> Dictionary:
 	var flow := {"food": 0, "materials": 0, "tokens": 0, "influence": 0, "air": 0, "upkeep_materials": 0}
 	if hops < 1 or hops >= 900 or age <= 0:
 		return flow
-	if age <= 4:
+	if age <= settle:
 		flow.upkeep_materials = 1
 		return flow
 	var food := 5
@@ -67,6 +68,9 @@ static func outpost_flow(age: int, hops: int, focus: String) -> Dictionary:
 	flow.tokens = maxi(0, tokens - hops)
 	flow.influence = maxi(0, influence - hops)
 	flow.air = maxi(0, air - hops)
+	if bonus > 0:
+		var good: String = {"food": "food", "air": "air", "defense": "materials", "influence": "influence"}.get(focus, "food")
+		flow[good] = int(flow[good]) + bonus
 	return flow
 
 

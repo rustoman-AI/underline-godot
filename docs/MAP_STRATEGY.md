@@ -23,7 +23,7 @@ Each is one package. The ones marked **balance** change numbers and need the 30-
    to their seat. The map shows a living world, and a player sees a rival build-up before it hits. View only.
 3. **Yield preview on stations you do not hold** (done 19 Oct). Hover a known station: faint chips of what it would ship once
    yours. Lets the player choose the next target by need ("we are short on air, take the pump station").
-4. **Governors from the council** (Crusader Kings). Put a named council member or resident in charge of a held
+4. **Governors** (Crusader Kings, done 19 Oct, see docs/GOVERNORS_PLAN.md). Put a named council member or resident in charge of a held
    station. Their main skill adds to its yield (Tech to materials, Speech to influence), their traits colour events
    ("the governor of Spring St is stealing"). Opinion of the governor feeds the station's loyalty. **balance**
 5. **Each station its own goods** (Civ resources). Today one formula gives every outpost the same base. Give each

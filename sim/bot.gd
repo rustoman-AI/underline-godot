@@ -91,6 +91,8 @@ func _act(game: Game) -> void:
 	var project := _project(game)
 	if not project.is_empty():
 		game.apply(project)
+	if profile == "expander":
+		_appoint_governors(game)
 	game.apply({"kind": "staff"})
 	var spent := 0
 	while spent < game.council.size():
@@ -102,6 +104,24 @@ func _act(game: Game) -> void:
 		spent += 1
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
+
+
+## The expander puts the best matching non-councillor in charge of every settled outpost while influence is at 20
+## or more, when that person adds something (a focus bonus or the Talk loyalty). Careful and follower never do, so
+## they stay the baseline the balance corridors were set on.
+func _appoint_governors(game: Game) -> void:
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if str(st.owner) != game.player or str(sid) == game.capital_id or str(st.get("governor", "")) != "":
+			continue
+		if int(st.held_weeks) < 4 or int(game.stock.influence) < 20:
+			continue
+		for row in game.governor_candidates(str(sid)):
+			if bool(row.council):
+				continue
+			if int(row.bonus) > 0 or int(row.talk) >= int(game.bal.governor.talk_min):
+				game.apply({"kind": "appoint", "station": str(sid), "person": str(row.id)})
+			break
 
 
 ## Bots march only on the expedition, so they keep no guard until it is due: they send the start guard back to

@@ -23,6 +23,7 @@ func _init() -> void:
 	SaveGame.root = "user://check_save_%d" % OS.get_process_id()
 	_wipe(SaveGame.root)
 	_legacy()
+	_governors()
 	_rejects()
 	_story_saves()
 	_shared_catalog()
@@ -162,6 +163,79 @@ func _legacy() -> void:
 		and game.check_rng.state == fresh.check_rng.state,
 		"First save format rebuilds the check schedule from the seed (%d checks)" % game.check_schedule.size(),
 		"check schedule %s vs fresh %s, stream %d vs %d" % [game.check_schedule, fresh.check_schedule, game.check_rng.state, fresh.check_rng.state])
+
+
+## Governors (docs/GOVERNORS_PLAN.md): appoint, the bonus, the councillor rule, a lost station, and the save format.
+func _governors() -> void:
+	var game := _game(1)
+	var held := ""
+	for n in game._neighbors(game.capital_id):
+		if str(game.stations[str(n)].owner) == "neutral":
+			held = str(n)
+			break
+	if held == "":
+		_expect(false, "", "governors: no neutral neighbour of the capital")
+		return
+	var st: Dictionary = game.stations[held]
+	st.owner = game.player
+	st.held_weeks = 6
+	st.focus = "food"
+	game.stock.influence = 50
+	var before := int(game.outpost_yield(held).get("food", 0))
+	var picks: Array = game.governor_candidates(held)
+	var pick: Dictionary = {}
+	for row in picks:
+		if int(row.bonus) > 0 and not bool(row.council):
+			pick = row
+			break
+	_expect(not pick.is_empty(), "Governor candidates include a skilled non-councillor", "candidates %s" % [picks])
+	if pick.is_empty():
+		return
+	var pid := str(pick.id)
+	var ok: bool = game.apply({"kind": "appoint", "station": held, "person": pid})
+	var after := int(game.outpost_yield(held).get("food", 0))
+	var staffed := false
+	for room in game.rooms:
+		staffed = staffed or room.staff.has(pid)
+	_expect(ok and int(game.stock.influence) == 45 and str(st.governor) == pid and int(game.people[pid].absent) > 0 and not staffed,
+		"Appointing a governor costs 5 influence and takes them off the rooms",
+		"appoint ok=%s influence=%d governor=%s absent=%d staffed=%s" % [ok, int(game.stock.influence), st.governor, int(game.people[pid].absent), staffed])
+	_expect(after == before + int(pick.bonus), "Governor adds the skill bonus to the focus good (%d to %d)" % [before, after],
+		"yield %d to %d, bonus %d" % [before, after, int(pick.bonus)])
+	_expect(not game.apply({"kind": "appoint", "station": held, "person": str(picks[-1].id)}), "One governor per station", "a second governor was appointed")
+	var copy := game.export_state()
+	copy["schema"] = Game.SAVE_SCHEMA
+	var loaded := _game(2)
+	_expect(loaded.import_state(copy) and str(loaded.stations[held].governor) == pid, "Governor survives save and load",
+		"load %s governor %s" % [loaded.load_error, str(loaded.stations[held].get("governor", ""))])
+	var old := game.export_state()
+	old["schema"] = 7
+	for sid in old.stations:
+		old.stations[sid].erase("governor")
+	var legacy := _game(2)
+	var none := legacy.import_state(old)
+	for sid in legacy.stations:
+		none = none and str(legacy.stations[sid].get("governor", "x")) == ""
+	_expect(none, "Schema 7 save migrates with no governors", "schema 7 %s" % legacy.load_error)
+	game._hold_governors()
+	game._tick_sickness()
+	_expect(int(game.people[pid].absent) > 0, "A governor stays away through the weekly tick", "absent %d" % int(game.people[pid].absent))
+	st.owner = "neutral"
+	game._settle_governors()
+	_expect(str(st.governor) == "" and int(game.people[pid].sick) == 3 and int(game.people[pid].absent) == 0,
+		"A lost station sends its governor home sick for 3 weeks",
+		"governor %s sick %d absent %d" % [st.governor, int(game.people[pid].sick), int(game.people[pid].absent)])
+	st.owner = game.player
+	var seat: Dictionary = game.council[0]
+	var cid := str(seat.id)
+	game.people[cid].sick = 0
+	game.people[cid].absent = 0
+	var appointed := game.appoint_governor(held, cid)
+	for other in game.council:
+		if str(other.id) != cid:
+			game.seat_used[str(other.role)] = "test"
+	_expect(appointed and game.order_councillor().is_empty(), "A governing councillor gives no order",
+		"appointed %s councillor %s" % [appointed, game.order_councillor()])
 
 
 func _rejects() -> void:

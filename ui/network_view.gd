@@ -1128,6 +1128,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_plan_yields(game)
 	_draw_tags(c, game)
 	_draw_yields(c, game)
+	_draw_governors(c, game)
 	_draw_flags(c, game)
 	_draw_squads(c, game)
 	_draw_intents(c, game)
@@ -1868,7 +1869,7 @@ const CARAVAN_SPACING := 200.0
 const TRADE_GOLD := Color("c9a227")
 const SETTLE_WEEKS := 5
 ## What each rival's carts carry, by what the faction lives on.
-const RIVAL_GOOD := {"exchange": "tokens", "directorate": "materials", "synod": "influence", "depot": "food", "lamplighters": "air"}
+const RIVAL_GOOD := {"exchange": "tokens", "directorate": "materials", "synod": "influence", "depot": "food", "black_flag": "air"}
 var _unit_layer: Control
 var _caravans: Array = []
 var _chip_box: StyleBoxFlat
@@ -1887,6 +1888,152 @@ func _chip_at(screen_at: Vector2) -> String:
 	return ""
 
 
+## A popup menu dressed as a paper card (cream, brown rim, gold hover), so menus on the map match the sheets.
+func _paper_menu(picked: Callable) -> PopupMenu:
+	var menu := PopupMenu.new()
+	menu.id_pressed.connect(picked)
+	var card := StyleBoxFlat.new()
+	card.bg_color = CARD
+	card.border_color = Color("8a6a44")
+	card.set_border_width_all(2)
+	card.set_corner_radius_all(4)
+	card.set_content_margin_all(8)
+	card.shadow_color = Color(0, 0, 0, 0.35)
+	card.shadow_size = 6
+	card.shadow_offset = Vector2(2, 3)
+	var lit := StyleBoxFlat.new()
+	lit.bg_color = Color(TRADE_GOLD, 0.28)
+	lit.set_corner_radius_all(3)
+	var rule := StyleBoxLine.new()
+	rule.color = Color(CARD_MUTED, 0.5)
+	rule.thickness = 1
+	menu.add_theme_stylebox_override("panel", card)
+	menu.add_theme_stylebox_override("hover", lit)
+	menu.add_theme_stylebox_override("separator", rule)
+	menu.add_theme_stylebox_override("labeled_separator_left", rule)
+	menu.add_theme_stylebox_override("labeled_separator_right", rule)
+	menu.add_theme_color_override("font_color", CARD_INK)
+	menu.add_theme_color_override("font_hover_color", CARD_INK)
+	menu.add_theme_color_override("font_disabled_color", Color(CARD_MUTED, 0.7))
+	menu.add_theme_color_override("font_separator_color", CARD_MUTED)
+	menu.add_theme_constant_override("v_separation", 10)
+	menu.add_theme_constant_override("h_separation", 8)
+	menu.add_theme_font_override("font", _font())
+	menu.add_theme_font_size_override("font_size", 15)
+	if _tag_font != null:
+		menu.add_theme_font_override("font_separator", _tag_font)
+	menu.add_theme_font_size_override("font_separator_size", 16)
+	add_child(menu)
+	return menu
+
+
+## Governors on the station card: who holds it (portrait, skill, what they add) with Recall, or Appoint, which opens
+## a picker of residents sorted by what they would add, each with the price.
+var _gov_menu: PopupMenu
+var _gov_menu_sid := ""
+var _gov_menu_ids: Array = []
+
+
+func _add_governor(game, st: Dictionary, sid: String, parent: Node) -> void:
+	var pid := str(st.get("governor", ""))
+	var focus := str(st.get("focus", "food"))
+	var block := VBoxContainer.new()
+	block.add_theme_constant_override("separation", 4)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	block.add_child(row)
+	if pid != "" and game.people.has(pid):
+		var person: Dictionary = game.people[pid]
+		if host != null and host.has_method("_portrait_box"):
+			row.add_child(host._portrait_box(pid, 44))
+		var key := str(game.GOVERNOR_SKILL.get(focus, "labor"))
+		var bonus := int(game.governor_bonus(pid, focus))
+		var line := "%s: %s\n%s %d" % [Copy.t("Governor"), Copy.person(str(person.name)), Copy.skill(key), int(person.skills.get(key, 0))]
+		if bonus > 0:
+			line += " · +%d %s" % [bonus, Copy.res(str(FOCUS_GOOD.get(focus, "food")))]
+		var text := _lab(line, 14, false)
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(text)
+		var back := Button.new()
+		back.text = Copy.t("Recall")
+		back.tooltip_text = Copy.t("Bring them home now. Their old room takes them back if there is space.")
+		back.pressed.connect(_recall_governor.bind(sid))
+		block.add_child(back)
+	else:
+		var text := _lab(Copy.t("No governor. One of ours in charge ships more and keeps the station loyal."), 14, false)
+		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(text)
+		var pick := Button.new()
+		block.add_child(pick)
+		pick.text = Copy.t("Appoint")
+		pick.tooltip_text = Copy.t("%d influence, then %d a week.") % [int(game.bal.governor.appoint_influence), int(game.bal.governor.weekly_influence)]
+		pick.disabled = game.governor_candidates(sid).is_empty()
+		pick.pressed.connect(func(): open_governor_menu(sid, pick.get_global_rect().position - get_global_rect().position + Vector2(0, pick.size.y)))
+	parent.add_child(block)
+
+
+func open_governor_menu(sid: String, at: Vector2) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	if _gov_menu == null:
+		_gov_menu = _paper_menu(_on_governor_picked)
+	_gov_menu.clear()
+	_gov_menu_sid = sid
+	_gov_menu_ids.clear()
+	var g: Dictionary = game.bal.governor
+	_gov_menu.add_separator(Copy.t("Who holds %s?") % str(game.station_text(sid, "community")))
+	var focus := str(game.stations[sid].get("focus", "food"))
+	var good := Copy.res(str(FOCUS_GOOD.get(focus, "food")))
+	var short: bool = int(game.stock.influence) < int(g.appoint_influence)
+	for row in game.governor_candidates(sid).slice(0, 8):
+		var bits: PackedStringArray = ["%s %d" % [Copy.skill(str(row.skill_key)), int(row.skill)]]
+		if int(row.bonus) > 0:
+			bits.append("+%d %s" % [int(row.bonus), good])
+		if int(row.talk) >= int(g.talk_min):
+			bits.append(Copy.t("loyalty +%d a week") % int(g.talk_loyalty))
+		if bool(row.council):
+			bits.append(Copy.t("councillor: no order while away"))
+		var label := "%s   %s" % [Copy.person(str(row.name)), ", ".join(bits)]
+		var id := _gov_menu_ids.size()
+		_gov_menu_ids.append(str(row.id))
+		_gov_menu.add_item(label, id)
+		_gov_menu.set_item_disabled(_gov_menu.get_item_index(id), short)
+	_gov_menu.add_separator(Copy.t("%d influence, then %d a week.") % [int(g.appoint_influence), int(g.weekly_influence)])
+	_gov_menu.reset_size()
+	_gov_menu.popup(Rect2i(Vector2i(get_screen_position() + at), Vector2i.ZERO))
+
+
+func _on_governor_picked(id: int) -> void:
+	var game = _game()
+	if game == null or id < 0 or id >= _gov_menu_ids.size():
+		return
+	var sid := _gov_menu_sid
+	var pid := str(_gov_menu_ids[id])
+	if not game.apply({"kind": "appoint", "station": sid, "person": pid}):
+		return
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.t("%s now holds %s for us.") % [Copy.person(str(game.people[pid].name)), str(game.station_text(sid, "community"))])
+	_after_governor()
+
+
+func _recall_governor(sid: String) -> void:
+	var game = _game()
+	if game == null or not game.apply({"kind": "recall", "station": sid}):
+		return
+	_after_governor()
+
+
+func _after_governor() -> void:
+	if host != null:
+		if host.has_method("_ui_click"):
+			host._ui_click()
+		if host.has_method("_refresh"):
+			host._refresh()
+	refresh()
+
+
 ## The focus menu under a held station's chips: one row per focus with what it would ship home, the current one
 ## ticked. Picking a row is the same order as the focus buttons on the station card.
 func open_focus_menu(sid: String, screen_at: Vector2) -> void:
@@ -1894,39 +2041,7 @@ func open_focus_menu(sid: String, screen_at: Vector2) -> void:
 	if game == null or not game.stations.has(sid):
 		return
 	if _focus_menu == null:
-		_focus_menu = PopupMenu.new()
-		_focus_menu.id_pressed.connect(_on_focus_picked)
-		var card := StyleBoxFlat.new()
-		card.bg_color = CARD
-		card.border_color = Color("8a6a44")
-		card.set_border_width_all(2)
-		card.set_corner_radius_all(4)
-		card.set_content_margin_all(8)
-		card.shadow_color = Color(0, 0, 0, 0.35)
-		card.shadow_size = 6
-		card.shadow_offset = Vector2(2, 3)
-		var lit := StyleBoxFlat.new()
-		lit.bg_color = Color(TRADE_GOLD, 0.28)
-		lit.set_corner_radius_all(3)
-		var rule := StyleBoxLine.new()
-		rule.color = Color(CARD_MUTED, 0.5)
-		rule.thickness = 1
-		_focus_menu.add_theme_stylebox_override("panel", card)
-		_focus_menu.add_theme_stylebox_override("hover", lit)
-		_focus_menu.add_theme_stylebox_override("separator", rule)
-		_focus_menu.add_theme_stylebox_override("labeled_separator_left", rule)
-		_focus_menu.add_theme_stylebox_override("labeled_separator_right", rule)
-		_focus_menu.add_theme_color_override("font_color", CARD_INK)
-		_focus_menu.add_theme_color_override("font_hover_color", CARD_INK)
-		_focus_menu.add_theme_color_override("font_separator_color", CARD_MUTED)
-		_focus_menu.add_theme_constant_override("v_separation", 10)
-		_focus_menu.add_theme_constant_override("h_separation", 8)
-		_focus_menu.add_theme_font_override("font", _font())
-		_focus_menu.add_theme_font_size_override("font_size", 15)
-		if _tag_font != null:
-			_focus_menu.add_theme_font_override("font_separator", _tag_font)
-		_focus_menu.add_theme_font_size_override("font_separator_size", 16)
-		add_child(_focus_menu)
+		_focus_menu = _paper_menu(_on_focus_picked)
 	_focus_menu.clear()
 	_focus_menu_sid = sid
 	var st: Dictionary = game.stations[sid]
@@ -2096,11 +2211,43 @@ func _yield_cells(game, sid: String, st: Dictionary) -> Array:
 		cells.append({"icon": "clock", "text": str(left), "col": MUTED, "ring": false})
 		return cells
 	var focus_good := str(FOCUS_GOOD.get(str(st.get("focus", "food")), "food"))
+	var lift := int(game.governor_bonus(str(st.get("governor", "")), str(st.get("focus", "food"))))
 	for key in YIELD_KEYS:
 		var gain := int(flow.get(key, 0))
 		if gain > 0:
-			cells.append({"icon": key, "text": "+%d" % gain, "col": INK, "ring": key == focus_good})
+			var boosted: bool = key == focus_good and lift > 0
+			cells.append({"icon": key, "text": "+%d ▲%d" % [gain, lift] if boosted else "+%d" % gain, "col": TRADE_GOLD.lightened(0.25) if boosted else INK, "ring": key == focus_good})
 	return cells
+
+
+## A governed station wears its governor's face as a round seal on the lower left of the pin.
+func _draw_governors(c: CanvasItem, game) -> void:
+	if host == null or not host.has_method("_portrait_for"):
+		return
+	for sid in _layout:
+		var st: Dictionary = game.stations[sid]
+		var pid := str(st.get("governor", ""))
+		if pid == "" or str(st.owner) != str(game.player):
+			continue
+		var face: Texture2D = host._portrait_for(pid)
+		var row: Dictionary = _layout[sid]
+		var r := float(row.r)
+		var at: Vector2 = (row.at as Vector2) + Vector2(-r * 0.95, r * 0.45)
+		var rad := 12.0
+		c.draw_circle(at + Vector2(1, 2), rad + 2.5, Color(0, 0, 0, 0.35))
+		c.draw_circle(at, rad + 2.5, TRADE_GOLD)
+		if face != null:
+			var pts := PackedVector2Array()
+			var uvs := PackedVector2Array()
+			for i in 24:
+				var a := TAU * float(i) / 24.0
+				var d := Vector2(cos(a), sin(a))
+				pts.append(at + d * rad)
+				uvs.append(Vector2(0.5, 0.42) + d * 0.42)
+			c.draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, face)
+		else:
+			c.draw_circle(at, rad, TAG_PAPER)
+		c.draw_arc(at, rad + 2.5, 0.0, TAU, 28, Color("5e4329"), 1.2, true)
 
 
 func _caravan_routes(game) -> Array:
@@ -3135,6 +3282,7 @@ func _add_own_facts(game, st: Dictionary, sid: String, parent: Node, details: No
 	parent.add_child(_lab("%s: %d" % [Copy.t("Garrison"), int(st.garrison)], 14, false))
 	if str(sid) != str(game.capital_id):
 		parent.add_child(_lab("%s: %s" % [Copy.t("Sends home"), Copy.t(_focus_word(str(st.get("focus", "food"))))], 14, false))
+		_add_governor(game, st, str(sid), parent)
 	parent.add_child(_lab(_supply_text(game, sid), 14, false))
 	parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
 	_add_needs(st, details)

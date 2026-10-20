@@ -340,6 +340,10 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_recruit()
 		"dismiss":
 			ok = _apply_dismiss()
+		"appoint":
+			ok = appoint_governor(str(action.get("station", "")), str(action.get("person", "")))
+		"recall":
+			ok = recall_governor(str(action.get("station", "")))
 		"audience":
 			ok = _apply_help() if bool(action.get("help", false)) else _apply_audience(bool(action.get("accept", false)))
 		_:
@@ -844,6 +848,9 @@ func dig_possible(for_space: bool) -> bool:
 func _dawn() -> void:
 	_resolve_queued()
 	orders_left = council.size()
+	for seat in council:
+		if governor_of(str(seat.id)) != "":
+			orders_left -= 1
 	seat_used = {}
 	pumped = false
 	quarantine = false
@@ -2930,7 +2937,7 @@ func order_councillor() -> Dictionary:
 	for seat in council:
 		var role := str(seat.role)
 		var pid := str(seat.id)
-		if str(seat_used.get(role, "")) != "" or busy.has(pid):
+		if str(seat_used.get(role, "")) != "" or busy.has(pid) or governor_of(pid) != "":
 			continue
 		var person: Dictionary = people.get(pid, {})
 		return {"role": role, "id": pid, "name": str(person.get("name", role))}
@@ -3977,6 +3984,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_log(line, true)
 	else:
 		_log("%s takes %s" % [_fname(fid), st.name], true)
+	_settle_governors()
 	if sid == capital_id and fid != player and over == "":
 		over = "capital"
 		_log("The yard has fallen.", true)
@@ -4030,7 +4038,170 @@ func outpost_yield(sid: String, focus: String = "", settled: bool = false) -> Di
 	var age := int(st.get("held_weeks", 0)) + 1
 	if settled:
 		age = maxi(age, 5)
-	return Formulas.outpost_flow(age, _supply_hops(sid), focus if focus != "" else str(st.get("focus", "")))
+	var use := focus if focus != "" else str(st.get("focus", ""))
+	var gov := str(st.get("governor", ""))
+	return Formulas.outpost_flow(age, _supply_hops(sid), use, governor_bonus(gov, use), governor_settle(gov))
+
+
+# --- governors ---
+## A resident who holds a station for the player (docs/GOVERNORS_PLAN.md). The station carries the person's id in
+## "governor"; while they govern they are away from home (absent, held there each week) and their room post is kept
+## for their return. A councillor may govern, but their seat gives no order while they are away.
+const GOVERNOR_SKILL := {"food": "labor", "air": "tech", "defense": "fight", "influence": "talk"}
+
+
+## The extra focus goods a person adds as governor: +1 at the first skill line, +2 at the second.
+func governor_bonus(pid: String, focus: String) -> int:
+	if not people.has(pid):
+		return 0
+	var g: Dictionary = bal.governor
+	var skill := int(people[pid].skills.get(str(GOVERNOR_SKILL.get(focus if focus != "" else "food", "labor")), 0))
+	if skill >= int(g.skill_plus_two):
+		return 2
+	if skill >= int(g.skill_plus_one):
+		return 1
+	return 0
+
+
+## Weeks a station takes to settle in under this governor (shorter with a strong worker in charge).
+func governor_settle(pid: String) -> int:
+	var g: Dictionary = bal.governor
+	if people.has(pid) and int(people[pid].skills.get("labor", 0)) >= int(g.labor_min):
+		return int(g.settle_weeks_labor)
+	return int(g.settle_weeks)
+
+
+## The station a person governs, or "".
+func governor_of(pid: String) -> String:
+	for sid in stations:
+		if str(stations[sid].get("governor", "")) == pid and pid != "":
+			return str(sid)
+	return ""
+
+
+func governor_block(sid: String, pid: String) -> String:
+	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
+		return Copy.t("That station is out of reach.")
+	if str(stations[sid].get("governor", "")) != "":
+		return Copy.t("The station already has a governor.")
+	if not people.has(pid):
+		return Copy.t("No such person.")
+	var person: Dictionary = people[pid]
+	if governor_of(pid) != "":
+		return Copy.t("They already govern a station.")
+	if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+		return Copy.t("They are not at the station now.")
+	if _locked_ids().has(pid) or bool(person.get("soldier", false)):
+		return Copy.t("They are on a crew or in the guard.")
+	if (bal.governor.get("too_young", []) as Array).has(pid):
+		return Copy.t("Too young to hold a station.")
+	if int(stock.influence) < int(bal.governor.appoint_influence):
+		return influence_short()
+	return ""
+
+
+## Who could govern a station, best first by what they would add to its focus: [{id, name, skill, bonus, council}].
+func governor_candidates(sid: String) -> Array:
+	var out: Array = []
+	if not stations.has(sid):
+		return out
+	var focus := str(stations[sid].get("focus", "food"))
+	var key := str(GOVERNOR_SKILL.get(focus if focus != "" else "food", "labor"))
+	for person in residents:
+		var pid := str(person.id)
+		var why := governor_block(sid, pid)
+		if why != "" and why != influence_short():
+			continue
+		out.append({"id": pid, "name": str(person.name), "skill": int(person.skills.get(key, 0)), "skill_key": key,
+			"bonus": governor_bonus(pid, focus), "council": _is_council(pid), "talk": int(person.skills.get("talk", 0))})
+	out.sort_custom(func(a, b): return [int(a.bonus), not bool(a.council), int(a.skill)] > [int(b.bonus), not bool(b.council), int(b.skill)])
+	return out
+
+
+func appoint_governor(sid: String, pid: String) -> bool:
+	if governor_block(sid, pid) != "":
+		return false
+	var g: Dictionary = bal.governor
+	stock.influence = int(stock.influence) - int(g.appoint_influence)
+	_mark_post(pid)
+	_unassign(pid)
+	people[pid].absent = maxi(int(people[pid].get("absent", 0)), 2)
+	stations[sid].governor = pid
+	if _has_trait(people[pid], "Veteran"):
+		stations[sid].garrison = int(stations[sid].garrison) + int(g.veteran_garrison)
+	if _is_council(pid):
+		for seat in council:
+			if str(seat.id) == pid and str(seat_used.get(str(seat.role), "")) == "":
+				orders_left = maxi(0, orders_left - 1)
+	decisions += 1
+	_note("%s now holds %s for us." % [people[pid].name, stations[sid].name], "%s теперь держит для нас станцию «%s»." % [Copy.person(str(people[pid].name)), Copy.t(str(stations[sid].name))])
+	_journal("governor", {"station": sid, "person": pid})
+	return true
+
+
+## Brings the governor home now; sick_weeks > 0 when they walk home from a lost station.
+func recall_governor(sid: String, sick_weeks: int = 0) -> bool:
+	if not stations.has(sid):
+		return false
+	var pid := str(stations[sid].get("governor", ""))
+	if pid == "":
+		return false
+	stations[sid].governor = ""
+	if not people.has(pid):
+		return true
+	if _has_trait(people[pid], "Veteran"):
+		stations[sid].garrison = maxi(0, int(stations[sid].garrison) - int(bal.governor.veteran_garrison))
+	people[pid].absent = 0
+	if sick_weeks > 0:
+		people[pid].sick = maxi(int(people[pid].get("sick", 0)), sick_weeks)
+		_note("%s walks home from %s, hurt." % [people[pid].name, stations[sid].name], "%s возвращается из «%s» с ранением." % [Copy.person(str(people[pid].name)), Copy.t(str(stations[sid].name))])
+	else:
+		_log("RECALL %s from %s" % [people[pid].name, stations[sid].name])
+		_restore_post(pid)
+	return true
+
+
+## Releases governors of stations that are no longer the player's (they walk home hurt) and of people who are gone.
+func _settle_governors() -> void:
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		var pid := str(st.get("governor", ""))
+		if pid == "":
+			continue
+		if not people.has(pid):
+			st.governor = ""
+		elif str(st.owner) != player:
+			recall_governor(str(sid), int(bal.governor.lost_sick_weeks))
+
+
+## Keeps every governor away from home through the weekly absence tick.
+func _hold_governors() -> void:
+	for sid in stations:
+		var pid := str(stations[sid].get("governor", ""))
+		if pid != "" and people.has(pid):
+			people[pid].absent = maxi(int(people[pid].get("absent", 0)), 2)
+
+
+## The governor's weekly price and the station-side effects of who they are. Called with the outpost deliveries.
+func _pay_governors() -> void:
+	var g: Dictionary = bal.governor
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		var pid := str(st.get("governor", ""))
+		if pid == "" or not people.has(pid):
+			continue
+		if int(stock.influence) < int(g.weekly_influence):
+			_note("No influence left to keep a governor. %s comes home." % people[pid].name, "Влияния на наместника не осталось. %s возвращается домой." % Copy.person(str(people[pid].name)))
+			recall_governor(str(sid))
+			continue
+		stock.influence = int(stock.influence) - int(g.weekly_influence)
+		var person: Dictionary = people[pid]
+		if int(person.skills.get("talk", 0)) >= int(g.talk_min):
+			st.loyalty = mini(100, int(st.loyalty) + int(g.talk_loyalty))
+		if _has_trait(person, "Devout") and int(st.unrest) > 0:
+			st.unrest = int(st.unrest) - 1
+		if _has_trait(person, "Black marketeer") and _supply_hops(str(sid)) < 900:
+			stock.tokens = int(stock.tokens) + int(g.marketeer_tokens)
 
 
 ## What a station the player does not hold would ship home once taken and settled in, at its current focus (food
@@ -4130,6 +4301,8 @@ func _campaign_target(fid: String) -> String:
 
 
 func _deliver_outposts() -> void:
+	_settle_governors()
+	_pay_governors()
 	for sid in stations.keys():
 		var st: Dictionary = stations[sid]
 		if str(st.owner) != player or sid == capital_id:
@@ -4138,7 +4311,8 @@ func _deliver_outposts() -> void:
 		var hops := _supply_hops(str(sid))
 		if hops >= 900:
 			continue
-		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus))
+		var gov := str(st.get("governor", ""))
+		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus), governor_bonus(gov, str(st.focus)), governor_settle(gov))
 		var upkeep := int(flow.upkeep_materials)
 		if upkeep > 0:
 			stock.materials = maxi(0, int(stock.materials) - upkeep)
@@ -4196,6 +4370,7 @@ func _tick_holdings() -> void:
 					st.unrest = 0
 					st.low_weeks = 0
 					_note_flip(sid, player, "neutral")
+					_settle_governors()
 
 
 func _press_loyalty(st: Dictionary) -> void:
@@ -4637,6 +4812,7 @@ func _heal() -> void:
 
 
 func _tick_sickness() -> void:
+	_hold_governors()
 	for person in residents:
 		var was_out := int(person.absent) > 0 or int(person.sick) > 0
 		if int(person.absent) > 0:
@@ -6086,7 +6262,7 @@ func use_medkits() -> bool:
 	for person in residents:
 		if healed >= 2:
 			break
-		if int(person.get("absent", 0)) > 0:
+		if int(person.get("absent", 0)) > 0 and governor_of(str(person.id)) == "":
 			person.absent = 0
 			healed += 1
 	for person in residents:
@@ -6104,7 +6280,7 @@ func use_medkits() -> bool:
 func medkit_targets() -> int:
 	var n := 0
 	for person in residents:
-		if int(person.get("absent", 0)) > 0 or int(person.get("sick", 0)) > 0:
+		if (int(person.get("absent", 0)) > 0 and governor_of(str(person.id)) == "") or int(person.get("sick", 0)) > 0:
 			n += 1
 	return n
 
@@ -7036,6 +7212,7 @@ func _init_map() -> void:
 			"loyalty": 78 if owner != "ruin" else 40,
 			"unrest": 0,
 			"focus": "",
+			"governor": "",
 			"deals": 0,
 			"passage": false,
 			"known": false,
@@ -7724,8 +7901,9 @@ const PERSIST := [
 ## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
 ## Adding a PERSIST key needs a new schema number and its own migration list. Version 7 added sex and face to
-## every person; older saves get them from the profiles and names on load (_dress_legacy).
-const SAVE_SCHEMA := 7
+## every person; older saves get them from the profiles and names on load (_dress_legacy). Version 8 added
+## "governor" to every station; older saves start with no governors.
+const SAVE_SCHEMA := 8
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -7831,6 +8009,10 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	state = state.duplicate(true)
 	if int(schema) <= 6:
 		_dress_legacy(state, cat)
+	if int(schema) <= 7 and state.stations is Dictionary:
+		for sid in state.stations:
+			if state.stations[sid] is Dictionary and not state.stations[sid].has("governor"):
+				state.stations[sid]["governor"] = ""
 	var why := _state_problem(state, cat)
 	if why != "":
 		return {"error": why, "state": {}}
@@ -7976,7 +8158,14 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 	for tunnel in state.tunnels:
 		if not (tunnel is Dictionary) or not state.stations.has(str(tunnel.get("a", ""))) or not state.stations.has(str(tunnel.get("b", ""))):
 			return "tunnel to an unknown station"
-	return _shape_problem(state, cat)
+	var why_shape := _shape_problem(state, cat)
+	if why_shape != "":
+		return why_shape
+	for sid in state.stations:
+		var gov := str(state.stations[sid].get("governor", ""))
+		if gov != "" and not state.people.has(gov):
+			return "station %s governed by unknown %s" % [str(sid), gov]
+	return ""
 
 
 ## Shapes of a fresh run on this catalog: the keys every person, station, room and council seat carries there,

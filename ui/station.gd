@@ -4087,6 +4087,9 @@ func _journal_line(row: Dictionary) -> String:
 			return Copy.t("%s took %s.") % [Copy.t(game._fname(to)), place]
 		"dig":
 			return Copy.t("Dug a new cell.")
+		"governor":
+			var who: Dictionary = game.people.get(str(row.get("person", "")), {})
+			return Copy.t("%s now holds %s for us.") % [Copy.person(str(who.get("name", ""))), _station_name(str(row.get("station", "")))]
 		"upgrade":
 			if str(row.get("name", "")) != "":
 				return Copy.t("Upgraded %s to tier %s: %s.") % [_room_type_name(str(row.get("type", ""))), roman(int(row.get("tier", 1))), _upgrade_name(str(row.name))]
@@ -8194,11 +8197,46 @@ func _caravan_shot() -> void:
 		network_view._chip_hover = ""
 		break
 	await _squad_walk_shot()
+	await _governor_shots()
 	if partner != "":
 		game.stations[partner].deals = deals_were
 	game.expedition = trip_was
 	game.squads[game.player].away = away_was
 	network_view._fit()
+	await _frame()
+
+
+## The governor picker on a held station's card, then the card and the map seal once someone holds it. Puts the
+## run back as it was (governor recalled, influence returned).
+func _governor_shots() -> void:
+	var held := ""
+	for sid in game.stations:
+		if str(game.stations[sid].owner) == game.player and str(sid) != game.capital_id:
+			held = str(sid)
+			break
+	if held == "" or game.governor_candidates(held).is_empty():
+		return
+	var influence_was := int(game.stock.influence)
+	game.stock.influence = maxi(influence_was, 20)
+	network_view.show_zoom(2.0, held)
+	network_view.open_sheet(held)
+	await _frame()
+	await _frame()
+	network_view.open_governor_menu(held, Vector2(network_view.size.x * 0.42, network_view.size.y * 0.3))
+	await _frame()
+	await _frame()
+	_save("network_governor_pick")
+	network_view._gov_menu.hide()
+	var pick: Dictionary = game.governor_candidates(held)[0]
+	game.apply({"kind": "appoint", "station": held, "person": str(pick.id)})
+	network_view.refresh()
+	await _frame()
+	await _frame()
+	_save("network_governor")
+	game.recall_governor(held)
+	game.stock.influence = influence_was
+	network_view.close_sheet()
+	network_view.refresh()
 	await _frame()
 
 

@@ -89,6 +89,7 @@
   "outpost_yield": 1,
   "outpost_yield_unrest": 1,
   "outpost_influence": 2,
+  "governor": {"appoint_influence": 5, "weekly_influence": 1, "skill_plus_one": 3, "skill_plus_two": 5, "talk_loyalty": 2, "talk_min": 3, "labor_min": 3, "settle_weeks": 4, "settle_weeks_labor": 3, "veteran_garrison": 3, "marketeer_tokens": 1, "lost_sick_weeks": 3, "too_young": ["leo"]},
   "cough_infect": 2,
   "cough_spread": 0.3,
   "cough_pull": 2,
