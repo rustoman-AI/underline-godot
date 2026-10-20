@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 242. Первый: 2026-10-02. Последний: 2026-10-18 d84d10c.
+Коммитов: 249. Первый: 2026-10-02. Последний: 2026-10-19 db2ae04.
 
 ## Этапы
 
@@ -19,8 +19,18 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-18 (4)
+### 2026-10-19 (6)
 
+- `db2ae04` Each station its own goods: three goods summing to 10 per station, from its lore
+- `2fac705` Governors: put a resident in charge of a held station
+- `2839cb8` Yield preview: hover or pick a station you do not hold to see what it would ship once yours
+- `f43aac3` Rival carts walk to their seats, squads walk their tunnels on the map
+- `79ee048` Focus picker on the map: click a station's yield chips to choose what it sends home
+- `c9a92d9` Map as a strategy board: yield chips on held stations, caravans on supply and trade routes
+
+### 2026-10-18 (5)
+
+- `67bca2f` Docs: playtest20 build, changelog
 - `d84d10c` Top bar as the station's ceiling beam: grouped stocks, weeks-left bars, hope and discontent dials
 - `f17d158` Docs: playtest19 build, changelog
 - `07faace` Animation set 2: dig and build crews swing in real frames
