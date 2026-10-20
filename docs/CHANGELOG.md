@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 249. Первый: 2026-10-02. Последний: 2026-10-19 db2ae04.
+Коммитов: 253. Первый: 2026-10-02. Последний: 2026-10-19 cdf494c.
 
 ## Этапы
 
@@ -19,8 +19,12 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-19 (6)
+### 2026-10-19 (10)
 
+- `cdf494c` Commit the 19 station hub banners that art_pack.gd preloads
+- `8cf8ae9` Split the morning: dawn shows the big decisions, small events come up during the week
+- `fd9c9b0` Handcars on the map lines, art on order result cards
+- `c435ff3` Docs: playtest21 build, changelog
 - `db2ae04` Each station its own goods: three goods summing to 10 per station, from its lore
 - `2fac705` Governors: put a resident in charge of a held station
 - `2839cb8` Yield preview: hover or pick a station you do not hold to see what it would ship once yours
