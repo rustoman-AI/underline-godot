@@ -45,6 +45,7 @@ func _run() -> void:
 			route = row
 			break
 	assert(not route.is_empty(), "Week twenty must exercise the accepted supply car")
+	await _waiting_shot(net, route)
 	await _shot(net, route, "fit")
 	var points := PackedVector2Array()
 	for sid in route.route:
@@ -70,6 +71,43 @@ func _run() -> void:
 	await _tints(net)
 	print("PILOT REVIEW OK: five shader colours, protected trousers/sacks, long-route spacing, off-pin bay, fit/max crops")
 	quit(0)
+
+## Capture the actual departure wait, rather than the reduced-motion mid-route pose.
+func _waiting_shot(net, route: Dictionary) -> void:
+	station.motion_in_shots = true
+	net.set_process(false)
+	var id := "%s_%s_%s" % [route.kind, route.get("owner", "home"), route.seed]
+	net._unit_routes.clear()
+	net._unit_routes[id] = {"row": route, "born": net._anim_t - 0.6, "retire": -1.0}
+	net._unit_layer.queue_redraw()
+	await process_frame
+	await RenderingServer.frame_post_draw
+	var key := "cart_%s_%s_%s_0" % [route.kind, route.get("owner", "home"), route.seed]
+	var car: Sprite2D = net._sprites.sprites[key]
+	var sid := str(route.route[0])
+	var direction: Vector2 = (Vector2(net._layout[str(route.route[1])].at) - Vector2(net._layout[sid].at)).normalized()
+	var bay: Vector2 = net._unit_station_bay(sid, direction, net._unit_width(), 0)
+	assert(car.position.is_equal_approx(bay), "Captured car must be waiting at distance zero")
+	assert(net._unit_progress(PackedVector2Array([bay, bay + direction * 200]), -0.6, 30).x == 0.0)
+	assert(net._unit_bay_clear(car.position, net._unit_width()), "Actual waiting car must clear pins, chips and tags")
+	var image := root.get_texture().get_image()
+	var bounds := Rect2(bay - Vector2(65, 75), Vector2(130, 110))
+	var pin: Dictionary = net._layout[sid]
+	bounds = bounds.merge(Rect2(Vector2(pin.at) - Vector2.ONE * float(pin.r), Vector2.ONE * float(pin.r) * 2))
+	if net._tags.has(sid):
+		bounds = bounds.merge(net._tags[sid])
+	for row in net._yield_rows:
+		if str(row.sid) == sid:
+			bounds = bounds.merge(Rect2(row.x, row.y, row.total, 18))
+	var rect := Rect2i(bounds.grow(12)).intersection(Rect2i(Vector2i.ZERO, image.get_size()))
+	var crop := image.get_region(rect)
+	crop.resize(crop.get_width() * 4, crop.get_height() * 4, Image.INTERPOLATE_NEAREST)
+	crop.save_png("res://build/network_pilot_fit_waiting_crop.png")
+	print("WAITING FIT: %s, elapsed 0.6 seconds, route distance 0, bay %s, pin/chips/tags clear" % [sid, bay])
+	station.motion_in_shots = false
+	net.set_process(true)
+	net._unit_layer.queue_redraw()
+	await process_frame
 
 ## Save a full view and nearest-neighbour enlargement centred on a fixed supply-car position.
 func _shot(net, route: Dictionary, suffix: String) -> void:
