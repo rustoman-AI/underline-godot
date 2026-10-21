@@ -1817,6 +1817,7 @@ func _pin_at(game, sid: String) -> Vector2:
 
 ## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_squads(c: CanvasItem, game) -> void:
+	var bay_slots := {}
 	for fid in game.squads:
 		var sq: Dictionary = game.squads[fid]
 		var sid := str(sq.station)
@@ -1825,8 +1826,6 @@ func _draw_squads(c: CanvasItem, game) -> void:
 		if not bool(game.stations[sid].get("known", false)) and str(fid) != game.player:
 			continue
 		var at := _pin_at(game, sid)
-		var r := float(_layout[sid].r) if _layout.has(sid) else 12.0
-		at += Vector2(r * 0.9, r * 0.6)
 		var direction := Vector2.RIGHT
 		var distance := 0.0
 		var kind := "squad_stand"
@@ -1834,7 +1833,9 @@ func _draw_squads(c: CanvasItem, game) -> void:
 			var walk: Dictionary = _walks[str(fid)]
 			var pts := PackedVector2Array()
 			for hop in walk.route:
-				pts.append(_pin_at(game, str(hop)) + Vector2(r * 0.9, r * 0.6))
+				pts.append(_pin_at(game, str(hop)))
+			pts[0] = _squad_station_bay(game, str(walk.route[0]), int(sq.size), 0)
+			pts[-1] = _squad_station_bay(game, str(walk.route[-1]), int(sq.size), 0)
 			var k := clampf(float(walk.t) / float(walk.dur), 0.0, 1.0)
 			k = k * k * (3.0 - 2.0 * k)
 			distance = k * _poly_length(pts)
@@ -1842,7 +1843,20 @@ func _draw_squads(c: CanvasItem, game) -> void:
 			at = spot[0]
 			direction = spot[1]
 			kind = "squad_walk"
+		else:
+			var slot := int(bay_slots.get(sid, 0))
+			bay_slots[sid] = slot + 1
+			at = _squad_station_bay(game, sid, int(sq.size), slot)
 		_draw_squad_token(c, game, at, str(fid), int(sq.size), kind, direction, distance)
+
+## Use a visible neighbouring tunnel to choose the same clear bay for standing, departure and arrival.
+func _squad_station_bay(game, sid: String, size_n: int, slot: int = 0) -> Vector2:
+	var direction := Vector2.RIGHT
+	for neighbor in game._neighbors(sid):
+		if _layout.has(str(neighbor)) and bool(_layout[str(neighbor)].known):
+			direction = (Vector2(_layout[str(neighbor)].at) - Vector2(_layout[sid].at)).normalized()
+			break
+	return _unit_station_bay(sid, direction, _unit_width("squad_stand"), slot, _squad_footprint(size_n), true)
 
 
 func _draw_intents(c: CanvasItem, game) -> void:
@@ -2510,7 +2524,7 @@ func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 	_draw_squad_token(c, game, at, str(game.player), int(game.squads[game.player].size), "expedition_walk", direction, t * from.distance_to(to))
 
 
-## Paint accepted squad poses with a separate paper badge so the head count remains readable.
+## Paint accepted squad poses with a faction-coloured circular count at their upper right.
 func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int, kind: String = "squad_stand", direction: Vector2 = Vector2.RIGHT, distance: float = 0.0) -> void:
 	var height := _unit_height()
 	var col := _faction_color(game, fid)
@@ -2520,17 +2534,47 @@ func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: in
 		painted = _sprites.paint("squad_" + fid, kind, at, direction, col, height, distance, _anim_t, _motion_off(), kind == "squad_stand")
 	if not painted:
 		_draw_unit_disc(c, at, col, "squad")
-	_draw_squad_badge(c, at + Vector2(height * 0.48 if painted else 13.0, 0), size_n)
+	_draw_squad_badge(c, _squad_badge_at(at, size_n, painted), size_n, col)
 
-## Keep squad counts outside the sprite silhouette with a solid backing at every zoom level.
-func _draw_squad_badge(c: CanvasItem, at: Vector2, size_n: int) -> void:
+## Grow the circular badge for large counts without shrinking its text.
+func _squad_badge_radius(size_n: int) -> float:
+	return maxf(12.0, _font().get_string_size(str(size_n), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x * 0.5 + 5.0)
+
+## Reserve both the standing group and its upper-right badge when choosing a station bay.
+func _squad_footprint(size_n: int) -> Rect2:
+	var height := _unit_height()
+	var width := _unit_width("squad_stand")
+	var group := Rect2(Vector2(-width * 0.6, -height * 1.05), Vector2(width * 1.2, height * 1.2))
+	var radius := _squad_badge_radius(size_n) + 2.0
+	var badge := Vector2(width * 0.5, -height * 0.8)
+	return group.merge(Rect2(badge - Vector2.ONE * radius, Vector2.ONE * radius * 2))
+
+## Keep the upper-right badge off every tag, including while a walking group crosses a label.
+func _squad_badge_at(at: Vector2, size_n: int, painted: bool = true) -> Vector2:
+	var radius := _squad_badge_radius(size_n) + 2.0
+	var offset := Vector2(_unit_width("squad_stand") * 0.5, -_unit_height() * 0.8) if painted else Vector2(14, -14)
+	for step in 128:
+		var candidate := at + offset + Vector2(0, -step * (radius * 2.0 + 4.0))
+		var box := Rect2(candidate - Vector2.ONE * radius, Vector2.ONE * radius * 2).grow(2)
+		var clear := true
+		for tag in _tags.values():
+			if box.intersects(tag):
+				clear = false
+				break
+		if clear:
+			return candidate
+	return at + offset + Vector2(0, -128.0 * (radius * 2.0 + 4.0))
+
+## Put readable count text on a faction-coloured circle instead of covering station labels with paper.
+func _draw_squad_badge(c: CanvasItem, at: Vector2, size_n: int, col: Color) -> void:
 	var font := _font()
 	var text := str(size_n)
-	var width := maxf(22.0, font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 10.0)
-	var box := Rect2(at + Vector2(0, -16), Vector2(width, 19))
-	c.draw_rect(box.grow(1), TAG_INK)
-	c.draw_rect(box, TAG_PAPER)
-	c.draw_string(font, box.position + Vector2(5, 14), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TAG_INK)
+	var radius := _squad_badge_radius(size_n)
+	c.draw_circle(at, radius + 2, TAG_INK)
+	c.draw_circle(at, radius, col)
+	var text_at := at + Vector2(-font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x * 0.5, 4.5)
+	c.draw_string_outline(font, text_at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, TAG_INK)
+	c.draw_string(font, text_at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TAG_PAPER)
 
 
 func _faction_color(game, fid: String) -> Color:
@@ -3983,9 +4027,11 @@ func _unit_width(kind: String = "handcar_pump") -> float:
 	return _unit_height() * 1.16
 
 ## Keep the entire waiting miniature clear of pins, chip rows and placed name tags.
-func _unit_bay_clear(at: Vector2, width: float) -> bool:
+func _unit_bay_clear(at: Vector2, width: float, footprint: Rect2 = Rect2()) -> bool:
 	var height := _unit_height()
 	var box := Rect2(at - Vector2(width * 0.6, height * 1.05), Vector2(width * 1.2, height * 1.2)).grow(4.0)
+	if footprint.has_area():
+		box = Rect2(at + footprint.position, footprint.size).grow(4.0)
 	for tag in _tags.values():
 		if box.intersects(tag):
 			return false
@@ -3998,13 +4044,16 @@ func _unit_bay_clear(at: Vector2, width: float) -> bool:
 	return true
 
 ## Try both sides along the route, then search further out when nearby bays are occupied.
-func _unit_station_bay(sid: String, direction: Vector2, width: float, slot: int) -> Vector2:
+func _unit_station_bay(sid: String, direction: Vector2, width: float, slot: int, footprint: Rect2 = Rect2(), keep_visible: bool = false) -> Vector2:
 	var pin: Dictionary = _layout[sid]
 	var distance := float(pin.r) + width * (0.8 + slot * 1.6)
 	for step in 128:
 		for side in [1.0, -1.0]:
 			var at: Vector2 = Vector2(pin.at) + direction * side * (distance + step * width * 0.5)
-			if _unit_bay_clear(at, width):
+			if keep_visible and Rect2(Vector2.ZERO, size).has_point(pin.at):
+				if not Rect2(Vector2(4, 4), size - Vector2(8, 8)).encloses(Rect2(at + footprint.position, footprint.size).grow(4)):
+					continue
+			if _unit_bay_clear(at, width, footprint):
 				return at
 	return Vector2(pin.at) + direction * (distance + 128.0 * width)
 
