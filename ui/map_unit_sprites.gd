@@ -2,12 +2,13 @@ extends RefCounted
 
 ## Cached frames and pooled sprites keep texture loading and material allocation outside drawing.
 const TINT := preload("res://ui/shaders/owner_tint.gdshader")
-const KINDS := ["handcar_pump", "handcar_idle", "trader_roll"]
+const KINDS := ["handcar_pump", "handcar_idle", "trader_roll", "squad_walk", "squad_stand"]
 var distance_per_frame := 4.25
 var frames := {}
 var anchors := {}
 var tint_keys := {}
 var tint_regions := {}
+var cycle_distances := {}
 var materials := {}
 var sprites := {}
 var used := {}
@@ -35,6 +36,7 @@ func setup(layer: CanvasItem) -> void:
 			frames[kind] = list
 			anchors[kind] = Vector2(meta.anchor[0], meta.anchor[1])
 			tint_keys[kind] = float(meta.get("owner_grey", 181.0 / 255.0))
+			cycle_distances[kind] = float(meta.get("cycle_distance", 0.0))
 			var region: Array = meta.get("tint_region", [0.0, 0.0, 1.0, 1.0])
 			tint_regions[kind] = Vector4(region[0], region[1], region[2], region[3])
 	var image := Image.create(64, 32, false, Image.FORMAT_RGBA8)
@@ -117,10 +119,13 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	var factor := height / size.y
 	var index := 0
 	if not still:
-		if idle and kind == "handcar_idle":
+		if idle and kind in ["handcar_idle", "squad_stand"]:
 			index = int(time * 4.0) % list.size()
 		elif not idle:
-			index = int(distance / maxf(0.01, distance_per_frame)) % list.size()
+			var step := distance_per_frame
+			if float(cycle_distances.get(kind, 0.0)) > 0:
+				step = float(cycle_distances[kind]) * factor / list.size()
+			index = int(distance / maxf(0.01, step)) % list.size()
 	node.texture = list[index]
 	node.offset = -Vector2(anchors[kind])
 	node.position = at

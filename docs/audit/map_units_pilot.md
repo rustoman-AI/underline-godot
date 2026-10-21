@@ -61,3 +61,17 @@ Trade routes select `trader_roll` and keep their existing lane, trade-gold colou
 All nine gates pass (`build/trader_gates.txt`). Clarity stays at 215 failures before and after (`build/trader_clarity_before.txt`, `build/trader_clarity_after.txt`). Trader GPU and route checks pass (`build/trader_review.txt`); shared animation/cache/fallback contracts pass (`build/trader_contracts.txt`).
 
 Squad attempt 2 is saved as `squad_reference_v2.png` beside the exact submitted correction prompt. The built-in image tool received squad v1 and both pilot images. It remains for owner review; no squad loop or further reference was generated in this pass.
+
+## 20 Oct: accepted squad walk and stand integration
+
+The owner accepted `squad_walk_v3.png` and `squad_stand_v1.png`. The cutter finds six walking and four standing frames by transparent-column gaps. After removing low-alpha specks, each frame's lowest opaque sole row is aligned to y560 on a common 600 by 580 canvas, anchored at (300, 560). Each sheet uses one body-height scale for every pose, preserving pose-to-pose movement. Source landmarks and a nominal 400-pixel body height are stored in metadata. The sampled neutral armband keys are 156/255 for walking and 149/255 for standing. The tint is restricted to the upper-arm band (normalized y0.38..0.60), retaining the existing RGB-spread limit of 6.
+
+Player and rival squads now use `squad_walk` while the existing `_walks` presentation state traverses the real station chain. One walk cycle spans 1.1 rendered group widths; pose selection follows travelled distance and camera scale. Squads on pins use `squad_stand` at 4 fps. Reduced motion holds stand frame zero. Missing/unaccepted sheets retain the clean owner-token fallback. Expedition still uses its token until accepted art arrives.
+
+Squad size is drawn on a separate light badge at 13 pixels, with a dark border, minimum width 22 and padding for larger counts. It is placed beside the figure rather than painted over the crew. No simulation, combat, route or squad-size rules changed.
+
+`.tools/check_squads.gd` exercises all six walking and four standing poses, common sole anchors, reduced motion and actual map drawing for player Depot and rival Exchange squads. The reproducible presentation fixture uses counts 12 and 27. Fit/max crops pair player on the left and rival on the right: `build/squad_fit_stand_crop.png`, `build/squad_fit_walk_crop.png`, `build/squad_max_stand_crop.png`, `build/squad_max_walk_crop.png`. Station chrome is hidden for these unit close-ups so End turn does not cover the rival at maximum zoom. GPU comparisons across all ten poses and both faction colours confirm armband recolouring while preserving warm clothing, shield stripes and pixels outside the tint band. The real map screenshot crops were visually inspected.
+
+All nine gates pass (`build/squad_gates.txt`). Clarity remains 215 before and after (`build/squad_clarity_before.txt`, `build/squad_clarity_after.txt`). Focused squad checks and shared animation/cache checks pass (`build/squad_review.txt`, `build/squad_contracts.txt`). Forty sprite updates measured 0.196 ms average and 0.305 ms worst CPU submission in this pass.
+
+Expedition attempt 2 is saved as `expedition_reference_v2.png` beside the exact submitted correction prompt. The built-in image tool received expedition v1 and both pilot references. It remains pending owner review; art generation stopped after that correction.

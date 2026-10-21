@@ -2510,9 +2510,27 @@ func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 	_draw_squad_token(c, game, at, str(game.player), int(game.squads[game.player].size), "expedition_walk", direction, t * from.distance_to(to))
 
 
-## Draw cached map miniatures using presentation state while preserving the simulation's orders.
+## Paint accepted squad poses with a separate paper badge so the head count remains readable.
 func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int, kind: String = "squad_stand", direction: Vector2 = Vector2.RIGHT, distance: float = 0.0) -> void:
-	_draw_unit_disc(c, at, _faction_color(game, fid), "squad")
+	var height := _unit_height()
+	var col := _faction_color(game, fid)
+	var painted := false
+	if height >= 30 and _sprites.frames.has(kind):
+		c.draw_texture_rect(_sprites.shadow, Rect2(at - Vector2(height * 0.5, height * 0.08), Vector2(height, height * 0.2)), false, Color(1, 1, 1, 0.7))
+		painted = _sprites.paint("squad_" + fid, kind, at, direction, col, height, distance, _anim_t, _motion_off(), kind == "squad_stand")
+	if not painted:
+		_draw_unit_disc(c, at, col, "squad")
+	_draw_squad_badge(c, at + Vector2(height * 0.48 if painted else 13.0, 0), size_n)
+
+## Keep squad counts outside the sprite silhouette with a solid backing at every zoom level.
+func _draw_squad_badge(c: CanvasItem, at: Vector2, size_n: int) -> void:
+	var font := _font()
+	var text := str(size_n)
+	var width := maxf(22.0, font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 10.0)
+	var box := Rect2(at + Vector2(0, -16), Vector2(width, 19))
+	c.draw_rect(box.grow(1), TAG_INK)
+	c.draw_rect(box, TAG_PAPER)
+	c.draw_string(font, box.position + Vector2(5, 14), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TAG_INK)
 
 
 func _faction_color(game, fid: String) -> Color:

@@ -1,11 +1,11 @@
 extends SceneTree
 
-## Cut the accepted six-frame pilot by alpha gaps and normalize around its wheel hubs and rail.
+## Cut accepted unit sheets by alpha gaps and normalize their rail or sole anchors.
 const SOURCE := "res://incoming-art/map_units/pilot/handcar_pump_attempt3.png"
 const DEST := "res://assets/map/units/handcar_pump"
 const COUNT := 6
 
-## Validate all six images before replacing any imported frames.
+## Validate the expected frame count before replacing any imported frames.
 func _initialize() -> void:
 	var source := SOURCE
 	var kind := "handcar_pump"
@@ -14,11 +14,11 @@ func _initialize() -> void:
 			source = arg.trim_prefix("--source=")
 		if arg.begins_with("--kind="):
 			kind = arg.trim_prefix("--kind=")
-	if kind not in ["handcar_pump", "handcar_idle", "trader_roll"]:
-		push_error("Only accepted car sheets can be imported")
+	if kind not in ["handcar_pump", "handcar_idle", "trader_roll", "squad_walk", "squad_stand"]:
+		push_error("Only accepted unit sheets can be imported")
 		quit(1)
 		return
-	var count := 4 if kind == "handcar_idle" else COUNT
+	var count := 4 if kind in ["handcar_idle", "squad_stand"] else COUNT
 	var dest := "res://assets/map/units/" + kind
 	var template: Dictionary = {}
 	if kind == "handcar_idle":
@@ -32,6 +32,9 @@ func _initialize() -> void:
 	if spans.size() != count:
 		push_error("%s: expected %d alpha-separated frames, found %d; no assets written" % [kind, count, spans.size()])
 		quit(1)
+		return
+	if kind.begins_with("squad_"):
+		_cut_squad(sheet, spans, source, kind, count, dest)
 		return
 	var cells: Array[Image] = []
 	var marks: Array[Dictionary] = []
@@ -90,6 +93,70 @@ func _initialize() -> void:
 		metadata.tint_region = [0.0, 0.0, 0.72, 0.55]
 	file.store_string(JSON.stringify(metadata, "\t"))
 	print("%s: %d frames, size %s, anchor %s, owner grey %.4f" % [kind, count, extent, -origin, tint_key])
+	quit(0)
+
+## Normalize both squad sheets by body height and place their lowest opaque soles on one shared baseline.
+func _cut_squad(sheet: Image, spans: Array[Vector2i], source: String, kind: String, count: int, dest: String) -> void:
+	var cells: Array[Image] = []
+	var marks: Array[Dictionary] = []
+	var factor := 1.0
+	var maximum_width := 0.0
+	var samples: Array[float] = []
+	for i in count:
+		var span := spans[i]
+		var cell := sheet.get_region(Rect2i(span.x, 0, span.y - span.x + 1, sheet.get_height()))
+		_clean(cell)
+		var used := cell.get_used_rect()
+		var sole := used.end.y - 1
+		var body_top := used.position.y
+		for y in range(used.position.y, sole):
+			var occupied := 0
+			for x in cell.get_width():
+				if cell.get_pixel(x, y).a > 60.0 / 255.0:
+					occupied += 1
+			if occupied > cell.get_width() * 0.22:
+				body_top = y
+				break
+		if i == 0:
+			factor = 400.0 / maxf(1, sole - body_top)
+		var center := cell.get_width() * 0.5
+		var box := Rect2((Vector2(used.position) - Vector2(center, sole)) * factor + Vector2(300, 560), Vector2(used.size) * factor)
+		if not Rect2(3, 3, 594, 574).encloses(box):
+			push_error("Squad frame %d exceeds shared canvas; no assets written" % i)
+			quit(1)
+			return
+		maximum_width = maxf(maximum_width, used.size.x * factor)
+		for y in range(body_top, body_top + int((sole - body_top) * 0.45)):
+			for x in cell.get_width():
+				var pixel := cell.get_pixel(x, y)
+				var high := maxf(pixel.r, maxf(pixel.g, pixel.b))
+				var low := minf(pixel.r, minf(pixel.g, pixel.b))
+				if pixel.a > 0.9 and high - low <= 6.0 / 255.0 and high > 0.45 and high < 0.8:
+					samples.append(high)
+		cells.append(cell)
+		marks.append({"center": center, "sole": sole, "body_top": body_top})
+		print("%s f%d columns %d..%d sole %d body top %d scale %.5f" % [kind, i, span.x, span.y, sole, body_top, factor])
+	if samples.is_empty():
+		push_error("No neutral armband pixels found; no assets written")
+		quit(1)
+		return
+	samples.sort()
+	var tint_key: float = samples[samples.size() / 2]
+	DirAccess.make_dir_recursive_absolute(dest)
+	for i in count:
+		var out := Image.create(600, 580, false, Image.FORMAT_RGBA8)
+		for y in 580:
+			for x in 600:
+				var p := Vector2i(((Vector2(x, y) - Vector2(300, 560)) / factor + Vector2(marks[i].center, marks[i].sole)).round())
+				if Rect2i(Vector2i.ZERO, cells[i].get_size()).has_point(p):
+					out.set_pixel(x, y, cells[i].get_pixelv(p))
+		if out.save_png(dest.path_join("f%d.png" % i)) != OK:
+			push_error("Could not save squad frame")
+			quit(1)
+			return
+	var file := FileAccess.open(dest.path_join("frames.json"), FileAccess.WRITE)
+	file.store_string(JSON.stringify({"count": count, "anchor": [300, 560], "source": source, "landmarks": marks, "owner_grey": tint_key, "tint_region": [0.0, 0.38, 1.0, 0.60], "cycle_distance": maximum_width * 1.1, "body_height": 400, "accepted": true, "placeholder": false}, "\t"))
+	print("%s: %d frames, shared 600x580 canvas, soles y560, owner grey %.4f" % [kind, count, tint_key])
 	quit(0)
 
 ## Sample the canopy interior rather than the neutral silver cargo below it.

@@ -19,3 +19,11 @@ trader_roll_v1.png: imported by Codex (eb2aeea, e97f9e9), canopy-only tint check
 squad_reference_v2.png: ACCEPTED. Armbands neutral (about 155,151,152); trousers and shield stripe stay warm, so
   the tint cannot catch them; spear has room above. Boots touch the bottom edge: the loops must leave space below.
 Next: 3b SQUAD WALK and 3c SQUAD STAND with squad_reference_v2.png attached, then 4a EXPEDITION REFERENCE, 5 PUFF.
+
+20 Oct, fourth round:
+squad_walk_v3.png: ACCEPTED. 6 frames found by gaps (37-366, 397-712, 749-1062, 1100-1421, 1470-1791,
+  1833-2139); legs alternate, lamp and spear hold.
+squad_stand_v1.png: ACCEPTED. 4 frames (23-515, 566-1063, 1110-1601, 1652-2141); lamp lift and weight shift.
+expedition_reference_v1.png: NOT YET. Design, faces and gear are right. The pennant is warm cream (about
+  199,177,152); it must be neutral grey. The tin mugs measure warm (about 110,100,88), so after the fix the
+  pennant is the only neutral grey on the sheet. Use the expedition correction prompt (attempt 2).
