@@ -318,7 +318,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -334,7 +334,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -375,6 +375,8 @@ func _ready() -> void:
 		await _lore_shots()
 	elif _want_drawer():
 		await _drawer_shots()
+	elif _want_rooms():
+		await _rooms_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -703,6 +705,65 @@ func _want_hub() -> bool:
 
 func _want_checks() -> bool:
 	return _dev_args().has("--checks")
+
+
+func _want_rooms() -> bool:
+	return _dev_args().has("--rooms")
+
+
+## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
+## station, a close look at a busy row, and an empty dug cell next to rooms. Writes rooms_station*.png.
+func _rooms_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	var bot := Bot.new()
+	bot.profile = "careful"
+	var guard := 0
+	while game.over == "" and game.week < 12 and guard < 16:
+		guard += 1
+		bot._act(game)
+		game.end_week()
+	game.pending.clear()
+	hold_dawn = true
+	_refresh()
+	for i in 6:
+		if deck.is_empty() and not modal_open:
+			break
+		_close_card()
+	await _frame()
+	await _frame()
+	_save("rooms_station")
+	var busy := Vector2i(-1, -1)
+	var best := -1
+	for room in game.rooms:
+		var row := 0
+		for other in game.rooms:
+			if int(other.level) == int(room.level):
+				row += 1
+		if row > best:
+			best = row
+			busy = Vector2i(int(room.level), int(room.cell))
+	if busy.x >= 0:
+		yard._zoom_to(busy.x, busy.y)
+		await _frame()
+		await _frame()
+		_save("rooms_station_zoom")
+	var empty := Vector2i(-1, -1)
+	for key in game.cells:
+		var c: Dictionary = game.cells[key]
+		if bool(c.get("dug", false)) and str(c.get("room", "")) == "":
+			empty = Vector2i(int(c.level), int(c.cell))
+	if empty.x >= 0:
+		yard._zoom_to(empty.x, empty.y)
+		await _frame()
+		await _frame()
+		_save("rooms_station_empty")
+	get_tree().quit()
 
 
 func _want_polish() -> bool:
@@ -9946,6 +10007,16 @@ class Yard extends Control:
 	var lamp_glow: Texture2D
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
+	## Station structure, painted (docs/briefs/art_station_walls_prompts.txt): a pillar on every boundary between
+	## cells, a slab across every gap between levels, a soft shadow at every cell's edges. Each one is only drawn
+	## when its picture is in assets/station/; nothing here is drawn as geometry.
+	var wall_pillar: Texture2D
+	var floor_slab: Texture2D
+	var room_shade: Texture2D
+	const WALL_DIR := "res://assets/station/"
+	## Pillar width as a share of a cell's width; how far the slab reaches above and below its band, in bands.
+	const PILLAR_W := 0.13
+	const SLAB_REACH := 0.75
 	var backdrop_tex: Texture2D
 	var scaffold: Texture2D
 	var ghosts := {}
@@ -10087,6 +10158,9 @@ class Yard extends Control:
 			art_aspect = float(tex.get_width()) / float(tex.get_height())
 			art[type] = tex
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
+		wall_pillar = _station_art("wall_pillar")
+		floor_slab = _station_art("floor_slab")
+		room_shade = _station_art("room_shade")
 		cell_dug = ArtPack.load_texture("res://assets/cells/cell_dug.webp")
 		backdrop_tex = ArtPack.load_texture("res://assets/backdrop_station.webp")
 		for pose_name in POSE_ART:
@@ -10531,10 +10605,60 @@ class Yard extends Control:
 		for level in 3:
 			for cell in 6:
 				_draw_cell(_rect(geo, level, cell), level, cell)
+		_draw_structure(geo)
 		_draw_pops(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_hover_label(geo)
+
+	## A station structure picture from assets/station/ (.png or .webp), or null while it has not been delivered.
+	func _station_art(stem: String) -> Texture2D:
+		for ext in [".png", ".webp"]:
+			var path: String = WALL_DIR + stem + ext
+			if ResourceLoader.exists(path):
+				return ArtPack.load_texture(path)
+		return null
+
+	## Walls between rooms: the edge shadow over every cell that is open (rooms and dug cells), the slab across
+	## every gap between levels and above and below the station, then a pillar on every cell boundary and at both
+	## ends, standing over the slabs. Hidden cells stay as they are.
+	func _draw_structure(geo: Dictionary) -> void:
+		var w := float(geo.w)
+		var h := float(geo.h)
+		var band := float(geo.band)
+		var origin: Vector2 = geo.origin
+		if room_shade != null:
+			for level in 3:
+				for cell in 6:
+					var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
+					if _kind(spot) in ["room", "dug"] and _job_span(level, cell).x < 0:
+						draw_texture_rect(room_shade, _rect(geo, level, cell), false)
+		if floor_slab != null:
+			var span := w * 6.0
+			var slab_h := band * (1.0 + SLAB_REACH * 2.0)
+			var tex := floor_slab.get_size()
+			var tile_w := slab_h * tex.x / maxf(tex.y, 1.0)
+			for gap in 4:
+				var mid := origin.y + float(gap) * (h + band) - band * 0.5
+				var x := origin.x
+				while x < origin.x + span - 0.5:
+					var part := minf(tile_w, origin.x + span - x)
+					draw_texture_rect_region(floor_slab, Rect2(x, mid - slab_h * 0.5, part, slab_h), Rect2(0, 0, tex.x * part / tile_w, tex.y))
+					x += tile_w
+		if wall_pillar != null:
+			var reach := band * (0.5 + SLAB_REACH)
+			var art := wall_pillar.get_size()
+			## Keep the painting's own proportions; never wider than PILLAR_W of a cell (then it is cropped, not squashed).
+			var tall := h + reach * 2.0
+			var natural := tall * art.x / maxf(art.y, 1.0)
+			var pillar_w := minf(natural, w * PILLAR_W)
+			var src_w := art.x * pillar_w / maxf(natural, 0.001)
+			var src := Rect2((art.x - src_w) * 0.5, 0.0, src_w, art.y)
+			for level in 3:
+				var top := origin.y + float(level) * (h + band) - reach
+				for edge in 7:
+					var x := origin.x + float(edge) * w - pillar_w * 0.5
+					draw_texture_rect_region(wall_pillar, Rect2(x, top, pillar_w, tall), src)
 
 	func _platform_rail_y(geo: Dictionary) -> float:
 		var plat := _rect(geo, 1, 0)
