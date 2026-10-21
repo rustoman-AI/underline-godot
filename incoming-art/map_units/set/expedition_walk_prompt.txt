@@ -1,0 +1,12 @@
+Draw an animation sheet of the attached two scouts walking: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, packs, gear and size as the attached expedition reference. A heavy, slow walk; both in step.
+
+Frame 1: right heels touch the ground in front, left legs behind (contact).
+Frame 2: weight down on the right legs, bodies lowest, packs sagging a little (down).
+Frame 3: left legs pass the right, bodies upright (passing).
+Frame 4: left heels touch the ground in front, right legs behind (contact, mirror of frame 1).
+Frame 5: weight down on the left legs (down).
+Frame 6: right legs pass the left (passing).
+The pole, the grey pennant, lamp, pick and packs keep their size and shape; the lamp sways a little. The soles touching the ground sit on the same line in every frame, with clear empty space below the boots and above the pole tip.
+
+Leave a wide empty transparent gap between neighbouring frames, clearly empty between frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+Keep the pennant EXACTLY the colour it is in the accepted expedition reference (image 1), including its slightly warm grey. Do not neutralize, whiten or recolour it. Keep plenty of transparent margins under every boot and above the pole and pick. Images 2 and 3 are the accepted pilot style references.

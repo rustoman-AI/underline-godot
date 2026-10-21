@@ -1,4 +1,14 @@
 MAP UNIT SET GENERATION REVIEW
+CURRENT PASS: expedition_reference_v2 is owner-accepted; see ACCEPTED.txt.
+Generated expedition_walk_v1.png using accepted expedition v2 plus both pilot images.
+The submitted prompt explicitly preserves the accepted pennant colour and requests clear boot/pole margins.
+Generated puff_v1.png using both pilot images. Both sheets remain pending owner review.
+Exact submitted prompts are saved next to the sheets. Art generation stopped after these two candidates.
+Neither sheet has been imported or enabled in the game.
+Future expedition import must tint only the pennant region found near the pole tip with a low-saturation key;
+the warm grey tin mugs must remain unchanged, as specified in the 20 Oct expedition addendum.
+Standing squad placement is now corrected to clear visible bays with upper-right faction-coloured circles.
+
 LATEST PASS: squad_walk_v3 and squad_stand_v1 are now owner-accepted and imported.
 Six walk and four stand frames share a sole anchor and neutral-armband tint. See ACCEPTED.txt.
 expedition_reference_v2.png was generated with the exact EXPEDITION REFERENCE CORRECTION prompt,
