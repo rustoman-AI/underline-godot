@@ -13,3 +13,9 @@ trader_roll_v1.png: ACCEPTED. Six frames, pump down, lowest, up, highest read cl
 squad_reference_v1.png: NOT YET. Style, faces, gear and stride are right. Two fixes: the armbands are warm
   beige-grey (about 155,140,130), they must be neutral grey with no warm cast; the spear tip touches the top edge.
   Use the squad correction prompt (attempt 2).
+
+20 Oct, third round:
+trader_roll_v1.png: imported by Codex (eb2aeea, e97f9e9), canopy-only tint checked in Depot and Exchange colours.
+squad_reference_v2.png: ACCEPTED. Armbands neutral (about 155,151,152); trousers and shield stripe stay warm, so
+  the tint cannot catch them; spear has room above. Boots touch the bottom edge: the loops must leave space below.
+Next: 3b SQUAD WALK and 3c SQUAD STAND with squad_reference_v2.png attached, then 4a EXPEDITION REFERENCE, 5 PUFF.

@@ -1,4 +1,30 @@
 MAP UNIT SET GENERATION REVIEW
+CURRENT GENERATION PASS, after owner accepted squad_reference_v2:
+Generated with the built-in image_gen tool; all candidates remain pending owner review.
+squad_walk_v1, v2 and v3: six frames each. Latest candidate is v3.
+  v1/v2 retain very tight outer margins; v3 improves them to 36 px left and 32 px right.
+  v3 clear margins above spear tips: 238 px; below boots: 199 px (alpha > 60).
+  v3 occupied column spans: 36..366, 396..712, 749..1062, 1100..1421, 1470..1791, 1833..2139.
+  Walk phase readability remains an owner-review item. Three-attempt limit reached; no fourth attempt.
+squad_stand_v1: four standing poses, including lamp lift and shield shift; room above spear and below boots.
+  Alpha > 60 margins: left 22, right 30, top 115, bottom 92 pixels.
+  Occupied column spans: 22..515, 566..1063, 1110..1601, 1652..2141.
+expedition_reference_v1: two scouts with packs, pole/pennant/lamp and pickaxe. Candidate only.
+  Alpha > 60 margins: left 312, right 220, top 53, bottom 55 pixels.
+  Review the pennant colour: it appears cream/warm rather than plain neutral grey.
+Stopped at expedition_reference_v1 as requested. No expedition loop or dust generated.
+
+Attachments for EVERY squad loop attempt:
+  squad_reference_v2.png
+  ../pilot/handcar_reference_v1.png
+  ../pilot/handcar_pump_attempt3.png
+Walk corrections also attached the immediately preceding walk sheet.
+Expedition attached both pilot images plus incoming-art/anim_pilot/reference_body_01.png.
+Exact submitted prompts are saved beside the images. Initial loop prompts use the owner's relaxed
+clearly-empty-gap wording in place of the quarter-width guidance.
+No runtime assets, gameplay code or integration metadata changed in this generation pass.
+This status supersedes earlier notes that squad v2 was still pending or expedition had not started.
+
 LATEST OWNER REVIEW, 20 Oct:
 trader_roll_v1 is ACCEPTED and imported as six frames. See ACCEPTED.txt.
 Tint is limited to the canopy; lower cargo including the milk can stays unchanged.
