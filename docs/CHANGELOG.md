@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 253. Первый: 2026-10-02. Последний: 2026-10-19 cdf494c.
+Коммитов: 288. Первый: 2026-10-02. Последний: 2026-10-21 5e129db.
 
 ## Этапы
 
@@ -19,8 +19,49 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-19 (10)
+### 2026-10-21 (4)
 
+- `5e129db` Station walls: painted pillars, floor slabs and room shadows separate the rooms
+- `b2af451` Complete painted map units and keep squad bays local
+- `d85e9ca` Station walls: placement for painted pillars, floor slabs and room edge shadows
+- `27ba094` Docs: painted map unit set complete; squad bays stay near their own pin
+
+### 2026-10-20 (17)
+
+- `655b39c` Add expedition walk and dust sheets for owner review
+- `456daa8` Move standing squads into clear station bays
+- `4d65748` Docs: accept expedition reference v2 with region tint; squads stand beside pins
+- `f4a56d7` Add expedition pennant correction for owner review
+- `934ca3c` Render accepted squad walking and standing poses
+- `a77373d` Docs: accept squad walk and stand; expedition pennant must be neutral grey
+- `6d75b55` Add squad loops and expedition reference for review
+- `17513b0` Docs: accept squad reference v2; squad loops keep space below the boots
+- `e97f9e9` Add squad reference correction for owner review
+- `eb2aeea` Render accepted trader cars on trade routes
+- `10b3467` Docs: accept trader loop; squad reference needs neutral armbands and room for the spear
+- `300447c` Add trader loop and squad reference for owner review
+- `c0b6d11` Play accepted handcar idle frames at station waits
+- `1ea8c74` Docs: accept idle loop and trader reference; neutral grey instead of an exact hex
+- `b5aa685` Verify actual handcar waiting phase in fit crop
+- `07da815` Docs: exact ChatGPT prompts for the rest of the map units set
+- `4f1a10d` Fix handcar waiting bays, tilt and route alignment
+
+### 2026-10-19 (24)
+
+- `df3956a` Docs: Codex fixes from the handcar pilot review
+- `4f26616` Record handcar pilot acceptance and verification
+- `721427a` Run accepted map cars and keep other units as tokens
+- `a816bfb` Import accepted handcar pilot by wheelbase
+- `303d010` Docs: accepted handcar reference; owner tint keys on its #B5B5B5 plate
+- `8f78a61` Docs: exact ChatGPT prompts for the map units pilot
+- `e11c966` Docs: ChatGPT map units pilot and set briefs, the way the resident animations were done
+- `a760fe3` Document map unit delivery and verification
+- `0d91c98` Animate map units along tunnel routes
+- `28006cf` Add cached owner tint shader
+- `d51ad1d` Add map unit frame import pipeline
+- `7e45604` Docs: Codex assignment for professional map units, animated art brief v2
+- `be86074` Propaganda's last push costs only what it needs
+- `7a032f0` Docs: playtest22 build, changelog
 - `cdf494c` Commit the 19 station hub banners that art_pack.gd preloads
 - `8cf8ae9` Split the morning: dawn shows the big decisions, small events come up during the week
 - `fd9c9b0` Handcars on the map lines, art on order result cards
