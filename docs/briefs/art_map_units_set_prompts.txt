@@ -103,7 +103,7 @@ They walk one behind the other on the same ground line, carrying big framed back
 Transparent background with real alpha: no white, no checkerboard, no glow, no halo. Canvas about 1024 by 512, the pair centred with plenty of empty space around it. No ground, no shadow, no text, no numbers.
 
 ==================================================================
-4b. EXPEDITION WALK  (only after 4a is accepted; also attach the accepted expedition_reference)
+4b. EXPEDITION WALK  (only after 4a is accepted; also attach the accepted expedition_reference; leave clear empty space below the boots and above the pole)
 Save as: expedition_walk
 ------------------------------------------------------------------
 Draw an animation sheet of the attached two scouts walking: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, packs, gear and size as the attached expedition reference. A heavy, slow walk; both in step.
@@ -151,3 +151,12 @@ two things. First, repaint the three armbands in one plain neutral light grey wi
 like a grey card, the same grey on all three. Second, make the canvas taller and move everything down so the
 spear tip and every other part stay well inside the image with clear empty space above. Transparent background
 with real alpha, no glow, no halo, no ground, no shadow, no text.
+
+==================================================================
+EXPEDITION REFERENCE CORRECTION (attempt 2, 20 Oct; attach expedition_reference_v1.png plus the two pilot images)
+------------------------------------------------------------------
+Keep this picture exactly as it is: the same two scouts, faces, clothes, packs, pick, pole, lamp, poses, style and
+size. Change only one thing: repaint the small triangular pennant on the pole in one plain neutral light grey with
+no warm, cream, beige or blue cast, like a grey card. Keep the tin mugs and everything else as they are. Keep clear
+empty space around both scouts, the pole and the lamp. Transparent background with real alpha, no glow, no halo,
+no ground, no shadow, no text.
