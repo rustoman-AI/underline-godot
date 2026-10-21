@@ -124,3 +124,12 @@ ADDENDUM (19 Oct, after the placeholder round was rejected by the owner)
   Walking squads may pass over tags.
 - Expedition sheets: the pennant is a warm grey close to the tin mugs, so tint only the pennant region (top right
   of each frame, found from the pole tip) with a low-saturation key, never the mugs.
+- 21 Oct, squad bays (build/squad_bay_riverside_fit_crop.png, squad_bay_southdepot_fit_crop.png): the bays are now
+  clear of the pin, but too far. At Sisters of the Garden the squad stands next to the unknown "?" station and reads
+  as belonging to it; at the Depot it hangs off the paper onto the desk. Rules: the bay centre within about 2.2 pin
+  radii of its own pin; closer to its own pin than to any other pin; fully inside the map paper; then clear of the
+  pin circle, chips and tags. If nothing fits, shrink the group to the 30 px token beside the pin rather than move
+  it away.
+- 21 Oct, the set is complete (incoming-art/map_units/set/ACCEPTED.txt): import expedition_walk_v1.png (6 frames,
+  pennant-region tint) for the expedition, and puff_v1.png (6 frames, no tint) behind moving handcars and traders
+  every 0.6 s while at cruise speed. With that, no unit on the map is code-drawn any more.
