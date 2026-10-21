@@ -10014,9 +10014,8 @@ class Yard extends Control:
 	var floor_slab: Texture2D
 	var room_shade: Texture2D
 	const WALL_DIR := "res://assets/station/"
-	## Pillar width as a share of a cell's width; how far the slab reaches above and below its band, in bands.
-	const PILLAR_W := 0.13
-	const SLAB_REACH := 0.75
+	## Widest a pillar may be, as a share of a cell (wider pictures are cropped at the sides, never squashed).
+	const PILLAR_W := 0.3
 	var backdrop_tex: Texture2D
 	var scaffold: Texture2D
 	var ghosts := {}
@@ -10619,6 +10618,16 @@ class Yard extends Control:
 				return ArtPack.load_texture(path)
 		return null
 
+	## How far a pillar reaches into a cell from each side (half its width), so room notes and badges sit clear of
+	## it; 0 while there is no pillar picture.
+	func _wall_inset() -> float:
+		if wall_pillar == null:
+			return 0.0
+		var geo := _geo()
+		var art := wall_pillar.get_size()
+		var tall := float(geo.h) + float(geo.band)
+		return minf(tall * art.x / maxf(art.y, 1.0), float(geo.w) * PILLAR_W) * 0.5
+
 	## Walls between rooms: the edge shadow over every cell that is open (rooms and dug cells), the slab across
 	## every gap between levels and above and below the station, then a pillar on every cell boundary and at both
 	## ends, standing over the slabs. Hidden cells stay as they are.
@@ -10634,28 +10643,23 @@ class Yard extends Control:
 					if _kind(spot) in ["room", "dug"] and _job_span(level, cell).x < 0:
 						draw_texture_rect(room_shade, _rect(geo, level, cell), false)
 		if floor_slab != null:
-			var span := w * 6.0
-			var slab_h := band * (1.0 + SLAB_REACH * 2.0)
+			## One slab per cell at the picture's own proportions, so every seam sits behind a pillar.
 			var tex := floor_slab.get_size()
-			var tile_w := slab_h * tex.x / maxf(tex.y, 1.0)
+			var slab_h := w * tex.y / maxf(tex.x, 1.0)
 			for gap in 4:
 				var mid := origin.y + float(gap) * (h + band) - band * 0.5
-				var x := origin.x
-				while x < origin.x + span - 0.5:
-					var part := minf(tile_w, origin.x + span - x)
-					draw_texture_rect_region(floor_slab, Rect2(x, mid - slab_h * 0.5, part, slab_h), Rect2(0, 0, tex.x * part / tile_w, tex.y))
-					x += tile_w
+				for cell in 6:
+					draw_texture_rect(floor_slab, Rect2(origin.x + float(cell) * w, mid - slab_h * 0.5, w, slab_h), false)
 		if wall_pillar != null:
-			var reach := band * (0.5 + SLAB_REACH)
+			## From the middle of the slab above to the middle of the slab below, at the picture's own proportions.
 			var art := wall_pillar.get_size()
-			## Keep the painting's own proportions; never wider than PILLAR_W of a cell (then it is cropped, not squashed).
-			var tall := h + reach * 2.0
+			var tall := h + band
 			var natural := tall * art.x / maxf(art.y, 1.0)
 			var pillar_w := minf(natural, w * PILLAR_W)
 			var src_w := art.x * pillar_w / maxf(natural, 0.001)
 			var src := Rect2((art.x - src_w) * 0.5, 0.0, src_w, art.y)
 			for level in 3:
-				var top := origin.y + float(level) * (h + band) - reach
+				var top := origin.y + float(level) * (h + band) - band * 0.5
 				for edge in 7:
 					var x := origin.x + float(edge) * w - pillar_w * 0.5
 					draw_texture_rect_region(wall_pillar, Rect2(x, top, pillar_w, tall), src)
@@ -11728,7 +11732,7 @@ class Yard extends Control:
 		var font: Font = ThemeDB.fallback_font
 		if station.body_font != null:
 			font = station.body_font
-		var x := rect.position.x + 6.0
+		var x := rect.position.x + 6.0 + _wall_inset()
 		var y := rect.position.y + rect.size.y - 22.0
 		var ink := Color(0.96, 0.93, 0.86, 0.35 if dim else 0.95)
 		for out in outputs:
@@ -11827,7 +11831,7 @@ class Yard extends Control:
 		var font_size := 13
 		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 		var box := Vector2(text_size.x + 10.0, text_size.y + 4.0)
-		var origin := Vector2(rect.position.x + rect.size.x - box.x - 4.0, rect.position.y + rect.size.y - box.y - 24.0)
+		var origin := Vector2(rect.position.x + rect.size.x - box.x - 4.0 - _wall_inset(), rect.position.y + rect.size.y - box.y - 24.0)
 		draw_rect(Rect2(origin, box), Color(0.09, 0.06, 0.04, 0.88))
 		draw_string(font, origin + Vector2(5.0, text_size.y * 0.82), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("efe6d2"))
 		if filter_id != "":
