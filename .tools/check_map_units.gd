@@ -13,7 +13,8 @@ func _initialize() -> void:
 func _run() -> void:
 	root.add_child(layer)
 	renderer.setup(layer)
-	assert(renderer.frames.size() == 5 and renderer.frames.handcar_pump.size() == 6 and renderer.frames.handcar_idle.size() == 4 and renderer.frames.trader_roll.size() == 6, "Only accepted unit frames may load")
+	assert(renderer.frames.size() == 7 and renderer.frames.handcar_pump.size() == 6 and renderer.frames.handcar_idle.size() == 4 and renderer.frames.trader_roll.size() == 6, "Only accepted unit frames may load")
+	assert(renderer.frames.expedition_walk.size() == 6 and renderer.frames.puff.size() == 6)
 	assert(renderer.frames.squad_walk.size() == 6 and renderer.frames.squad_stand.size() == 4)
 	assert(is_equal_approx(Renderer.travel(0, 4), 0))
 	assert(is_equal_approx(Renderer.travel(4, 4), 1))

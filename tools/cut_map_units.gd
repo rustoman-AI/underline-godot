@@ -14,7 +14,7 @@ func _initialize() -> void:
 			source = arg.trim_prefix("--source=")
 		if arg.begins_with("--kind="):
 			kind = arg.trim_prefix("--kind=")
-	if kind not in ["handcar_pump", "handcar_idle", "trader_roll", "squad_walk", "squad_stand"]:
+	if kind not in ["handcar_pump", "handcar_idle", "trader_roll", "squad_walk", "squad_stand", "expedition_walk", "puff"]:
 		push_error("Only accepted unit sheets can be imported")
 		quit(1)
 		return
@@ -28,12 +28,25 @@ func _initialize() -> void:
 		push_error("Missing pilot: " + source)
 		quit(1)
 		return
+	if kind == "puff":
+		_clean(sheet)
 	var spans := _spans(sheet)
+	if kind == "puff":
+		var groups: Array[Vector2i] = []
+		for span in spans:
+			if not groups.is_empty() and span.x - groups[-1].y < 60:
+				groups[-1].y = span.y
+			else:
+				groups.append(span)
+		spans = groups
 	if spans.size() != count:
 		push_error("%s: expected %d alpha-separated frames, found %d; no assets written" % [kind, count, spans.size()])
 		quit(1)
 		return
-	if kind.begins_with("squad_"):
+	if kind == "puff":
+		_cut_puff(sheet, spans, source, dest)
+		return
+	if kind.begins_with("squad_") or kind == "expedition_walk":
 		_cut_squad(sheet, spans, source, kind, count, dest)
 		return
 	var cells: Array[Image] = []
@@ -97,6 +110,9 @@ func _initialize() -> void:
 
 ## Normalize both squad sheets by body height and place their lowest opaque soles on one shared baseline.
 func _cut_squad(sheet: Image, spans: Array[Vector2i], source: String, kind: String, count: int, dest: String) -> void:
+	var expedition := kind == "expedition_walk"
+	var canvas := Vector2i(700, 650) if expedition else Vector2i(600, 580)
+	var anchor := Vector2(350, 630) if expedition else Vector2(300, 560)
 	var cells: Array[Image] = []
 	var marks: Array[Dictionary] = []
 	var factor := 1.0
@@ -120,13 +136,27 @@ func _cut_squad(sheet: Image, spans: Array[Vector2i], source: String, kind: Stri
 		if i == 0:
 			factor = 400.0 / maxf(1, sole - body_top)
 		var center := cell.get_width() * 0.5
-		var box := Rect2((Vector2(used.position) - Vector2(center, sole)) * factor + Vector2(300, 560), Vector2(used.size) * factor)
-		if not Rect2(3, 3, 594, 574).encloses(box):
+		var box := Rect2((Vector2(used.position) - Vector2(center, sole)) * factor + anchor, Vector2(used.size) * factor)
+		if not Rect2(Vector2(3, 3), Vector2(canvas) - Vector2(6, 6)).encloses(box):
 			push_error("Squad frame %d exceeds shared canvas; no assets written" % i)
 			quit(1)
 			return
 		maximum_width = maxf(maximum_width, used.size.x * factor)
-		for y in range(body_top, body_top + int((sole - body_top) * 0.45)):
+		var pennant := Rect2i()
+		if expedition:
+			for y in range(used.position.y, used.position.y + int(used.size.y * 0.28)):
+				for x in range(int(cell.get_width() * 0.70), cell.get_width()):
+					var pixel := cell.get_pixel(x, y)
+					var high := maxf(pixel.r, maxf(pixel.g, pixel.b))
+					var low := minf(pixel.r, minf(pixel.g, pixel.b))
+					if pixel.a > 0.9 and high - low < 0.16 and high > 0.35 and high < 0.8:
+						pennant = Rect2i(Vector2i(x, y), Vector2i.ONE) if not pennant.has_area() else pennant.expand(Vector2i(x, y))
+						samples.append(high)
+			if not pennant.has_area():
+				push_error("No pennant near pole tip; no assets written")
+				quit(1)
+				return
+		for y in range(body_top, body_top if expedition else body_top + int((sole - body_top) * 0.45)):
 			for x in cell.get_width():
 				var pixel := cell.get_pixel(x, y)
 				var high := maxf(pixel.r, maxf(pixel.g, pixel.b))
@@ -134,7 +164,7 @@ func _cut_squad(sheet: Image, spans: Array[Vector2i], source: String, kind: Stri
 				if pixel.a > 0.9 and high - low <= 6.0 / 255.0 and high > 0.45 and high < 0.8:
 					samples.append(high)
 		cells.append(cell)
-		marks.append({"center": center, "sole": sole, "body_top": body_top})
+		marks.append({"center": center, "sole": sole, "body_top": body_top, "pennant": [pennant.position.x, pennant.position.y, pennant.size.x, pennant.size.y]})
 		print("%s f%d columns %d..%d sole %d body top %d scale %.5f" % [kind, i, span.x, span.y, sole, body_top, factor])
 	if samples.is_empty():
 		push_error("No neutral armband pixels found; no assets written")
@@ -144,10 +174,10 @@ func _cut_squad(sheet: Image, spans: Array[Vector2i], source: String, kind: Stri
 	var tint_key: float = samples[samples.size() / 2]
 	DirAccess.make_dir_recursive_absolute(dest)
 	for i in count:
-		var out := Image.create(600, 580, false, Image.FORMAT_RGBA8)
-		for y in 580:
-			for x in 600:
-				var p := Vector2i(((Vector2(x, y) - Vector2(300, 560)) / factor + Vector2(marks[i].center, marks[i].sole)).round())
+		var out := Image.create(canvas.x, canvas.y, false, Image.FORMAT_RGBA8)
+		for y in canvas.y:
+			for x in canvas.x:
+				var p := Vector2i(((Vector2(x, y) - anchor) / factor + Vector2(marks[i].center, marks[i].sole)).round())
 				if Rect2i(Vector2i.ZERO, cells[i].get_size()).has_point(p):
 					out.set_pixel(x, y, cells[i].get_pixelv(p))
 		if out.save_png(dest.path_join("f%d.png" % i)) != OK:
@@ -155,8 +185,44 @@ func _cut_squad(sheet: Image, spans: Array[Vector2i], source: String, kind: Stri
 			quit(1)
 			return
 	var file := FileAccess.open(dest.path_join("frames.json"), FileAccess.WRITE)
-	file.store_string(JSON.stringify({"count": count, "anchor": [300, 560], "source": source, "landmarks": marks, "owner_grey": tint_key, "tint_region": [0.0, 0.38, 1.0, 0.60], "cycle_distance": maximum_width * 1.1, "body_height": 400, "accepted": true, "placeholder": false}, "\t"))
-	print("%s: %d frames, shared 600x580 canvas, soles y560, owner grey %.4f" % [kind, count, tint_key])
+	var metadata := {"count": count, "anchor": [anchor.x, anchor.y], "source": source, "landmarks": marks, "owner_grey": tint_key, "tint_region": [0.0, 0.38, 1.0, 0.60], "cycle_distance": maximum_width * 1.1, "body_height": 400, "accepted": true, "placeholder": false}
+	if expedition:
+		var regions: Array = []
+		for mark in marks:
+			var p: Array = mark.pennant
+			var box := Rect2(Vector2(p[0], p[1]) - Vector2(mark.center, mark.sole), Vector2(p[2], p[3])).grow(2)
+			box = Rect2(box.position * factor + anchor, box.size * factor)
+			regions.append([box.position.x / canvas.x, box.position.y / canvas.y, box.end.x / canvas.x, box.end.y / canvas.y])
+		metadata.tint_regions = regions
+		metadata.owner_spread = 0.16
+		metadata.owner_tolerance = 0.12
+	file.store_string(JSON.stringify(metadata, "\t"))
+	print("%s: %d frames, canvas %s, sole anchor %s, owner grey %.4f" % [kind, count, canvas, anchor, tint_key])
+	quit(0)
+
+## Keep dust fragments together, preserving their shared source baseline and fading alpha.
+func _cut_puff(sheet: Image, spans: Array[Vector2i], source: String, dest: String) -> void:
+	var shared := Rect2()
+	var baseline := sheet.get_used_rect().end.y - 1
+	for i in spans.size():
+		var span := spans[i]
+		var cell := sheet.get_region(Rect2i(span.x, 0, span.y - span.x + 1, sheet.get_height()))
+		var used := cell.get_used_rect()
+		var box := Rect2(Vector2(used.position) - Vector2(cell.get_width() - 1, baseline), Vector2(used.size))
+		shared = box if i == 0 else shared.merge(box)
+	var origin := shared.position.floor() - Vector2(3, 3)
+	var extent := Vector2i(shared.end.ceil() - origin + Vector2(3, 3))
+	DirAccess.make_dir_recursive_absolute(dest)
+	for i in spans.size():
+		var span := spans[i]
+		var cell := sheet.get_region(Rect2i(span.x, 0, span.y - span.x + 1, sheet.get_height()))
+		var out := Image.create(extent.x, extent.y, false, Image.FORMAT_RGBA8)
+		out.blit_rect(cell, Rect2i(Vector2i.ZERO, cell.get_size()), Vector2i(-origin) - Vector2i(cell.get_width() - 1, baseline))
+		out.save_png(dest.path_join("f%d.png" % i))
+		print("puff f%d columns %d..%d baseline %d" % [i, span.x, span.y, baseline])
+	var file := FileAccess.open(dest.path_join("frames.json"), FileAccess.WRITE)
+	file.store_string(JSON.stringify({"count": 6, "anchor": [-origin.x, -origin.y], "source": source, "accepted": true, "placeholder": false, "tinted": false}, "\t"))
+	print("puff: six untinted frames, shared canvas %s" % extent)
 	quit(0)
 
 ## Sample the canopy interior rather than the neutral silver cargo below it.

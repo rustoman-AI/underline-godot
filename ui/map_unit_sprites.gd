@@ -2,13 +2,14 @@ extends RefCounted
 
 ## Cached frames and pooled sprites keep texture loading and material allocation outside drawing.
 const TINT := preload("res://ui/shaders/owner_tint.gdshader")
-const KINDS := ["handcar_pump", "handcar_idle", "trader_roll", "squad_walk", "squad_stand"]
+const KINDS := ["handcar_pump", "handcar_idle", "trader_roll", "squad_walk", "squad_stand", "expedition_walk", "puff"]
 var distance_per_frame := 4.25
 var frames := {}
 var anchors := {}
 var tint_keys := {}
 var tint_regions := {}
 var cycle_distances := {}
+var sheet_meta := {}
 var materials := {}
 var sprites := {}
 var used := {}
@@ -34,6 +35,7 @@ func setup(layer: CanvasItem) -> void:
 				list.append(load(file))
 		if list.size() == int(meta.count):
 			frames[kind] = list
+			sheet_meta[kind] = meta
 			anchors[kind] = Vector2(meta.anchor[0], meta.anchor[1])
 			tint_keys[kind] = float(meta.get("owner_grey", 181.0 / 255.0))
 			cycle_distances[kind] = float(meta.get("cycle_distance", 0.0))
@@ -88,14 +90,21 @@ func tag(key: String, at: Vector2, good: String, swing: float, alpha: float) -> 
 		icon.scale = Vector2.ONE * 16.0 / maxf(icon.texture.get_width(), icon.texture.get_height())
 
 ## Cache by sheet and owner so different neutral greys share the same owner colour setting.
-func _material(col: Color, kind: String = "handcar_pump") -> ShaderMaterial:
-	var key := kind + ":" + col.to_html()
+func _material(col: Color, kind: String = "handcar_pump", frame: int = 0) -> ShaderMaterial:
+	var meta: Dictionary = sheet_meta.get(kind, {})
+	var regions: Array = meta.get("tint_regions", [])
+	var key := kind + ":" + col.to_html() + (":" + str(frame) if not regions.is_empty() else "")
 	if not materials.has(key):
 		var material := ShaderMaterial.new()
 		material.shader = TINT
 		material.set_shader_parameter("owner_color", col)
 		material.set_shader_parameter("owner_grey", tint_keys.get(kind, 181.0 / 255.0))
 		material.set_shader_parameter("tint_region", tint_regions.get(kind, Vector4(0, 0, 1, 1)))
+		material.set_shader_parameter("owner_spread", float(meta.get("owner_spread", 6.0 / 255.0)))
+		material.set_shader_parameter("owner_tolerance", float(meta.get("owner_tolerance", 16.0 / 255.0)))
+		if not regions.is_empty():
+			var region: Array = regions[frame]
+			material.set_shader_parameter("tint_region", Vector4(region[0], region[1], region[2], region[3]))
 		materials[key] = material
 	return materials[key]
 
@@ -110,6 +119,7 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	if fresh:
 		var sprite := Sprite2D.new()
 		sprite.centered = false
+		sprite.z_index = 1
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		parent.add_child(sprite)
 		sprites[key] = sprite
@@ -129,7 +139,7 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	node.texture = list[index]
 	node.offset = -Vector2(anchors[kind])
 	node.position = at
-	node.material = _material(col, kind)
+	node.material = _material(col, kind, index)
 	node.modulate = Color(1, 1, 1, alpha)
 	node.visible = true
 	var facing := -1.0 if direction.x < 0 else 1.0
@@ -143,6 +153,26 @@ func paint(key: String, kind: String, at: Vector2, direction: Vector2, col: Colo
 	node.rotation = angle if fresh or still else lerp_angle(node.rotation, angle, 1.0 - exp(-dt / 0.15))
 	node.scale = Vector2(face_now * factor, factor)
 	return true
+
+## Play one short untinted dust burst from a reusable sprite behind the moving vehicle.
+func puff(key: String, at: Vector2, height: float, age: float) -> void:
+	if not frames.has("puff") or age < 0 or age >= 0.6:
+		return
+	used[key] = true
+	if not sprites.has(key):
+		var sprite := Sprite2D.new()
+		sprite.centered = false
+		sprite.z_index = 0
+		parent.add_child(sprite)
+		sprites[key] = sprite
+	var node: Sprite2D = sprites[key]
+	node.texture = frames.puff[mini(5, int(age * 10))]
+	node.offset = -Vector2(anchors.puff)
+	node.position = at
+	node.scale = Vector2.ONE * height / node.texture.get_height()
+	node.material = null
+	node.modulate = Color(1, 1, 1, 1.0 - age / 0.6)
+	node.visible = true
 
 ## Integrate a trapezoidal velocity curve, preserving constant cruise speed between short station eases.
 static func travel(time: float, duration: float) -> float:

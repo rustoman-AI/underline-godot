@@ -1,4 +1,11 @@
 MAP UNIT SET GENERATION REVIEW
+21 OCT FINAL INTEGRATION: expedition_walk_v1 and puff_v1 are accepted and imported (six frames each).
+All seven accepted sheets are now available at runtime. No new art was generated in this pass.
+Expedition tint uses a separate upper-right pennant region per pose and a low-saturation key; mugs stay unchanged.
+Dust is untinted, emitted behind cruising handcars/traders every 0.6 seconds, and disabled with reduced motion.
+Standing squad bays are now local to their own pin and fully on paper, with a 30 px token when the full group cannot fit.
+This supersedes the earlier pending/import status below. See docs/audit/map_units_pilot.md for verification.
+
 CURRENT PASS: expedition_reference_v2 is owner-accepted; see ACCEPTED.txt.
 Generated expedition_walk_v1.png using accepted expedition v2 plus both pilot images.
 The submitted prompt explicitly preserves the accepted pennant colour and requests clear boot/pole margins.

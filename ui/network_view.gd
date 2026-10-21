@@ -6,6 +6,10 @@ extends Control
 const UnitSprites = preload("res://ui/map_unit_sprites.gd")
 var _sprites := UnitSprites.new()
 var _unit_routes := {}
+var _squad_positions := {}
+var _squad_bay_cache := {}
+var _puffs := {}
+var _puff_times := {}
 
 const ArtPack = preload("res://ui/art_pack.gd")
 const PINS_JSON := "res://data/map_pins.json"
@@ -1114,6 +1118,7 @@ func _clip_half(pts: PackedVector2Array, tags: PackedInt32Array, n: Vector2, d: 
 
 
 func _draw_ink(c: CanvasItem) -> void:
+	_squad_bay_cache.clear()
 	var game = _game()
 	if game == null:
 		return
@@ -1818,6 +1823,7 @@ func _pin_at(game, sid: String) -> Vector2:
 ## Draw cached map miniatures using presentation state while preserving the simulation's orders.
 func _draw_squads(c: CanvasItem, game) -> void:
 	var bay_slots := {}
+	_squad_positions.clear()
 	for fid in game.squads:
 		var sq: Dictionary = game.squads[fid]
 		var sid := str(sq.station)
@@ -1829,6 +1835,7 @@ func _draw_squads(c: CanvasItem, game) -> void:
 		var direction := Vector2.RIGHT
 		var distance := 0.0
 		var kind := "squad_stand"
+		var compact := false
 		if _walks.has(str(fid)) and not _motion_off():
 			var walk: Dictionary = _walks[str(fid)]
 			var pts := PackedVector2Array()
@@ -1846,17 +1853,66 @@ func _draw_squads(c: CanvasItem, game) -> void:
 		else:
 			var slot := int(bay_slots.get(sid, 0))
 			bay_slots[sid] = slot + 1
-			at = _squad_station_bay(game, sid, int(sq.size), slot)
-		_draw_squad_token(c, game, at, str(fid), int(sq.size), kind, direction, distance)
+			var bay := _squad_station_layout(sid, int(sq.size), slot)
+			at = bay.at
+			compact = bay.compact
+		_squad_positions[str(fid)] = {"at": at, "compact": compact, "sid": sid}
+		_draw_squad_token(c, game, at, str(fid), int(sq.size), kind, direction, distance, compact)
 
 ## Use a visible neighbouring tunnel to choose the same clear bay for standing, departure and arrival.
 func _squad_station_bay(game, sid: String, size_n: int, slot: int = 0) -> Vector2:
-	var direction := Vector2.RIGHT
-	for neighbor in game._neighbors(sid):
-		if _layout.has(str(neighbor)) and bool(_layout[str(neighbor)].known):
-			direction = (Vector2(_layout[str(neighbor)].at) - Vector2(_layout[sid].at)).normalized()
-			break
-	return _unit_station_bay(sid, direction, _unit_width("squad_stand"), slot, _squad_footprint(size_n), true)
+	return _squad_station_layout(sid, size_n, slot).at
+
+## Search only the station's immediate neighbourhood, falling back to a 30-pixel count token.
+func _squad_station_layout(sid: String, size_n: int, slot: int = 0) -> Dictionary:
+	var key := "%s_%d_%d" % [sid, size_n, slot]
+	if _squad_bay_cache.has(key):
+		return _squad_bay_cache[key]
+	var pin: Dictionary = _layout[sid]
+	for compact in [false, true]:
+		var footprint := Rect2(-15, -15, 30, 30) if compact else _squad_footprint(size_n)
+		for reach in [1.4, 1.8, 2.2]:
+			for i in 32:
+				var angle := -PI * 0.5 + (i + slot * 8) * TAU / 32.0
+				var at: Vector2 = Vector2(pin.at) + Vector2.from_angle(angle) * float(pin.r) * reach
+				if _squad_bay_clear(sid, at, footprint):
+					_squad_bay_cache[key] = {"at": at, "compact": compact}
+					return _squad_bay_cache[key]
+	_squad_bay_cache[key] = {"at": Vector2(pin.at) + Vector2(-float(pin.r) * 2.2, 0), "compact": true}
+	return _squad_bay_cache[key]
+
+## Require local ownership, paper containment and exact circle clearance for the whole bay footprint.
+func _squad_bay_clear(sid: String, at: Vector2, footprint: Rect2) -> bool:
+	var own: Dictionary = _layout[sid]
+	var distance := at.distance_to(own.at)
+	if distance > float(own.r) * 2.2 + 0.01:
+		return false
+	var box := Rect2(at + footprint.position, footprint.size).grow(1.0)
+	if not _inside_map_paper(box):
+		return false
+	for other in _layout:
+		var pin: Dictionary = _layout[other]
+		if str(other) != sid and at.distance_to(pin.at) <= distance:
+			return false
+		var closest := Vector2(clampf(pin.at.x, box.position.x, box.end.x), clampf(pin.at.y, box.position.y, box.end.y))
+		if closest.distance_to(pin.at) < float(pin.r) + 1.0:
+			return false
+	for tag in _tags.values():
+		if box.intersects(tag.grow(1.0)):
+			return false
+	for row in _yield_rows:
+		if box.intersects(Rect2(row.x, row.y, row.total, 18).grow(1.0)):
+			return false
+	return true
+
+## Invert both camera and paper transforms so desk pixels never count as paper.
+func _inside_map_paper(box: Rect2) -> bool:
+	var inverse := _map_xf.affine_inverse()
+	var paper := Rect2(Vector2(2, 2), _map_size - Vector2(4, 4))
+	for corner in [box.position, Vector2(box.end.x, box.position.y), box.end, Vector2(box.position.x, box.end.y)]:
+		if not paper.has_point(inverse * _world(corner)):
+			return false
+	return true
 
 
 func _draw_intents(c: CanvasItem, game) -> void:
@@ -2444,7 +2500,7 @@ func _draw_units(c: CanvasItem) -> void:
 			if float(state.retire) >= 0 and not still:
 				alpha = minf(alpha, clampf((float(state.retire) - elapsed) / 0.25, 0, 1))
 			var key := "cart_%s_%s_%s_%d" % [row.kind, row.get("owner", "home"), row.seed, i]
-			var accepted_car := str(row.kind) in ["supply", "settle", "trade"]
+			var accepted_car := str(row.kind) in ["supply", "settle", "trade", "rival"]
 			var height := _unit_height()
 			if height < 30 or not accepted_car:
 				_draw_unit_disc(c, at, col, good)
@@ -2453,13 +2509,37 @@ func _draw_units(c: CanvasItem) -> void:
 			if not _sprites.paint(key, kind, at, dir, col, height, distance, _anim_t, still, idle, alpha):
 				_draw_unit_disc(c, at, col, good)
 				continue
+			if not still and not idle and progress.y >= 0.4 and progress.z >= 0.5:
+				_emit_cruise_puff(key, at - dir * car_width * 0.38, height * 0.28)
 			var unloading := not trade and local >= duration + 1.2
 			var drop := clampf((local - duration - 1.2) / 0.45, 0, 1) if unloading and not still else 0.0
 			var tag := at + Vector2(-height * 0.35, -height * 0.25 + drop * 12 - sin(drop * PI * 3) * (1.0 - drop) * 3)
 			var swing := 0.0 if still or idle else sin(_anim_t * 4) * 0.08
 			_sprites.tag(key + "_tag", tag, good, swing, alpha * (1.0 - drop))
 	_draw_expedition(c, game, home_col, still)
+	_draw_puffs(still)
 	_sprites.finish()
+
+## Emit at most one dust burst per vehicle every 0.6 seconds, only during its cruise interval.
+func _emit_cruise_puff(key: String, at: Vector2, height: float) -> void:
+	if not _sprites.frames.has("puff") or _anim_t - float(_puff_times.get(key, -100.0)) < 0.6:
+		return
+	_puff_times[key] = _anim_t
+	_puffs["puff_" + key] = {"at": at, "height": height, "born": _anim_t}
+
+## Fade and retire pooled dust bursts without redrawing the static map or tinting their colours.
+func _draw_puffs(still: bool) -> void:
+	if still:
+		_puffs.clear()
+		_puff_times.clear()
+		return
+	for key in _puffs.keys():
+		var row: Dictionary = _puffs[key]
+		var age := _anim_t - float(row.born)
+		if age >= 0.6:
+			_puffs.erase(key)
+		else:
+			_sprites.puff(str(key), row.at, row.height, age)
 
 
 func _poly_length(pts: PackedVector2Array) -> float:
@@ -2525,13 +2605,21 @@ func _draw_expedition(c: CanvasItem, game, col: Color, still: bool) -> void:
 
 
 ## Paint accepted squad poses with a faction-coloured circular count at their upper right.
-func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int, kind: String = "squad_stand", direction: Vector2 = Vector2.RIGHT, distance: float = 0.0) -> void:
+func _draw_squad_token(c: CanvasItem, game, at: Vector2, fid: String, size_n: int, kind: String = "squad_stand", direction: Vector2 = Vector2.RIGHT, distance: float = 0.0, compact: bool = false) -> void:
 	var height := _unit_height()
 	var col := _faction_color(game, fid)
+	if compact:
+		c.draw_circle(at, 15, TAG_INK)
+		c.draw_circle(at, 13, col)
+		var text := str(size_n)
+		var pos := at + Vector2(-_font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x * 0.5, 4.5)
+		c.draw_string_outline(_font(), pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, TAG_INK)
+		c.draw_string(_font(), pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TAG_PAPER)
+		return
 	var painted := false
 	if height >= 30 and _sprites.frames.has(kind):
 		c.draw_texture_rect(_sprites.shadow, Rect2(at - Vector2(height * 0.5, height * 0.08), Vector2(height, height * 0.2)), false, Color(1, 1, 1, 0.7))
-		painted = _sprites.paint("squad_" + fid, kind, at, direction, col, height, distance, _anim_t, _motion_off(), kind == "squad_stand")
+		painted = _sprites.paint(("expedition_" if kind == "expedition_walk" else "squad_") + fid, kind, at, direction, col, height, distance, _anim_t, _motion_off(), kind == "squad_stand")
 	if not painted:
 		_draw_unit_disc(c, at, col, "squad")
 	_draw_squad_badge(c, _squad_badge_at(at, size_n, painted), size_n, col)

@@ -70,7 +70,8 @@ func _run() -> void:
 		await process_frame
 		await RenderingServer.frame_post_draw
 		for owner in owners:
-			assert(net._sprites.sprites["squad_" + owner].texture == net._sprites.frames.squad_stand[0], "Reduced motion holds standing frame zero")
+			if not bool(net._squad_positions[owner].compact):
+				assert(net._sprites.sprites["squad_" + owner].texture == net._sprites.frames.squad_stand[0], "Reduced motion holds standing frame zero")
 		station.motion_in_shots = true
 	print("SQUADS OK: distance-driven walk, 4 fps stand, common soles, player/rival colours, circular 12/27 badges, clear visible bays at Garden and Depot, no badge/tag overlap, fit/max crops, reduced motion")
 	quit(0)
@@ -111,23 +112,28 @@ func _capture(net, owners: Array, suffix: String, kind: String) -> void:
 	var contexts: Array[Image] = []
 	for i in owners.size():
 		var owner: String = owners[i]
-		var sprite: Sprite2D = net._sprites.sprites["squad_" + owner]
-		assert(sprite.visible and sprite.texture in net._sprites.frames[kind])
-		assert(sprite.material == net._sprites._material(net._faction_color(net._game(), owner), kind))
+		var state: Dictionary = net._squad_positions[owner]
+		var position: Vector2 = state.at
+		var compact: bool = state.compact
+		if not compact:
+			var sprite: Sprite2D = net._sprites.sprites["squad_" + owner]
+			assert(sprite.visible and sprite.texture in net._sprites.frames[kind])
+			assert(sprite.material == net._sprites._material(net._faction_color(net._game(), owner), kind))
 		var count_n := int(net._game().squads[owner].size)
-		var badge_at: Vector2 = net._squad_badge_at(sprite.position, count_n)
-		var badge_radius: float = net._squad_badge_radius(count_n) + 2.0
+		var badge_at: Vector2 = position if compact else net._squad_badge_at(position, count_n)
+		var badge_radius: float = 15.0 if compact else net._squad_badge_radius(count_n) + 2.0
 		var badge_box := Rect2(badge_at - Vector2.ONE * badge_radius, Vector2.ONE * badge_radius * 2)
 		for tag in net._tags.values():
 			assert(not badge_box.intersects(tag), "Squad badge must never cover a tag")
 		if kind == "squad_stand":
-			assert(net._unit_bay_clear(sprite.position, net._unit_width("squad_stand"), net._squad_footprint(count_n)), "Standing group and badge overlap station obstacles")
-			assert(Rect2(Vector2.ZERO, net.size).encloses(Rect2(sprite.position + net._squad_footprint(count_n).position, net._squad_footprint(count_n).size)), "Standing bay must remain on screen")
-			assert(badge_at.x > sprite.position.x and badge_at.y < sprite.position.y, "Badge belongs at the group's upper right")
+			var footprint: Rect2 = Rect2(-15, -15, 30, 30) if compact else net._squad_footprint(count_n)
+			assert(net._squad_bay_clear(str(state.sid), position, footprint), "Standing bay must be local, nearest its own pin, on paper and clear of obstacles")
+			if not compact:
+				assert(badge_at.x > position.x and badge_at.y < position.y, "Badge belongs at the group's upper right")
 			if suffix.begins_with("fit"):
 				var sid := str(net._game().squads[owner].station)
 				var pin: Dictionary = net._layout[sid]
-				var bounds := Rect2(sprite.position + net._squad_footprint(count_n).position, net._squad_footprint(count_n).size)
+				var bounds := Rect2(position + footprint.position, footprint.size)
 				bounds = bounds.merge(Rect2(Vector2(pin.at) - Vector2.ONE * float(pin.r), Vector2.ONE * float(pin.r) * 2))
 				if net._tags.has(sid):
 					bounds = bounds.merge(net._tags[sid])
@@ -139,7 +145,7 @@ func _capture(net, owners: Array, suffix: String, kind: String) -> void:
 				var enlarged: Image = context.duplicate()
 				enlarged.resize(context.get_width() * 4, context.get_height() * 4, Image.INTERPOLATE_NEAREST)
 				enlarged.save_png("res://build/squad_bay_%s_fit_crop.png" % sid)
-		var rect := Rect2i(Vector2i(sprite.position) - Vector2i(75, 90), Vector2i(200, 120)).intersection(Rect2i(Vector2i.ZERO, image.get_size()))
+		var rect := Rect2i(Vector2i(position) - Vector2i(75, 90), Vector2i(200, 120)).intersection(Rect2i(Vector2i.ZERO, image.get_size()))
 		assert(rect.size.x > 160 and rect.size.y > 100, "Squad crop must remain visible")
 		pair.blit_rect(image, rect, Vector2i(i * 200, 0))
 	pair.resize(1600, 480, Image.INTERPOLATE_NEAREST)

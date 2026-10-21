@@ -17,8 +17,8 @@ Underline: stations in the tunnels, five leader factions, the council, residents
 ## Next, in the order I recommend
 Each is one package. The ones marked **balance** change numbers and need the 30-seed gates and a decision record.
 
-1. **Art for map pieces** (handcar pump, idle, trader roll and squad walk/stand done 20 Oct; expedition and dust pending owner review; ChatGPT brief `docs/briefs/art_map_units_set_prompts.txt`). Painted miniatures for carts, traders,
-   squads, expedition; tinted by owner. The accepted six-frame handcar runs on supply and settle routes, switching to the four-frame idle sheet while waiting. The six-frame trader runs on trade routes with canopy-only tint. Squads use six distance-driven walk poses and four standing poses at 4 fps, with a separate size badge. Each sheet keys tint on its own neutral grey. Expedition stays a clean token until accepted. See `docs/audit/map_units_pilot.md` for import and verification.
+1. **Art for map pieces** (done 21 Oct; all seven accepted sheets integrated; ChatGPT brief `docs/briefs/art_map_units_set_prompts.txt`). Painted miniatures for carts, traders,
+   squads, expedition; tinted by owner. Handcars run on supply, settle and rival routes, with idle poses while waiting; traders use canopy tint. Squads walk by distance and stand at 4 fps, with local bays or a 30 px token when crowded. Expeditions tint only the pennant; mugs retain their colour. Untinted dust plays behind cruising vehicles every 0.6 seconds. See `docs/audit/map_units_pilot.md` for import, crops, checks and the full ten-second clip.
 2. **Rival units and caravans** (done 19 Oct). Rival squads walk tunnel by tunnel when they move; rival stations send their own carts
    to their seat. The map shows a living world, and a player sees a rival build-up before it hits. View only.
 3. **Yield preview on stations you do not hold** (done 19 Oct). Hover a known station: faint chips of what it would ship once

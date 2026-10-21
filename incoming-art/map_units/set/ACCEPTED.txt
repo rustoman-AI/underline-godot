@@ -33,3 +33,10 @@ squad_walk_v3 / squad_stand_v1: imported by Codex (934ca3c, f4a56d7). Placement 
 expedition_reference_v2.png: ACCEPTED. The pennant stays slightly warm (about 148,137,123) and the tin mugs are a
   similar grey, so the tint on expedition sheets is limited to the pennant region (top right of each frame) instead
   of keyed on neutral grey. Next: 4b EXPEDITION WALK (attach expedition_reference_v2.png), then 5 PUFF.
+
+21 Oct, final round:
+expedition_walk_v1.png: ACCEPTED. 6 frames (15-366, 397-732, 761-1071, 1091-1444, 1461-1791, 1809-2150), legs
+  alternate, pennant keeps the reference colour (region tint).
+puff_v1.png: ACCEPTED. 6 frames (94-176, 466-605, 789-1031, 1224-1424, 1633-1796, 2004-2098), transparent, one
+  baseline.
+The painted set is complete: handcar pump and idle, trader roll, squad walk and stand, expedition walk, puff.
