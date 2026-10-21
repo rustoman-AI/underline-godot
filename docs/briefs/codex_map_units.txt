@@ -117,3 +117,10 @@ ADDENDUM (19 Oct, after the placeholder round was rejected by the owner)
   in frames.json), still requiring R, G and B within 6 of each other. Trader sheets: limit the tint to the canopy
   region (above the deck) so the silver milk can stays silver. Import handcar_idle now (4 frames) and use it while
   cars wait at stations.
+- 20 Oct, squad review (build/squad_fit_stand_crop.png, squad_max_walk_crop.png): a standing squad sits on top of
+  its station pin and its size badge covers the station name ("12" over "Sisters of the Garden"). Standing squads
+  use the same bay logic as waiting cars (beside the pin, clear of the pin circle, chips and tags). The badge goes
+  back to the faction-coloured circle with the number, at the group's upper right, and must not cover a tag.
+  Walking squads may pass over tags.
+- Expedition sheets: the pennant is a warm grey close to the tin mugs, so tint only the pennant region (top right
+  of each frame, found from the pole tip) with a low-saturation key, never the mugs.
