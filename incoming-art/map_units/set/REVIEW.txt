@@ -1,4 +1,11 @@
 MAP UNIT SET GENERATION REVIEW
+LATEST PASS: squad_walk_v3 and squad_stand_v1 are now owner-accepted and imported.
+Six walk and four stand frames share a sole anchor and neutral-armband tint. See ACCEPTED.txt.
+expedition_reference_v2.png was generated with the exact EXPEDITION REFERENCE CORRECTION prompt,
+attaching expedition_reference_v1.png and both pilot images. Only attempt 2 was generated in this pass.
+The corrected expedition still remains pending owner review; art generation stopped there.
+These notes supersede the earlier pending squad-loop status and expedition-v1 review status below.
+
 CURRENT GENERATION PASS, after owner accepted squad_reference_v2:
 Generated with the built-in image_gen tool; all candidates remain pending owner review.
 squad_walk_v1, v2 and v3: six frames each. Latest candidate is v3.
