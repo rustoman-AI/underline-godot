@@ -7,20 +7,20 @@
       "banner": "expedition",
       "title": {"ru": "Экспедиция в Квинс", "en": "Expedition to Queens"},
       "intro": {
-        "ru": "Разведчики замерли перед ржавым гермозатвором заброшенной ветки на Квинс. Пахнет сыростью, машинным маслом и чем-то приторно-сладким. За дверью довоенный склад медикаментов, но тоннель подозрительно тихо дышит.",
-        "en": "The scouts stop at a rusted blast door on the dead Queens branch. It smells of damp, machine oil and something sickly sweet. Behind the door is a pre-war medical store, and the tunnel is breathing far too quietly."
+        "ru": "Разведчики остановились у ржавого гермозатвора на заброшенной ветке в Квинс. Пахнет сыростью, машинным маслом и чем-то приторно-сладким. За дверью довоенный склад медикаментов. Вокруг слишком тихо.",
+        "en": "The scouts stop at a rusted blast door on the dead Queens branch. It smells of damp, machine oil and something sickly sweet. Behind the door is a pre-war medical store. The tunnel around it is far too quiet."
       },
       "options": [
         {
           "id": "force",
           "skill": "grit", "target": 8, "color": "white",
-          "text": {"ru": "Выбить заклинившую задвижку плечом и ворваться внутрь.", "en": "Shoulder the jammed bolt and storm in."},
+          "text": {"ru": "Выбить заклинивший засов плечом. Если не поддастся, на шум кто-нибудь придёт.", "en": "Force the jammed bolt with your shoulders. If it holds, the noise draws something."},
           "success": {
-            "text": {"ru": "Металл поддаётся с оглушительным скрежетом, твари в панике разбегаются. Команда забирает ящики со спиртом и бинтами.", "en": "The metal gives with a deafening screech and whatever lives there scatters. The team hauls out crates of alcohol and bandages."},
+            "text": {"ru": "Металл со скрежетом поддаётся, и всё живое внутри разбегается. Команда выносит ящики со спиртом и бинтами.", "en": "The metal gives with a screech and whatever lives in there scatters. The team carries out crates of alcohol and bandages."},
             "effects": {"flag": "medkits"}
           },
           "fail": {
-            "text": {"ru": "Задвижка заклинила намертво, а грохот привлёк стаю слепых псов. Приходится отступать с прокушенными ногами.", "en": "The bolt won't budge and the noise brings a pack of blind dogs. The team retreats with bitten legs."},
+            "text": {"ru": "Засов не сдвинуть, а на грохот сбегается стая слепых собак. Команда отступает с покусанными ногами.", "en": "The bolt will not move, and the noise brings a pack of blind dogs. The team falls back with bitten legs."},
             "effects": {"injured": 1},
             "retry_after": {"room": "workshop", "label": {"ru": "Построить Мастерскую", "en": "Build a Workshop"}}
           }
@@ -28,13 +28,13 @@
         {
           "id": "scout",
           "skill": "senses", "target": 9, "color": "red",
-          "text": {"ru": "Отрегулировать фонари и высмотреть засаду в щелях затвора.", "en": "Dim the headlamps and look for an ambush through the gaps."},
+          "text": {"ru": "Пригасить фонари и высмотреть засаду сквозь щели. Если их заметят, раненых будет много.", "en": "Dim the headlamps and check for an ambush through the gaps. If they are spotted, people get badly hurt."},
           "success": {
-            "text": {"ru": "Ты замечаешь гнездо летучих мышей прямо над проходом и обходишь его через вентиляцию. Добыча в руках без единого выстрела.", "en": "You spot a bat roost right over the passage and slip round it through the vents. The haul is yours without a shot fired."},
+            "text": {"ru": "Ты замечаешь над проходом гнездо летучих мышей и обходишь его по вентиляции. Припасы ваши, и обошлось без драки.", "en": "You spot a bat roost right over the passage and slip round it through the vents. The supplies are yours without a fight."},
             "effects": {"flag": "medkits"}
           },
           "fail": {
-            "text": {"ru": "Луч фонаря бьёт прямо в стаю. На шум слетается всё подземелье, разведчики возвращаются ни с чем и с тяжёлыми ранами.", "en": "The beam lands right on the swarm. Half the underground wakes up and the scouts come back empty-handed and badly hurt."},
+            "text": {"ru": "Луч фонаря упирается прямо в стаю. Просыпается всё подземелье, и разведчики возвращаются ни с чем, тяжело раненные.", "en": "The beam lands right on the swarm. Everything down there wakes up, and the scouts come back empty-handed and badly hurt."},
             "effects": {"injured": 2, "hope": -2}
           }
         }
@@ -45,22 +45,22 @@
       "min_week": 6,
       "banner": "cough",
       "requires_room": "hydroponics",
-      "title": {"ru": "Плесень в огородах", "en": "Mold in the Gardens"},
+      "title": {"ru": "Плесень на грядках", "en": "Mold in the beds"},
       "intro": {
-        "ru": "На огородах вспыхнула фиолетовая плесень. Слизь жрёт урожай с пугающей скоростью, и если ничего не сделать, станция перейдёт на сушёные крысиные хвосты. Рабочие в панике колотят канистрами по трубам.",
-        "en": "Purple mold has broken out in the gardens. The slime eats the crop at a frightening pace, and if nothing is done the station goes on a diet of dried rat tails. The workers are banging canisters on the pipes in panic."
+        "ru": "На грядках гидропоники пошла фиолетовая плесень. Она быстро съедает урожай, и если ничего не сделать, станция перейдёт на сушёные крысиные хвосты. Огородники в панике колотят по трубам.",
+        "en": "Purple mold has broken out in the hydroponic beds. It is eating the crop fast, and if nothing is done the station will be living on dried rat tails. The growers are banging on the pipes in panic."
       },
       "options": [
         {
           "id": "order",
           "skill": "voice", "target": 8, "color": "white",
-          "text": {"ru": "Жёстко приказать рабочим срезать поражённые грядки вручную, несмотря на споры.", "en": "Order the workers to cut out the infected beds by hand, spores or not."},
+          "text": {"ru": "Приказать огородникам вырезать больные грядки руками. Если откажутся, пропадёт треть урожая.", "en": "Order the growers to cut out the infected beds by hand. If they refuse, a third of the crop is lost."},
           "success": {
-            "text": {"ru": "Сталь в голосе заставляет паникёров замолчать и взяться за ножи. Огороды спасены, но пара человек кашляет.", "en": "The steel in your voice shuts the panickers up and they pick up knives. The gardens are saved, but a couple of people are coughing."},
+            "text": {"ru": "Твой голос перекрывает панику, и люди берутся за ножи. Грядки спасены, но двое уже кашляют.", "en": "Your voice cuts through the panic and they pick up knives. The beds are saved, but a couple of people are coughing."},
             "effects": {"sick": 1}
           },
           "fail": {
-            "text": {"ru": "Рабочие отказываются лезть в ядовитую жижу. Время упущено, плесень съедает треть урожая.", "en": "The workers refuse to go into the toxic muck. Time runs out and the mold eats a third of the crop."},
+            "text": {"ru": "Огородники отказываются лезть в ядовитую жижу. Время упущено, плесень съедает треть урожая.", "en": "The growers refuse to climb into the poisoned muck. Time runs out and the mold eats a third of the crop."},
             "effects": {"food_pct": -8, "discontent": 2},
             "retry_after": {"room": "infirmary", "label": {"ru": "Построить Медпункт", "en": "Build an Infirmary"}}
           }
@@ -68,13 +68,13 @@
         {
           "id": "burn",
           "skill": "wits", "target": 9, "color": "red",
-          "text": {"ru": "Рассчитать смесь аккумуляторной кислоты и дизеля, чтобы выжечь заразу, не отравив воду.", "en": "Work out a mix of battery acid and diesel to burn it out without poisoning the water."},
+          "text": {"ru": "Рассчитать смесь аккумуляторной кислоты и солярки, чтобы выжечь плесень и не отравить воду. Ошибёшься в расчёте, и стойка загорится.", "en": "Work out a mix of battery acid and diesel to burn it off without poisoning the water. If the sums are wrong, the rack catches fire."},
           "success": {
-            "text": {"ru": "Смесь срабатывает идеально: плесень шипит и опадает серой золой, грядки целы.", "en": "The mix works perfectly. The mold hisses and falls as grey ash, and the beds survive."},
+            "text": {"ru": "Смесь срабатывает. Плесень шипит и осыпается серой золой, грядки целы.", "en": "The mix works. The mold hisses and falls away as grey ash, and the beds survive."},
             "effects": {"hope": 1}
           },
           "fail": {
-            "text": {"ru": "Расчёт оказался неверным. Пары вспыхивают и сносят половину стойки, агроном наглотался дыма. Половина запасов еды пропала.", "en": "The numbers were wrong. The fumes flash and take out half the rack, and the grower breathes the smoke. Half the food stores are gone."},
+            "text": {"ru": "Расчёт оказался неверным. Пары вспыхивают и уносят полстойки, огородник наглотался дыма. Половины запасов еды больше нет.", "en": "The sums were wrong. The fumes catch fire and take half the rack with them, and the grower breathes the smoke. Half the food stores are gone."},
             "effects": {"food_pct": -16, "injured": 1, "room_disabled": {"type": "hydroponics", "weeks": 2}}
           }
         }
@@ -86,34 +86,34 @@
       "banner": "moles",
       "title": {"ru": "Кроты в вентиляции", "en": "Moles in the Vents"},
       "intro": {
-        "ru": "Из шахт верхнего яруса доносится скрежет лопат и бормотание. «Кроты» засыпают фильтры землёй, свято веря, что воздух с поверхности оскверняет их подземную тьму. Станция начинает задыхаться.",
-        "en": "Shovels scrape and voices mutter in the upper shafts. The Moles are filling the filters with earth, convinced that surface air defiles their holy dark. The station starts to choke."
+        "ru": "В шахтах верхнего яруса скребут лопаты и бормочут голоса. Кроты забивают воздушные фильтры землёй: они верят, что воздух сверху оскверняет их святую тьму. Станция начинает задыхаться.",
+        "en": "Shovels scrape and voices mutter in the upper shafts. The Moles are packing the air filters with earth: they believe surface air defiles their holy dark. The station is starting to choke."
       },
       "effects_on_open": {"air": -1},
       "options": [
         {
           "id": "preach",
           "skill": "voice", "target": 9, "color": "red",
-          "text": {"ru": "Докричаться через решётку до их вожака, взывая к подземному братству.", "en": "Shout through the grate to their leader about the brotherhood of the deep."},
+          "text": {"ru": "Докричаться через решётку до их вожака и воззвать к подземному братству. Если не убедишь, ответит дымом.", "en": "Shout through the grate to their leader about the brotherhood of the deep. If he is not convinced, he answers with smoke."},
           "success": {
-            "text": {"ru": "Твоя речь о «единой тьме для всех» трогает безумца. Кроты забирают вёдра и уходят молиться в другие тоннели.", "en": "Your speech about one darkness for all moves the madman. The Moles take their buckets and go to pray in other tunnels."},
+            "text": {"ru": "Твои слова о единой тьме для всех доходят до него. Кроты забирают вёдра и уходят молиться в другие тоннели.", "en": "Your talk of one darkness for everyone reaches him. The Moles pick up their buckets and go to pray in other tunnels."},
             "effects": {"hope": 1, "relation": {"moles": 10}}
           },
           "fail": {
-            "text": {"ru": "Сектант объявляет тебя еретиком и швыряет сквозь решётку серную шашку. Ярус приходится временно эвакуировать.", "en": "The cultist calls you a heretic and throws a sulfur smoke bomb through the grate. The level has to be evacuated for a while."},
+            "text": {"ru": "Вожак объявляет тебя еретиком и бросает сквозь решётку серную шашку. Ярус приходится на время освободить.", "en": "Their leader calls you a heretic and throws a sulphur smoke bomb through the grate. The level has to be cleared for a while."},
             "effects": {"air": -2, "sick": 1, "room_disabled": {"type": "air_filter", "weeks": 1}}
           }
         },
         {
           "id": "cut",
           "skill": "senses", "target": 8, "color": "white",
-          "text": {"ru": "Тихо пролезть по соседней трубе и перерезать тросы их люлек.", "en": "Crawl through the next pipe and cut the ropes on their cradles."},
+          "text": {"ru": "Пролезть по соседней трубе и перерезать тросы их люлек. Это решит дело навсегда, и люди будут шептаться.", "en": "Crawl through the next pipe and cut the ropes of their cradles. It works for good, and people will talk."},
           "success": {
-            "text": {"ru": "Лёгкий щелчок ножа, и фанатики с воплем летят на дно шахты. Проблема решена окончательно и цинично. Станция дышит, но люди об этом шепчутся.", "en": "A soft click of the knife and the fanatics drop screaming down the shaft. Solved, permanently and cynically. The station breathes, but people whisper about it."},
+            "text": {"ru": "Один щелчок ножа, и люльки летят вниз по шахте. С этим покончено навсегда. Станция снова дышит, но люди шепчутся о том, как это вышло.", "en": "The knife clicks once and the cradles fall down the shaft. The problem is gone for good. The station breathes again, but people whisper about how."},
             "effects": {"hope": -1, "discontent": 1, "relation": {"moles": -15}}
           },
           "fail": {
-            "text": {"ru": "Ты задеваешь ржавый болт, инструмент с грохотом летит вниз. Кроты замечают тебя и забрасывают шахту камнями.", "en": "You knock a rusty bolt and the tools clatter down. The Moles spot you and rain stones into the shaft."},
+            "text": {"ru": "Ты задеваешь ржавый болт, и инструмент с грохотом летит вниз. Кроты замечают тебя и забрасывают шахту камнями.", "en": "You knock a rusty bolt and your tools clatter down the shaft. The Moles see you and throw stones down after you."},
             "effects": {"injured": 1, "air": -1},
             "retry_after": {"skill": "senses", "min": 2, "label": {"ru": "Житель с Чутьём 2", "en": "A resident with Senses 2"}}
           }
@@ -127,21 +127,21 @@
       "requires_room": "generator",
       "title": {"ru": "Саботаж генератора", "en": "Generator Sabotage"},
       "intro": {
-        "ru": "Главный дизель захлебнулся и встал: кто-то загнал в шестерни стальной лом. Свет гаснет, воют сирены, фильтры начинают остывать. Нужны быстрые и злые решения.",
-        "en": "The main diesel chokes and dies: someone jammed a steel crowbar into the gears. The lights go out, sirens wail and the filters start to cool. This needs a fast, ugly fix."
+        "ru": "Главный дизель захлебнулся и встал: кто-то загнал в шестерни стальной лом. Свет гаснет, воют сирены, фильтры остывают. Чинить надо быстро и как получится.",
+        "en": "The main diesel chokes and dies: someone has jammed a steel crowbar into the gears. The lights go out, the sirens wail and the filters start to cool. This needs a fast, rough fix."
       },
       "effects_on_open": {"brownout": true},
       "options": [
         {
           "id": "bypass",
           "skill": "wits", "target": 8, "color": "white",
-          "text": {"ru": "Пересобрать топливный контур в обход вала, из старых тормозных шлангов вагонов.", "en": "Rebuild the fuel line around the shaft using old brake hoses from the cars."},
+          "text": {"ru": "Перекинуть топливную линию в обход вала из старых тормозных шлангов. Если шланги лопнут, ремонт затянется вдвое.", "en": "Rebuild the fuel line around the shaft from old brake hoses. If they burst, the repair takes twice as long."},
           "success": {
-            "text": {"ru": "Импровизация срабатывает. Дизель кашляет чёрным дымом, но держит жизнеобеспечение.", "en": "The improvisation works. The diesel coughs black smoke but keeps life support running."},
+            "text": {"ru": "Держится. Дизель кашляет чёрным дымом, но жизнеобеспечение работает.", "en": "It holds. The diesel coughs black smoke, but life support keeps running."},
             "effects": {"brownout": false, "materials": -1, "discontent": 1}
           },
           "fail": {
-            "text": {"ru": "Шланги лопаются и заливают комнату горючей смесью. Ремонт займёт вдвое больше времени.", "en": "The hoses burst and flood the room with fuel. The repair will take twice as long."},
+            "text": {"ru": "Шланги лопаются и заливают комнату топливом. Ремонт займёт вдвое больше времени.", "en": "The hoses burst and spray fuel across the room. The repair will take twice as long."},
             "effects": {"room_disabled": {"type": "generator", "weeks": 1}},
             "retry_after": {"room_level": {"workshop": 2}, "label": {"ru": "Мастерская, ступень 2", "en": "Workshop level 2"}}
           }
@@ -149,13 +149,13 @@
         {
           "id": "hammer",
           "skill": "grit", "target": 9, "color": "red",
-          "text": {"ru": "Взять кувалду и точными ударами выбить лом из узла.", "en": "Take a sledgehammer and knock the crowbar out of the gears."},
+          "text": {"ru": "Выбить лом из шестерён кувалдой. Один неверный удар, и генератор встанет на две недели.", "en": "Knock the crowbar out of the gears with a sledgehammer. One bad swing and the generator is out for two weeks."},
           "success": {
-            "text": {"ru": "Мощный удар освобождает маховик, поршни снова мерно качают. Свет горит.", "en": "One heavy blow frees the flywheel and the pistons pump again. The lights are back."},
+            "text": {"ru": "Один тяжёлый удар освобождает маховик, и поршни снова качают. Свет вернулся.", "en": "One heavy blow frees the flywheel and the pistons start pumping again. The lights come back."},
             "effects": {"brownout": false, "hope": 1}
           },
           "fail": {
-            "text": {"ru": "Кувалда отлетает в щиток и выжигает медную обмотку. Станция во тьме, жителя бьёт током.", "en": "The hammer bounces into the panel and burns out the copper windings. The station goes dark and a resident takes a bad shock."},
+            "text": {"ru": "Кувалда соскальзывает в щиток и выжигает медную обмотку. Станция во тьме, жителя сильно бьёт током.", "en": "The hammer glances off into the panel and burns out the copper windings. The station goes dark, and a resident takes a bad shock."},
             "effects": {"injured": 1, "room_disabled": {"type": "generator", "weeks": 2}, "materials": -2}
           }
         }
@@ -165,36 +165,36 @@
       "id": "showtime_betting",
       "min_week": 6,
       "banner": "showtime",
-      "title": {"ru": "Тотализатор «Шоутайм»", "en": "Showtime Betting"},
+      "title": {"ru": "Крысиные бега «Шоутайма»", "en": "Showtime rat races"},
       "intro": {
-        "ru": "На станцию проскользнули скользкие типы в неоновых жилетах из «Шоутайма». Под полой у них контрабандный сироп «Дольче» и ящик беговых крыс. Предлагают устроить тотализатор, чтобы поднять дух работяг.",
-        "en": "Slick types in neon vests from Showtime slip onto the station. Under their coats: contraband Dolce syrup and a crate of racing rats. They offer to run a betting night to lift the workers' spirits."
+        "ru": "На станцию просочились ловкачи из «Шоутайма» в неоновых жилетах. Под полами у них контрабандный сироп «Дольче» и ящик беговых крыс. Предлагают устроить ночь ставок, чтобы рабочие повеселели.",
+        "en": "Smooth talkers in neon vests from Showtime have slipped onto the station. Under their coats: contraband Dolce syrup and a crate of racing rats. They offer to run a betting night to lift the workers' spirits."
       },
       "options": [
         {
           "id": "bet",
           "skill": "wits", "target": 9, "color": "red",
           "stake": {"tokens": 6},
-          "text": {"ru": "Изучить крыс, вычислить фаворита по шрамам и дыханию и поставить 6 жетонов.", "en": "Study the rats, pick the favourite by scars and breathing, and bet 6 tokens."},
+          "text": {"ru": "Присмотреться к крысам, выбрать фаворита по шрамам и дыханию и поставить 6 жетонов. Проиграет, и жетоны пропали.", "en": "Study the rats, pick the favourite by its scars and breathing, and bet 6 tokens. If it loses, the tokens are gone."},
           "success": {
-            "text": {"ru": "Аналитика побеждает рандом. Фаворит вырывает победу, ты забираешь тройной банк и уважение ставочников.", "en": "Analysis beats chance. The favourite wins and you take triple the pot and the gamblers' respect."},
+            "text": {"ru": "Фаворит приходит первым. Ты забираешь втрое больше поставленного, и игроки начинают тебя уважать.", "en": "The favourite wins. You take three times your stake, and the gamblers start to respect you."},
             "effects": {"tokens": 18, "hope": 1}
           },
           "fail": {
-            "text": {"ru": "Крыса-фаворит падает замертво прямо на старте. Жетоны пропали, а рабочие смеются тебе вслед.", "en": "The favourite drops dead at the start. The tokens are gone and the workers laugh behind your back."},
+            "text": {"ru": "Фаворит падает замертво на старте. Жетоны пропали, а рабочие посмеиваются у тебя за спиной.", "en": "The favourite drops dead at the start. The tokens are gone, and the workers laugh behind your back."},
             "effects": {"discontent": 1}
           }
         },
         {
           "id": "tax",
           "skill": "voice", "target": 8, "color": "white",
-          "text": {"ru": "Зажать контрабандистов в углу и вежливо объяснить, что половина выручки уходит в фонд станции.", "en": "Corner the smugglers and politely explain that half the take goes to the station fund."},
+          "text": {"ru": "Зажать контрабандистов в угол и вежливо объяснить, что половина выручки идёт станции. Если поднимут на смех, уйдут и уведут одного из твоих.", "en": "Corner the smugglers and explain politely that half the take goes to the station. If they laugh it off, they leave and take one of your people."},
           "success": {
-            "text": {"ru": "Наглость подкреплена авторитетом. Дельцы покорно отстёгивают долю жетонами и бинтами.", "en": "Your nerve is backed by authority. The dealers pay their share in tokens and bandages."},
+            "text": {"ru": "Они видят, что ты не шутишь. Дельцы отдают долю жетонами и бинтами.", "en": "They can see you mean it. The dealers pay their share in tokens and bandages."},
             "effects": {"tokens": 6, "materials": 1, "influence": 2, "discontent": 1}
           },
           "fail": {
-            "text": {"ru": "«Шоутайм» поднимает тебя на смех, называет станцию дырой и уходит, прихватив с собой одного из твоих жителей.", "en": "Showtime laughs at you, calls the station a dump and leaves, taking one of your residents along."},
+            "text": {"ru": "«Шоутайм» поднимает тебя на смех, обзывает станцию дырой и уходит, прихватив одного из твоих жителей.", "en": "Showtime laughs at you, calls the station a dump and leaves, taking one of your residents along."},
             "effects": {"residents_lost": 1, "hope": -1},
             "retry_after": {"skill": "voice", "min": 2, "label": {"ru": "Житель с Речью 2", "en": "A resident with Voice 2"}}
           }
