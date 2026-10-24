@@ -134,5 +134,64 @@
   {"id": "leak_next", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "The cloth held the first seam. Pete found one more, smaller.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
     {"id": "patch", "label": "Patch the new seam (protects from the flood)", "cost": {"materials": 2}, "hope": 1, "flag": "leak_patched"},
     {"id": "move", "label": "Move the bunks away from the drip", "discontent": 2, "hope": -1}
+  ]},
+  {"id": "toll", "title": "A chain across the tunnel", "major": true, "min_week": 7, "weight": 3, "cooldown": 99, "follow": "toll_next", "who": "Jonah", "text": "Captain Rhee's men have strung a chain across the tunnel on the Jay St side. Every handcar that passes now pays the Directorate, and Jonah says they asked about your station by name.", "choices": [
+    {"id": "pay", "label": "Pay the toll (the Directorate is pleased)", "cost": {"tokens": 8}, "opinion_directorate": 2},
+    {"id": "goods", "label": "Pay in cable and bolts (the Directorate is pleased)", "cost": {"materials": 5}, "opinion_directorate": 2, "discontent": 1},
+    {"id": "detour", "label": "Send the handcars the long way (the Directorate is displeased)", "opinion_directorate": -4, "influence": -1, "hope": 1}
+  ]},
+  {"id": "toll_next", "title": "Rhee brings a ledger", "chain_only": true, "weight": 1, "follow": "toll_last", "who": "Jonah", "text": "Captain Rhee is at the gate with a ledger. Jonah keeps him there.", "by": {"pay": "Rhee says the toll you paid was only the first instalment. Your station now has its own line in his ledger, payable every month.", "goods": "Rhee liked the cable. Now he wants it every month, and he has already written that down.", "detour": "Rhee's patrol walked the long way your handcars took, all the way to the end. Now he knows where it leads."}, "choices": [
+    {"id": "sign", "label": "Sign the ledger and pay (the Directorate is pleased)", "cost": {"tokens": 10}, "opinion_directorate": 4, "discontent": 1},
+    {"id": "route", "label": "Give him Fran's smuggling route instead (the Directorate is very pleased, the Exchange takes offence)", "opinion_directorate": 8, "opinion_exchange": -4, "hope": -1},
+    {"id": "bar", "label": "Bar the gate (the Directorate is furious)", "opinion_directorate": -8, "hope": 1, "discontent": 1}
+  ]},
+  {"id": "toll_last", "title": "Boots on the platform", "chain_only": true, "weight": 1, "who": "Jonah", "text": "Rhee's squad is on the platform. Jonah is watching them.", "by": {"sign": "Rhee is back early. His ledger says your station is behind on payments, and he has brought six men to read it out loud.", "route": "Fran's route is shut. Rhee's men used it to walk straight to your gate. Fran has not spoken to anyone since.", "bar": "Rhee's squad is on the platform. They did not knock. Jonah stands between them and the quarters."}, "choices": [
+    {"id": "settle", "label": "Pay what he asks (the Directorate is very pleased)", "cost": {"tokens": 14}, "opinion_directorate": 8, "hope": -2},
+    {"id": "lin", "label": "Ask Broker Lin to stand with you (the Exchange is pleased, the Directorate is not)", "cost": {"influence": 3}, "opinion_exchange": 4, "opinion_directorate": -4},
+    {"id": "guard", "label": "Put the platform guard at the gate (the Directorate is furious)", "opinion_directorate": -8, "hope": 2, "discontent": 1}
+  ]},
+  {"id": "knock", "title": "Knocking behind the rock", "sasha": true, "major": false, "min_week": 8, "weight": 2, "cooldown": 99, "requires": "digging", "follow": "knock_next", "who": "Lila", "text": "Lila's dig crew hears knocking behind the rock face: three slow, three fast. When they stop, it stops.", "choices": [
+    {"id": "answer", "label": "Knock back", "hope": 1},
+    {"id": "cut", "label": "Cut toward the sound (the claustrophobic will refuse the shaft)", "cost": {"materials": 3}, "trait_absent": {"Claustrophobic": 2}},
+    {"id": "fill", "label": "Fill the cut and say nothing", "hope": -1, "discontent": 1}
+  ]},
+  {"id": "knock_next", "title": "A hand through the gap", "chain_only": true, "weight": 1, "follow": "knock_last", "who": "Lila", "text": "A woman has crawled through the rock in Lila's cut.", "by": {"answer": "The knocking answered for a week. Then the rock gave way and a woman crawled through, thin to the bone. She says she came up from the Floor.", "cut": "Lila's cut broke into a dry pocket. A woman was sitting in it with her lamp turned low. She says she came up from the Floor.", "fill": "The fill did not hold: someone dug through it from the other side. A woman, thin to the bone, says she came up from the Floor."}, "choices": [
+    {"id": "feed", "label": "Feed her and write down everything she says", "cost": {"food": 3}, "papers": 1, "hope": 1},
+    {"id": "chapel", "label": "Send her to the Synod's chapel (the Synod gains followers)", "synod": 3, "trait_hope": {"Devout": 1}},
+    {"id": "back", "label": "Send her back down and seal the gap", "materials": -2, "hope": -2}
+  ]},
+  {"id": "knock_last", "title": "The woman from below", "chain_only": true, "weight": 1, "who": "Paul", "text": "The woman from the Floor is back at your station, and she wants to talk to Paul.", "by": {"feed": "Three days of meals, and she has drawn a map on the back of a ration card. The Floor has power, she says, and it is not sharing. Paul recognises the first turn on it.", "chapel": "The Synod sent her back with a blessing and a map they could not read. Paul can. Your devout are already calling her a sign.", "back": "The seal broke from below. The same woman came through again, her hands torn on the rock. She has a map, she will not go back down, and Paul is already reading it."}, "choices": [
+    {"id": "stay", "label": "Give her a bunk", "people": 1, "hope": 1},
+    {"id": "route", "label": "Send Paul's crew down her route", "cost": {"materials": 6}, "papers": 1, "influence": 1},
+    {"id": "gate", "label": "Walk her to the gate", "hope": -1}
+  ]},
+  {"id": "loan", "title": "Broker Lin's advance", "major": false, "min_week": 5, "weight": 2, "cooldown": 99, "follow": "loan_next", "who": "Benny", "text": "Benny brings a note from Broker Lin. The Exchange will advance your station tokens now. In a few weeks it wants them back, with more on top.", "choices": [
+    {"id": "borrow", "label": "Take the advance (repay it with interest in a few weeks)", "tokens": 14, "opinion_exchange": 2},
+    {"id": "decline", "label": "Thank her and decline (the Exchange takes offence)", "opinion_exchange": -2}
+  ]},
+  {"id": "loan_next", "title": "Lin's collector", "chain_only": true, "weight": 1, "who": "Benny", "text": "The Exchange's collector is waiting at Benny's handcar.", "by": {"borrow": "Lin's collector is at Benny's handcar with the note you signed. The interest is on top, as agreed.", "decline": "Lin's collector stops by Benny's handcar anyway. The Exchange remembers who turned its money down, and it would like a gesture of goodwill."}, "choices": [
+    {"id": "repay", "label": "Pay what Lin asks (the Exchange is pleased)", "cost": {"tokens": 18}, "opinion_exchange": 4},
+    {"id": "stall", "label": "Give cable instead and ask for time (the Exchange is displeased)", "cost": {"materials": 6}, "opinion_exchange": -2},
+    {"id": "default", "label": "Say the station has nothing to give (the Exchange may stop trading with you)", "opinion_exchange": -8, "discontent": 1}
+  ]},
+  {"id": "stores_turn", "title": "The stores are sweating", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Kim", "text": "Kim opens the food store and the air inside is warm and sweet. The top row of sacks is going bad and will not keep another week.", "choices": [
+    {"id": "feast", "label": "Cook all of it tonight", "food": -6, "hope": 2, "discontent": -1},
+    {"id": "pick", "label": "Sort it by hand and eat the bruised part", "food": -3, "sick": 1},
+    {"id": "salt", "label": "Buy salt from the Exchange to save it", "cost": {"tokens": 4}, "opinion_exchange": 2}
+  ]},
+  {"id": "diesel", "title": "The last drum rings hollow", "sasha": true, "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "who": "Mina", "text": "Mina knocks on the last fuel drum and it rings high. The generator will run tonight, but not at full power unless it gets something to burn.", "choices": [
+    {"id": "scrap", "label": "Feed it workshop scrap", "cost": {"materials": 6}},
+    {"id": "drum", "label": "Buy a drum from the Exchange", "cost": {"tokens": 8}, "opinion_exchange": 2},
+    {"id": "dim", "label": "Run it at half power this week and dim the lamps", "gen_down": true, "discontent": 1, "hope": -1}
+  ]},
+  {"id": "ration_coat", "title": "A ration in Drew's coat", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Chris", "text": "Chris caught Drew leaving the kitchen with a ration inside his coat. Drew says it was for Ann, who has been too sick to stand in the queue for two days. The whole platform saw it.", "choices": [
+    {"id": "dock", "label": "Dock Drew's ration for a week", "discontent": -1, "hope": -1},
+    {"id": "feed", "label": "Let it go and bring Ann her bowl", "cost": {"food": 2}, "hope": 1, "discontent": 1},
+    {"id": "vote", "label": "Let the platform decide", "cost": {"influence": 2}, "discontent": -2}
+  ]},
+  {"id": "armband", "title": "The man without an armband", "major": false, "min_week": 9, "weight": 2, "cooldown": 99, "who": "Owen", "text": "Owen found a Directorate man asleep behind the generator. He took off his armband before he lay down. He asks not to be sent back to Captain Rhee.", "choices": [
+    {"id": "hide", "label": "Give him a bunk and a new name (the Directorate is displeased)", "people": 1, "opinion_directorate": -4, "hope": 1},
+    {"id": "return", "label": "Hand him back to the Directorate (the Directorate is pleased)", "opinion_directorate": 4, "hope": -2},
+    {"id": "north", "label": "Feed him and point him north (the Directorate is displeased)", "cost": {"food": 2}, "opinion_directorate": -2}
   ]}
 ]
