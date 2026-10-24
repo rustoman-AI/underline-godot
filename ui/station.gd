@@ -10007,16 +10007,30 @@ class Yard extends Control:
 	var lamp_glow: Texture2D
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
-	## Room separation, kept light: one thin riveted rib from the pack's pillar panel on every line between cells, one
-	## thin riveted beam from the pack's ceiling beam across every gap between levels. Pictures only, no geometry.
+	## Room separation, kept light (Underline_Props_Pack_Light): one slim steel column on every line between cells,
+	## one thin riveted beam from the pack's ceiling beam across every gap between levels. Pictures only, no geometry.
 	var sep_pillar: Texture2D
 	var edge_beam: Texture2D
-	## Rib width as a share of a cell, and which strip of each sheet is used (share of the sheet).
-	const PILLAR_W := 0.035
-	const PILLAR_SRC := Rect2(0.0, 0.0, 0.21, 1.0)
+	## Column width as a share of a cell, and which strip of the beam sheet is used (share of the sheet).
+	const PILLAR_W := 0.044
 	const BEAM_SRC := Rect2(0.0, 0.345, 1.0, 0.18)
-	## Room lamps keep this far in from the rib on each side, so their light never reaches the next room.
+	## Room lamps keep this far in from the column on each side, so their light never reaches the next room.
 	const LIGHT_PAD := 0.06
+	## Soft lamp cones under the three painted lamps (share of the room width), how far down they start, their size
+	## and strength. The cone picture fades out at its sides and before the floor.
+	const LAMP_X := [0.2, 0.5, 0.79]
+	const CONE_TOP := 0.28
+	const CONE_W := 0.3
+	const CONE_H := 0.55
+	const CONE_STRENGTH := 0.16
+	## Rooms whose background (Underline_Rooms_Redraw_v2) paints its own light: no cones over them.
+	const SELF_LIT := ["quarters", "workshop", "hydroponics", "meeting_hall", "infirmary", "generator", "air_filter", "platform"]
+	var cones := {}
+	## The few key props the painted rooms do not already show, each standing on the floor: x is the prop's centre,
+	## foot its bottom and h its height, as shares of the room.
+	## Empty while the v2 backgrounds paint their own key props (the generator's jerrycans replaced the fuel drums).
+	const PROPS := {}
+	var prop_tex := {}
 	var backdrop_tex: Texture2D
 	var scaffold: Texture2D
 	var ghosts := {}
@@ -10158,7 +10172,7 @@ class Yard extends Control:
 			art_aspect = float(tex.get_width()) / float(tex.get_height())
 			art[type] = tex
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
-		sep_pillar = ArtPack.load_texture("res://assets/separators/sep_pillar_panel_albedo.png")
+		sep_pillar = ArtPack.load_texture("res://assets/separators/sep_slim_steel_column.webp")
 		edge_beam = ArtPack.load_texture("res://assets/edges/edge_ceiling_beam_albedo.png")
 		cell_dug = ArtPack.load_texture("res://assets/cells/cell_dug.webp")
 		backdrop_tex = ArtPack.load_texture("res://assets/backdrop_station.webp")
@@ -10642,21 +10656,35 @@ class Yard extends Control:
 						Rect2(src.position, Vector2(src.size.x * slice / tile_w, src.size.y)))
 					x += slice
 		if sep_pillar != null:
-			var sheet := sep_pillar.get_size()
-			var src := Rect2(PILLAR_SRC.position * sheet, PILLAR_SRC.size * sheet)
-			var rib_w := w * PILLAR_W
-			var tile_h := rib_w * src.size.y / maxf(src.size.x, 1.0)
-			var tall := h + band
+			var col_w := w * PILLAR_W
 			for level in 3:
-				var top := origin.y + float(level) * tall - band * 0.5
+				var top := origin.y + float(level) * (h + band)
 				for edge in 7:
-					var x := origin.x + float(edge) * w - rib_w * 0.5
-					var y := top
-					while y < top + tall - 0.5:
-						var slice := minf(tile_h, top + tall - y)
-						draw_texture_rect_region(sep_pillar, Rect2(x, y, rib_w, slice),
-							Rect2(src.position, Vector2(src.size.x, src.size.y * slice / tile_h)))
-						y += slice
+					draw_texture_rect(sep_pillar, Rect2(origin.x + float(edge) * w - col_w * 0.5, top, col_w, h), false)
+
+	## A room type's soft lamp cone from the pack, or the untinted one with the room's lamp colour.
+	func _cone(room_type: String) -> Array:
+		if not cones.has(room_type):
+			var path := "res://assets/lights/glow_soft_%s.webp" % room_type
+			if ResourceLoader.exists(path):
+				cones[room_type] = [ArtPack.load_texture(path), Color.WHITE]
+			else:
+				var typed: Color = LAMP.get(room_type, Color(1.0, 0.78, 0.46))
+				cones[room_type] = [ArtPack.load_texture("res://assets/lights/glow_soft_white.webp"), Color(typed.r, typed.g, typed.b)]
+		return cones[room_type]
+
+	func _draw_props(rect: Rect2, room_type: String) -> void:
+		for item in PROPS.get(room_type, []):
+			var path: String = item.art
+			if not prop_tex.has(path):
+				prop_tex[path] = ArtPack.load_texture(path)
+			var tex: Texture2D = prop_tex[path]
+			if tex == null:
+				continue
+			var ph := rect.size.y * float(item.h)
+			var pw := ph * tex.get_width() / maxf(float(tex.get_height()), 1.0)
+			var foot := rect.position.y + rect.size.y * float(item.foot)
+			draw_texture_rect(tex, Rect2(rect.position.x + rect.size.x * float(item.x) - pw * 0.5, foot - ph, pw, ph), false)
 
 	func _platform_rail_y(geo: Dictionary) -> float:
 		var plat := _rect(geo, 1, 0)
@@ -10747,6 +10775,7 @@ class Yard extends Control:
 			var texture = tier_tex if tier_tex != null else art.get(room_type, null)
 			if texture != null:
 				_blit_room(texture, rect)
+			_draw_props(rect, room_type)
 			var salt := level * 6 + cell
 			var weak: bool = room != null and (bool(room.get("browned", false)) or station.dark_now.has(str(room.uid)) or station.power_loss.has(str(room.uid)))
 			var off: bool = room != null and bool(room.get("offline", false))
@@ -10964,23 +10993,25 @@ class Yard extends Control:
 		lamp_glow = ImageTexture.create_from_image(image)
 		return lamp_glow
 
+	## A soft cone under each painted lamp, kept inside the room: every cone is clamped to the part of the cell clear
+	## of the columns, and the picture itself fades out before its edges.
 	func _draw_lamp_glow(rect: Rect2, room_type: String, salt := 0, weak := false, off := false) -> void:
-		var tex := _lamp_texture()
-		if tex == null:
-			return
 		var lit := 0.0 if off else _flicker(salt, weak)
 		if lit < 1.0:
 			draw_rect(rect, Color(0, 0, 0, (1.0 - lit) * 0.3))
-		rect = _light_rect(rect)
-		var warm := Color(1.0, 0.78, 0.46, 1.0)
-		var typed: Color = LAMP.get(room_type, warm)
-		var col := warm.lerp(Color(typed.r, typed.g, typed.b, 1.0), 0.12)
-		col.a = 1.0
-		var glow_w := rect.size.x * 0.34
-		var glow_h := rect.size.y * 0.28
-		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.06)
-		col.a = lit * 0.7
-		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
+		if room_type in SELF_LIT:
+			return
+		var pair := _cone(room_type)
+		var tex: Texture2D = pair[0]
+		if tex == null or lit <= 0.0:
+			return
+		var col: Color = pair[1]
+		col.a = CONE_STRENGTH * lit
+		var room := _light_rect(rect)
+		var cone_w := rect.size.x * CONE_W
+		for lx in LAMP_X:
+			var left := clampf(rect.position.x + rect.size.x * float(lx) - cone_w * 0.5, room.position.x, room.end.x - cone_w)
+			draw_texture_rect(tex, Rect2(left, rect.position.y + rect.size.y * CONE_TOP, cone_w, rect.size.y * CONE_H), false, col)
 
 	## How bright a room's lamps burn this frame, 0..1: a slow, barely visible breath; only a room short of power
 	## dips now and then, slowly enough not to strobe. Still with reduce motion.
