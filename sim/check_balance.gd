@@ -11,9 +11,9 @@ extends SceneTree
 const SEEDS := 30
 const MIN_CAREFUL := 28
 const MIN_EXPANDER := 28
-const MIN_FOLLOWER := 27
-const MIN_HOPE_ORDER := 16
-const LOSSES := {"careful": [4, 11], "expander": [0, 14], "follower": [0, 15]}
+const MIN_FOLLOWER := 28
+const MIN_HOPE_ORDER := 14
+const LOSSES := {"careful": [3, 11], "expander": [0, 17], "follower": [0, 16]}
 const RED := [45, 70]
 const WHITE := [55, 85]
 
@@ -90,7 +90,7 @@ static func _ended_well(row: Dictionary) -> String:
 
 
 ## Careful: at most 2 shortage weeks. If it reaches week 40: discontent peak at least 60 (the seasons pressed it),
-## 45 to 70 people, food buffer median 2 to 5.5.
+## 45 to 70 people, food buffer median 2 to 5.
 static func _careful_seed(row: Dictionary) -> String:
 	var why: PackedStringArray = []
 	var end := _ended_well(row)
@@ -108,12 +108,12 @@ static func _careful_seed(row: Dictionary) -> String:
 	if pop < 45 or pop > 70:
 		why.append("pop %d" % pop)
 	var med := float(row.get("food_med", 0))
-	if med < 2.0 or med > 5.5:
+	if med < 2.0 or med > 5.0:
 		why.append("food %.1f" % med)
 	return ", ".join(why)
 
 
-## Expander: at most 5 shortage weeks, hope never below 10. Its discontent peak is judged across seeds by
+## Expander: at most 5 shortage weeks, hope never below 20. Its discontent peak is judged across seeds by
 ## bot_run's Expander discontent gate.
 static func _expander_seed(row: Dictionary) -> String:
 	var why: PackedStringArray = []
@@ -122,7 +122,7 @@ static func _expander_seed(row: Dictionary) -> String:
 		why.append(end)
 	if int(row.get("shortage_weeks", 0)) > 5:
 		why.append("short %d" % int(row.shortage_weeks))
-	if int(row.get("hope_min", 0)) < 10:
+	if int(row.get("hope_min", 0)) < 20:
 		why.append("hope %d" % int(row.hope_min))
 	return ", ".join(why)
 

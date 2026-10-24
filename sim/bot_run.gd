@@ -66,6 +66,12 @@ func _init() -> void:
 	else:
 		print("Network target: ok")
 	print("")
+	if not _losses_ok():
+		failed = true
+		print("LOSS RATES FAIL")
+	else:
+		print("Loss rates: ok")
+	print("")
 	var catalog := Catalog.new()
 	var audience: Dictionary = AudienceChecks.run(catalog) if catalog.load_all() else {"ok": false, "lines": ["FAIL catalog " + catalog.error]}
 	if audience.ok:
@@ -85,6 +91,35 @@ func _init() -> void:
 	else:
 		print("BOT RUN OK")
 		quit(0)
+
+
+## Tension pass (docs/audit/balance_gate_decisions.md): runs can be lost now. Over seeds 1 to LOSS_SEEDS the careful
+## steward loses CAREFUL_LOSS of its runs, and no steward loses a run before week EARLIEST_LOSS.
+const LOSS_SEEDS := 60
+const CAREFUL_LOSS := [0.15, 0.30]
+const EARLIEST_LOSS := 15
+
+
+func _losses_ok() -> bool:
+	var ok := true
+	print("Losses over seeds 1-%d" % LOSS_SEEDS)
+	for profile in ["careful", "expander", "follower"]:
+		var lost := 0
+		var first := 99
+		for run_seed in range(1, LOSS_SEEDS + 1):
+			var row: Dictionary = Bot.new().play(40, run_seed, profile)
+			if str(row.get("over", "")) != "time":
+				lost += 1
+				first = mini(first, int(row.get("week", 99)))
+		var share := float(lost) / float(LOSS_SEEDS)
+		print("  %-9s lost %d of %d (%.0f%%), first loss %s" % [profile, lost, LOSS_SEEDS, share * 100.0, ("week %d" % first) if lost > 0 else "none"])
+		if lost > 0 and first < EARLIEST_LOSS:
+			ok = false
+			print("  %s lost a run in week %d, before week %d" % [profile, first, EARLIEST_LOSS])
+		if profile == "careful" and (share < float(CAREFUL_LOSS[0]) or share > float(CAREFUL_LOSS[1])):
+			ok = false
+			print("  careful loses %.0f%%, outside %.0f-%.0f%%" % [share * 100.0, float(CAREFUL_LOSS[0]) * 100.0, float(CAREFUL_LOSS[1]) * 100.0])
+	return ok
 
 
 ## Every run ends cleanly (no sim errors, an end state other than an error); the follower never sits at 0 power

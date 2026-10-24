@@ -206,3 +206,71 @@ Seeds 1 to 60: the careful steward loses 15 of 60, 1 run in 4. Mean lowest hope 
 Before the pass on seeds 31 to 60 the hope order already failed (8 of 30). It now reads 15, still one under the threshold on that set; the gate runs seeds 1 to 30. A watch item, as before.
 
 Other checks: `check_slice`, `check_audience`, `check_save`, `check_event_vo`, `check_network`, `check_guard`, `check_playtest`, `check_leader_vo`, `check_portraits` and `bot_run` are green. `check_clarity` fails 216 checks, the same list line for line as HEAD. `check_music` fails the same way as HEAD. No event data changed.
+
+## 2026-10-24: tension pass rebuilt to the validated spec
+
+**Replaces** the numbers of the 2026-10-23 entry above. The source is the validated spec (`TENSION_PASS_SPEC.md`, kept outside the repo) and UI briefs B1 and B2. Gone from the first pass: the per-season swing, the shortfall and sickness rows, season hope, the power hope change, and the careful and expander bots acting on the revolt warning (`sim/bot.gd` is back to its version before the tension pass).
+
+**Numbers as the spec gives them** (`data/balance.json`, `data/laws.json`): sermons hope +1 a week; address costs 3 influence and a council order, once a week, hope +1; rally discontent -4, cooldown 6 weeks; overcrowding +1; a station joining you also gives discontent -3; rival agents +1 more from week 20; seasons start at weeks 10, 20 and 30, each moved up to 2 weeks either way by the seed; season discontent flood +3, cold +3. Hardships (`Game.hardships()`): food or air short, else food under 1.5 weeks, dark rooms, 12% or more sick, a season. Crowding is not a hardship. Each hardship costs 1 hope (at most 2 a week). A week with any hardship adds discontent once: +2 before week 16, +5 from week 16. A week with none takes 1 off. Hope under 30 adds 2 more.
+
+**One number differs from the spec: the cough season is +9 discontent a week, not +5.** With every number exactly as specified, the bots here lose almost nothing (seeds 1-120: careful 3, expander 3, follower 6). The spec's own sim (careful 22%) ran a patch on another machine, so its bots or code must differ from this repo. The spec names the cough as the first number to tune, and the owner asked for a careful loss rate of about 25%. The cough at each value, seeds 1-60 (careful / expander / follower): 5: 1 / 2 / 3; 8: 6 / 15 / 45 (before the address fix reached the follower); 9: 14 / 24 / 25; 10: 26 / 31 / 38. At +9, seeds 1-120: careful 26 (22%), expander 40 (33%), follower 48 (40%), the same shape as the spec's 22 / 35 / 54.
+
+**Not built: `comfort_hope` and `comfort_food_weeks`.** Both keys are merged, but the spec does not say what they do, so they do nothing (TODO(Code) in `Game.tension_push`).
+
+**Loss rates, before and after:**
+
+| steward | before the tension pass, 1-60 | first pass (2026-10-23), 1-60 | spec rebuild, 1-60 | spec rebuild, 61-120 | first loss |
+|---|---|---|---|---|---|
+| careful | 0 | 15 (25%) | 14 (23%) | 12 (20%) | week 30 |
+| expander | 0 | 23 (38%) | 24 (40%) | 16 (27%) | week 30 |
+| follower | 0 | 23 (38%) | 25 (42%) | 23 (38%) | week 30 |
+
+Every loss is a revolt. No run is lost before week 30 (spec: none before week 15).
+
+**Gates.**
+- `sim/bot_run.gd`: new "Loss rates" gate over seeds 1 to 60, as the spec asks. The careful steward loses 15 to 30% of runs, and no steward loses before week 15. Now: careful 23%, first loss week 30.
+- `sim/check_balance.gd`, same rule as before (the worst of seeds 1-30 and 31-60 minus 2; loss ceilings the worst plus 2):
+  - runs lost: careful 3 to 11, expander up to 17, follower up to 16;
+  - seeds passing: careful 28, expander 28, follower 28;
+  - expander hope floor back to 20 (its lowest is now 33);
+  - careful food median 2 to 5 (highest 4.5);
+  - "expander hope below careful" 14 (seeds 1-30 give 16).
+- Gate numbers, seeds 1-30 / 31-60:
+  - passing: careful 30 / 30, expander 30 / 30, follower 30 / 30;
+  - runs lost: careful 5 / 9, expander 15 / 9, follower 14 / 11;
+  - hope order: 16 / 11 (31-60 fails, as it did at 8 before any tension work; the gate runs 1-30);
+  - red checks 51.4% / 64.1%, white checks 76.8% / 78.5%.
+
+**Save.** `address_week` is saved; schema 9, and older saves load with the platform not yet addressed. The season calendar is not saved: setup and load rebuild it from the seed, on their own random stream, so nothing else in a run moves.
+
+**UI (B1, B2).**
+- The hope and discontent panels list "This week:" and one bullet per hardship, or "No hardships this week. The platform is cooling."
+- The revolt ticker and the alert chip read "Revolt in about N weeks.", then "Pushing toward revolt: X and Y.", then up to 2 fixes.
+- At 2 weeks or less, the discontent gauge pulses between full and 0.55 alpha every 0.7 s. The pulse is off with reduce motion and stops when the warning clears. The meter's 4 px fill is hidden in this HUD, so the visible dial pulses with it.
+- The brass Address button (118x40, "Address / 3 influence") sits at the end of the meter row, so it stays beside the meters when a narrow window moves them under the title row. It opens a confirm card, queues the order, then shows the toast and a 0.45 s hope pulse.
+- In Russian at 1280x720 the meters now drop to their second row because of the extra 118 px. That is the existing narrow-window layout; English still fits on one line.
+
+**Text keys.** Copy is keyed by the English text, so the spec's keys map to English strings in code and Russian in `data/ru.json`:
+
+| spec key | EN | RU |
+|---|---|---|
+| tension.this_week | This week: | На этой неделе: |
+| tension.settled | No hardships this week. The platform is cooling. | Бед на этой неделе нет. Платформа остывает. |
+| hardship.food_short | low food stores | мало еды |
+| hardship.air_short | not enough air | не хватает воздуха |
+| hardship.power_short | dark rooms | тёмные комнаты |
+| hardship.sick | the sick | больные |
+| hardship.season_flood / cold / cough | the flood / the cold / the cough | паводок / холод / кашель |
+| revolt.push_one | Pushing toward revolt: %s. | К бунту толкает: %s. |
+| revolt.push_two | Pushing toward revolt: %s and %s. | К бунту толкают: %s и %s. |
+| tension.address_hint | Address the platform: hope +1. | Обратись к платформе: надежда +1. |
+| address.button | Address | Выступить |
+| address.cost | Copy.stock(3, "influence"): 3 influence | 3 влияния |
+| address.tip_ok | Speak to the platform. Hope %+d. Once this week. | Выйти к людям на платформе. Надежда %+d. Раз в неделю. |
+| address.disabled_used | Already addressed this week. | На этой неделе к платформе уже обращались. |
+| address.disabled_influence | Need %d influence. | Нужно влияния: %d. |
+| address.confirm_title | Address the platform? | Выступить перед платформой? |
+| address.confirm_body | At dawn a councillor speaks to the people. It takes this week's council order and %s. Hope %+d. | На рассвете советник выйдет к людям. На это уйдёт приказ совета этой недели и %s. Надежда %+d. |
+| address.toast | At dawn a councillor will speak to the platform. Hope %+d. | На рассвете советник выступит перед платформой. Надежда %+d. |
+
+Tools (local, `.tools/` is not tracked): `tension_grid.gd` (loss rates with balance overrides), `tension_stats.gd`, `tension_save.gd`, `tension_shots.gd` (`shots/tension/`).

@@ -224,6 +224,10 @@ var net_guide_sid := ""
 var guide_played := false
 var shot_mode := false
 var menu_button: Button
+## Brass "Address" by the meters (Tension pass, brief B2): a council order that buys hope with influence once a week.
+var address_button: Button
+## Discontent gauge pulse while a revolt is 2 weeks or less away; killed when the warning clears.
+var dis_pulse: Tween
 var hub_button: Button
 var network_button: Button
 var network_view: Control
@@ -1238,6 +1242,9 @@ func _top_bar() -> PanelContainer:
 	meter_box = meters
 	meters.add_child(_meter(Color("d7a441"), true))
 	meters.add_child(_meter(Color("c4544a"), false))
+	address_button = _address_button()
+	address_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	meters.add_child(address_button)
 	menu_button = _button("Menu", _show_menu)
 	menu_button.custom_minimum_size = Vector2(84, 40)
 	menu_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1936,6 +1943,7 @@ func _refresh() -> void:
 		(bar as ColorRect).color = STOCK_RED if weeks <= 1 else (STOCK_AMBER if weeks <= 3 else Color("7dba6a"))
 	hope_label.get_parent().tooltip_text = _meter_rule("hope")
 	dis_label.get_parent().tooltip_text = _meter_rule("discontent")
+	_sync_address()
 	end_button.text = Copy.t("End turn") if game.over == "" else _ending()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
@@ -1958,6 +1966,7 @@ func _refresh() -> void:
 		line = str(outlook_rows[0].text)
 	ticker_label.text = line
 	ticker_label.tooltip_text = game.crowd_tip() if line == game.crowd_line() else ""
+	_pulse_discontent(not warning.is_empty() and int(warning.get("weeks", 99)) <= URGENT_WEEKS)
 	ticker.visible = line != "" and (hold or not ticker_dismissed)
 	_place_chrome()
 	turn_clear = game.over == "" and game.pending.is_empty() and game.forecasts().is_empty() and game.revolt_warning().is_empty()
@@ -2663,6 +2672,8 @@ func _fill_source(key: String, pin: bool) -> void:
 		source_body.add_child(_source_label(Copy.t(STOCK_WHAT[key]), 14, false, inner))
 	else:
 		source_body.add_child(_source_label(str(info.headline), 18, true, inner))
+		if info.has("hardships"):
+			_hardship_lines(info.hardships, inner)
 		source_body.add_child(_source_label(str(info.made), 15, false, inner))
 		source_body.add_child(_source_label(str(info.used), 15, false, inner))
 		if key == "hope" or key == "discontent":
@@ -3046,6 +3057,131 @@ func _ask_quarantine() -> void:
 	_confirm("Quarantine?", lines, game.can_quarantine(), {"kind": "quarantine"})
 
 
+## The week's hardships under a meter's headline: "This week:" and one bullet each, or the settled line.
+func _hardship_lines(rows: Array, inner: float) -> void:
+	if rows.is_empty():
+		source_body.add_child(_source_label(Copy.t("No hardships this week. The platform is cooling."), 15, false, inner))
+		return
+	var head := _source_label(Copy.t("This week:"), 13, false, inner)
+	head.add_theme_color_override("font_color", PAPER_EDGE)
+	source_body.add_child(head)
+	for text in rows:
+		source_body.add_child(_source_label("• " + str(text), 15, false, inner))
+
+
+func _address_button() -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(118, 40)
+	button.focus_mode = Control.FOCUS_ALL
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.add_theme_font_size_override("font_size", 13)
+	button.add_theme_constant_override("line_spacing", -2)
+	if display_font != null:
+		button.add_theme_font_override("font", display_font)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, Color("24180e"))
+	button.add_theme_color_override("font_disabled_color", Color(0.14, 0.09, 0.05, 0.55))
+	var faces := {"normal": _brass_style(false), "hover": _brass_style(false), "pressed": _brass_style(true), "disabled": _brass_style(false, false)}
+	for state in faces:
+		var face: StyleBoxFlat = faces[state]
+		face.content_margin_top = 2
+		face.content_margin_bottom = 2
+		face.content_margin_left = 6
+		face.content_margin_right = 6
+		button.add_theme_stylebox_override(state, face)
+	var ring := StyleBoxFlat.new()
+	ring.draw_center = false
+	ring.border_color = PAPER_EDGE
+	ring.set_border_width_all(2)
+	ring.set_corner_radius_all(3)
+	button.add_theme_stylebox_override("focus", ring)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.set_meta("ui_sound", "click")
+	button.pressed.connect(_plain_press.bind(button, _ask_address))
+	return button
+
+
+func _sync_address() -> void:
+	if address_button == null:
+		return
+	var cost := int(game.bal.get("address_influence", 0))
+	address_button.text = "%s\n%s" % [Copy.t("Address"), Copy.stock(cost, "influence")]
+	address_button.visible = game.over == ""
+	var why: String = game.order_block("address")
+	address_button.disabled = why != ""
+	if why == "":
+		address_button.tooltip_text = Copy.t("Speak to the platform. Hope %+d. Once this week.") % int(game.bal.get("address_hope", 1))
+	else:
+		address_button.tooltip_text = why
+
+
+func _ask_address() -> void:
+	if game == null or game.over != "":
+		return
+	var cost := int(game.bal.get("address_influence", 0))
+	var why: String = game.order_block("address")
+	if not _claim(ModalDeck.AMBIENT, "confirm", _ask_address):
+		return
+	_open_card(Copy.t("Address the platform?"))
+	_body(Copy.t("At dawn a councillor speaks to the people. It takes this week's council order and %s. Hope %+d.") % [Copy.stock(cost, "influence"), int(game.bal.get("address_hope", 1))])
+	if why == "":
+		card_body.add_child(_button("Address", _do_address, ""))
+	else:
+		_blocked_pair("Address", why)
+	card_body.add_child(_button("Back", _close_card))
+
+
+func _do_address() -> void:
+	if not game.queue_order({"kind": "order", "order": "address"}):
+		Sound.play("error")
+		footer.text = Copy.t("That did not happen.")
+		footer.visible = true
+		_close_card()
+		_refresh()
+		return
+	Sound.play("confirm")
+	_close_card()
+	_refresh()
+	_toast(Copy.t("At dawn a councillor will speak to the platform. Hope %+d.") % int(game.bal.get("address_hope", 1)))
+	_pulse_hope()
+
+
+## One soft dip of the hope gauge after an address is queued. Skipped with reduce motion.
+func _pulse_hope() -> void:
+	if _motion_off() or hope_dial == null:
+		return
+	var pulse := create_tween()
+	pulse.tween_property(hope_dial, "modulate:a", 0.55, 0.225)
+	pulse.tween_property(hope_dial, "modulate:a", 1.0, 0.225)
+
+
+## The discontent gauge breathes between full and 0.55 alpha every 0.7 s while a revolt is close. Modulate only;
+## no flash. Off with reduce motion, and killed (gauge back to full) when the warning clears.
+func _pulse_discontent(on: bool) -> void:
+	if dis_dial == null:
+		return
+	var want := on and not _motion_off() and game.over == ""
+	if want:
+		if dis_pulse != null and dis_pulse.is_valid():
+			return
+		dis_pulse = create_tween().set_loops()
+		dis_pulse.tween_method(_dis_alpha, 1.0, 0.55, 0.35)
+		dis_pulse.tween_method(_dis_alpha, 0.55, 1.0, 0.35)
+		return
+	if dis_pulse != null:
+		dis_pulse.kill()
+		dis_pulse = null
+	_dis_alpha(1.0)
+
+
+func _dis_alpha(alpha: float) -> void:
+	if dis_dial != null:
+		dis_dial.modulate.a = alpha
+	if dis_fill != null:
+		dis_fill.modulate.a = alpha
+
+
 func _ask_rally() -> void:
 	var why := game.rally_reason()
 	var lines: PackedStringArray = [Copy.t("The hall pulls the platform back from a revolt. Discontent %+d. Hope %+d.") % [int(game.bal.rally_discontent), int(game.bal.rally_hope)]]
@@ -3099,6 +3235,9 @@ func _open_warning() -> void:
 
 
 func _open_forecast_at(hint: String, level: int, cell: int) -> void:
+	if hint == "address":
+		_ask_address()
+		return
 	if hint == "rally":
 		_ask_rally()
 		return

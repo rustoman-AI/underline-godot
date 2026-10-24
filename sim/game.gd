@@ -42,6 +42,9 @@ var dig := {}
 var build := {}
 var expedition := {}
 var active_season := {}
+## This run's season calendar: bal.seasons with each start moved by the seed (season_jitter). Not saved; setup() and
+## import_state() rebuild it from the seed.
+var seasons: Array = []
 var artifacts := {"papers": 0, "iron": 0, "words": 0}
 var pumped := false
 var flood_guard := false
@@ -134,6 +137,8 @@ var crisis_faults: Array = []
 var demand_log: Array = []
 var power_zero_streak := 0
 var rally_lock := 0
+## The week the platform was last addressed (queued or given); once a week (address_cooldown).
+var address_week := -99
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -150,6 +155,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	rng.seed = run_seed
 	net_rng.seed = run_seed * 17 + 3
 	story_rng.seed = run_seed * 41 + 5
+	_jitter_seasons()
 	week = 1
 	over = ""
 	player_lean = str(cat.factions[player].lean)
@@ -752,11 +758,24 @@ func dawn_projection() -> Dictionary:
 	var dis_d := 0
 	if quarantine:
 		hope_d -= 1
-	for row in coming_condition():
-		hope_d += int(row.hope)
-		dis_d += int(row.dis)
+	if int(resource_outlook("food").next) < 0 or int(resource_outlook("air").next) < 0:
+		hope_d += int(bal.get("shortage_hope", 0))
+	if int(resource_outlook("power").next) < 0:
+		hope_d += int(bal.get("power_shortage_hope", 0))
+		dis_d += int(bal.get("power_shortage_discontent", 0))
+	if not active_season.is_empty():
+		var season_id := str(active_season.id)
+		var dis_table = bal.get("season_discontent", {})
+		if dis_table is Dictionary and dis_table.has(season_id):
+			dis_d += int(dis_table[season_id])
+		var hope_table = bal.get("season_hope", {})
+		if hope_table is Dictionary and hope_table.has(season_id):
+			hope_d += int(hope_table[season_id])
 	if residents.size() > housing():
 		dis_d += int(bal.get("overcrowd_discontent", 0))
+	var strain := tension_push(hardships(), hope)
+	hope_d += int(strain.hope)
+	dis_d += int(strain.dis) + int(strain.despair)
 	hope_d += upgrade_mood("hope_week")
 	dis_d += upgrade_mood("discontent_week")
 	for law_id in laws_on:
@@ -774,7 +793,7 @@ func dawn_projection() -> Dictionary:
 			if int(opinions[fid]) < 0:
 				hostile = true
 		if hostile:
-			dis_d += int(bal.get("agent_discontent", 0))
+			dis_d += agent_push()
 	out.hope = clampi(hope + hope_d, 0, 100)
 	out.discontent = clampi(discontent + dis_d, 0, 100)
 	return out
@@ -942,6 +961,7 @@ func _night() -> void:
 	stock.food = maxi(0, int(stock.food) - food_need())
 	stock.air = maxi(0, int(stock.air) - air_need())
 	if food_short > 0 or air_short > 0:
+		_add_hope(int(bal.shortage_hope), "shortage")
 		var people_short := food_short * int(bal.food_per) + air_short * int(bal.air_per)
 		var deaths := int(people_short / 10)
 		week_short = true
@@ -951,9 +971,14 @@ func _night() -> void:
 	var power_short := maxi(0, need_power - int(stock.power))
 	stock.power = maxi(0, int(stock.power) - need_power)
 	if power_short > 0:
+		_add_hope(int(bal.power_shortage_hope), "power")
+		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
 		_note("SHORT Power ran short by %d." % power_short, "SHORT энергии не хватило на %d." % power_short)
+	var dark_now := power_short > 0
 	for room in rooms:
+		if bool(room.get("browned", false)):
+			dark_now = true
 		room.browned = false
 	if int(stock.power) <= 0:
 		power_zero_streak += 1
@@ -983,9 +1008,8 @@ func _night() -> void:
 	if _law_on("double_shifts"):
 		_double_shift_sickness()
 	_apply_flood_if_needed()
-	for row in condition_pressure(food_short > 0, air_short > 0, power_short > 0, sick_now):
-		_add_hope(int(row.hope), str(row.source))
-		_add_discontent(int(row.dis), str(row.source))
+	_season_mood()
+	_tension(_hardship_ids(food_short > 0 or air_short > 0, food_short > 0, dark_now, sick_now))
 	_rival_agents()
 	if residents.size() > housing():
 		_add_discontent(int(bal.overcrowd_discontent), "overcrowd")
@@ -1367,7 +1391,7 @@ func flood_line() -> String:
 func _flood_eta() -> int:
 	if _season_is("flood"):
 		return 0
-	for season in bal.seasons:
+	for season in seasons:
 		if str(season.id) != "flood":
 			continue
 		var left := int(season.week) - week
@@ -1425,15 +1449,16 @@ func revolt_warning() -> Dictionary:
 		left = maxi(1, 100 - discontent)
 	var fixes := _best_fixes("discontent", 2)
 	var bits: PackedStringArray = [Copy.t("Revolt in about %s.") % _week_span(left)]
-	var causes := cause_line(_coming_pushes("discontent"))
-	if causes != "":
-		bits.append(causes)
+	var push := hardship_push()
+	if push != "":
+		bits.append(push)
 	for fix in fixes:
 		bits.append(str(fix.text))
 	var first: Dictionary = fixes[0] if not fixes.is_empty() else {}
 	return {
 		"text": " ".join(bits),
 		"weeks": left,
+		"hardships": hardships(),
 		"fixes": fixes,
 		"hint": str(first.get("hint", "")),
 		"level": int(first.get("level", -1)),
@@ -1490,20 +1515,31 @@ func _coming_pushes(meter: String) -> Array:
 		var slide := -int(bal.hope_drift)
 		if slide > 0:
 			rows.append({"name": "the weekly slide", "amount": slide})
-		for row in coming_condition():
-			if int(row.hope) < 0:
-				rows.append({"name": str(row.name), "amount": -int(row.hope)})
+		if _food_thin():
+			rows.append({"name": "a shortage", "amount": 4})
+		var ids := hardships()
+		var hope_hit := -int(tension_push(ids, hope).hope)
+		if hope_hit > 0:
+			rows.append({"name": hardship_name(str(ids[0])), "amount": hope_hit})
 		for law_id in laws_on:
 			var defin: Dictionary = catalog.laws[law_id]
 			var hit := -int(defin.get("hope_week", 0))
 			if hit > 0:
 				rows.append({"name": str(defin.name), "amount": hit})
 	else:
-		for row in coming_condition():
-			if int(row.dis) > 0:
-				rows.append({"name": str(row.name), "amount": int(row.dis)})
+		if not active_season.is_empty():
+			var season_id := str(active_season.id)
+			var amount := int(bal.season_discontent[season_id])
+			if amount > 0:
+				rows.append({"name": "the %s" % season_id, "amount": amount})
 		if residents.size() > housing():
 			rows.append({"name": "the crowd", "amount": int(bal.overcrowd_discontent)})
+		var ids := hardships()
+		var strain := tension_push(ids, hope)
+		if int(strain.dis) > 0:
+			rows.append({"name": hardship_name(str(ids[0])), "amount": int(strain.dis)})
+		if int(strain.despair) > 0:
+			rows.append({"name": "despair", "amount": int(strain.despair)})
 		for law_id in laws_on:
 			var defin: Dictionary = catalog.laws[law_id]
 			var hit := int(defin.get("discontent_week", 0))
@@ -1511,16 +1547,6 @@ func _coming_pushes(meter: String) -> Array:
 				rows.append({"name": str(defin.name), "amount": hit})
 	rows.sort_custom(func(a, b): return int(a.amount) > int(b.amount))
 	return rows
-
-
-## Every push on discontent this week with its amount, so the revolt warning names the exact cause.
-func cause_line(pushes: Array) -> String:
-	var parts: PackedStringArray = []
-	for push in pushes:
-		parts.append("%s +%d" % [Copy.t(str(push.name)), int(push.amount)])
-	if parts.is_empty():
-		return ""
-	return Copy.t("Discontent each week: %s.") % ", ".join(parts)
 
 
 func _push_line(pushes: Array) -> String:
@@ -1560,6 +1586,8 @@ func _best_fixes(meter: String, limit: int) -> Array:
 		_add_law(out, "sermons", Copy.t("Pass Sermons in the meeting hall."))
 		if out.is_empty():
 			_add_hall_step(out)
+		if order_block("address") == "":
+			out.append({"hint": "address", "text": Copy.t("Address the platform: hope +1."), "level": -1, "cell": -1})
 	if out.size() > limit:
 		out.resize(limit)
 	return out
@@ -2051,48 +2079,92 @@ func _check_opening_stores() -> void:
 			errors.append("start %s is %d%% of cap %d" % [key, int(round(share * 100.0)), cap])
 
 
-## What the station's condition does to hope and discontent this week: a food or air shortfall, a power cut, the
-## sick, and the season. The night applies these rows and the warnings read the same rows, so a warning names the
-## exact cause and amount.
-func condition_pressure(food_short: bool, air_short: bool, power_short: bool, sick: int) -> Array:
-	var rows: Array = []
-	if food_short or air_short:
-		var name := "a food shortage" if food_short else "an air shortage"
-		rows.append({"source": "shortage", "name": name, "hope": int(bal.shortage_hope), "dis": int(bal.get("shortage_discontent", 0))})
-	if power_short:
-		rows.append({"source": "power", "name": "power cuts", "hope": int(bal.power_shortage_hope), "dis": int(bal.power_shortage_discontent)})
-	var per := int(bal.get("sick_per", 0))
-	if per > 0 and sick >= per:
-		var dis := mini(int(sick / per) * int(bal.get("sick_discontent", 0)), int(bal.get("sick_discontent_cap", 0)))
-		rows.append({"source": "sickness", "name": "the sick", "hope": int(bal.get("sick_hope", 0)), "dis": dis})
-	if not active_season.is_empty():
-		var id := str(active_season.id)
-		var push := season_push(id)
-		rows.append({"source": "season", "name": "the %s" % id, "hope": int(push.hope), "dis": int(push.dis)})
-	return rows
-
-
-## What a season does to hope and discontent each week in this run. Each season of a run has its own strength, fixed
-## by the seed, so the warning weeks ahead already know how hard it will hit.
-func season_push(id: String) -> Dictionary:
+func _season_mood() -> void:
+	if active_season.is_empty():
+		return
+	var id := str(active_season.id)
 	var dis_table = bal.get("season_discontent", {})
+	if dis_table is Dictionary and dis_table.has(id):
+		_add_discontent(int(dis_table[id]), "season")
 	var hope_table = bal.get("season_hope", {})
-	var dis := int(dis_table.get(id, 0)) if dis_table is Dictionary else 0
-	var hope_d := int(hope_table.get(id, 0)) if hope_table is Dictionary else 0
-	var swing := int(bal.get("season_swing", 0))
-	if swing > 0:
-		var roll := RandomNumberGenerator.new()
-		roll.seed = hash("%d:%s" % [seed, id])
-		dis = maxi(0, dis + roll.randi_range(-swing, swing))
-	return {"dis": dis, "hope": hope_d}
+	if hope_table is Dictionary and hope_table.has(id):
+		_add_hope(int(hope_table[id]), "season")
 
 
-## The condition rows the coming night will apply if nothing changes.
-func coming_condition() -> Array:
+## Moves each season's start by up to season_jitter weeks either way, from the seed alone, so a loaded run gets the
+## same calendar back. Uses its own stream; the run's RNG is untouched.
+func _jitter_seasons() -> void:
+	var spread := int(bal.get("season_jitter", 0))
+	var roll := RandomNumberGenerator.new()
+	roll.seed = seed * 53 + 7
+	seasons = []
+	for row in bal.get("seasons", []):
+		var moved: Dictionary = row.duplicate()
+		if spread > 0:
+			moved.week = int(row.week) + roll.randi_range(-spread, spread)
+		seasons.append(moved)
+
+
+## This week's hardships as the dawn sees them: "shortage" (food will run short) or "air", else "thin food" (under
+## hard_food_weeks of food), "dark rooms" (power short or rooms browning out), "sickness" (hard_sick_share of the
+## people sick), "season" (one is on), and "crowd" only when hard_crowd is on.
+func hardships() -> Array:
 	var food_short := int(resource_outlook("food").next) < 0
 	var air_short := int(resource_outlook("air").next) < 0
-	var power_short := int(resource_outlook("power").next) < 0
-	return condition_pressure(food_short, air_short, power_short, sick_count())
+	var dark := int(resource_outlook("power").next) < 0 or not _brownout_ids().is_empty()
+	return _hardship_ids(food_short or air_short, food_short, dark, sick_count())
+
+
+func _hardship_ids(short_now: bool, food_short: bool, dark: bool, sick: int) -> Array:
+	var ids: Array = []
+	if short_now:
+		ids.append("shortage" if food_short else "air")
+	elif food_buffer_weeks() < float(bal.get("hard_food_weeks", 0)):
+		ids.append("thin food")
+	if dark:
+		ids.append("dark rooms")
+	if not residents.is_empty() and float(sick) / float(residents.size()) >= float(bal.get("hard_sick_share", 1.0)):
+		ids.append("sickness")
+	if not active_season.is_empty():
+		ids.append("season")
+	if bool(bal.get("hard_crowd", false)) and residents.size() > housing():
+		ids.append("crowd")
+	return ids
+
+
+## What a week with these hardships does: hope hardship_hope each, up to hardship_cap of them; discontent
+## hardship_discontent once (hardship_discontent_early before hardship_ramp_week), or settled_discontent with none;
+## despair_discontent more while hope is under despair_hope.
+## TODO(Code): comfort_hope and comfort_food_weeks are in the validated set, but the spec does not say how they
+## apply, so they do nothing yet.
+func tension_push(ids: Array, hope_now: int) -> Dictionary:
+	var out := {"hope": 0, "dis": 0, "despair": 0}
+	out.hope = mini(ids.size(), int(bal.get("hardship_cap", 0))) * int(bal.get("hardship_hope", 0))
+	if not ids.is_empty():
+		var each := int(bal.get("hardship_discontent", 0))
+		if week < int(bal.get("hardship_ramp_week", 0)):
+			each = int(bal.get("hardship_discontent_early", 0))
+		out.dis = each * mini(ids.size(), int(bal.get("hardship_dis_cap", 1)))
+	elif not bool(bal.get("settled_needs_beds", false)) or residents.size() <= housing():
+		out.dis = int(bal.get("settled_discontent", 0))
+	if hope_now < int(bal.get("despair_hope", 0)):
+		out.despair = int(bal.get("despair_discontent", 0))
+	return out
+
+
+func _tension(ids: Array) -> void:
+	var push := tension_push(ids, hope)
+	_add_hope(int(push.hope), "hardship")
+	_add_discontent(int(push.dis), "hardship" if not ids.is_empty() else "settled")
+	_add_discontent(int(push.despair), "despair")
+
+
+## Rival agents stir the yard; from agent_late_week they push harder.
+func agent_push() -> int:
+	var n := int(bal.get("agent_discontent", 0))
+	if week >= int(bal.get("agent_late_week", 999)):
+		n += int(bal.get("agent_late_bonus", 0))
+	return n
 
 
 func sick_count() -> int:
@@ -2101,6 +2173,35 @@ func sick_count() -> int:
 		if int(person.get("sick", 0)) > 0:
 			n += 1
 	return n
+
+
+## A hardship as a short phrase for lists and the revolt warning (Copy keys hardship.*).
+func hardship_name(id: String) -> String:
+	match id:
+		"shortage", "thin food":
+			return "low food stores"
+		"air":
+			return "not enough air"
+		"dark rooms":
+			return "dark rooms"
+		"sickness":
+			return "the sick"
+		"season":
+			return "the %s" % str(active_season.get("id", "season"))
+		"crowd":
+			return "the crowd"
+	return id
+
+
+## The revolt warning's push sentence from the first one or two hardships; "" when there are none.
+func hardship_push() -> String:
+	var ids := hardships()
+	if ids.is_empty():
+		return ""
+	var first := Copy.t(hardship_name(str(ids[0])))
+	if ids.size() == 1:
+		return Copy.t("Pushing toward revolt: %s.") % first
+	return Copy.t("Pushing toward revolt: %s and %s.") % [first, Copy.t(hardship_name(str(ids[1])))]
 
 
 func _rot_stores() -> void:
@@ -2125,7 +2226,7 @@ func _rival_agents() -> void:
 			hostile = true
 	if not hostile:
 		return
-	_add_discontent(int(bal.agent_discontent), "agent")
+	_add_discontent(agent_push(), "agent")
 	_note("AGENT a rival rumor moves through the yard", "AGENT По станции ползёт слух, пущенный соперником.")
 
 
@@ -3014,6 +3115,8 @@ func order_cost(kind: String, _sid: String = "") -> Dictionary:
 			return {"influence": 3}
 		"trade":
 			return {"influence": 4}
+		"address":
+			return {"influence": int(bal.get("address_influence", 0))}
 		"move":
 			var food := move_food(_sid)
 			return {"food": food} if food > 0 else {}
@@ -3050,6 +3153,9 @@ func queue_order(action: Dictionary) -> bool:
 		stock[key] = int(stock.get(key, 0)) - int(cost[key])
 	orders_left -= 1
 	seat_used[str(who.role)] = kind
+	var prev_address := address_week
+	if kind == "address":
+		address_week = week
 	var target := sid
 	if kind == "expedition" and stations.has("vault"):
 		target = "vault"
@@ -3064,6 +3170,7 @@ func queue_order(action: Dictionary) -> bool:
 		"home": capital_id,
 		"target": target,
 		"kind": kind,
+		"prev_address": prev_address,
 	})
 	_journal("order", {"order": kind, "station": target, "name": str(who.name)})
 	return true
@@ -3079,6 +3186,8 @@ func cancel_queued(role: String) -> bool:
 			stock[key] = int(stock.get(key, 0)) + int(cost[key])
 		seat_used.erase(role)
 		orders_left += 1
+		if str(row.get("kind", "")) == "address":
+			address_week = int(row.get("prev_address", -99))
 		queued_orders.remove_at(i)
 		_journal("cancel", {"order": str(row.get("kind", "")), "station": str(row.get("target", ""))})
 		return true
@@ -3127,7 +3236,7 @@ func _resolve_queued() -> void:
 			"approach_quarantine":
 				ok = _order_approach_quarantine()
 			"address":
-				ok = _order_address()
+				ok = _order_address(true)
 		var place := sid
 		if kind == "move" and stations.has(str(action.get("dest", ""))):
 			place = station_text(str(action.dest), "community")
@@ -3301,6 +3410,8 @@ func order_block(kind: String, sid: String = "") -> String:
 			return observatory_block()
 		"approach_quarantine":
 			return quarantine_block()
+		"address":
+			return address_reason()
 		_:
 			return Copy.t("No such order.")
 	return ""
@@ -3612,13 +3723,30 @@ func _offer_triggered() -> void:
 	story_queue = keep
 
 
-## Addressing the platform costs influence and works once a week.
-func _order_address() -> bool:
+## Why the platform cannot be addressed now; "" when it can (the council order itself aside).
+func address_reason() -> String:
 	var cost := int(bal.get("address_influence", 0))
-	if int(stock.influence) < cost or int(flags.get("address_week", 0)) == week:
+	if week - address_week < int(bal.get("address_cooldown", 1)):
+		return Copy.t("Already addressed this week.")
+	for row in queued_orders:
+		if str(row.get("kind", "")) == "address":
+			return Copy.t("Already addressed this week.")
+	if int(stock.influence) < cost:
+		return Copy.t("Need %d influence.") % cost
+	return ""
+
+
+## Speaking to the platform: influence for hope, once a week. A queued address booked its week when the council
+## took it, so at dawn it only pays.
+func _order_address(queued := false) -> bool:
+	var cost := int(bal.get("address_influence", 0))
+	if not queued and address_reason() != "":
+		return false
+	if int(stock.influence) < cost:
 		return false
 	stock.influence = int(stock.influence) - cost
-	flags["address_week"] = week
+	if not queued:
+		address_week = week
 	_add_hope(int(bal.get("address_hope", 1)), "address")
 	_log("ORDER address the platform")
 	return true
@@ -3679,7 +3807,7 @@ func _book_calendar() -> void:
 	pressure = {}
 	warning_weeks = {}
 	crisis_faults = []
-	for season in bal.seasons:
+	for season in seasons:
 		var at := int(season.week)
 		var warn := at - int(bal.season_warning)
 		if warn > 0:
@@ -4041,6 +4169,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_log("%s will remember %s." % [_fname(prev), st.name])
 	if fid == player:
 		_add_hope(int(bal.join_hope), "victory")
+		_add_discontent(int(bal.get("join_discontent", 0)), "victory")
 		var shipment := _capture_shipment(st)
 		var how := "force" if force else "peace"
 		var joined := str(st.name)
@@ -6750,14 +6879,13 @@ func _faction_dead(fid: String) -> bool:
 
 
 func _season_clock() -> void:
-	for season in bal.seasons:
+	for season in seasons:
 		var at := int(season.week)
 		var warning := flood_warning() if str(season.id) == "flood" else int(bal.season_warning)
 		if week == at - warning:
-			var hit := int(season_push(str(season.id)).dis)
-			var soon := "SEASON The %s comes in %s. Discontent +%d a week while it lasts." % [str(season.id), _week_span(warning), hit]
+			var soon := "SEASON warning %s" % str(season.id)
 			if Copy.ru():
-				soon = "SEASON Через %s придёт %s. Пока он не кончится, недовольство +%d в неделю." % [_week_span(warning), Copy.season(str(season.id)), hit]
+				soon = "SEASON Скоро %s." % Copy.season(str(season.id))
 			_log(soon, true)
 			_journal("season", {"id": str(season.id), "soon": true})
 			_vo_cue("season_%s_soon" % str(season.id))
@@ -6765,10 +6893,9 @@ func _season_clock() -> void:
 				_vo_cue("tunnel_warning")
 		if week == at:
 			active_season = {"id": str(season.id), "start": at, "until": at + int(season.weeks) - 1}
-			var hit := int(season_push(str(season.id)).dis)
-			var begun := "SEASON The %s has begun. Discontent +%d a week for %s." % [str(season.id), hit, _week_span(int(season.weeks))]
+			var begun := "SEASON %s" % str(season.id)
 			if Copy.ru():
-				begun = "SEASON Начался %s. Недовольство +%d в неделю, %s подряд." % [Copy.season(str(season.id)), hit, _week_span(int(season.weeks))]
+				begun = "SEASON Начался %s." % Copy.season(str(season.id))
 			_log(begun, true)
 			_journal("season", {"id": str(season.id)})
 			_vo_cue("season_%s" % str(season.id))
@@ -7987,7 +8114,7 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
+	"power_zero_streak", "rally_lock", "address_week", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
@@ -7999,8 +8126,9 @@ const PERSIST := [
 ## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
 ## Adding a PERSIST key needs a new schema number and its own migration list. Version 7 added sex and face to
 ## every person; older saves get them from the profiles and names on load (_dress_legacy). Version 8 added
-## "governor" to every station; older saves start with no governors.
-const SAVE_SCHEMA := 8
+## "governor" to every station; older saves start with no governors. Version 9 added "address_week"; older saves
+## start with the platform not yet addressed.
+const SAVE_SCHEMA := 9
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -8026,6 +8154,8 @@ const V3_RNG_ADDED := ["story_state"]
 const V4_ADDED := ["help_last"]
 ## Fields a version 1 to 5 save may lack: no bunker scene waiting, no proof beyond the fragments.
 const V5_ADDED := ["story_queue", "proof_extra"]
+## Fields a version 1 to 8 save may lack: the platform not addressed yet.
+const V8_ADDED := ["address_week"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -8060,6 +8190,7 @@ func import_state(data: Dictionary) -> bool:
 	_init_standing()
 	if bal.is_empty():
 		bal = catalog.balance
+	_jitter_seasons()
 	if squads.has(player) and not bool(squads[player].get("guard", false)):
 		_muster_start_guard()
 	_sync_guard()
@@ -8081,7 +8212,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}

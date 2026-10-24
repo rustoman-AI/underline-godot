@@ -214,7 +214,15 @@ static func _meter(game, key: String, info: Dictionary) -> Dictionary:
 			delta += int(defin.hope_week)
 		if key == "discontent" and defin.has("discontent_week"):
 			delta += int(defin.discontent_week)
+	var ids: Array = game.hardships()
+	var strain: Dictionary = game.tension_push(ids, int(game.hope))
+	delta += int(strain.hope) if key == "hope" else int(strain.dis) + int(strain.despair)
 	info.headline = Copy.t("%s: %d (%+d / week)") % [Copy.res(key), have, delta]
+	var rows: Array = []
+	for id in ids:
+		var text := Copy.t(game.hardship_name(str(id)))
+		rows.append(text.substr(0, 1).to_upper() + text.substr(1))
+	info.hardships = rows
 	if key == "hope":
 		info.made = Copy.t("Made by: the weekly slide (%+d), plus laws and choices.") % int(game.bal.get("hope_drift", 0))
 		info.used = Copy.t("Used by: shortages, a hard week, and some laws")
