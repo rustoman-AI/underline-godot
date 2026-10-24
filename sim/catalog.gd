@@ -15,6 +15,8 @@ var names: Dictionary = {}
 var grid: Dictionary = {}
 var communities: Dictionary = {}
 var geo: Dictionary = {}
+var epilogues: Dictionary = {}
+var hardship: Dictionary = {}
 var error: String = ""
 
 
@@ -33,6 +35,8 @@ func load_all() -> bool:
 	grid = _obj("start_grid.json")
 	communities = _obj("station_communities.json")
 	geo = _obj("map_geo.json")
+	epilogues = _obj("epilogues.json")
+	hardship = _obj("hardship.json")
 	return error == ""
 
 

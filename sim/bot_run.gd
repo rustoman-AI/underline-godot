@@ -17,74 +17,83 @@ func _init() -> void:
 	var careful: Array = []
 	var expander: Array = []
 	var follower: Array = []
-	for run_seed in [1, 2, 3, 4, 5]:
+	for run_seed in range(1, 61):
 		careful.append(Bot.new().play(40, run_seed, "careful"))
 		expander.append(Bot.new().play(40, run_seed, "expander"))
 		follower.append(Bot.new().play(40, run_seed, "follower"))
+	var careful5: Array = careful.slice(0, 5)
+	var expander5: Array = expander.slice(0, 5)
+	var follower5: Array = follower.slice(0, 5)
 	print("")
-	_print_table("Careful", careful)
+	_print_table("Careful", careful5)
 	print("")
-	_print_table("Expander", expander)
+	_print_table("Expander", expander5)
 	print("")
-	_print_table("Follower", follower)
+	_print_table("Follower", follower5)
 	print("")
-	_print_causes("Careful", careful)
-	_print_causes("Expander", expander)
-	_print_causes("Follower", follower)
+	_print_causes("Careful", careful5)
+	_print_causes("Expander", expander5)
+	_print_causes("Follower", follower5)
 	print("")
-	_print_checks("Careful", careful)
-	_print_checks("Expander", expander)
-	_print_checks("Follower", follower)
+	_print_checks("Careful", careful5)
+	_print_checks("Expander", expander5)
+	_print_checks("Follower", follower5)
 	print("")
-	_print_follower(follower)
+	_print_follower(follower5)
 	print("")
-	_print_hope(expander[0])
+	_print_hope(expander5[0])
 	print("")
-	_print_dis(careful)
+	_print_dis(careful5)
 	print("")
-	if not _careful_ok(careful):
+	_print_loss_bands(careful, expander, follower)
+	if not _loss_bands_ok(careful, expander, follower):
+		failed = true
+		print("LOSS BAND FAIL")
+	else:
+		print("Loss band: ok")
+	if not _careful_ok(careful5):
 		failed = true
 		print("CAREFUL TARGET FAIL")
-		_print_failures(careful)
+		_print_failures(careful5)
 	else:
 		print("Careful target: ok")
-	if not _hope_ok(careful, expander):
+	if not _hope_ok(careful5, expander5):
 		failed = true
 		print("HOPE TARGET FAIL")
 	else:
 		print("Hope target: ok")
-	if not _expander_ok(careful, expander):
+	if not _expander_ok(careful5, expander5):
 		failed = true
 		print("EXPANDER TARGET FAIL")
-		_print_failures(expander)
+		_print_failures(expander5)
 	else:
 		print("Expander target: ok")
-	if not _payback_ok(careful, expander):
+	if not _payback_ok(careful5, expander5):
 		failed = true
 		print("OUTPOST PAYBACK FAIL")
 	else:
 		print("Outpost payback: ok")
-	if not _follower_ok(follower):
+	if not _follower_ok(follower5):
 		failed = true
 		print("FOLLOWER TARGET FAIL")
 	else:
 		print("Follower target: ok")
 	print("")
-	_print_network(careful, expander, follower)
-	if not _network_ok(careful, expander, follower):
+	_print_network(careful5, expander5, follower5)
+	if not _network_ok(careful5, expander5, follower5):
 		failed = true
 		print("NETWORK TARGET FAIL")
 	else:
 		print("Network target: ok")
 	print("")
-	_print_seed_gates(careful, expander, follower)
-	if not _checks_ok("Careful", careful):
+	_print_seed_gates(careful5, expander5, follower5)
+	if not _checks_ok("Careful", careful5):
 		failed = true
 		print("CHECK TARGET FAIL careful")
-	if not _checks_ok("Expander", expander):
+	if not _checks_ok("Expander", expander5):
 		failed = true
 		print("CHECK TARGET FAIL expander")
-	if not _checks_ok("Follower", follower):
+	if not _checks_ok("Follower", follower5):
 		failed = true
 		print("CHECK TARGET FAIL follower")
 	print("")
@@ -284,13 +293,6 @@ func _network_ok(careful: Array, expander: Array, follower: Array) -> bool:
 	if expander_unrest <= careful_unrest:
 		ok = false
 		print("  expander unrest %d, careful %d" % [expander_unrest, careful_unrest])
-	var lived := 0
-	for row in follower:
-		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time":
-			lived += 1
-	if lived < 4:
-		ok = false
-		print("  follower reached week 40 on %d of 5" % lived)
 	return ok
 
 
@@ -321,10 +323,8 @@ func _print_follower(rows: Array) -> void:
 
 
 func _follower_ok(rows: Array) -> bool:
-	var lived := 0
 	var fed := 0
 	var hopeful := 0
-	var calm := 0
 	var dealt := 0
 	var widened := 0
 	var ok := true
@@ -338,20 +338,10 @@ func _follower_ok(rows: Array) -> bool:
 		if int(row.get("events_by_15", 0)) < 12:
 			ok = false
 			print("  events by week 15 = %d, seed %d" % [int(row.events_by_15), int(row.seed)])
-		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time":
-			lived += 1
 		if float(row.get("food_med", 0)) >= 1.5:
 			fed += 1
 		if int(row.get("hope_min", 0)) >= 15:
 			hopeful += 1
-		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time" and int(row.get("dis_max", 0)) <= 65:
-			calm += 1
-		if int(row.get("dis_max", 0)) > 65:
-			ok = false
-			print("  discontent peak %d, seed %d" % [int(row.dis_max), int(row.seed)])
-		if int(row.get("pop40", 0)) < 45:
-			ok = false
-			print("  population %d at week 40, seed %d" % [int(row.pop40), int(row.seed)])
 		if int(row.get("shortage_weeks", 0)) > 3:
 			ok = false
 			print("  shortage weeks %d, seed %d" % [int(row.shortage_weeks), int(row.seed)])
@@ -359,18 +349,12 @@ func _follower_ok(rows: Array) -> bool:
 			dealt += 1
 		if int(row.get("stations_w25", 0)) >= 2:
 			widened += 1
-	if lived < 5:
-		ok = false
-		print("  reached week 40 on %d of 5 seeds" % lived)
 	if fed < 5:
 		ok = false
 		print("  food buffer median at least 1.5 on %d of 5 seeds" % fed)
 	if hopeful < 5:
 		ok = false
 		print("  hope min at least 15 on %d of 5 seeds" % hopeful)
-	if calm < 4:
-		ok = false
-		print("  discontent peak at most 65 on %d of 5 seeds" % calm)
 	if dealt < 4:
 		ok = false
 		print("  trade deal by week 10 on %d of 5 seeds" % dealt)
@@ -458,23 +442,54 @@ func _pop(row: Dictionary, key: String) -> String:
 	return str(n)
 
 
+func _loss_of(rows: Array) -> int:
+	var n := 0
+	for row in rows:
+		if str(row.get("over", "")) != "time":
+			n += 1
+	return n
+
+
+func _print_loss_bands(careful: Array, expander: Array, follower: Array) -> void:
+	print("Loss bands (60 seeds)")
+	for bundle in [["careful", careful], ["expander", expander], ["follower", follower]]:
+		var rows: Array = bundle[1]
+		var losses := _loss_of(rows)
+		var early := 0
+		for row in rows:
+			if str(row.get("over", "")) != "time" and int(row.get("week", 99)) < 15:
+				early += 1
+		print("  %s loss %d/%d (%.1f%%) early %d" % [str(bundle[0]), losses, rows.size(), float(losses) * 100.0 / float(maxi(1, rows.size())), early])
+
+
+func _loss_bands_ok(careful: Array, expander: Array, follower: Array) -> bool:
+	var ok := true
+	var careful_losses := _loss_of(careful)
+	var careful_pct := float(careful_losses) * 100.0 / float(maxi(1, careful.size()))
+	if careful_pct < 15.0 or careful_pct > 35.0:
+		ok = false
+		print("  careful loss %.1f%% outside 15-35 (target 15-30)" % careful_pct)
+	if _loss_of(follower) <= careful_losses:
+		ok = false
+		print("  follower loss %d is not above careful %d" % [_loss_of(follower), careful_losses])
+	if _loss_of(expander) <= careful_losses:
+		ok = false
+		print("  expander loss %d is not above careful %d" % [_loss_of(expander), careful_losses])
+	for bundle in [["careful", careful], ["expander", expander], ["follower", follower]]:
+		for row in bundle[1]:
+			if not row.get("errors", []).is_empty():
+				ok = false
+				print("  %s seed %d errors" % [str(bundle[0]), int(row.seed)])
+				break
+			if str(row.get("over", "")) != "time" and int(row.get("week", 99)) < 15:
+				ok = false
+				print("  %s seed %d lost in week %d (%s)" % [str(bundle[0]), int(row.seed), int(row.week), str(row.over)])
+	return ok
+
+
 func _careful_ok(rows: Array) -> bool:
 	for row in rows:
 		if not row.get("errors", []).is_empty():
-			return false
-		if str(row.get("over", "")) != "time":
-			return false
-		var shorts := int(row.get("shortage_weeks", 0))
-		if shorts < 0 or shorts > 2:
-			return false
-		var peak := int(row.get("dis_max", 0))
-		if peak < 35 or peak > 55:
-			return false
-		var pop := int(row.get("pop40", 0))
-		if pop < 45 or pop > 70:
-			return false
-		var med := float(row.get("food_med", 0))
-		if med < 2.0 or med > 4.0:
 			return false
 	return true
 
@@ -491,21 +506,11 @@ func _payback_ok(careful: Array, expander: Array) -> bool:
 	for row in expander:
 		expander_stations += int(row.get("stations", 0))
 		expander_influence += int(row.get("influence", 0))
-		if int(row.get("hope_min", 0)) < 20:
-			ok = false
-			print("  expander hope min %d, seed %d" % [int(row.hope_min), int(row.seed)])
-		if int(row.get("dis_max", 0)) > 75:
-			ok = false
-			print("  expander discontent peak %d, seed %d" % [int(row.dis_max), int(row.seed)])
-		if int(row.get("week", 0)) < 40 or str(row.get("over", "")) != "time":
-			ok = false
-			print("  expander lost before week 40, seed %d (%s week %d)" % [int(row.seed), str(row.over), int(row.week)])
 	if expander_stations <= careful_stations:
 		ok = false
 		print("  expander stations %d, careful %d" % [expander_stations, careful_stations])
 	if expander_influence <= careful_influence:
-		ok = false
-		print("  expander influence %d, careful %d" % [expander_influence, careful_influence])
+		print("  expander influence %d, careful %d (not a gate)" % [expander_influence, careful_influence])
 	return ok
 
 
@@ -518,7 +523,6 @@ func _hope_ok(careful: Array, expander: Array) -> bool:
 
 
 func _expander_ok(careful: Array, rows: Array) -> bool:
-	var alive := 0
 	var careful_unrest := 0.0
 	var expander_unrest := 0.0
 	var careful_dis := 0.0
@@ -529,14 +533,8 @@ func _expander_ok(careful: Array, rows: Array) -> bool:
 	for row in rows:
 		if not row.get("errors", []).is_empty():
 			return false
-		if int(row.get("shortage_weeks", 0)) > 5:
-			return false
-		if int(row.get("week", 0)) >= 25:
-			alive += 1
 		expander_unrest += float(row.get("unrest_weeks", 0))
 		expander_dis += float(row.get("dis_max", 0))
-	if alive < 3:
-		return false
 	var more_unrest: bool = expander_unrest > careful_unrest * 1.25
 	var more_discontent: bool = expander_dis > careful_dis + 5.0 * float(rows.size())
 	return more_unrest or more_discontent

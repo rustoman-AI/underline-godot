@@ -5,6 +5,7 @@ extends RefCounted
 
 static var lang := "en"
 static var map := {}
+static var keys := {}
 static var ready := false
 
 const NOUNS := {
@@ -55,6 +56,7 @@ static func boot() -> void:
 	if ready:
 		return
 	ready = true
+	_load_keys()
 	lang = _detect()
 	if lang == "ru" and not _load():
 		lang = "en"
@@ -65,6 +67,7 @@ static func set_lang(code: String) -> void:
 		return
 	lang = code
 	ready = true
+	_load_keys()
 	if code == "ru":
 		_load()
 	else:
@@ -77,7 +80,16 @@ static func ru() -> bool:
 
 
 static func t(s: String) -> String:
-	if not ru() or s == "":
+	if s == "":
+		return s
+	boot()
+	if keys.has(s):
+		var row: Dictionary = keys[s]
+		if lang == "ru" and str(row.get("ru", "")) != "":
+			return str(row.ru)
+		var en := str(row.get("en", ""))
+		return en if en != "" else s
+	if lang != "ru":
 		return s
 	return str(map.get(s, s))
 
@@ -217,6 +229,18 @@ static func _file_lang(path: String) -> String:
 	if f == null:
 		return ""
 	return f.get_line().strip_edges().to_lower()
+
+
+static func _load_keys() -> void:
+	var f := FileAccess.open("res://data/ui_strings.json", FileAccess.READ)
+	if f == null:
+		keys = {}
+		return
+	var data = JSON.parse_string(f.get_as_text())
+	if data is Dictionary:
+		keys = data
+	else:
+		keys = {}
 
 
 static func _load() -> bool:

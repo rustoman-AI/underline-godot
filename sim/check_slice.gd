@@ -377,14 +377,17 @@ func _check_mood(catalog: Catalog) -> bool:
 	if warning.fixes.size() < 2:
 		print("Mood: FAIL warning fixes ", warning.fixes)
 		return false
+	var held_food := int(game.stock.food)
+	game.stock.food = 0
 	game.discontent = 98
 	var dis_line := ""
 	for row in game.forecasts():
 		if str(row.key) == "discontent":
 			dis_line = str(row.text)
-	if dis_line == "" or dis_line.find("pushing") < 0:
+	if dis_line == "" or dis_line.find("pushing") < 0 or dis_line.find("Thin food") < 0:
 		print("Mood: FAIL discontent forecast ", dis_line)
 		return false
+	game.stock.food = held_food
 	game.hope = 2
 	var hope_line := ""
 	for row in game.forecasts():
