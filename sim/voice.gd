@@ -66,6 +66,28 @@ static func event_line(event_id: String, choice_id: String) -> Dictionary:
 	return whole
 
 
+## Event VO (data/vo/event_vo.json, tools/import_event_vo.gd): the reading of what an event card, check outcome,
+## crunch bill or plain game over shows. kind: event, check, crunch or end; part: body, after_<choice>,
+## <option>_success, <option>_fail or the game-over reason. With EVENT_VO_EXACT a take plays only while its
+## recorded text is the text on screen, so an old take of a rewritten line stays silent instead of reading other
+## words; false plays whatever take the part has.
+const EVENT_VO_EXACT := true
+
+
+static func event_show(kind: String, event_id: String, part: String, shown: String) -> Dictionary:
+	for row in of_type("event_show"):
+		if str(row.get("kind", "")) != kind or str(row.get("event", "")) != event_id or str(row.get("part", "")) != part:
+			continue
+		if EVENT_VO_EXACT and _plain(text(row)) != _plain(shown):
+			return {}
+		return row
+	return {}
+
+
+static func _plain(line: String) -> String:
+	return " ".join(line.split(" ", false)).strip_edges()
+
+
 static func condition(name: String) -> Dictionary:
 	return _find("system", "condition", name)
 

@@ -271,6 +271,7 @@ var vo_story_progress := 0.0
 var audience_key := ""
 var audience_heard := false
 var dawn_heard := ""
+var event_vo_heard := ""
 ## Room type -> "<game id>:<week>" for the week an event's data named that room; its yard sign shows a warning.
 var incident_rooms := {}
 ## The leader line last voiced; a redraw that shows the same line again stays silent.
@@ -3927,7 +3928,7 @@ func _tick_voice() -> void:
 	if radio_bars != null:
 		radio_bars.get_parent().visible = Voice.playing() and Voice.now_kind == "radio"
 		radio_bars.queue_redraw()
-	var spoken := Voice.playing() and Voice.now_kind != "radio" and Voice.now_kind != "leader"
+	var spoken := Voice.playing() and Voice.now_kind != "radio" and Voice.now_kind != "leader" and Voice.now_kind != "event_show"
 	var shown := not spoken and Time.get_ticks_msec() < vo_text_until
 	if vo_pill == null:
 		if not spoken and not shown:
@@ -4062,6 +4063,35 @@ func _say(row: Dictionary, caption: String) -> void:
 	if vo_text == "":
 		return
 	vo_text_until = Time.get_ticks_msec() + int(clampf(vo_text.length() * 60.0, 5000.0, 14000.0))
+
+
+## The recorded reading of the card's text, once per card: the body, or a follow-up's text for the earlier choice.
+## The card has the text already, so it plays without a subtitle; no take, or an outdated one, stays silent.
+func _event_voice(ev: Dictionary) -> void:
+	var kind := "event"
+	if bool(ev.get("check_only", false)):
+		kind = "check"
+	elif bool(ev.get("crunch", false)):
+		kind = "crunch"
+	var part := "body"
+	var memory := str(ev.get("follow_memory", ""))
+	var by = ev.get("by", {})
+	if memory != "" and by is Dictionary and by.has(memory):
+		part = "after_" + memory
+	var key := "%d:%d:%s:%s" % [game.get_instance_id(), game.week, str(ev.get("id", "")), part]
+	if event_vo_heard == key:
+		return
+	event_vo_heard = key
+	Voice.play(Voice.event_show(kind, str(ev.get("id", "")), part, Copy.t(game.line_of(ev, "text"))), "")
+
+
+## A check's outcome read aloud (chk_<check>_<option>_<success|fail>); true when it plays.
+func _check_voice(event_id: String, choice_id: String) -> bool:
+	var last: Dictionary = game.last_check
+	if not check_flash or last.is_empty() or bool(last.get("bet", false)):
+		return false
+	var part := "%s_%s" % [choice_id, "success" if bool(last.get("success", false)) else "fail"]
+	return Voice.play(Voice.event_show("check", event_id, part, str(last.get("outcome", ""))), "") > 0.0
 
 
 ## A confirmed action can have a system line named "<kind>_<id>" (law_rationing) or just "<kind>" (rally).
@@ -4642,6 +4672,7 @@ func _paint_dawn() -> void:
 		card_body.move_child(banner, 0)
 	_who_row(str(ev.get("who", "")))
 	_body(game.line_of(ev, "text"))
+	_event_voice(ev)
 	if check_flash:
 		var rolled := _check_result_line()
 		if rolled != "":
@@ -5501,7 +5532,8 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		_close_card()
 		_show_ending()
 		return
-	_say(Voice.event_line(event_id, choice_id), title)
+	if not _check_voice(event_id, choice_id):
+		_say(Voice.event_line(event_id, choice_id), title)
 	_advance_dawn(before)
 
 
@@ -5813,6 +5845,7 @@ func _show_ending() -> void:
 		_epilogue(id)
 		return
 	_open_card(_ending())
+	Voice.play(Voice.event_show("end", "end", game.over, _ending()), "")
 	_body(Copy.t("Week %d. Food %d, air %d, power %d, materials %d.") % [
 		game.week, int(game.stock.food), int(game.stock.air), int(game.stock.power), int(game.stock.materials)])
 	_body(Copy.t("Hope %d. Discontent %d. %s.") % [game.hope, game.discontent, Words.count(game.residents.size(), "person", "people")])

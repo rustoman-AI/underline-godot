@@ -5270,6 +5270,7 @@ func _present_due_follows() -> void:
 		var by = ev.get("by", {})
 		if by is Dictionary and by.has(memory):
 			copy.text = str(by[memory])
+			copy.follow_memory = memory
 		if _present_event(copy):
 			presented += 1
 	follows = keep
