@@ -61,6 +61,19 @@ var hope_label: Label
 var dis_label: Label
 var hope_fill: ColorRect
 var dis_fill: ColorRect
+var address_button: Button
+var address_title: Label
+var address_cost: Label
+var dis_pulse: Tween
+var dis_pulsing := false
+var epilogue_layer: Control
+var epilogue_panel: PanelContainer
+var epilogue_body: VBoxContainer
+var epilogue_eyebrow: Label
+var epilogue_dots: HBoxContainer
+var epilogue_actions: HBoxContainer
+var epilogue_page := 0
+var epilogue_hid_network := false
 var dim: ColorRect
 var card: PanelContainer
 var card_scroll: ScrollContainer
@@ -606,6 +619,7 @@ func _top_bar() -> PanelContainer:
 	meter_box = meters
 	meters.add_child(_meter(Color("d7a441"), true))
 	meters.add_child(_meter(Color("c4544a"), false))
+	_build_address_button()
 	menu_button = _button("Menu", _show_menu)
 	menu_button.custom_minimum_size = Vector2(84, 40)
 	menu_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -660,6 +674,112 @@ func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 		dis_label = lab
 		dis_fill = fill
 	return box
+
+
+func _build_address_button() -> void:
+	address_button = Button.new()
+	address_button.focus_mode = Control.FOCUS_ALL
+	address_button.custom_minimum_size = Vector2(118, 40)
+	address_button.clip_contents = true
+	address_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	address_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	address_button.pressed.connect(_ask_address)
+	address_button.focus_entered.connect(_sync_address)
+	address_button.focus_exited.connect(_sync_address)
+	var col := VBoxContainer.new()
+	col.set_anchors_preset(Control.PRESET_FULL_RECT)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 0)
+	address_title = Label.new()
+	address_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	address_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	address_title.add_theme_font_size_override("font_size", 15)
+	if display_font != null:
+		address_title.add_theme_font_override("font", display_font)
+	address_cost = Label.new()
+	address_cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	address_cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	address_cost.add_theme_font_size_override("font_size", 11)
+	if body_font != null:
+		address_cost.add_theme_font_override("font", body_font)
+	col.add_child(address_title)
+	col.add_child(address_cost)
+	address_button.add_child(col)
+	title_row.add_child(address_button)
+
+
+func _sync_address() -> void:
+	if address_button == null or game == null:
+		return
+	var why := game.address_reason()
+	var open := game.over == ""
+	address_button.visible = open
+	address_button.disabled = why != ""
+	address_title.text = Copy.t("address.button")
+	address_cost.text = Copy.t("address.cost")
+	var ink := Color(INK_DARK, 0.55) if why != "" else INK_DARK
+	var cost_ink := Color(INK_DARK, 0.45) if why != "" else Color(INK_DARK, 0.85)
+	address_title.add_theme_color_override("font_color", ink)
+	address_cost.add_theme_color_override("font_color", cost_ink)
+	address_button.tooltip_text = why if why != "" else Copy.t("address.tip_ok")
+	var focused := address_button.has_focus()
+	var enabled := why == ""
+	var hover := _address_face(false, enabled, focused)
+	if enabled:
+		hover.bg_color = Color("f0c56e")
+	address_button.add_theme_stylebox_override("normal", _address_face(false, enabled, focused))
+	address_button.add_theme_stylebox_override("hover", hover)
+	address_button.add_theme_stylebox_override("pressed", _address_face(true, enabled, focused))
+	address_button.add_theme_stylebox_override("disabled", _address_face(false, false, false))
+	address_button.add_theme_stylebox_override("focus", _address_face(false, enabled, true))
+
+
+func _address_face(pressed: bool, enabled: bool, focused: bool) -> StyleBoxFlat:
+	var style := _brass_style(pressed, enabled)
+	if focused:
+		style.border_color = PAPER_EDGE
+		style.set_border_width_all(2)
+	style.set_content_margin_all(4)
+	return style
+
+
+func _ask_address() -> void:
+	if game == null or game.address_reason() != "":
+		return
+	var lines: PackedStringArray = [Copy.t("address.confirm_body")]
+	_confirm(Copy.t("address.confirm_title"), lines, true, {"kind": "order", "order": "address"})
+
+
+func _pulse_hope() -> void:
+	if hope_fill == null:
+		return
+	hope_fill.color = Color("d7a441")
+	if _motion_off():
+		return
+	var tw := create_tween()
+	tw.tween_property(hope_fill, "color", Color("f0d080"), 0.22)
+	tw.tween_property(hope_fill, "color", Color("d7a441"), 0.23)
+
+
+func _sync_revolt_pulse() -> void:
+	if dis_fill == null or game == null:
+		return
+	var warning: Dictionary = game.revolt_warning()
+	var on := game.over == "" and not warning.is_empty() and int(warning.get("weeks", 99)) <= URGENT_WEEKS and not _motion_off()
+	if on == dis_pulsing:
+		return
+	dis_pulsing = on
+	if dis_pulse != null:
+		dis_pulse.kill()
+		dis_pulse = null
+	dis_fill.modulate.a = 1.0
+	if not on:
+		return
+	dis_pulse = create_tween()
+	dis_pulse.set_loops()
+	dis_pulse.tween_property(dis_fill, "modulate:a", 0.55, 0.35)
+	dis_pulse.tween_property(dis_fill, "modulate:a", 1.0, 0.35)
 
 
 func _side_panel() -> PanelContainer:
@@ -741,6 +861,7 @@ func _ticker_input(event: InputEvent) -> void:
 func _layout() -> void:
 	_place_chrome()
 	_place_source()
+	_layout_epilogue()
 	if yard != null:
 		yard.on_resize()
 
@@ -752,6 +873,8 @@ func _place_chrome() -> void:
 		meter_box.get_parent().remove_child(meter_box)
 		title_row.add_child(meter_box)
 	var short: bool = size.y < 520.0
+	if address_button != null:
+		address_button.custom_minimum_size = Vector2(118, 36 if short else 40)
 	var margin := 8.0 if short else 12.0
 	var tool_w := 76.0 if short else 64.0
 	var tool_h := 48.0 if short else 68.0
@@ -1049,6 +1172,7 @@ func _shrink_card() -> void:
 func _refresh() -> void:
 	if game == null:
 		return
+	_drain_notices()
 	var season := ""
 	if not game.active_season.is_empty():
 		season = " · %s" % Copy.season(str(game.active_season.id))
@@ -1086,6 +1210,8 @@ func _refresh() -> void:
 	dis_label.text = Copy.t("Discontent %d  %s") % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
 	dis_fill.anchor_right = clampf(float(game.discontent) / 100.0, 0.0, 1.0)
+	_sync_address()
+	_sync_revolt_pulse()
 	end_button.text = Copy.t("End turn") if game.over == "" else _ending()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
@@ -1100,7 +1226,7 @@ func _refresh() -> void:
 	var line := ""
 	var hold := false
 	if not warning.is_empty():
-		line = str(warning.text)
+		line = str(warning.get("banner", warning.text))
 	elif game.residents.size() > game.housing():
 		line = game.crowd_line()
 		hold = true
@@ -1596,6 +1722,8 @@ func _fill_source(key: String, pin: bool) -> void:
 	var inner := _source_width() - 28.0
 	on_paper = true
 	source_body.add_child(_source_label(str(info.headline), 18, true, inner))
+	if key == "hope" or key == "discontent":
+		_fill_hardship_peek(inner, key == "hope")
 	source_body.add_child(_source_label(str(info.made), 15, false, inner))
 	source_body.add_child(_source_label(str(info.used), 15, false, inner))
 	var build_type := str(info.get("build_type", ""))
@@ -1613,6 +1741,24 @@ func _fill_source(key: String, pin: bool) -> void:
 		yard.glow = glow
 		yard.queue_redraw()
 	_place_source()
+
+
+func _fill_hardship_peek(inner: float, hope: bool) -> void:
+	var section := _source_label(Copy.t("tension.this_week"), 13, false, inner)
+	section.add_theme_color_override("font_color", PAPER_EDGE)
+	source_body.add_child(section)
+	var rows: Array = game.hardships()
+	if rows.is_empty():
+		var settled := _source_label(Copy.t("tension.settled"), 15, false, inner)
+		settled.add_theme_color_override("font_color", PAPER_MUTED)
+		source_body.add_child(settled)
+	else:
+		for row in rows:
+			source_body.add_child(_source_label("· %s" % str(row.get("label", "")), 15, false, inner))
+	if hope and game.address_reason() == "":
+		var hint_line := _source_label(Copy.t("tension.address_hint"), 13, false, inner)
+		hint_line.add_theme_color_override("font_color", PAPER_MUTED)
+		source_body.add_child(hint_line)
 
 
 func _source_width() -> float:
@@ -1639,6 +1785,7 @@ func _place_source() -> void:
 	var width := _source_width()
 	var inner := width - 28.0
 	var y := 0.0
+	var gap := 12.0 if source_key == "hope" or source_key == "discontent" else 8.0
 	for child in source_body.get_children():
 		var h := 48.0
 		if child is Label:
@@ -1648,7 +1795,7 @@ func _place_source() -> void:
 			child.custom_minimum_size = Vector2(inner, h)
 		child.position = Vector2(0, y)
 		child.size = Vector2(inner, h)
-		y += h + 8.0
+		y += h + gap
 	source_body.position = Vector2(14, 12)
 	source_body.size = Vector2(inner, y)
 	source_panel.position = Vector2(12, 64)
@@ -3036,16 +3183,321 @@ func _advance_dawn(before: String) -> void:
 
 
 func _show_ending() -> void:
-	if not _claim(ModalDeck.NARRATIVE, "ending", _show_ending):
+	_show_epilogue()
+
+
+func _show_epilogue() -> void:
+	if game == null:
 		return
-	_open_card(_ending())
-	_body(Copy.t("Week %d. Food %d, air %d, power %d, materials %d.") % [
-		game.week, int(game.stock.food), int(game.stock.air), int(game.stock.power), int(game.stock.materials)])
-	_body(Copy.t("Hope %d. Discontent %d. %s.") % [game.hope, game.discontent, Words.count(game.residents.size(), "person", "people")])
-	card_body.add_child(_button("Close", _close_card))
+	game._seal_score()
+	epilogue_page = 0
+	_ensure_epilogue()
+	if yard != null:
+		yard.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if network_view != null and network_view.visible:
+		epilogue_hid_network = true
+		network_view.visible = false
+	epilogue_layer.visible = true
+	_paint_epilogue()
+
+
+func _ensure_epilogue() -> void:
+	if epilogue_layer != null:
+		return
+	var layer := Control.new()
+	layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.z_index = 60
+	layer.visible = false
+	var wash := ColorRect.new()
+	wash.color = Color(0.05, 0.04, 0.03, 0.94)
+	wash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wash.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(wash)
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var paper := _paper_style()
+	paper.set_border_width_all(3)
+	paper.set_content_margin_all(0)
+	panel.add_theme_stylebox_override("panel", paper)
+	layer.add_child(panel)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_top", 28)
+	margin.add_theme_constant_override("margin_bottom", 28)
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(column)
+	on_paper = true
+	epilogue_eyebrow = _label("", 13)
+	epilogue_eyebrow.add_theme_color_override("font_color", PAPER_EDGE)
+	column.add_child(epilogue_eyebrow)
+	epilogue_body = VBoxContainer.new()
+	epilogue_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	epilogue_body.add_theme_constant_override("separation", 10)
+	column.add_child(epilogue_body)
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 12)
+	column.add_child(bottom)
+	epilogue_dots = HBoxContainer.new()
+	epilogue_dots.add_theme_constant_override("separation", 8)
+	epilogue_dots.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bottom.add_child(epilogue_dots)
+	for i in 3:
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(10, 10)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		epilogue_dots.add_child(dot)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom.add_child(gap)
+	epilogue_actions = HBoxContainer.new()
+	epilogue_actions.add_theme_constant_override("separation", 8)
+	bottom.add_child(epilogue_actions)
+	on_paper = false
+	add_child(layer)
+	epilogue_layer = layer
+	epilogue_panel = panel
+
+
+func _paint_epilogue() -> void:
+	if epilogue_layer == null or game == null:
+		return
+	_layout_epilogue()
+	var payload: Dictionary = game.epilogue_payload()
+	on_paper = true
+	epilogue_eyebrow.text = Copy.t("epilogue.eyebrow") % (epilogue_page + 1)
+	_wipe(epilogue_body)
+	_wipe(epilogue_actions)
+	match epilogue_page:
+		0:
+			_epilogue_verdict(payload)
+		1:
+			_epilogue_chronicle()
+		_:
+			_epilogue_fates(payload)
+	_paint_epilogue_dots()
+	on_paper = false
+	if _motion_off():
+		epilogue_body.modulate.a = 1.0
+		return
+	epilogue_body.modulate.a = 0.0
+	var fade := create_tween()
+	fade.tween_property(epilogue_body, "modulate:a", 1.0, 0.15)
+
+
+func _epilogue_verdict(payload: Dictionary) -> void:
+	var verdict := str(payload.get("verdict", ""))
+	if verdict == "":
+		verdict = _ending()
+	var head := _label(verdict, 34, true)
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	epilogue_body.add_child(head)
+	var creed := str(payload.get("creed_label", Copy.t("epilogue.no_creed")))
+	var sub := _label("%s · %s" % [Copy.t("Week %d%s") % [int(payload.get("week", game.week)), ""], creed], 16)
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.add_theme_color_override("font_color", PAPER_MUTED)
+	epilogue_body.add_child(sub)
+	var judgment := str(payload.get("judgment", ""))
+	if judgment != "":
+		var spacer := Control.new()
+		spacer.custom_minimum_size = Vector2(0, 16)
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		epilogue_body.add_child(spacer)
+		var ask := _label(judgment, 20, true)
+		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ask.add_theme_color_override("font_color", PAPER_MUTED)
+		epilogue_body.add_child(ask)
+	var go := _button("epilogue.continue", _epilogue_go.bind(1))
+	_style_primary(go)
+	go.custom_minimum_size = Vector2(180, 48)
+	epilogue_actions.add_child(go)
+
+
+func _epilogue_chronicle() -> void:
+	var title := _label("epilogue.chronicle_title", 26, true)
+	epilogue_body.add_child(title)
+	var moments: Array = game.chronicle_top(6)
+	if moments.is_empty():
+		var empty := _label("epilogue.chronicle_empty", 16)
+		empty.add_theme_color_override("font_color", PAPER_MUTED)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		epilogue_body.add_child(empty)
+	for moment in moments:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		var tag := Label.new()
+		tag.text = "W%d" % int(moment.get("week", 0))
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		tag.custom_minimum_size = Vector2(52, 24)
+		tag.add_theme_font_size_override("font_size", 14)
+		tag.add_theme_color_override("font_color", INK_DARK)
+		if number_font != null:
+			tag.add_theme_font_override("font", number_font)
+		var plate := StyleBoxFlat.new()
+		plate.bg_color = Color("e2a63a")
+		plate.set_corner_radius_all(2)
+		plate.set_content_margin_all(2)
+		tag.add_theme_stylebox_override("normal", plate)
+		row.add_child(tag)
+		var text := str(moment.get("text", ""))
+		if text == "":
+			text = game.chronicle_line(moment)
+		var line := _label(text, 16)
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(line)
+		epilogue_body.add_child(row)
+	var go := _button("epilogue.continue", _epilogue_go.bind(2))
+	_style_primary(go)
+	go.custom_minimum_size = Vector2(180, 48)
+	epilogue_actions.add_child(go)
+
+
+func _epilogue_fates(payload: Dictionary) -> void:
+	var title := _label("epilogue.fates_title", 26, true)
+	epilogue_body.add_child(title)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+	for row in payload.get("fates", []):
+		var line := str(row.get("line", ""))
+		var who := str(row.get("name", ""))
+		if who != "" and not line.begins_with(who):
+			line = "%s — %s" % [who, line]
+		var lab := _label(line, 16)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		list.add_child(lab)
+	epilogue_body.add_child(scroll)
+	var rule := ColorRect.new()
+	rule.color = Color(PAPER_EDGE, 0.45)
+	rule.custom_minimum_size = Vector2(0, 1)
+	epilogue_body.add_child(rule)
+	var score_box := VBoxContainer.new()
+	score_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	score_box.add_theme_constant_override("separation", 2)
+	var score_name := _label("epilogue.score", 13)
+	score_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	score_name.add_theme_color_override("font_color", PAPER_EDGE)
+	score_box.add_child(score_name)
+	var score_num := _label(str(int(payload.get("score", 0))), 44, true)
+	score_num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_num.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	score_num.add_theme_color_override("font_color", Color("e2a63a"))
+	if number_font != null:
+		score_num.add_theme_font_override("font", number_font)
+	score_box.add_child(score_num)
+	var parts := _label(str(payload.get("score_parts", Copy.t("epilogue.score_parts"))), 11)
+	parts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	parts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parts.add_theme_color_override("font_color", PAPER_MUTED)
+	score_box.add_child(parts)
+	epilogue_body.add_child(score_box)
+	var again := _button("epilogue.new_run", _epilogue_new_game)
+	again.custom_minimum_size = Vector2(160, 48)
+	epilogue_actions.add_child(again)
+	var menu := _button("epilogue.menu", _epilogue_menu)
+	_style_primary(menu)
+	menu.custom_minimum_size = Vector2(180, 48)
+	epilogue_actions.add_child(menu)
+
+
+func _paint_epilogue_dots() -> void:
+	if epilogue_dots == null:
+		return
+	for i in epilogue_dots.get_child_count():
+		var dot := epilogue_dots.get_child(i) as Panel
+		if dot == null:
+			continue
+		var plate := StyleBoxFlat.new()
+		plate.bg_color = Color("e2a63a") if i == epilogue_page else Color("554533")
+		plate.set_corner_radius_all(5)
+		dot.add_theme_stylebox_override("panel", plate)
+
+
+func _epilogue_go(page: int) -> void:
+	epilogue_page = clampi(page, 0, 2)
+	_paint_epilogue()
+
+
+func _close_epilogue() -> void:
+	if epilogue_layer != null:
+		epilogue_layer.visible = false
+	if yard != null:
+		yard.mouse_filter = Control.MOUSE_FILTER_STOP
+	if epilogue_hid_network and network_view != null:
+		network_view.visible = true
+	epilogue_hid_network = false
+
+
+func _epilogue_menu() -> void:
+	_close_epilogue()
+	_show_main_menu()
+
+
+func _epilogue_new_game() -> void:
+	_close_epilogue()
+	_begin_new_game(true)
+
+
+func _layout_epilogue() -> void:
+	if epilogue_panel == null or epilogue_layer == null or not epilogue_layer.visible:
+		return
+	var w := minf(720.0, maxf(280.0, size.x - 48.0))
+	var h := minf(860.0, maxf(320.0, size.y - 48.0))
+	epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5)
+	epilogue_panel.size = Vector2(w, h)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if epilogue_layer == null or not epilogue_layer.visible:
+		return
+	var cancel := false
+	if event.is_action_pressed("ui_cancel"):
+		cancel = true
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		cancel = true
+	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_B:
+		cancel = true
+	if not cancel:
+		return
+	if epilogue_page < 2:
+		_epilogue_go(epilogue_page + 1)
+	get_viewport().set_input_as_handled()
+
+
+func _drain_notices() -> void:
+	if game.notices.is_empty():
+		return
+	var line := ""
+	for note in game.notices:
+		if line != "":
+			line += " "
+		line += str(note)
+	game.notices.clear()
+	_toast(line)
 
 
 func _ending() -> String:
+	var verdict := ""
+	if game != null:
+		verdict = game.verdict_line()
+	if verdict != "":
+		return verdict
 	match game.over:
 		"time":
 			return Copy.t("Forty weeks. The yard is still yours.")
@@ -3189,12 +3641,16 @@ func _do_confirm(action: Dictionary) -> void:
 		_refresh()
 		return
 	var kind := str(action.get("kind", ""))
+	var addressed := kind == "order" and str(action.get("order", "")) == "address"
 	if kind == "dig":
 		Sound.play("thud")
 	else:
 		Sound.play("confirm")
 	_close_card()
 	_refresh()
+	if addressed:
+		_toast(Copy.t("address.toast"))
+		_pulse_hope()
 
 
 func _claim(priority: int, token: String, restore: Callable) -> bool:
@@ -4044,8 +4500,12 @@ func _show_person(person_id: String) -> void:
 	text.add_child(_label(_where(person_id), 14))
 	row.add_child(text)
 	card_body.add_child(row)
-	if bool(person.get("core", false)):
-		card_body.add_child(_button("Dossier", _show_dossier.bind(person_id)))
+	if _is_known(person):
+		text.add_child(_label(Copy.t("Known"), 14))
+	if game._is_child(person):
+		text.add_child(_label(Copy.t("Child"), 14))
+	text.add_child(_label(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100), 14))
+	card_body.add_child(_button("Dossier", _show_dossier.bind(person_id)))
 	card_body.add_child(_button("Close", _close_card))
 
 
@@ -4076,9 +4536,9 @@ func _show_dossier(person_id: String) -> void:
 		_placeholder(_dossier_line(person, "hook"), "Not written yet.")
 	else:
 		_heading("Before the Silence")
-		_placeholder(str(person.get("before_silence", "")), "Not written yet.")
+		_placeholder(_person_copy(person, "before_silence"), "Not written yet.")
 		_heading("Keepsake")
-		_placeholder(str(person.get("keepsake", "")), "Not written yet.")
+		_placeholder(_person_copy(person, "keepsake"), "Not written yet.")
 		_heading("Album")
 		var album: Array = person.get("album", [])
 		if album.is_empty():
@@ -4098,13 +4558,38 @@ func _show_dossier(person_id: String) -> void:
 		track.add_child(fill)
 		card_body.add_child(track)
 		_heading("Events")
-		var events: Array = person.get("story_events", [])
-		if events.is_empty():
-			_placeholder("", "No events yet.")
-		else:
-			for event_id in events:
-				_body(Copy.t(str(event_id)))
+		_journal_block(person)
+	if person.has("dossier"):
+		_heading("Before the Silence")
+		_placeholder(_person_copy(person, "before_silence"), "Not written yet.")
+		_heading("Keepsake")
+		_placeholder(_person_copy(person, "keepsake"), "Not written yet.")
+		_heading("Events")
+		_journal_block(person)
 	card_body.add_child(_button("Back", _show_person.bind(person_id)))
+
+
+func _person_copy(person: Dictionary, key: String) -> String:
+	var raw = person.get(key, "")
+	if raw is Dictionary:
+		return game.fill_text(raw, {})
+	return str(raw)
+
+
+func _journal_block(person: Dictionary) -> void:
+	var events: Array = person.get("story_events", [])
+	if events.is_empty():
+		_placeholder("", "No events yet.")
+		return
+	for ev in events:
+		if ev is Dictionary:
+			_body(game.journal_line(ev))
+		else:
+			_body(Copy.t(str(ev)))
+
+
+func _is_known(person: Dictionary) -> bool:
+	return int(person.get("memory", 0)) >= 40
 
 
 func _placeholder(value: String, fallback: String) -> void:
@@ -6779,6 +7264,7 @@ class Yard extends Control:
 			if fitted.x > limit:
 				body_h *= limit / fitted.x
 			_paint_sprite(sprite, x, foot_y, body_h, id, flip)
+			_draw_known_name(id, Vector2(x - 40.0, foot_y - body_h - 4.0))
 		if crew.size() > shown:
 			_draw_more(rect, crew.size() - shown, str(room.uid))
 		for id in crew:
@@ -6797,6 +7283,7 @@ class Yard extends Control:
 			var x := rect.position.x + rect.size.x * (0.28 if i == 0 else 0.62)
 			var foot_y := rect.position.y + rect.size.y - 2.0
 			_paint_pose(pose_name, x, foot_y, rect.size.y, str(ids[i]), i == 0)
+			_draw_known_name(str(ids[i]), Vector2(x - 40.0, foot_y - rect.size.y - 4.0))
 		if ids.size() > shown:
 			_draw_more(rect, ids.size() - shown, "free")
 
@@ -6821,6 +7308,18 @@ class Yard extends Control:
 			var text := "+%d" % int(out.amount)
 			draw_string(font, Vector2(x, y + 12.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ink)
 			x += font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 8.0
+
+	func _draw_known_name(id: String, at: Vector2) -> void:
+		# TODO(UIUX): Known name-tag plate. This is the readable label.
+		var person: Dictionary = station.game.people.get(id, {})
+		if int(person.get("memory", 0)) < 40:
+			return
+		var font: Font = ThemeDB.fallback_font
+		if station.body_font != null:
+			font = station.body_font
+		var who := str(person.get("name", ""))
+		draw_string(font, at, who, HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, Color("f4efe4"))
+
 
 	func _draw_status(origin: Vector2, glyph_kind: String) -> void:
 		var tex := ArtPack.icon_texture(glyph_kind, 24.0)
