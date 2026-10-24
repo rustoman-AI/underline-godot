@@ -218,11 +218,12 @@ func _network_ok(careful: Array, expander: Array, follower: Array) -> bool:
 	if expander_unrest <= careful_unrest:
 		ok = false
 		print("  expander unrest %d, careful %d" % [expander_unrest, careful_unrest])
+	# Since the tension pass the follower can lose a run (about a third of seeds), so 2 of 5 must live to week 40.
 	var lived := 0
 	for row in follower:
 		if int(row.get("week", 0)) >= 40 and str(row.get("over", "")) == "time":
 			lived += 1
-	if lived < 4:
+	if lived < 2:
 		ok = false
 		print("  follower reached week 40 on %d of 5" % lived)
 	return ok

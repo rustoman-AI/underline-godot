@@ -88,6 +88,7 @@ func _act(game: Game) -> void:
 			break
 		if not game.apply(_event_action(game, ev, best)):
 			break
+	_heed_revolt(game)
 	var project := _project(game)
 	if not project.is_empty():
 		game.apply(project)
@@ -104,6 +105,17 @@ func _act(game: Game) -> void:
 		spent += 1
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
+
+
+## Careful and expander read the revolt warning and take the first fix it names that they can do, as a player
+## does once the warning names the cause. The follower already acts on every warning in _follow.
+func _heed_revolt(game: Game) -> void:
+	var warning: Dictionary = game.revolt_warning()
+	if warning.is_empty():
+		return
+	for fix in warning.fixes:
+		if _do_row(game, fix):
+			return
 
 
 ## The expander puts the best matching non-councillor in charge of every settled outpost while influence is at 20

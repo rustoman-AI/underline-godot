@@ -752,19 +752,9 @@ func dawn_projection() -> Dictionary:
 	var dis_d := 0
 	if quarantine:
 		hope_d -= 1
-	if int(resource_outlook("food").next) < 0 or int(resource_outlook("air").next) < 0:
-		hope_d += int(bal.get("shortage_hope", 0))
-	if int(resource_outlook("power").next) < 0:
-		hope_d += int(bal.get("power_shortage_hope", 0))
-		dis_d += int(bal.get("power_shortage_discontent", 0))
-	if not active_season.is_empty():
-		var season_id := str(active_season.id)
-		var dis_table = bal.get("season_discontent", {})
-		if dis_table is Dictionary and dis_table.has(season_id):
-			dis_d += int(dis_table[season_id])
-		var hope_table = bal.get("season_hope", {})
-		if hope_table is Dictionary and hope_table.has(season_id):
-			hope_d += int(hope_table[season_id])
+	for row in coming_condition():
+		hope_d += int(row.hope)
+		dis_d += int(row.dis)
 	if residents.size() > housing():
 		dis_d += int(bal.get("overcrowd_discontent", 0))
 	hope_d += upgrade_mood("hope_week")
@@ -907,6 +897,7 @@ func _rival_phase() -> void:
 
 
 func _night() -> void:
+	var sick_now := sick_count()
 	if _season_is("cough"):
 		_spread_cough()
 		_cough_pull_workers()
@@ -951,7 +942,6 @@ func _night() -> void:
 	stock.food = maxi(0, int(stock.food) - food_need())
 	stock.air = maxi(0, int(stock.air) - air_need())
 	if food_short > 0 or air_short > 0:
-		_add_hope(int(bal.shortage_hope), "shortage")
 		var people_short := food_short * int(bal.food_per) + air_short * int(bal.air_per)
 		var deaths := int(people_short / 10)
 		week_short = true
@@ -961,8 +951,6 @@ func _night() -> void:
 	var power_short := maxi(0, need_power - int(stock.power))
 	stock.power = maxi(0, int(stock.power) - need_power)
 	if power_short > 0:
-		_add_hope(int(bal.power_shortage_hope), "power")
-		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
 		_note("SHORT Power ran short by %d." % power_short, "SHORT энергии не хватило на %d." % power_short)
 	for room in rooms:
@@ -995,7 +983,9 @@ func _night() -> void:
 	if _law_on("double_shifts"):
 		_double_shift_sickness()
 	_apply_flood_if_needed()
-	_season_mood()
+	for row in condition_pressure(food_short > 0, air_short > 0, power_short > 0, sick_now):
+		_add_hope(int(row.hope), str(row.source))
+		_add_discontent(int(row.dis), str(row.source))
 	_rival_agents()
 	if residents.size() > housing():
 		_add_discontent(int(bal.overcrowd_discontent), "overcrowd")
@@ -1435,6 +1425,9 @@ func revolt_warning() -> Dictionary:
 		left = maxi(1, 100 - discontent)
 	var fixes := _best_fixes("discontent", 2)
 	var bits: PackedStringArray = [Copy.t("Revolt in about %s.") % _week_span(left)]
+	var causes := cause_line(_coming_pushes("discontent"))
+	if causes != "":
+		bits.append(causes)
 	for fix in fixes:
 		bits.append(str(fix.text))
 	var first: Dictionary = fixes[0] if not fixes.is_empty() else {}
@@ -1497,19 +1490,18 @@ func _coming_pushes(meter: String) -> Array:
 		var slide := -int(bal.hope_drift)
 		if slide > 0:
 			rows.append({"name": "the weekly slide", "amount": slide})
-		if _food_thin():
-			rows.append({"name": "a shortage", "amount": 4})
+		for row in coming_condition():
+			if int(row.hope) < 0:
+				rows.append({"name": str(row.name), "amount": -int(row.hope)})
 		for law_id in laws_on:
 			var defin: Dictionary = catalog.laws[law_id]
 			var hit := -int(defin.get("hope_week", 0))
 			if hit > 0:
 				rows.append({"name": str(defin.name), "amount": hit})
 	else:
-		if not active_season.is_empty():
-			var season_id := str(active_season.id)
-			var amount := int(bal.season_discontent[season_id])
-			if amount > 0:
-				rows.append({"name": "the %s" % season_id, "amount": amount})
+		for row in coming_condition():
+			if int(row.dis) > 0:
+				rows.append({"name": str(row.name), "amount": int(row.dis)})
 		if residents.size() > housing():
 			rows.append({"name": "the crowd", "amount": int(bal.overcrowd_discontent)})
 		for law_id in laws_on:
@@ -1519,6 +1511,16 @@ func _coming_pushes(meter: String) -> Array:
 				rows.append({"name": str(defin.name), "amount": hit})
 	rows.sort_custom(func(a, b): return int(a.amount) > int(b.amount))
 	return rows
+
+
+## Every push on discontent this week with its amount, so the revolt warning names the exact cause.
+func cause_line(pushes: Array) -> String:
+	var parts: PackedStringArray = []
+	for push in pushes:
+		parts.append("%s +%d" % [Copy.t(str(push.name)), int(push.amount)])
+	if parts.is_empty():
+		return ""
+	return Copy.t("Discontent each week: %s.") % ", ".join(parts)
 
 
 func _push_line(pushes: Array) -> String:
@@ -2049,16 +2051,56 @@ func _check_opening_stores() -> void:
 			errors.append("start %s is %d%% of cap %d" % [key, int(round(share * 100.0)), cap])
 
 
-func _season_mood() -> void:
-	if active_season.is_empty():
-		return
-	var id := str(active_season.id)
+## What the station's condition does to hope and discontent this week: a food or air shortfall, a power cut, the
+## sick, and the season. The night applies these rows and the warnings read the same rows, so a warning names the
+## exact cause and amount.
+func condition_pressure(food_short: bool, air_short: bool, power_short: bool, sick: int) -> Array:
+	var rows: Array = []
+	if food_short or air_short:
+		var name := "a food shortage" if food_short else "an air shortage"
+		rows.append({"source": "shortage", "name": name, "hope": int(bal.shortage_hope), "dis": int(bal.get("shortage_discontent", 0))})
+	if power_short:
+		rows.append({"source": "power", "name": "power cuts", "hope": int(bal.power_shortage_hope), "dis": int(bal.power_shortage_discontent)})
+	var per := int(bal.get("sick_per", 0))
+	if per > 0 and sick >= per:
+		var dis := mini(int(sick / per) * int(bal.get("sick_discontent", 0)), int(bal.get("sick_discontent_cap", 0)))
+		rows.append({"source": "sickness", "name": "the sick", "hope": int(bal.get("sick_hope", 0)), "dis": dis})
+	if not active_season.is_empty():
+		var id := str(active_season.id)
+		var push := season_push(id)
+		rows.append({"source": "season", "name": "the %s" % id, "hope": int(push.hope), "dis": int(push.dis)})
+	return rows
+
+
+## What a season does to hope and discontent each week in this run. Each season of a run has its own strength, fixed
+## by the seed, so the warning weeks ahead already know how hard it will hit.
+func season_push(id: String) -> Dictionary:
 	var dis_table = bal.get("season_discontent", {})
-	if dis_table is Dictionary and dis_table.has(id):
-		_add_discontent(int(dis_table[id]), "season")
 	var hope_table = bal.get("season_hope", {})
-	if hope_table is Dictionary and hope_table.has(id):
-		_add_hope(int(hope_table[id]), "season")
+	var dis := int(dis_table.get(id, 0)) if dis_table is Dictionary else 0
+	var hope_d := int(hope_table.get(id, 0)) if hope_table is Dictionary else 0
+	var swing := int(bal.get("season_swing", 0))
+	if swing > 0:
+		var roll := RandomNumberGenerator.new()
+		roll.seed = hash("%d:%s" % [seed, id])
+		dis = maxi(0, dis + roll.randi_range(-swing, swing))
+	return {"dis": dis, "hope": hope_d}
+
+
+## The condition rows the coming night will apply if nothing changes.
+func coming_condition() -> Array:
+	var food_short := int(resource_outlook("food").next) < 0
+	var air_short := int(resource_outlook("air").next) < 0
+	var power_short := int(resource_outlook("power").next) < 0
+	return condition_pressure(food_short, air_short, power_short, sick_count())
+
+
+func sick_count() -> int:
+	var n := 0
+	for person in residents:
+		if int(person.get("sick", 0)) > 0:
+			n += 1
+	return n
 
 
 func _rot_stores() -> void:
@@ -3570,8 +3612,14 @@ func _offer_triggered() -> void:
 	story_queue = keep
 
 
+## Addressing the platform costs influence and works once a week.
 func _order_address() -> bool:
-	_add_hope(1, "address")
+	var cost := int(bal.get("address_influence", 0))
+	if int(stock.influence) < cost or int(flags.get("address_week", 0)) == week:
+		return false
+	stock.influence = int(stock.influence) - cost
+	flags["address_week"] = week
+	_add_hope(int(bal.get("address_hope", 1)), "address")
 	_log("ORDER address the platform")
 	return true
 
@@ -6706,9 +6754,10 @@ func _season_clock() -> void:
 		var at := int(season.week)
 		var warning := flood_warning() if str(season.id) == "flood" else int(bal.season_warning)
 		if week == at - warning:
-			var soon := "SEASON warning %s" % str(season.id)
+			var hit := int(season_push(str(season.id)).dis)
+			var soon := "SEASON The %s comes in %s. Discontent +%d a week while it lasts." % [str(season.id), _week_span(warning), hit]
 			if Copy.ru():
-				soon = "SEASON Скоро %s." % Copy.season(str(season.id))
+				soon = "SEASON Через %s придёт %s. Пока он не кончится, недовольство +%d в неделю." % [_week_span(warning), Copy.season(str(season.id)), hit]
 			_log(soon, true)
 			_journal("season", {"id": str(season.id), "soon": true})
 			_vo_cue("season_%s_soon" % str(season.id))
@@ -6716,9 +6765,10 @@ func _season_clock() -> void:
 				_vo_cue("tunnel_warning")
 		if week == at:
 			active_season = {"id": str(season.id), "start": at, "until": at + int(season.weeks) - 1}
-			var begun := "SEASON %s" % str(season.id)
+			var hit := int(season_push(str(season.id)).dis)
+			var begun := "SEASON The %s has begun. Discontent +%d a week for %s." % [str(season.id), hit, _week_span(int(season.weeks))]
 			if Copy.ru():
-				begun = "SEASON Начался %s." % Copy.season(str(season.id))
+				begun = "SEASON Начался %s. Недовольство +%d в неделю, %s подряд." % [Copy.season(str(season.id)), hit, _week_span(int(season.weeks))]
 			_log(begun, true)
 			_journal("season", {"id": str(season.id)})
 			_vo_cue("season_%s" % str(season.id))

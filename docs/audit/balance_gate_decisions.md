@@ -145,3 +145,64 @@ Station-wide effects (digging, the Cough, the flood warning) take the best room 
 | follower | 7 (0) / 7 (0) | time 30 / time 30 | 56.9 / 57.4 | 63.7 / 63.9 | 58.9 / 59.8 | 2 / 2 |
 
 `sim/check_balance.gd` before / after: seeds 1 to 30, careful 29 / 29, expander 29 / 29, follower 23 / 22 (threshold 22: seed 26's discontent peak goes from 59 to 70), hope order 16 / 16, red 56.8% / 56.8%, white 75.8% / 75.8%. Seeds 31 to 60: careful 26 / 26, expander 29 / 29, follower 21 / 21, hope order 12 / 13, red 62.2% / 62.2%, white 73.1% / 73.1% (the watch item above, unchanged or slightly better). No gate failed, so no tuning was needed. The follower now sits exactly on its threshold on seeds 1 to 30: a watch item.
+## 2026-10-23: tension pass, a careful player can lose
+
+**Goal.** Before this pass no steward lost a single run on seeds 1 to 60: discontent only ever rose a little and hope had slack. A careful player should now lose about 1 run in 4 or 5. No written Tension pass spec was found in `docs/`, so the five changes below come from the brief and every number was tuned against the bots.
+
+**Changed (numbers in `data/balance.json`, `data/laws.json`, `sim/game.gd`).**
+
+| change | before | after |
+|---|---|---|
+| Sermons, hope a week | +2 | +1 (Devout bonus +1 unchanged) |
+| Address the platform | free, any number a week, hope +1 | costs 3 influence, once a week, hope +1 |
+| Rally | discontent -8, cooldown 3 weeks | discontent -5, cooldown 5 weeks |
+| Food or air shortfall in a week | hope -4 | hope -4, discontent +3 |
+| Power shortfall in a week | hope -1, discontent +4 | hope -2, discontent +4 |
+| Sick residents | nothing | per 2 sick: discontent +1 (at most +3), hope -1 |
+| Season discontent a week | flood +2, cold +1, cough +1 | +7 each, plus a swing of -4 to +4 per season, fixed by the seed |
+| Season hope a week | 0 | flood -4, cold -5, cough -4 |
+| Not enough beds, discontent a week | +2 | +1 |
+
+- One function, `Game.condition_pressure`, gives the rows for shortfalls, power, the sick and the season. The night applies them and the forecasts and warnings read the same rows (`coming_condition`), so a warning shows the exact cause and amount.
+- The season swing (`season_swing`, `Game.season_push`) is a pure function of the seed and the season id. It draws nothing from the run's RNG, so everything else in a run is untouched, and the warning two weeks ahead already knows the strength. The season log lines now say it: "The cold comes in 2 weeks. Discontent +9 a week while it lasts." / «Через 2 недели придёт холод. Пока он не кончится, недовольство +9 в неделю.»
+- The revolt warning now lists every weekly push with its amount: "Discontent each week: the cough +4, the sick +1." / «Недовольство за неделю: кашель +4, больные +1.»
+- Overcrowding went from 2 to 1 because without the swing, and with crowding at 2, every setting that made the careful steward lose made the other two lose almost every run. The careful steward hardly ever runs short of beds; the follower and the expander are short for many weeks. At seasons +8 a week with no swing: careful 18 of 60, expander 57, follower 56. The outcomes barely vary from seed to seed, so each steward's loss rate jumps from almost none to almost all within one step of pressure. The swing spreads them out; the lower crowding takes the follower and the expander off the edge.
+- `sim/bot.gd`: careful and expander now take the first fix the revolt warning names (rally, beds, quarantine, a repeal), as the follower already did. Before, they never read the warning, so their discontent only went up. Without this, the warning a player is meant to act on did nothing for two of the three stewards.
+
+**Loss rates, before and after** (`.tools/tension_losses.gd` and `.tools/tension_grid.gd`; every loss is a revolt except one follower hope loss, s55):
+
+| steward | before, seeds 1-30 | before, 31-60 | after, 1-30 | after, 31-60 | after, 61-120 |
+|---|---|---|---|---|---|
+| careful | 0 | 0 | 6 (20%) | 9 (30%) | 17 of 60 (28%) |
+| expander | 0 | 0 | 12 (40%) | 11 (37%) | 24 of 60 (40%) |
+| follower | 0 | 0 | 10 (33%) | 13 (43%) | 20 of 60 (33%) |
+
+Seeds 1 to 60: the careful steward loses 15 of 60, 1 run in 4. Mean lowest hope / mean discontent peak, seeds 1 to 60, before → after: careful 38.2 / 48.8 → 26.2 / 89.2, expander 43.2 / 64.7 → 19.9 / 93.0, follower 45.9 / 57.9 → 31.5 / 90.3. Every careful loss falls in week 31 or 32, at the end of the third season, after the season log line has named the hit two weeks ahead.
+
+**Gates changed.** In `sim/check_balance.gd` the per-seed rules assumed that no one loses: careful "lives to week 40, discontent peak 35 to 55", follower "lives to week 40, peak at most 65", expander "hope never below 20". With losses intended, the old gate scored careful 0 of 30, expander 9 and follower 2 on seeds 1 to 30. New rules:
+- A run may end by revolt or hope (never by an error or a collapse). End-state rules judge only the runs that reach week 40.
+- New gate: runs lost per steward, careful 4 to 11, expander at most 14, follower at most 15 (the tension pass on seeds 1-30 and 31-60, best minus 2 and worst plus 2).
+- Careful survivors: discontent peak at least 60 (was 35 to 55), food buffer median 2 to 5.5 (was 2 to 4: lower hope slows growth, so fewer mouths eat the same harvest). Shortage weeks and people unchanged.
+- Expander: hope never below 10 (was 20; lowest now 13 to 14).
+- Follower survivors: at least 42 people (was 45; the low end is 44), no discontent peak rule (a survivor's peak is below 100 by definition).
+- Seed count thresholds, worst of both sets minus 2: careful 28, expander 28, follower 27.
+
+`sim/bot_run.gd`, Network target: the follower must reach week 40 on 2 of seeds 1 to 5 (was 4). It loses about a third of its runs now; it reaches week 40 on 3 of 5.
+
+**Gate numbers after the pass:**
+
+| | threshold | seeds 1-30 | seeds 31-60 |
+|---|---|---|---|
+| careful seeds passing | 28 | 30 | 30 |
+| expander seeds passing | 28 | 30 | 30 |
+| follower seeds passing | 27 | 30 | 29 |
+| careful runs lost | 4-11 | 6 | 9 |
+| expander runs lost | 0-14 | 12 | 11 |
+| follower runs lost | 0-15 | 10 | 13 |
+| expander hope below careful | 16 | 20 | 15 |
+| expander red checks | 45-70% | 51.4% | 64.1% |
+| follower white checks | 55-85% | 77.0% | 77.7% |
+
+Before the pass on seeds 31 to 60 the hope order already failed (8 of 30). It now reads 15, still one under the threshold on that set; the gate runs seeds 1 to 30. A watch item, as before.
+
+Other checks: `check_slice`, `check_audience`, `check_save`, `check_event_vo`, `check_network`, `check_guard`, `check_playtest`, `check_leader_vo`, `check_portraits` and `bot_run` are green. `check_clarity` fails 216 checks, the same list line for line as HEAD. `check_music` fails the same way as HEAD. No event data changed.
