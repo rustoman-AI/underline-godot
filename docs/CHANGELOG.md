@@ -2,7 +2,7 @@
 
 Генерируется из git командой `node .tools/changelog.js`. Блок «Этапы» правится вручную в этом скрипте.
 
-Коммитов: 288. Первый: 2026-10-02. Последний: 2026-10-21 5e129db.
+Коммитов: 300. Первый: 2026-10-02. Последний: 2026-10-24 8db5f00.
 
 ## Этапы
 
@@ -19,8 +19,26 @@
 
 ## По дням (новое сверху)
 
-### 2026-10-21 (4)
+### 2026-10-24 (1)
 
+- `8db5f00` Tension pass: rebuilt to the validated spec, hardships and Address button
+
+### 2026-10-23 (10)
+
+- `c52e9e3` Tension pass: a careful player can lose a run
+- `bcb309f` Stations: redrawn hub art for 12 stations, capital button finds southdepot
+- `fb4166b` Events: re-recorded voiceover, every event line now matches the card
+- `ce3a511` Events: art for 12 events, banner shows the whole picture
+- `c20fb6c` Events: voiceover for event cards, check outcomes, crunch bills and game over
+- `d015888` Events: 12 new events from underline_new_events.md, EN and RU
+- `f70eee6` Rooms: v2 backgrounds with their own lighting, slim columns between rooms
+- `e6c2a87` Station walls: minimal room separation with thin pack pillars and beams
+- `1e24fc9` Station walls: separate rooms with Underline_Asset_Pack walls, dividers and contained light
+- `dfb892a` Events: rewrite quest and event text in EN and RU for clarity
+
+### 2026-10-21 (5)
+
+- `b53151e` Docs: playtest23 build, changelog
 - `5e129db` Station walls: painted pillars, floor slabs and room shadows separate the rooms
 - `b2af451` Complete painted map units and keep squad bays local
 - `d85e9ca` Station walls: placement for painted pillars, floor slabs and room edge shadows
