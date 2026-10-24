@@ -25,6 +25,8 @@ func _init() -> void:
 		failed = true
 	if not _check_modals():
 		failed = true
+	if not _check_merge(catalog):
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
@@ -459,6 +461,122 @@ func _check_modals() -> bool:
 		print("Modals: FAIL empty")
 		return false
 	print("Modals: ok")
+	return true
+
+
+func _check_merge(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 3, 40)
+	if game.over == "error":
+		print("Merge: FAIL setup")
+		return false
+	var starter := ""
+	for room in game.rooms:
+		if str(room.type) == "hydroponics" and starter == "":
+			starter = str(room.uid)
+	var alone: Dictionary = game.room_detail(starter)
+	if int(alone.get("block_width", 0)) != 1 or str(alone.get("disaster_note", "x")) != "":
+		print("Merge: FAIL single room card")
+		return false
+	var before := game.housing()
+	game._place_room("quarters", 2, 0)
+	game._place_room("quarters", 2, 1)
+	if game.housing() != before + 18:
+		print("Merge: FAIL housing %d -> %d" % [before, game.housing()])
+		return false
+	var qid := str(game.cells["2:0"].room)
+	var quarters: Dictionary = game.room_detail(qid)
+	if int(quarters.block_width) != 2 or int(quarters.merge_bonus) != 2:
+		print("Merge: FAIL quarters detail")
+		return false
+	if str(quarters.disaster_note) != "A disaster here hits all 2 cells.":
+		print("Merge: FAIL disaster line ", quarters.disaster_note)
+		return false
+	var qcells: Array = quarters.cells
+	if qcells.size() != 2 or int(qcells[0]) != 0 or int(qcells[1]) != 1:
+		print("Merge: FAIL cells ", qcells)
+		return false
+	if not game._apply_demolish(qid):
+		print("Merge: FAIL demolish")
+		return false
+	var remain := str(game.cells["2:1"].room)
+	if game.merge_group_of(remain).size() != 1:
+		print("Merge: FAIL split")
+		return false
+	if not game._apply_demolish(remain):
+		print("Merge: FAIL demolish rest")
+		return false
+	game._place_room("hydroponics", 2, 0)
+	var preview: Dictionary = game.merge_preview("hydroponics", 2, 1)
+	var locked := "Joins Hydroponics: +10% food, 1 fewer worker. Shares power, sickness and disasters."
+	if not bool(preview.joins) or str(preview.bonus_line) != locked or int(preview.width) != 2:
+		print("Merge: FAIL hydro tag ", preview.bonus_line)
+		return false
+	if bool(game.merge_preview("workshop", 2, 1).joins):
+		print("Merge: FAIL workshop joined hydro")
+		return false
+	Copy.set_lang("ru")
+	var ru_line := str(game.merge_preview("hydroponics", 2, 1).bonus_line)
+	Copy.set_lang("en")
+	var ru_locked := "Стыкуется с Гидропоникой: +10% еды, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+	if ru_line != ru_locked:
+		print("Merge: FAIL ru tag ", ru_line)
+		return false
+	game._place_room("hydroponics", 2, 1)
+	var hid := str(game.cells["2:0"].room)
+	var hid2 := str(game.cells["2:1"].room)
+	var hydro: Dictionary = game.room_detail(hid)
+	if int(hydro.crew_need) != 3 or int(hydro.block_width) != 2:
+		print("Merge: FAIL crew need ", hydro.crew_need)
+		return false
+	if str(game.merge_group_of(hid2)[0]) != hid:
+		print("Merge: FAIL group order")
+		return false
+	game.stock.materials = 100
+	if not game._apply_upgrade(hid):
+		print("Merge: FAIL upgrade")
+		return false
+	if int(game._room(hid).upgrade) != 1 or int(game._room(hid2).upgrade) != 1:
+		print("Merge: FAIL upgrade did not cover the block")
+		return false
+	var spent := 100 - int(game.stock.materials)
+	if spent != int(game.catalog.rooms["hydroponics"].upgrade_materials):
+		print("Merge: FAIL upgrade spent %d" % spent)
+		return false
+	if game.merge_group_of(hid).size() != 2:
+		print("Merge: FAIL upgrade split the block")
+		return false
+	game.cells["2:2"].dug = true
+	if bool(game.merge_preview("hydroponics", 2, 2).joins):
+		print("Merge: FAIL upgraded block accepted a new room")
+		return false
+	if not game._apply_demolish(hid) or not game._apply_demolish(hid2):
+		print("Merge: FAIL clear hydros")
+		return false
+	game._place_room("hydroponics", 2, 0)
+	game._place_room("hydroponics", 2, 2)
+	var mid: Dictionary = game.merge_preview("hydroponics", 2, 1)
+	if not bool(mid.joins) or int(mid.width) != 3:
+		print("Merge: FAIL width 3 ", mid.width, " ", mid.joins)
+		return false
+	if str(mid.bonus_line) != "Joins Hydroponics: +20% food, 2 fewer worker. Shares power, sickness and disasters.":
+		print("Merge: FAIL tag3 ", mid.bonus_line)
+		return false
+	game._place_room("hydroponics", 2, 1)
+	var mid_id := str(game.cells["2:1"].room)
+	game.cells["2:1"].walled = true
+	game.active_season = {"id": "flood", "start": int(game.week)}
+	game.pumped = false
+	game.flood_guard = false
+	game._apply_flood_if_needed()
+	var mid_room = game._room(mid_id)
+	if not bool(game.cells["2:1"].flooded) or mid_room == null or not bool(mid_room.offline):
+		print("Merge: FAIL flood shared across the block")
+		return false
+	if game.merge_group_of("missing").size() != 0:
+		print("Merge: FAIL unknown uid")
+		return false
+	print("Merge: ok")
 	return true
 
 

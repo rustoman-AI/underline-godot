@@ -133,5 +133,10 @@
   "hardship_ramp_week": 16,
   "hardship_discontent_early": 2,
   "hardship_discontent": 5,
-  "join_discontent": -3
+  "join_discontent": -3,
+  "merge_bonus": 0.1,
+  "merge_max": 3,
+  "merge_housing": 2,
+  "merge_crew_saving": 1,
+  "bot_merge": 1
 }
