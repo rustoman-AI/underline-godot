@@ -87,7 +87,7 @@
     {"id": "map", "label": "Send him with a lamp and a partner", "hope": 0, "influence": 2},
     {"id": "stay", "label": "Keep him at the station", "discontent": 1, "hope": -1}
   ]},
-  {"id": "lamps_next", "title": "The beds remember the belt", "chain_only": true, "weight": 1, "text": "The hydroponic beds still have not recovered.", "by": {"fix": "The new belt holds. The beds are back, and the crew knows who climbed in for it.", "lose": "The lost crop is still talked about at meals. The next belt looks worn too."}, "choices": [
+  {"id": "lamps_next", "title": "The beds remember the belt", "banner": "lamps", "chain_only": true, "weight": 1, "text": "The hydroponic beds still have not recovered.", "by": {"fix": "The new belt holds. The beds are back, and the crew knows who climbed in for it.", "lose": "The lost crop is still talked about at meals. The next belt looks worn too."}, "choices": [
     {"id": "thank", "label": "Thank the crew in front of everyone", "hope": 1},
     {"id": "move", "label": "Get back to work", "discontent": 1}
   ]},
@@ -95,11 +95,11 @@
     {"id": "open", "label": "Promise to let their people in later", "hope": -1, "discontent": 1},
     {"id": "names", "label": "Write down the names and promise nothing", "hope": -2}
   ]},
-  {"id": "clog_next", "title": "Mara opens the stacks again", "chain_only": true, "weight": 1, "who": "Mara", "text": "Mara is back at the charcoal.", "by": {"clean": "Mara's crew still talks about the shift they stopped the filter to clean it. The dust is back.", "run": "Mara still tastes the dust from the week she left the filter running."}, "choices": [
+  {"id": "clog_next", "title": "Mara opens the stacks again", "banner": "clog", "chain_only": true, "weight": 1, "who": "Mara", "text": "Mara is back at the charcoal.", "by": {"clean": "Mara's crew still talks about the shift they stopped the filter to clean it. The dust is back.", "run": "Mara still tastes the dust from the week she left the filter running."}, "choices": [
     {"id": "clean", "label": "Clean it properly this time", "cost": {"power": 2}, "hope": 0},
     {"id": "live", "label": "Live with the dust", "discontent": 2, "hope": -1}
   ]},
-  {"id": "quarrel_next", "title": "Jonah and Owen again", "chain_only": true, "weight": 1, "who": "Jonah", "text": "Jonah and Owen are not finished.", "by": {"hear": "Jonah and Owen kept the peace you made, until the bowls came up short again.", "shut": "Jonah and Owen are louder than last time. Sending them back to work did not settle it."}, "choices": [
+  {"id": "quarrel_next", "title": "Jonah and Owen again", "banner": "quarrel", "chain_only": true, "weight": 1, "who": "Jonah", "text": "Jonah and Owen are not finished.", "by": {"hear": "Jonah and Owen kept the peace you made, until the bowls came up short again.", "shut": "Jonah and Owen are louder than last time. Sending them back to work did not settle it."}, "choices": [
     {"id": "table", "label": "Sit them down to eat at one table", "food": -1, "discontent": -1},
     {"id": "split", "label": "Put them on different shifts", "discontent": 2, "hope": -1}
   ]},
@@ -107,23 +107,23 @@
     {"id": "corner", "label": "Give Ellis a corner of the meeting hall", "hope": 1, "discontent": 1},
     {"id": "no", "label": "Keep the hall for everyone", "discontent": 2, "hope": -1}
   ]},
-  {"id": "smuggler_next", "title": "Fran has another crate", "chain_only": true, "weight": 1, "who": "Fran", "text": "Fran is back with another offer.", "by": {"take": "Fran says the crate you took opened a route. She can run it again, for a cut.", "refuse": "Fran tells the line you sent her crate back. The next offer is smaller, and colder."}, "choices": [
+  {"id": "smuggler_next", "title": "Fran has another crate", "banner": "smuggler", "chain_only": true, "weight": 1, "who": "Fran", "text": "Fran is back with another offer.", "by": {"take": "Fran says the crate you took opened a route. She can run it again, for a cut.", "refuse": "Fran tells the line you sent her crate back. The next offer is smaller, and colder."}, "choices": [
     {"id": "cut", "label": "Take your cut and say nothing", "tokens": 4, "discontent": 2},
     {"id": "end", "label": "Stop dealing with Fran (the Exchange takes offence)", "hope": -1, "opinion_exchange": -2}
   ]},
-  {"id": "rumble_next", "title": "Lila will not go back down", "chain_only": true, "weight": 1, "who": "Lila", "text": "Lila stands on the platform and will not go near the ladder.", "by": {"shore": "Lila says the shore you built held. She still will not be the first one down.", "push": "Lila remembers being told to keep digging. She will not take the ladder."}, "choices": [
+  {"id": "rumble_next", "title": "Lila will not go back down", "banner": "rumble", "chain_only": true, "weight": 1, "who": "Lila", "text": "Lila stands on the platform and will not go near the ladder.", "by": {"shore": "Lila says the shore you built held. She still will not be the first one down.", "push": "Lila remembers being told to keep digging. She will not take the ladder."}, "choices": [
     {"id": "pair", "label": "Send her down with a partner", "hope": 0, "discontent": 1},
     {"id": "up", "label": "Keep her on the upper level", "hope": -1, "discontent": 1}
   ]},
-  {"id": "static_next", "title": "June hears it twice", "chain_only": true, "weight": 1, "who": "June", "text": "June has the word again.", "by": {"log": "June brings the page you told her to keep. The voice said Floor a second time.", "ignore": "June heard it again, after you told her to ignore it. She wrote it down anyway."}, "choices": [
+  {"id": "static_next", "title": "June hears it twice", "banner": "static", "chain_only": true, "weight": 1, "who": "June", "text": "June has the word again.", "by": {"log": "June brings the page you told her to keep. The voice said Floor a second time.", "ignore": "June heard it again, after you told her to ignore it. She wrote it down anyway."}, "choices": [
     {"id": "keep", "label": "Add it to the papers", "papers": 1, "hope": 0},
     {"id": "stop", "label": "Take her off the radio", "hope": -1, "discontent": 1}
   ]},
-  {"id": "market_next", "title": "Benny's traders come back", "chain_only": true, "weight": 1, "who": "Benny", "text": "Benny's traders are at the handcar again.", "by": {"buy": "Benny's traders are back with more sacks, because you paid last time.", "pass": "Benny's traders are back. They remember that you let them pass, and the price has not improved."}, "choices": [
+  {"id": "market_next", "title": "Benny's traders come back", "banner": "market_food", "chain_only": true, "weight": 1, "who": "Benny", "text": "Benny's traders are at the handcar again.", "by": {"buy": "Benny's traders are back with more sacks, because you paid last time.", "pass": "Benny's traders are back. They remember that you let them pass, and the price has not improved."}, "choices": [
     {"id": "buy", "label": "Buy a smaller load", "cost": {"tokens": 6}, "food": 8},
     {"id": "wave", "label": "Wave them through", "discontent": 1, "hope": -1}
   ]},
-  {"id": "desertion_next", "title": "A tag comes back", "chain_only": true, "weight": 1, "text": "One of the name tags from the empty bunks has turned up at the station.", "by": {"search": "The crew you sent comes back with one tag and no person. The other bunk is still empty.", "let": "Someone left a tag on the gate. It belongs to one of the two you let go."}, "choices": [
+  {"id": "desertion_next", "title": "A tag comes back", "banner": "desertion", "chain_only": true, "weight": 1, "text": "One of the name tags from the empty bunks has turned up at the station.", "by": {"search": "The crew you sent comes back with one tag and no person. The other bunk is still empty.", "let": "Someone left a tag on the gate. It belongs to one of the two you let go."}, "choices": [
     {"id": "hang", "label": "Hang the tag in the hall for all to see", "hope": -1, "discontent": -1},
     {"id": "box", "label": "Put it away in a box", "hope": -2}
   ]},
@@ -140,12 +140,12 @@
     {"id": "goods", "label": "Pay in cable and bolts (the Directorate is pleased)", "cost": {"materials": 5}, "opinion_directorate": 2, "discontent": 1},
     {"id": "detour", "label": "Send the handcars the long way (the Directorate is displeased)", "opinion_directorate": -4, "influence": -1, "hope": 1}
   ]},
-  {"id": "toll_next", "title": "Rhee brings a ledger", "chain_only": true, "weight": 1, "follow": "toll_last", "who": "Jonah", "text": "Captain Rhee is at the gate with a ledger. Jonah keeps him there.", "by": {"pay": "Rhee says the toll you paid was only the first instalment. Your station now has its own line in his ledger, payable every month.", "goods": "Rhee liked the cable. Now he wants it every month, and he has already written that down.", "detour": "Rhee's patrol walked the long way your handcars took, all the way to the end. Now he knows where it leads."}, "choices": [
+  {"id": "toll_next", "title": "Rhee brings a ledger", "banner": "toll", "chain_only": true, "weight": 1, "follow": "toll_last", "who": "Jonah", "text": "Captain Rhee is at the gate with a ledger. Jonah keeps him there.", "by": {"pay": "Rhee says the toll you paid was only the first instalment. Your station now has its own line in his ledger, payable every month.", "goods": "Rhee liked the cable. Now he wants it every month, and he has already written that down.", "detour": "Rhee's patrol walked the long way your handcars took, all the way to the end. Now he knows where it leads."}, "choices": [
     {"id": "sign", "label": "Sign the ledger and pay (the Directorate is pleased)", "cost": {"tokens": 10}, "opinion_directorate": 4, "discontent": 1},
     {"id": "route", "label": "Give him Fran's smuggling route instead (the Directorate is very pleased, the Exchange takes offence)", "opinion_directorate": 8, "opinion_exchange": -4, "hope": -1},
     {"id": "bar", "label": "Bar the gate (the Directorate is furious)", "opinion_directorate": -8, "hope": 1, "discontent": 1}
   ]},
-  {"id": "toll_last", "title": "Boots on the platform", "chain_only": true, "weight": 1, "who": "Jonah", "text": "Rhee's squad is on the platform. Jonah is watching them.", "by": {"sign": "Rhee is back early. His ledger says your station is behind on payments, and he has brought six men to read it out loud.", "route": "Fran's route is shut. Rhee's men used it to walk straight to your gate. Fran has not spoken to anyone since.", "bar": "Rhee's squad is on the platform. They did not knock. Jonah stands between them and the quarters."}, "choices": [
+  {"id": "toll_last", "title": "Boots on the platform", "banner": "toll", "chain_only": true, "weight": 1, "who": "Jonah", "text": "Rhee's squad is on the platform. Jonah is watching them.", "by": {"sign": "Rhee is back early. His ledger says your station is behind on payments, and he has brought six men to read it out loud.", "route": "Fran's route is shut. Rhee's men used it to walk straight to your gate. Fran has not spoken to anyone since.", "bar": "Rhee's squad is on the platform. They did not knock. Jonah stands between them and the quarters."}, "choices": [
     {"id": "settle", "label": "Pay what he asks (the Directorate is very pleased)", "cost": {"tokens": 14}, "opinion_directorate": 8, "hope": -2},
     {"id": "lin", "label": "Ask Broker Lin to stand with you (the Exchange is pleased, the Directorate is not)", "cost": {"influence": 3}, "opinion_exchange": 4, "opinion_directorate": -4},
     {"id": "guard", "label": "Put the platform guard at the gate (the Directorate is furious)", "opinion_directorate": -8, "hope": 2, "discontent": 1}
@@ -155,12 +155,12 @@
     {"id": "cut", "label": "Cut toward the sound (the claustrophobic will refuse the shaft)", "cost": {"materials": 3}, "trait_absent": {"Claustrophobic": 2}},
     {"id": "fill", "label": "Fill the cut and say nothing", "hope": -1, "discontent": 1}
   ]},
-  {"id": "knock_next", "title": "A hand through the gap", "chain_only": true, "weight": 1, "follow": "knock_last", "who": "Lila", "text": "A woman has crawled through the rock in Lila's cut.", "by": {"answer": "The knocking answered for a week. Then the rock gave way and a woman crawled through, thin to the bone. She says she came up from the Floor.", "cut": "Lila's cut broke into a dry pocket. A woman was sitting in it with her lamp turned low. She says she came up from the Floor.", "fill": "The fill did not hold: someone dug through it from the other side. A woman, thin to the bone, says she came up from the Floor."}, "choices": [
+  {"id": "knock_next", "title": "A hand through the gap", "banner": "knock", "chain_only": true, "weight": 1, "follow": "knock_last", "who": "Lila", "text": "A woman has crawled through the rock in Lila's cut.", "by": {"answer": "The knocking answered for a week. Then the rock gave way and a woman crawled through, thin to the bone. She says she came up from the Floor.", "cut": "Lila's cut broke into a dry pocket. A woman was sitting in it with her lamp turned low. She says she came up from the Floor.", "fill": "The fill did not hold: someone dug through it from the other side. A woman, thin to the bone, says she came up from the Floor."}, "choices": [
     {"id": "feed", "label": "Feed her and write down everything she says", "cost": {"food": 3}, "papers": 1, "hope": 1},
     {"id": "chapel", "label": "Send her to the Synod's chapel (the Synod gains followers)", "synod": 3, "trait_hope": {"Devout": 1}},
     {"id": "back", "label": "Send her back down and seal the gap", "materials": -2, "hope": -2}
   ]},
-  {"id": "knock_last", "title": "The woman from below", "chain_only": true, "weight": 1, "who": "Paul", "text": "The woman from the Floor is back at your station, and she wants to talk to Paul.", "by": {"feed": "Three days of meals, and she has drawn a map on the back of a ration card. The Floor has power, she says, and it is not sharing. Paul recognises the first turn on it.", "chapel": "The Synod sent her back with a blessing and a map they could not read. Paul can. Your devout are already calling her a sign.", "back": "The seal broke from below. The same woman came through again, her hands torn on the rock. She has a map, she will not go back down, and Paul is already reading it."}, "choices": [
+  {"id": "knock_last", "title": "The woman from below", "banner": "knock", "chain_only": true, "weight": 1, "who": "Paul", "text": "The woman from the Floor is back at your station, and she wants to talk to Paul.", "by": {"feed": "Three days of meals, and she has drawn a map on the back of a ration card. The Floor has power, she says, and it is not sharing. Paul recognises the first turn on it.", "chapel": "The Synod sent her back with a blessing and a map they could not read. Paul can. Your devout are already calling her a sign.", "back": "The seal broke from below. The same woman came through again, her hands torn on the rock. She has a map, she will not go back down, and Paul is already reading it."}, "choices": [
     {"id": "stay", "label": "Give her a bunk", "people": 1, "hope": 1},
     {"id": "route", "label": "Send Paul's crew down her route", "cost": {"materials": 6}, "papers": 1, "influence": 1},
     {"id": "gate", "label": "Walk her to the gate", "hope": -1}
@@ -169,7 +169,7 @@
     {"id": "borrow", "label": "Take the advance (repay it with interest in a few weeks)", "tokens": 14, "opinion_exchange": 2},
     {"id": "decline", "label": "Thank her and decline (the Exchange takes offence)", "opinion_exchange": -2}
   ]},
-  {"id": "loan_next", "title": "Lin's collector", "chain_only": true, "weight": 1, "who": "Benny", "text": "The Exchange's collector is waiting at Benny's handcar.", "by": {"borrow": "Lin's collector is at Benny's handcar with the note you signed. The interest is on top, as agreed.", "decline": "Lin's collector stops by Benny's handcar anyway. The Exchange remembers who turned its money down, and it would like a gesture of goodwill."}, "choices": [
+  {"id": "loan_next", "title": "Lin's collector", "banner": "loan", "chain_only": true, "weight": 1, "who": "Benny", "text": "The Exchange's collector is waiting at Benny's handcar.", "by": {"borrow": "Lin's collector is at Benny's handcar with the note you signed. The interest is on top, as agreed.", "decline": "Lin's collector stops by Benny's handcar anyway. The Exchange remembers who turned its money down, and it would like a gesture of goodwill."}, "choices": [
     {"id": "repay", "label": "Pay what Lin asks (the Exchange is pleased)", "cost": {"tokens": 18}, "opinion_exchange": 4},
     {"id": "stall", "label": "Give cable instead and ask for time (the Exchange is displeased)", "cost": {"materials": 6}, "opinion_exchange": -2},
     {"id": "default", "label": "Say the station has nothing to give (the Exchange may stop trading with you)", "opinion_exchange": -8, "discontent": 1}

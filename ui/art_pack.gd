@@ -138,6 +138,18 @@ static func textures() -> Dictionary:
 		"res://assets/events/showtime.webp": preload("res://assets/events/showtime.webp"),
 		"res://assets/events/toll.webp": preload("res://assets/events/toll.webp"),
 		"res://assets/events/vote.webp": preload("res://assets/events/vote.webp"),
+		"res://assets/events/lamps.webp": preload("res://assets/events/lamps.webp"),
+		"res://assets/events/rumble.webp": preload("res://assets/events/rumble.webp"),
+		"res://assets/events/static.webp": preload("res://assets/events/static.webp"),
+		"res://assets/events/smuggler.webp": preload("res://assets/events/smuggler.webp"),
+		"res://assets/events/quarrel.webp": preload("res://assets/events/quarrel.webp"),
+		"res://assets/events/market_food.webp": preload("res://assets/events/market_food.webp"),
+		"res://assets/events/desertion.webp": preload("res://assets/events/desertion.webp"),
+		"res://assets/events/clog.webp": preload("res://assets/events/clog.webp"),
+		"res://assets/events/knock.webp": preload("res://assets/events/knock.webp"),
+		"res://assets/events/loan.webp": preload("res://assets/events/loan.webp"),
+		"res://assets/events/diesel.webp": preload("res://assets/events/diesel.webp"),
+		"res://assets/events/armband.webp": preload("res://assets/events/armband.webp"),
 	}
 	return _textures
 

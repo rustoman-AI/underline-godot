@@ -16,6 +16,8 @@ const CARD_PAPER := Color("30261b")
 const CARD_EDGE := Color("d9ac4f")
 ## Extra space above each button row in a card.
 const BUTTON_GAP := 8.0
+## The shortest an event banner may get before a tall card drops it altogether.
+const BANNER_MIN_H := 72.0
 const ALERT_INK := Color("e07a62")
 const DELTA_UP := Color("b6e38a")
 const DELTA_DOWN := Color("ff9b8a")
@@ -1835,7 +1837,12 @@ func _shrink_card() -> void:
 	if h > max_h and card_body.get_child_count() > 0:
 		var top_child := card_body.get_child(0)
 		if top_child is TextureRect and top_child.has_meta("banner") and top_child.visible:
-			top_child.visible = false
+			## The banner gives up only the height the card lacks, down to a strip; below that it goes.
+			var shorter: float = top_child.custom_minimum_size.y - (h - max_h)
+			if shorter >= BANNER_MIN_H:
+				top_child.custom_minimum_size.y = roundf(shorter)
+			else:
+				top_child.visible = false
 			_queue_shrink()
 			return
 		if card_body.get_theme_constant("separation") > 2:
@@ -5472,7 +5479,11 @@ func _event_banner(ev: Dictionary) -> TextureRect:
 		return null
 	var banner := TextureRect.new()
 	banner.texture = tex
-	banner.custom_minimum_size = Vector2(0, clampf((size.y - 420.0) * 0.25, 72.0, 148.0))
+	## The art is 2.4:1, so the banner takes the card's width at that ratio and shows the whole picture.
+	var wide := card_body.custom_minimum_size.x
+	if wide <= 0.0:
+		wide = minf(size.x - 48.0, 680.0) - 36.0
+	banner.custom_minimum_size = Vector2(0, roundf(wide / 2.4))
 	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
