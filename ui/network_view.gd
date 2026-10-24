@@ -929,7 +929,7 @@ func _paint_tag(c: CanvasItem, box: Rect2, title: String, sub: String, fs: int, 
 
 func _order_icon(kind: String) -> String:
 	match kind:
-		"move":
+		"move", "patrol", "raid", "assault":
 			return "squad"
 		"expedition":
 			return "artifact"
@@ -1446,7 +1446,7 @@ func _issue(kind: String, sid: String) -> void:
 	if game == null:
 		return
 	var action := {"kind": "order", "order": kind}
-	if kind == "move":
+	if kind in ["move", "patrol", "raid", "assault"]:
 		action["dest"] = sid
 	elif kind == "expedition":
 		pass
@@ -1459,7 +1459,8 @@ func _issue(kind: String, sid: String) -> void:
 		if host != null and host.has_method("note_spend"):
 			host.note_spend(cost)
 		if host != null and host.has_method("_toast"):
-			host._toast(Copy.t("Order sent. The result comes at next dawn."))
+			var toast_key := "combat.toast_sent" if kind in ["patrol", "raid", "assault"] else "Order sent. The result comes at next dawn."
+			host._toast(Copy.t(toast_key))
 		refresh()
 		if visit != null and visit.visible:
 			_fill_visit(sid)
@@ -1621,13 +1622,131 @@ func _add_actions(sid: String, own: bool, parent: Node) -> void:
 	open_b.pressed.connect(_open_station.bind(sid))
 	parent.add_child(open_b)
 	if own:
-		_order_button("move", "Garrison", sid, parent)
+		_party_line(parent)
+		_combat_order_button("patrol", sid, parent)
 		return
 	_order_button("envoy", "Send envoy", sid, parent)
 	_order_button("propaganda", "Propaganda", sid, parent)
-	_order_button("move", "Move squad", sid, parent)
 	_order_button("trade", "Open trade", sid, parent)
+	_party_line(parent)
+	_combat_order_button("patrol", sid, parent)
+	_combat_order_button("raid", sid, parent)
+	_combat_order_button("assault", sid, parent)
 	_order_button("expedition", "Start expedition", sid, parent)
+
+
+func _party_line(parent: Node) -> void:
+	var game = _game()
+	if game == null:
+		return
+	parent.add_child(_lab(Copy.t("party.section"), 14, true))
+	var roster: Dictionary = game.party_roster()
+	var open_party := Button.new()
+	open_party.text = Copy.t("party.open") % [roster.members.size(), int(roster.max_size)]
+	open_party.pressed.connect(_open_party)
+	parent.add_child(open_party)
+
+
+func _open_party() -> void:
+	if host != null and host.has_method("_open_people_for"):
+		host._open_people_for("")
+
+
+func _ask_combat(kind: String, sid: String) -> void:
+	if host != null and host.has_method("_open_combat_confirm"):
+		host._open_combat_confirm(kind, sid)
+
+
+func _combat_order_button(kind: String, sid: String, parent: Node) -> void:
+	var game = _game()
+	var button := Button.new()
+	button.text = ""
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.custom_minimum_size = Vector2(0, 64)
+	var face := _combat_face(kind)
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", _combat_face(kind, true))
+	button.add_theme_stylebox_override("pressed", _combat_face(kind, false, true))
+	button.add_theme_stylebox_override("disabled", _combat_face(kind))
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 8.0
+	row.offset_right = -8.0
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var tex := ArtPack.icon_texture("squad", 24.0)
+	if tex != null:
+		var icon := TextureRect.new()
+		icon.texture = tex
+		icon.custom_minimum_size = Vector2(24, 24)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if kind == "assault":
+			icon.modulate = Color(0.85, 0.55, 0.5)
+		row.add_child(icon)
+	var why := ""
+	if game != null:
+		why = game.order_block(kind, sid)
+	var title := Copy.t("combat.order.%s" % kind)
+	var detail := ""
+	if why != "":
+		detail = why
+	elif kind == "raid":
+		detail = Copy.t("order.raid_detail")
+	elif kind == "assault" and game != null:
+		var who: Dictionary = game.order_councillor()
+		detail = "%s · %s" % [str(who.get("name", "")), Copy.t("Next dawn")]
+	else:
+		detail = Copy.t("combat.order.patrol_tip")
+	var words := VBoxContainer.new()
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var caption := Label.new()
+	caption.text = title
+	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var title_color := Color("c4544a") if kind == "assault" else Color("efe6d2")
+	caption.add_theme_color_override("font_color", title_color)
+	words.add_child(caption)
+	var sub := Label.new()
+	sub.text = detail
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sub.add_theme_color_override("font_color", Color("554533") if why != "" else Color("efe6d2"))
+	words.add_child(sub)
+	row.add_child(words)
+	button.add_child(row)
+	button.disabled = why != ""
+	if why != "":
+		button.tooltip_text = why
+	elif kind == "raid" or kind == "assault":
+		button.tooltip_text = game.order_risk(kind, sid) if game != null else ""
+	else:
+		button.tooltip_text = Copy.t("combat.order.patrol_tip")
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	if why == "":
+		if kind == "raid" or kind == "assault":
+			button.pressed.connect(_ask_combat.bind(kind, sid))
+		else:
+			button.pressed.connect(_issue.bind(kind, sid))
+	parent.add_child(button)
+
+
+func _combat_face(kind: String, hover := false, pressed := false) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("1a140e") if pressed else (Color("4a3f32") if hover else Color("3a3126"))
+	style.set_content_margin_all(8)
+	style.set_corner_radius_all(3)
+	if kind == "raid":
+		style.border_color = Color("e2a63a")
+		style.set_border_width_all(1)
+	elif kind == "assault":
+		style.border_color = ORDER_RED
+		style.set_border_width_all(1)
+	else:
+		style.set_border_width_all(0)
+	return style
 
 
 func _open_station(sid: String) -> void:

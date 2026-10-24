@@ -1251,6 +1251,7 @@ func _fill_people() -> void:
 	if people_box == null or game == null:
 		return
 	_wipe(people_box)
+	_party_block()
 	var total := game.residents.size()
 	var working := 0
 	var grouped := {"free": [], "crew": []}
@@ -2046,6 +2047,8 @@ func _show_room(uid: String) -> void:
 	var up: Dictionary = game.upgrade_preview(uid)
 	if str(up.get("name", "")) != "" or str(up.get("reason", "")) != "":
 		card_body.add_child(_upgrade_card(uid, false))
+	if str(detail.type) == "workshop":
+		_breach_craft_card()
 	_body(Brief.demolish_line(game, uid))
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
@@ -2635,9 +2638,247 @@ func _show_order_report() -> void:
 	if not _claim(ModalDeck.NARRATIVE, "order", _show_order_report):
 		return
 	var row: Dictionary = game.order_reports[0]
+	# P22 may share order_reports. Battle rows carry the dawn aftermath.
+	if bool(row.get("battle", false)):
+		_show_battle_report(row)
+		return
 	_open_card(str(row.get("title", Copy.t("Dawn report"))))
 	_body(str(row.get("text", "")))
 	card_body.add_child(_button("Continue", _next_order_report))
+
+
+func _show_battle_report(row: Dictionary) -> void:
+	_open_card(str(row.get("title", Copy.t("combat.dawn"))))
+	var eyebrow := _label("", 14)
+	eyebrow.text = Copy.t("combat.dawn")
+	eyebrow.add_theme_color_override("font_color", PAPER_MUTED)
+	card_body.add_child(eyebrow)
+	card_body.move_child(eyebrow, 1)
+	_body_ready(str(row.get("text", "")))
+	var dead: Array = row.get("dead", [])
+	var injured: Array = row.get("injured", [])
+	if not dead.is_empty() or not injured.is_empty():
+		_body("combat.named_losses")
+		for person in dead:
+			var key := "combat.dead_known" if bool(person.get("known", false)) else "combat.dead"
+			_body_ready(Copy.t(key) % str(person.get("name", "")))
+		for person in injured:
+			_body_ready(Copy.t("combat.injured") % [str(person.get("name", "")), int(person.get("weeks", 2))])
+	else:
+		_body("combat.no_named")
+	if bool(row.get("force", false)) and bool(row.get("win", false)):
+		_body("combat.yard_felt")
+		var deltas: Dictionary = row.get("deltas", {})
+		var hope_d := int(deltas.get("hope", 0))
+		var dis_d := int(deltas.get("discontent", 0))
+		if hope_d < 0:
+			_body_ready(Copy.t("combat.hope_force") % absi(hope_d))
+		if dis_d > 0:
+			_body_ready(Copy.t("combat.discontent_force") % dis_d)
+		_body("combat.hope_known")
+	if int(row.get("loyalty", -1)) >= 0:
+		_body_ready("%s: %d" % [Copy.t("Loyalty"), int(row.loyalty)])
+	if str(row.get("opinion_line", "")) != "":
+		_body_ready(str(row.opinion_line))
+	card_body.add_child(_button("Continue", _next_order_report))
+
+
+func _open_combat_confirm(kind: String, sid: String) -> void:
+	if game == null:
+		return
+	var preview: Dictionary = game.battle_preview(kind, sid)
+	if not bool(preview.get("ok", false)):
+		_toast(str(preview.get("why", "")))
+		return
+	if not _claim(ModalDeck.AMBIENT, "combat", _open_combat_confirm.bind(kind, sid)):
+		return
+	var title_key := "combat.confirm_raid" if kind == "raid" else "combat.confirm_assault"
+	_open_card(Copy.t(title_key) % str(preview.get("place", "")))
+	var win_line := _label("", 20, true)
+	win_line.text = "%s  %d%%" % [Copy.t("combat.win_chance"), int(preview.get("win_pct", 0))]
+	card_body.add_child(win_line)
+	var chips := HBoxContainer.new()
+	chips.add_theme_constant_override("separation", 6)
+	for mod in preview.get("mods", []):
+		chips.add_child(_mod_chip(str(mod.get("id", "")), str(mod.get("label", ""))))
+	if chips.get_child_count() > 0:
+		card_body.add_child(chips)
+	var risk := Copy.t("combat.named_risk") % int(preview.get("named_at_risk", 0))
+	if int(preview.get("known_at_risk", 0)) > 0:
+		risk += Copy.t("combat.known_risk") % int(preview.known_at_risk)
+	_body_ready(risk)
+	var moral: Dictionary = preview.get("moral", {})
+	if kind == "assault":
+		_body("combat.force_cost")
+		_body_ready(Copy.t("combat.hope_force") % int(moral.get("hope", 3)))
+		_body("combat.hope_known")
+		_body_ready(Copy.t("combat.discontent_force") % int(moral.get("discontent", 8)))
+		if int(moral.get("unbidden_hope", 0)) > 0:
+			_body_ready(Copy.t("combat.unbidden") % int(moral.unbidden_hope))
+	else:
+		_body_ready(Copy.t("combat.raid_cost") % [int(moral.get("raid_discontent", 2)), int(moral.get("raid_opinion", 15))])
+		_body("order.raid_detail")
+	var send_key := "combat.send_raid" if kind == "raid" else "combat.send_assault"
+	var send := _button(send_key, _send_combat.bind(kind, sid))
+	if kind == "raid":
+		_style_primary(send)
+	else:
+		_style_assault(send)
+	card_body.add_child(send)
+	card_body.add_child(_button("Back", _close_card))
+
+
+func _send_combat(kind: String, sid: String) -> void:
+	if game == null:
+		return
+	if not game.queue_order({"kind": "order", "order": kind, "dest": sid}):
+		Sound.play("error")
+		_toast(game.order_block(kind, sid))
+		return
+	_toast(Copy.t("combat.toast_sent"))
+	_close_card()
+	_refresh()
+	if network_view != null:
+		network_view.refresh()
+
+
+func _mod_chip(id: String, label: String) -> Control:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	var brass := id == "dark" or id == "breach"
+	style.bg_color = Color("3a3126")
+	style.border_color = Color("e2a63a") if brass else Color("554533")
+	style.set_border_width_all(1)
+	style.set_content_margin_all(6)
+	style.set_corner_radius_all(3)
+	panel.add_theme_stylebox_override("panel", style)
+	var lab := Label.new()
+	lab.text = label
+	lab.add_theme_color_override("font_color", Color("e2a63a") if brass else Color("554533"))
+	panel.add_child(lab)
+	return panel
+
+
+func _style_assault(button: Button) -> void:
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("a0281e")
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(3)
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("pressed", style)
+	button.add_theme_color_override("font_color", Color("efe6d2"))
+
+
+func _party_block() -> void:
+	if game == null or not game.squads.has(game.player):
+		return
+	var info: Dictionary = game.party_roster()
+	var plate := PanelContainer.new()
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("3a3126")
+	style.border_color = Color("e2a63a")
+	style.set_border_width_all(1)
+	style.set_content_margin_all(8)
+	style.set_corner_radius_all(3)
+	plate.add_theme_stylebox_override("panel", style)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	plate.add_child(box)
+	box.add_child(_party_line(Copy.t("party.title"), 18, true))
+	box.add_child(_party_line(Copy.t("party.count") % [info.members.size(), int(info.max_size)], 15, false))
+	box.add_child(_party_line(Copy.t("party.empty_hint"), 14, false))
+	box.add_child(_party_line(Copy.t("party.marshal_note"), 14, false))
+	var locked := game._party_locked()
+	if locked:
+		box.add_child(_party_line(Copy.t("party.away_block"), 14, false))
+	for member in info.members:
+		var away := " · %s" % Copy.t("party.away") if bool(member.get("away", false)) else ""
+		var text := "%s · %s %d%s" % [str(member.get("name", "")), Copy.skill("fight"), int(member.get("fight", 0)), away]
+		var row := _button(text, _toggle_party.bind(str(member.get("id", ""))))
+		row.custom_minimum_size.y = 44
+		if locked:
+			row.disabled = true
+		box.add_child(row)
+	for _i in int(info.get("empty_slots", 0)):
+		var empty := _button("party.empty_slot", _add_party_member)
+		empty.custom_minimum_size.y = 44
+		if locked:
+			empty.disabled = true
+		box.add_child(empty)
+		box.add_child(_party_line(Copy.t("party.half"), 13, false))
+	var add := _button("party.add", _add_party_member)
+	add.custom_minimum_size.y = 44
+	if locked:
+		add.disabled = true
+	box.add_child(add)
+	people_box.add_child(plate)
+
+
+func _party_line(text: String, size: int, display: bool) -> Label:
+	var lab := _label("", size, display)
+	lab.text = text
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return lab
+
+
+func _toggle_party(person_id: String) -> void:
+	if game == null:
+		return
+	var why := game.party_toggle(person_id)
+	if why != "":
+		_toast(why)
+	_fill_people()
+	_refresh()
+
+
+func _add_party_member() -> void:
+	if game == null:
+		return
+	var why := game.party_add_best()
+	if why != "":
+		_toast(why)
+	_fill_people()
+	_refresh()
+
+
+func _breach_craft_card() -> void:
+	card_body.add_child(_label("breach.section", 16, true))
+	var cost := _label("", 16)
+	cost.text = Copy.t("breach.cost") % game.breach_stock()
+	cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card_body.add_child(cost)
+	if game.breach_stock() >= 1:
+		_body("breach.held")
+	var why := game.breach_craft_reason()
+	var craft := _button("breach.craft", _confirm_breach)
+	if why == "":
+		_brass_border(craft)
+	else:
+		craft.disabled = true
+		craft.tooltip_text = why
+		_body_ready(why)
+	card_body.add_child(craft)
+
+
+func _confirm_breach() -> void:
+	var why := "" if game == null else game.breach_craft_reason()
+	_confirm("breach.confirm_title", PackedStringArray(["breach.confirm_body"]), why == "", {
+		"kind": "order", "order": "breach",
+	}, "breach.craft", why)
+
+
+func _brass_border(button: Button) -> void:
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var style := button.get_theme_stylebox(state)
+		var copy := style.duplicate() if style != null else StyleBoxFlat.new()
+		if copy is StyleBoxFlat:
+			copy.border_color = Color("e2a63a")
+			copy.set_border_width_all(1)
+			button.add_theme_stylebox_override(state, copy)
 
 
 func _next_order_report() -> void:
@@ -3703,6 +3944,14 @@ func _heading(text: String) -> void:
 
 func _body(text: String) -> void:
 	var lab := _label(text, 17)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_body.add_child(lab)
+
+
+func _body_ready(text: String) -> void:
+	var lab := _label("", 17)
+	lab.text = text
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_body.add_child(lab)

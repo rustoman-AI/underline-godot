@@ -94,6 +94,25 @@ static func t(s: String) -> String:
 	return str(map.get(s, s))
 
 
+static func fill(key: String, vars: Dictionary = {}) -> String:
+	var text := t(key)
+	for slot in vars:
+		text = text.replace("{%s}" % str(slot), str(vars[slot]))
+	return text.replace("{a}", "").replace("{ee}", "")
+
+
+static func pack(key: String) -> Dictionary:
+	boot()
+	if keys.has(key):
+		var row: Dictionary = keys[key]
+		var en := str(row.get("en", key))
+		var ru := str(row.get("ru", ""))
+		if ru == "":
+			ru = en
+		return {"en": en, "ru": ru}
+	return {"en": key, "ru": t(key)}
+
+
 static func count_noun(n: int, one: String) -> String:
 	if one == "other" or one == "others":
 		return str(n)

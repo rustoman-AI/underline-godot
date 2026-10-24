@@ -38,7 +38,11 @@ var dig := {}
 var build := {}
 var expedition := {}
 var active_season := {}
-var artifacts := {"papers": 0, "iron": 0, "words": 0}
+var artifacts := {"papers": 0, "iron": 0, "words": 0, "breach": 0}
+var combat_lock := {}
+var battle_dis_week := 0
+var injury_bias := -1.0
+var last_combat_report := {}
 var pumped := false
 var flood_guard := false
 var quarantine := false
@@ -626,6 +630,8 @@ func can_approach() -> bool:
 
 
 func can_trade() -> bool:
+	if int(combat_lock.get("exchange", 0)) > week:
+		return false
 	return not trade_on and int(opinions.get("exchange", -100)) >= 0 and int(stock.influence) >= 4 and orders_left > 0
 
 
@@ -656,6 +662,7 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
+	battle_dis_week = 0
 	_resolve_queued()
 	_offer_burial()
 	orders_left = council.size()
@@ -821,6 +828,7 @@ func _night() -> void:
 	_grow()
 	_advance_jobs()
 	_tick_expedition()
+	_tick_player_party()
 	_heal_squads()
 	crunch_power = false
 	belt_down = false
@@ -2090,6 +2098,12 @@ func _apply_upgrade(uid: String) -> bool:
 	var room = _room(uid)
 	stock.materials = int(stock.materials) - int(info.materials)
 	room.upgrade = int(room.upgrade) + 1
+	if str(info.name) == "armor" and squads.has(player) and not bool(squads[player].get("armor_fit", false)):
+		squads[player].gear = float(squads[player].gear) + float(bal.get("armor_gear", 0.15))
+		squads[player].armor_fit = true
+		var plate := Copy.t("combat.toast.armor")
+		notices.append(plate)
+		_log(plate, true)
 	decisions += 1
 	_log("UPGRADE %s to %s" % [catalog.rooms[room.type].name, str(info.name)])
 	return true
@@ -2378,6 +2392,8 @@ func _apply_law(law_id: String) -> bool:
 		var sq: Dictionary = squads[player]
 		sq.size = int(sq.size) + int(defin.squad_bonus)
 		sq.max_size = int(sq.max_size) + int(defin.squad_bonus)
+		if sq.has("roster"):
+			_fill_roster(sq, int(sq.max_size))
 	decisions += 1
 	_log("LAW %s" % defin.name, true)
 	return true
@@ -2554,8 +2570,14 @@ func _apply_order(action: Dictionary) -> bool:
 				ok = _order_deal(str(action.station))
 			else:
 				ok = _order_trade()
-		"move":
-			ok = _order_move(str(action.get("dest", "")))
+		"move", "patrol":
+			ok = _order_patrol(str(action.get("dest", "")))
+		"raid":
+			ok = _order_raid(str(action.get("dest", action.get("station", ""))), true)
+		"assault":
+			ok = _order_assault(str(action.get("dest", action.get("station", ""))), true)
+		"breach":
+			ok = _order_breach()
 		"focus":
 			ok = _order_focus(str(action.get("station", "")), str(action.get("focus", "")))
 		"expedition":
@@ -2645,6 +2667,10 @@ func order_cost(kind: String, _sid: String = "") -> Dictionary:
 			return {"influence": 4}
 		"address":
 			return {"influence": int(bal.get("address_influence", 3))}
+		"raid":
+			return {"food": int(bal.get("raid_pack_food", 2))}
+		"breach":
+			return {"materials": int(bal.get("breach_materials", 6))}
 		_:
 			return {}
 	return {}
@@ -2705,6 +2731,7 @@ func _resolve_queued() -> void:
 	var rows: Array = queued_orders.duplicate(true)
 	queued_orders.clear()
 	for row in rows:
+		last_combat_report = {}
 		var action: Dictionary = row.get("action", {})
 		var cost: Dictionary = row.get("cost", {})
 		for key in cost:
@@ -2728,8 +2755,14 @@ func _resolve_queued() -> void:
 					ok = _order_deal(sid)
 				else:
 					ok = _order_trade()
-			"move":
-				ok = _order_move(str(action.get("dest", "")))
+			"move", "patrol":
+				ok = _order_patrol(str(action.get("dest", action.get("station", ""))))
+			"raid":
+				ok = _order_raid(str(action.get("dest", action.get("station", ""))), false)
+			"assault":
+				ok = _order_assault(str(action.get("dest", action.get("station", ""))), false)
+			"breach":
+				ok = _order_breach()
 			"focus":
 				ok = _order_focus(sid, str(action.get("focus", "")))
 			"expedition":
@@ -2739,11 +2772,19 @@ func _resolve_queued() -> void:
 			"address":
 				ok = _order_address(true)
 		var place := sid
-		if kind == "move" and stations.has(str(action.get("dest", ""))):
-			place = str(stations[str(action.dest)].get("community", action.dest))
+		var dest_id := str(action.get("dest", ""))
+		if dest_id == "":
+			dest_id = sid
+		if kind in ["move", "patrol", "raid", "assault"] and stations.has(dest_id):
+			place = str(stations[dest_id].get("community", dest_id))
 		elif stations.has(sid):
 			place = str(stations[sid].get("community", sid))
 		seat_used.erase(str(row.get("role", "")))
+		if ok and not last_combat_report.is_empty() and kind in ["raid", "assault"]:
+			order_reports.append(last_combat_report.duplicate(true))
+			last_combat_report = {}
+			continue
+		last_combat_report = {}
 		var title := Copy.t("Dawn report")
 		var text := "%s · %s" % [str(row.get("name", "")), place]
 		if ok:
@@ -2759,8 +2800,12 @@ func _order_title(kind: String) -> String:
 			return "Envoy returns"
 		"propaganda":
 			return "Propaganda returns"
-		"move":
+		"move", "patrol":
 			return "The squad arrives"
+		"raid":
+			return "combat.after_raid"
+		"assault":
+			return "combat.after_assault"
 		"trade":
 			return "The deal is struck"
 		"expedition":
@@ -2781,8 +2826,14 @@ func order_block(kind: String, sid: String = "") -> String:
 			return _envoy_block(sid)
 		"propaganda":
 			return _propaganda_block(sid)
-		"move":
-			return _move_block(sid)
+		"move", "patrol":
+			return _patrol_block(sid)
+		"raid":
+			return _raid_block(sid)
+		"assault":
+			return _assault_block(sid)
+		"breach":
+			return _breach_block()
 		"trade":
 			if sid != "":
 				return _deal_block(sid)
@@ -2819,27 +2870,13 @@ func order_risk(kind: String, sid: String = "") -> String:
 			if sid != "":
 				return Copy.t("No risk. A deal opens passage; three deals and a neutral station joins you.")
 			return Copy.t("No risk. Exchange opinion +6, and tokens every week.")
-		"move":
-			var sq: Dictionary = squads[player]
-			if not stations.has(sid):
+		"move", "patrol":
+			return Copy.t("combat.order.patrol_tip")
+		"raid", "assault":
+			var preview := battle_preview(kind, sid)
+			if not bool(preview.get("ok", false)):
 				return ""
-			var path := _path(str(sq.station), sid)
-			if path.size() < 2:
-				return ""
-			var nxt := str(path[1])
-			var owner := str(stations[nxt].owner)
-			if owner == player or owner == "neutral" or owner == "ruin":
-				return Copy.t("No fight on the next step.")
-			var st: Dictionary = stations[nxt]
-			var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0)
-			var defense := float(st.garrison) * float(st.fort) * 1.3
-			var odds := 100
-			if attack > 0.0:
-				odds = int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
-			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [str(st.get("community", st.name)), odds]
-			if not bool(at_war.get(owner, false)):
-				line += " " + Copy.t("Their opinion of you drops by 20.")
-			return line
+			return Copy.t("combat.odds.header") % [str(preview.get("place", "")), int(preview.get("win_pct", 0))]
 		"expedition":
 			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
 		"address":
@@ -2881,6 +2918,8 @@ func _deal_block(sid: String) -> String:
 	var why := _court_block(sid)
 	if why != "":
 		return why
+	if stations.has(sid) and int(combat_lock.get(str(stations[sid].owner), 0)) > week:
+		return Copy.t("order.truce")
 	if int(stations[sid].get("deals", 0)) >= 3:
 		return Copy.t("Three deals are already in force.")
 	if int(stock.influence) < 4:
@@ -2889,14 +2928,7 @@ func _deal_block(sid: String) -> String:
 
 
 func _move_block(dest: String) -> String:
-	var sq: Dictionary = squads[player]
-	if bool(sq.away):
-		return Copy.t("The squad is away.")
-	if not stations.has(dest):
-		return Copy.t("No open tunnel that way.")
-	if _path(str(sq.station), dest).size() < 2:
-		return Copy.t("No open tunnel that way.")
-	return ""
+	return _patrol_block(dest)
 
 
 func _expedition_block() -> String:
@@ -2973,13 +3005,7 @@ func _order_trade() -> bool:
 
 
 func _order_move(dest: String) -> bool:
-	var sq: Dictionary = squads[player]
-	if sq.away or not stations.has(dest):
-		return false
-	var path := _path(str(sq.station), dest)
-	if path.size() < 2:
-		return false
-	return _step_squad(sq, str(path[1]), true)
+	return _order_patrol(dest)
 
 
 func _order_focus(sid: String, focus: String) -> bool:
@@ -3271,6 +3297,11 @@ func _resolve_squad(fid: String, target: String) -> void:
 	if owner == player and not bool(at_war.get(fid, false)):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
 		return
+	if fid == "directorate" and bool(bal.get("slow_directorate_home", false)):
+		var home: Dictionary = squads.get(player, {})
+		if str(home.get("station", "")) == capital_id and not bool(home.get("away", false)):
+			_log("%s holds short of %s" % [sq.name, stations[nxt].name])
+			return
 	_step_squad(sq, nxt, false)
 
 
@@ -3302,8 +3333,8 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		return true
 	if owner == "bunker":
 		return false
-	if player_move and owner != player and not bool(at_war.get(owner, false)):
-		_add_opinion(owner, -20)
+	if player_move:
+		return false
 	if not player_move and owner == player and not bool(at_war.get(sq.faction, false)):
 		return false
 	if not player_move and nxt == capital_id and (week <= max_weeks or int(ambition.get(str(sq.faction), 0)) < 100):
@@ -3325,41 +3356,25 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 
 
 func _battle(sq: Dictionary, sid: String) -> bool:
+	var fought := _resolve_battle(sq, sid, false)
 	var st: Dictionary = stations[sid]
-	var roll := net_rng.randf_range(0.8, 1.2)
-	var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0) * roll
-	var garrison := float(st.garrison)
-	var defender: Dictionary = {}
-	if str(st.owner) == player:
-		var psq: Dictionary = squads[player]
-		if str(psq.station) == sid and not bool(psq.away):
-			garrison = float(psq.size)
-			defender = psq
-	var defense := garrison * float(st.fort) * 1.3
-	var before_player := int(squads[player].size)
-	var win := attack > defense
-	var loss := net_rng.randf_range(0.3, 0.6)
-	if win:
-		st.garrison = clampi(int(round(float(st.garrison) * (1.0 - loss))), 2, 22)
+	if bool(fought.get("win", false)):
 		_log("BATTLE %s takes %s" % [sq.name, st.name], true)
 	else:
-		sq.size = clampi(int(round(float(sq.size) * (1.0 - loss))), 5, 20)
-		if not defender.is_empty():
-			defender.size = clampi(int(round(float(defender.size) * (1.0 - loss * 0.5))), 5, 20)
 		_log("BATTLE %s is thrown back from %s" % [sq.name, st.name], true)
-	var fell := before_player - int(squads[player].size)
-	if fell > 0:
-		_kill(fell, "The fight at %s" % str(st.name), "battle", str(st.name))
-		_note_moment("battle", {"place": str(st.name), "result": "the squad came back smaller"}, 3)
-	return win
+	return bool(fought.get("win", false))
 
 
 func _capture(sid: String, fid: String, force: bool) -> bool:
+	var pushed := false
+	if stations.has(sid):
+		pushed = bool(stations[sid].get("_breach", false))
+		stations[sid].erase("_breach")
 	if week < 4:
 		return false
 	var st: Dictionary = stations[sid]
 	var hostile := force or fid != player
-	if hostile and int(st.get("low_weeks", 0)) < 2:
+	if hostile and int(st.get("low_weeks", 0)) < 2 and not pushed:
 		return false
 	if str(st.get("bunker", "")) != "" or str(st.owner) == "bunker":
 		return false
@@ -3384,9 +3399,17 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		ambition[prev] = int(ambition.get(prev, 0)) + int(bal.ambition_taken)
 		_log("%s will remember %s." % [_fname(prev), st.name])
 	if fid == player:
-		_add_hope(int(bal.join_hope), "victory")
-		_add_discontent(int(bal.get("join_discontent", 0)), "victory")
-		_note_moment("station_taken", {"place": str(st.name)}, 3)
+		if force and bool(bal.get("force_no_join_hope", true)):
+			_add_hope(int(bal.get("assault_hope", -3)), "force")
+			_add_discontent(int(bal.get("assault_discontent", 8)), "force")
+			_note_moment("station_taken_force", {"place": _station_place(sid), "week": week}, 5)
+			notices.append(Copy.fill("combat.toast.force_capture", {"place": _station_place(sid)}))
+			notices.append(Copy.t("combat.toast.force_hope"))
+			notices.append(Copy.t("combat.toast.force_discontent"))
+		else:
+			_add_hope(int(bal.join_hope), "victory")
+			_add_discontent(int(bal.get("join_discontent", 0)), "victory")
+			_note_moment("station_taken", {"place": str(st.name)}, 3)
 		var how := "force" if force else "peace"
 		var joined := str(st.name)
 		if Copy.ru():
@@ -3722,10 +3745,11 @@ func _remove_resident(id: String, how := "died", cause := "accident", place := "
 			_note_moment("known_lost", {"name": str(person.get("name", id))}, 5)
 			_add_hope(-2, "known")
 		if memory >= 30:
-			burials.append({"id": id, "name": str(person.get("name", id)), "name_ru": str(person.get("name_ru", "")), "cause": line_id, "memory": memory})
+			burials.append({"id": id, "name": str(person.get("name", id)), "name_ru": str(person.get("name_ru", "")), "cause": line_id, "memory": memory, "place": place})
 	elif known:
 		_add_hope(-1, "known")
 		_note_moment("known_lost", {"name": str(person.get("name", id))}, 4)
+	_drop_roster(id)
 	_unassign(id)
 	people.erase(id)
 	var keep: Array = []
@@ -5122,6 +5146,11 @@ func _has_radio() -> bool:
 func _heal_squads() -> void:
 	for fid in squads:
 		var sq: Dictionary = squads[fid]
+		if str(fid) == player and sq.has("roster"):
+			if int(sq.get("attrition", 0)) > 0:
+				sq.attrition = maxi(0, int(sq.attrition) - int(bal.squad_heal))
+			_sync_party(sq)
+			continue
 		if not bool(sq.away) and int(sq.size) < int(sq.max_size):
 			sq.size = mini(int(sq.max_size), int(sq.size) + int(bal.squad_heal))
 
@@ -5503,9 +5532,11 @@ func _init_squads() -> void:
 	var pb: Dictionary = bal.player_squad
 	squads[player] = {
 		"faction": player, "station": capital_id, "size": int(pb.size), "max_size": int(pb.size),
-		"gear": float(pb.gear), "fight": int(people.jonah.skills.fight), "name": "Jonah Peck",
+		"gear": float(pb.gear), "fight": 1, "name": str(pb.get("name", "Platform guard")),
 		"dest": "", "secure": 0, "away": false, "fording": false,
+		"roster": [], "returning": false, "return_to": capital_id, "return_week": 0, "attrition": 0, "armor_fit": false,
 	}
+	_fill_roster(squads[player], int(pb.size))
 	for fid in ["exchange", "directorate"]:
 		var fac: Dictionary = catalog.factions[fid]
 		var sq: Dictionary = fac.squad
@@ -5742,6 +5773,7 @@ const PERSIST := [
 	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags",
 	"address_week", "hardship_now", "chronicle", "departed", "burials", "creed",
+	"combat_lock",
 ]
 
 
@@ -5996,6 +6028,22 @@ func chronicle_line(moment: Dictionary) -> String:
 	var kind := str(moment.get("kind", ""))
 	var fields: Dictionary = moment.get("fields", {})
 	fields["week"] = int(moment.get("week", week))
+	var combat_key := ""
+	match kind:
+		"station_taken_force":
+			combat_key = "combat.chronicle.station_taken_force"
+		"unbidden":
+			combat_key = "combat.chronicle.unbidden"
+		"raid_win":
+			combat_key = "combat.chronicle.raid_win"
+		"raid_loss":
+			combat_key = "combat.chronicle.raid_loss"
+	if combat_key != "":
+		var vars := {}
+		for key in fields:
+			vars[str(key)] = str(fields[key])
+		vars["week"] = str(int(moment.get("week", week)))
+		return Copy.fill(combat_key, vars)
 	for row in catalog.epilogues.get("chronicle", []):
 		if str(row.get("kind", "")) != kind:
 			continue
@@ -6060,6 +6108,8 @@ func verdict_line() -> String:
 
 func judgment_line() -> String:
 	var picked := _judgment_id()
+	if picked == "force_moment":
+		return "%s %s" % [Copy.t("combat.epilogue.force_moment"), Copy.t("combat.epilogue.force_judgment")]
 	for row in catalog.epilogues.get("judgments", []):
 		if str(row.get("id", "")) == picked:
 			return text_pack(row)
@@ -6095,6 +6145,8 @@ func _judgment_id() -> String:
 					return "price"
 				_:
 					return "quiet_survive"
+		"station_taken_force":
+			return "force_moment"
 		"station_taken", "station_lost", "battle":
 			return "held_stations"
 		"dilemma":
@@ -6372,6 +6424,9 @@ func _journal(person: Dictionary, pool: String, extra: Dictionary) -> void:
 
 
 func journal_line(ev: Dictionary) -> String:
+	if str(ev.get("pool", "")) == "fought":
+		var place := str(ev.get("room", ""))
+		return Copy.fill("combat.journal.fought", {"name": str(ev.get("name", "")), "place": place, "room": place})
 	var rows: Array = catalog.names.get("journals", {}).get(str(ev.get("pool", "")), [])
 	var pick := {}
 	for row in rows:
@@ -6449,11 +6504,13 @@ func _pick_victim(cause: String) -> String:
 	if cause == "battle":
 		var adults: Array = []
 		for person in pool:
-			if not _is_child(person):
-				adults.append(person)
-		if not adults.is_empty():
-			pool = adults
-		pool.sort_custom(func(a, b): return int(a.get("skills", {}).get("fight", 0)) > int(b.get("skills", {}).get("fight", 0)))
+			if _is_child(person) or int(person.get("absent", 0)) > 0:
+				continue
+			adults.append(person)
+		if adults.is_empty():
+			return ""
+		adults.sort_custom(func(a, b): return int(a.get("skills", {}).get("fight", 0)) < int(b.get("skills", {}).get("fight", 0)))
+		return str(adults[0].id)
 	elif cause in ["sickness", "sick", "hope", "cough"]:
 		pool.sort_custom(func(a, b):
 			if int(a.get("sick", 0)) == int(b.get("sick", 0)):
@@ -6539,6 +6596,8 @@ func _offer_burial() -> void:
 			return
 	var row: Dictionary = burials[0]
 	var body := _death_text(str(row.get("cause", "sickness")), str(row.get("name", "")), str(row.get("name_ru", "")))
+	if str(row.get("cause", "")) == "battle":
+		body = _battle_death_text(str(row.get("name", "")), str(row.get("name_ru", "")), str(row.get("place", "")))
 	var choices: Array = [
 		{"id": "bury", "label": {"en": "Bury them", "ru": "Похоронить"}, "cost": {"materials": 1}, "hope": 1},
 		{"id": "tunnel", "label": {"en": "Leave them in the tunnel", "ru": "Оставить в тоннеле"}},
@@ -6645,3 +6704,724 @@ func _squad_names(limit: int) -> Array:
 		if out.size() >= limit:
 			break
 	return out
+
+
+# --- tunnel combat (P20) ---
+
+func breach_stock() -> int:
+	return int(artifacts.get("breach", 0))
+
+
+func breach_craft_reason() -> String:
+	var gate := _breach_gate()
+	if gate != "":
+		return gate
+	return order_block("breach")
+
+
+func party_roster() -> Dictionary:
+	var sq: Dictionary = squads.get(player, {})
+	var members: Array = []
+	for id in sq.get("roster", []):
+		if not people.has(str(id)):
+			continue
+		var person: Dictionary = people[str(id)]
+		members.append({
+			"id": str(id),
+			"name": str(person.get("name", id)),
+			"fight": int(person.get("skills", {}).get("fight", 0)),
+			"known": int(person.get("memory", 0)) >= 40,
+			"away": int(person.get("absent", 0)) > 0 or int(person.get("sick", 0)) > 0,
+		})
+	var max_size := int(sq.get("max_size", members.size()))
+	return {
+		"max_size": max_size,
+		"members": members,
+		"empty_slots": maxi(0, max_size - members.size()),
+		"effective_size": _effective_size(sq) if squads.has(player) else 0.0,
+	}
+
+
+func party_toggle(person_id: String) -> String:
+	if not squads.has(player) or not people.has(person_id):
+		return Copy.t("order.party_empty")
+	if _party_locked():
+		return Copy.t("party.away_block")
+	var sq: Dictionary = squads[player]
+	if not sq.has("roster") or typeof(sq.roster) != TYPE_ARRAY:
+		sq.roster = []
+	var roster: Array = sq.roster
+	if roster.has(person_id):
+		roster.erase(person_id)
+		_sync_party(sq)
+		return ""
+	var person: Dictionary = people[person_id]
+	if _is_child(person):
+		return Copy.t("order.party_empty")
+	if _is_council(person_id):
+		return Copy.t("party.marshal_note")
+	if roster.size() >= int(sq.max_size):
+		return Copy.t("party.count") % [roster.size(), int(sq.max_size)]
+	roster.append(person_id)
+	_unassign(person_id)
+	_sync_party(sq)
+	return ""
+
+
+func party_add_best() -> String:
+	if not squads.has(player):
+		return Copy.t("order.party_empty")
+	var sq: Dictionary = squads[player]
+	var roster: Array = sq.get("roster", [])
+	var best := ""
+	var best_f := -1
+	for person in residents:
+		var id := str(person.id)
+		if roster.has(id) or id == "jonah" or _is_council(id) or _is_child(person):
+			continue
+		if int(person.get("absent", 0)) > 0:
+			continue
+		var fight := int(person.get("skills", {}).get("fight", 0))
+		if fight > best_f:
+			best_f = fight
+			best = id
+	if best == "":
+		return Copy.t("order.party_empty")
+	return party_toggle(best)
+
+
+func battle_preview(kind: String, sid: String) -> Dictionary:
+	var info := {
+		"ok": false,
+		"win_pct": 0,
+		"mods": [],
+		"named_at_risk": 0,
+		"known_at_risk": 0,
+		"moral": {},
+		"why": "",
+		"place": "",
+	}
+	if not stations.has(sid) or not squads.has(player):
+		info.why = Copy.t("order.no_tunnel")
+		return info
+	info.place = _station_place(sid)
+	var why := ""
+	if kind == "raid":
+		why = _raid_gate(sid)
+	elif kind == "assault":
+		why = _assault_gate(sid)
+	else:
+		why = _patrol_gate(sid)
+	info.why = why
+	if why != "" and kind != "patrol":
+		return info
+	if kind == "patrol":
+		info.ok = why == ""
+		return info
+	var spend := kind == "assault" and _breach_will_spend(sid)
+	var factors := _battle_factors(squads[player], sid, spend)
+	var pct := _win_pct(float(factors.attack), float(factors.defense))
+	var risk := _named_risk(pct)
+	var owner := str(stations[sid].owner)
+	info.ok = true
+	info.win_pct = pct
+	info.mods = factors.mods
+	info.named_at_risk = int(risk.named)
+	info.known_at_risk = int(risk.known)
+	info.moral = {
+		"hope": absi(int(bal.get("assault_hope", -3))),
+		"discontent": int(bal.get("assault_discontent", 8)),
+		"unbidden_hope": 0 if bool(at_war.get(owner, false)) else absi(int(bal.get("unbidden_hope", -2))),
+		"known_extra_hope": 2,
+		"raid_discontent": int(bal.get("raid_discontent", 2)),
+		"raid_opinion": absi(int(bal.get("raid_opinion", -15))),
+	}
+	return info
+
+
+func _breach_will_spend(sid: String) -> bool:
+	if int(artifacts.get("breach", 0)) < 1 or not stations.has(sid):
+		return false
+	return int(stations[sid].get("low_weeks", 0)) < 2
+
+
+func _station_place(sid: String) -> String:
+	if not stations.has(sid):
+		return sid
+	var st: Dictionary = stations[sid]
+	return Copy.t(str(st.get("community", st.get("name", sid))))
+
+
+func _roster_ids() -> Array:
+	if not squads.has(player):
+		return []
+	var sq: Dictionary = squads[player]
+	if not sq.has("roster") or typeof(sq.roster) != TYPE_ARRAY:
+		return []
+	return sq.roster
+
+
+func _drop_roster(id: String) -> void:
+	if not squads.has(player):
+		return
+	var sq: Dictionary = squads[player]
+	if not sq.has("roster") or typeof(sq.roster) != TYPE_ARRAY:
+		return
+	var roster: Array = sq.roster
+	if roster.has(id):
+		roster.erase(id)
+
+
+func _fill_roster(sq: Dictionary, want: int) -> void:
+	if not sq.has("roster") or typeof(sq.roster) != TYPE_ARRAY:
+		sq.roster = []
+	var roster: Array = sq.roster
+	var have := {}
+	for id in roster:
+		have[str(id)] = true
+	var pool: Array = []
+	for person in residents:
+		var id := str(person.id)
+		if have.has(id) or id == "jonah" or _is_council(id) or _is_child(person):
+			continue
+		if int(person.get("absent", 0)) > 0:
+			continue
+		pool.append(person)
+	pool.sort_custom(func(a, b): return int(a.get("skills", {}).get("fight", 0)) > int(b.get("skills", {}).get("fight", 0)))
+	for person in pool:
+		if roster.size() >= want:
+			break
+		var id := str(person.id)
+		roster.append(id)
+		_unassign(id)
+	_sync_party(sq)
+
+
+func _sync_party(sq: Dictionary) -> void:
+	if not sq.has("roster") or typeof(sq.roster) != TYPE_ARRAY:
+		return
+	var keep: Array = []
+	for id in sq.roster:
+		if people.has(str(id)):
+			keep.append(str(id))
+	sq.roster = keep
+	_refresh_fight(sq)
+	sq.size = maxi(0, int(round(_effective_size(sq))))
+
+
+func _refresh_fight(sq: Dictionary) -> void:
+	var sum := 0
+	var n := 0
+	for id in sq.get("roster", []):
+		if not people.has(str(id)):
+			continue
+		sum += int(people[str(id)].get("skills", {}).get("fight", 0))
+		n += 1
+	if n <= 0:
+		sq.fight = 1
+	else:
+		sq.fight = maxi(1, int(ceil(float(sum) / float(n))))
+
+
+func _effective_size(sq: Dictionary) -> float:
+	if str(sq.get("faction", "")) != player or not sq.has("roster"):
+		return float(sq.get("size", 0))
+	var present := 0
+	var listed := 0
+	for id in sq.roster:
+		if not people.has(str(id)):
+			continue
+		listed += 1
+		var person: Dictionary = people[str(id)]
+		if _is_child(person) or int(person.get("absent", 0)) > 0 or int(person.get("sick", 0)) > 0:
+			continue
+		present += 1
+	var empty := maxi(0, int(sq.get("max_size", listed)) - listed)
+	var weight := float(bal.get("party_empty_weight", 0.5))
+	var eff := float(present) + weight * float(empty) - float(sq.get("attrition", 0))
+	return clampf(eff, 0.0, float(maxi(1, int(sq.get("max_size", present)))))
+
+
+func _party_locked() -> bool:
+	if not squads.has(player):
+		return true
+	var sq: Dictionary = squads[player]
+	return bool(sq.get("away", false)) or bool(sq.get("returning", false)) or int(sq.get("secure", 0)) > 0
+
+
+func _marshal_alive() -> bool:
+	for seat in council:
+		if str(seat.role) == "marshal" and people.has(str(seat.id)):
+			return true
+	return false
+
+
+func _party_send_block() -> String:
+	if bool(flags.get("truce", false)):
+		return Copy.t("order.truce")
+	if not _marshal_alive():
+		return Copy.t("order.no_marshal")
+	if _party_locked():
+		return Copy.t("order.party_away")
+	if not squads.has(player) or _effective_size(squads[player]) < 1.0:
+		return Copy.t("order.party_empty")
+	return ""
+
+
+func _patrol_block(dest: String) -> String:
+	return _patrol_gate(dest)
+
+
+func _raid_block(dest: String) -> String:
+	return _raid_gate(dest)
+
+
+func _assault_block(dest: String) -> String:
+	return _assault_gate(dest)
+
+
+func _breach_block() -> String:
+	return _breach_gate()
+
+
+func _patrol_gate(dest: String) -> String:
+	var common := _party_send_block()
+	if common != "":
+		return common
+	if not stations.has(dest):
+		return Copy.t("order.no_tunnel")
+	var sq: Dictionary = squads[player]
+	var path := _path(str(sq.station), dest)
+	if path.size() < 2:
+		return Copy.t("order.no_tunnel")
+	var nxt := str(path[1])
+	var owner := str(stations[nxt].owner)
+	if owner != player and owner != "neutral" and owner != "ruin":
+		return Copy.t("combat.order.patrol_tip")
+	return ""
+
+
+func _raid_gate(dest: String) -> String:
+	var common := _party_send_block()
+	if common != "":
+		return common
+	if not stations.has(dest):
+		return Copy.t("order.no_tunnel")
+	var st: Dictionary = stations[dest]
+	var owner := str(st.owner)
+	if owner == "bunker" or str(st.get("bunker", "")) != "":
+		return Copy.t("That station will not hear an envoy.")
+	if owner == player or owner == "neutral" or owner == "ruin":
+		return Copy.t("order.not_hostile")
+	var sq: Dictionary = squads[player]
+	if _path(str(sq.station), dest).size() != 2:
+		return Copy.t("order.no_tunnel")
+	if not bool(st.get("known", false)):
+		return Copy.t("order.raid_intel")
+	if _effective_size(sq) < 4.0:
+		return Copy.t("order.raid_size")
+	if int(stock.food) < int(bal.get("raid_pack_food", 2)):
+		return Copy.t("Needs %s, the yard has %s.") % [Words.count(int(bal.get("raid_pack_food", 2)), "food"), Words.count(int(stock.food), "food")]
+	return ""
+
+
+func _assault_gate(dest: String) -> String:
+	var common := _party_send_block()
+	if common != "":
+		return common
+	if not stations.has(dest):
+		return Copy.t("order.no_tunnel")
+	var st: Dictionary = stations[dest]
+	var owner := str(st.owner)
+	if owner == "bunker" or str(st.get("bunker", "")) != "":
+		return Copy.t("That station will not hear an envoy.")
+	if owner == player or owner == "ruin":
+		return Copy.t("order.not_hostile")
+	var sq: Dictionary = squads[player]
+	if _path(str(sq.station), dest).size() != 2:
+		return Copy.t("order.no_tunnel")
+	if int(st.get("low_weeks", 0)) < 2 and int(artifacts.get("breach", 0)) < 1:
+		return Copy.t("order.assault_gate")
+	return ""
+
+
+func _breach_gate() -> String:
+	if int(artifacts.get("breach", 0)) >= 1:
+		return Copy.t("breach.disabled_held")
+	if not _room_ready("workshop"):
+		return Copy.t("breach.disabled_shop")
+	if int(stock.materials) < int(bal.get("breach_materials", 6)):
+		return Copy.t("breach.disabled_mats")
+	return ""
+
+
+func _order_patrol(dest: String) -> bool:
+	if _patrol_gate(dest) != "":
+		return false
+	var sq: Dictionary = squads[player]
+	var path := _path(str(sq.station), dest)
+	return _step_squad(sq, str(path[1]), true)
+
+
+func _order_raid(dest: String, immediate: bool) -> bool:
+	last_combat_report = {}
+	if _raid_gate(dest) != "":
+		return false
+	var hope0 := hope
+	var dis0 := discontent
+	stock.food = int(stock.food) - int(bal.get("raid_pack_food", 2))
+	var sq: Dictionary = squads[player]
+	var fought := _resolve_battle(sq, dest, false)
+	var win := bool(fought.get("win", false))
+	var st: Dictionary = stations[dest]
+	var place := _station_place(dest)
+	if win:
+		stock.food = int(stock.food) + int(bal.get("raid_loot_food", 8))
+		stock.materials = int(stock.materials) + int(bal.get("raid_loot_materials", 6))
+		_add_opinion(str(st.owner), int(bal.get("raid_opinion", -15)))
+		for n in _neighbors(dest):
+			var nid := str(n)
+			if stations.has(nid) and str(stations[nid].owner) != player:
+				stations[nid].loyalty = maxi(0, int(stations[nid].loyalty) - 5)
+		_add_discontent(int(bal.get("raid_discontent", 2)), "raid")
+		_note_moment("raid_win", {"place": place, "week": week}, 4)
+		notices.append(Copy.t("combat.toast.raid_win"))
+		_log(Copy.fill("combat.log.raid_win", {"week": str(week), "place": place}), true)
+		sq.station = dest
+		sq.returning = true
+		sq.return_to = capital_id
+		sq.return_week = week - 1 if immediate else week
+		sq.secure = 1
+		var owner := str(st.owner)
+		if owner != "" and owner != player and owner != "neutral" and owner != "ruin":
+			combat_lock[owner] = week + 4
+	else:
+		_add_hope(-1, "raid")
+		_add_discontent(4, "raid")
+		sq.secure = 1
+		sq.returning = false
+		_note_moment("raid_loss", {"place": place, "week": week}, 4)
+		notices.append(Copy.t("combat.toast.raid_loss"))
+		_log(Copy.fill("combat.log.raid_loss", {"week": str(week), "place": place}), true)
+	var opinion := ""
+	if win:
+		opinion = Copy.t("combat.raid_cost") % [int(bal.get("raid_discontent", 2)), absi(int(bal.get("raid_opinion", -15)))]
+	_stamp_combat("raid", dest, win, false, fought.get("player", {}), hope0, dis0, opinion)
+	return true
+
+
+func _order_assault(dest: String, _immediate: bool) -> bool:
+	last_combat_report = {}
+	if _assault_gate(dest) != "":
+		return false
+	var hope0 := hope
+	var dis0 := discontent
+	var st: Dictionary = stations[dest]
+	var owner := str(st.owner)
+	var place := _station_place(dest)
+	var spend := _breach_will_spend(dest)
+	if spend:
+		artifacts.breach = 0
+		st["_breach"] = true
+	var unbidden := not bool(at_war.get(owner, false))
+	if unbidden:
+		_add_hope(int(bal.get("unbidden_hope", -2)), "unbidden")
+		_add_opinion(owner, -20)
+		_note_moment("unbidden", {"place": place, "week": week}, 5)
+		notices.append(Copy.fill("combat.toast.unbidden", {"place": place}))
+		_log(Copy.fill("combat.log.unbidden", {"week": str(week), "place": place}), true)
+	var fought := _resolve_battle(squads[player], dest, spend)
+	var win := bool(fought.get("win", false))
+	var captured := false
+	var sq: Dictionary = squads[player]
+	if win:
+		captured = _capture(dest, player, true)
+		if captured:
+			sq.station = dest
+			stations[dest].known = true
+			_log(Copy.fill("combat.log.assault_win", {"week": str(week), "place": place}), true)
+			_log(Copy.fill("combat.log.force_capture", {"week": str(week), "place": place}), true)
+		sq.secure = 1
+	else:
+		_add_hope(-1, "assault")
+		_add_discontent(4, "assault")
+		sq.secure = 1
+		notices.append(Copy.t("combat.toast.assault_loss"))
+		_log(Copy.fill("combat.log.assault_loss", {"week": str(week), "place": place}), true)
+	var opinion := ""
+	if unbidden:
+		opinion = Copy.t("combat.unbidden") % absi(int(bal.get("unbidden_hope", -2)))
+	_stamp_combat("assault", dest, win, captured, fought.get("player", {}), hope0, dis0, opinion)
+	return true
+
+
+func _order_breach() -> bool:
+	if _breach_gate() != "":
+		return false
+	stock.materials = int(stock.materials) - int(bal.get("breach_materials", 6))
+	artifacts.breach = 1
+	var ready := Copy.t("breach.toast")
+	notices.append(ready)
+	_log(ready, true)
+	return true
+
+
+func _stamp_combat(kind: String, sid: String, win: bool, force: bool, hurt: Dictionary, hope0: int, dis0: int, opinion: String) -> void:
+	var place := _station_place(sid)
+	var title_key := "combat.after_loss"
+	var outcome := "combat.lost"
+	if win and kind == "raid":
+		title_key = "combat.after_raid"
+		outcome = "combat.raid_win"
+	elif win and kind == "assault":
+		title_key = "combat.after_assault"
+		outcome = "combat.took_force" if force else "combat.lost"
+	last_combat_report = {
+		"title": Copy.t(title_key) % place,
+		"text": Copy.t(outcome),
+		"ok": true,
+		"battle": true,
+		"kind": kind,
+		"win": win and (kind != "assault" or force),
+		"force": force,
+		"place": place,
+		"dead": hurt.get("dead", []),
+		"injured": hurt.get("injured", []),
+		"deltas": {"hope": hope - hope0, "discontent": discontent - dis0},
+		"loyalty": int(stations[sid].get("loyalty", 0)) if stations.has(sid) else 0,
+		"opinion_line": opinion,
+	}
+
+
+func _battle_factors(sq: Dictionary, sid: String, breach: bool) -> Dictionary:
+	var st: Dictionary = stations[sid]
+	var atk_mod := 1.0
+	var def_mod := 1.0
+	var mods: Array = []
+	if _edge_flooded(str(sq.get("station", "")), sid):
+		atk_mod *= float(bal.get("tunnel_flood_atk", 0.85))
+		mods.append({"id": "flood", "label": Copy.t("combat.mod_flood")})
+	if int(st.get("unrest", 0)) >= 4:
+		atk_mod *= float(bal.get("tunnel_dark_atk", 1.10))
+		def_mod *= float(bal.get("tunnel_dark_def", 0.90))
+		mods.append({"id": "dark", "label": Copy.t("combat.mod_dark")})
+	var fort := float(st.get("fort", 1.0))
+	if _home_guard(sq, sid):
+		fort += float(bal.get("home_guard_fort", 0.10))
+		mods.append({"id": "home_guard", "label": Copy.t("combat.mod_home")})
+	if breach:
+		atk_mod *= 1.15
+		mods.append({"id": "breach", "label": Copy.t("combat.mod_breach")})
+	var attack := _effective_size(sq) * float(sq.get("gear", 1.0)) * (1.0 + float(sq.get("fight", 1)) / 10.0) * atk_mod
+	var garrison := float(st.get("garrison", 1))
+	var defender := {}
+	if str(st.get("owner", "")) == player and squads.has(player):
+		var psq: Dictionary = squads[player]
+		if str(psq.get("station", "")) == sid and not bool(psq.get("away", false)) and not bool(psq.get("returning", false)):
+			garrison = _effective_size(psq)
+			defender = psq
+	var defense := garrison * fort * 1.3 * def_mod
+	return {"attack": attack, "defense": defense, "mods": mods, "defender": defender}
+
+
+func _home_guard(attacker: Dictionary, sid: String) -> bool:
+	if str(attacker.get("faction", "")) == player:
+		return false
+	if not _room_ready("platform"):
+		return false
+	if not squads.has(player):
+		return false
+	var psq: Dictionary = squads[player]
+	var left := bool(psq.get("away", false)) or str(psq.get("station", "")) != capital_id
+	if not left:
+		return false
+	if str(psq.get("station", "")) == sid:
+		return false
+	return _neighbors(capital_id).has(sid)
+
+
+func _edge_flooded(a: String, b: String) -> bool:
+	var edge := _edge(a, b)
+	if edge.is_empty():
+		return false
+	return str(edge.get("state", "")) == "flooded" or bool(edge.get("flooded", false))
+
+
+func _win_pct(attack: float, defense: float) -> int:
+	if attack <= 0.0:
+		return 0
+	return int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
+
+
+func _named_risk(pct: int) -> Dictionary:
+	var win_mid := (float(bal.get("battle_loss_win_min", 0.10)) + float(bal.get("battle_loss_win_max", 0.25))) * 0.5
+	var lose_mid := (float(bal.get("battle_loss_lose_min", 0.35)) + float(bal.get("battle_loss_lose_max", 0.55))) * 0.5
+	var p := float(pct) / 100.0
+	var frac := p * win_mid + (1.0 - p) * lose_mid
+	var sq: Dictionary = squads[player]
+	var pool := _named_pool(sq)
+	var hits := int(round(minf(frac * _effective_size(sq), float(pool.size()))))
+	var known := 0
+	var n := mini(hits, pool.size())
+	for i in n:
+		var person: Dictionary = pool[i]
+		if int(person.get("memory", 0)) >= 40:
+			known += 1
+	return {"named": hits, "known": known}
+
+
+func _named_pool(sq: Dictionary) -> Array:
+	var rows: Array = []
+	var roster: Array = sq.get("roster", [])
+	if not roster.is_empty():
+		for id in roster:
+			if not people.has(str(id)):
+				continue
+			var person: Dictionary = people[str(id)]
+			if _is_child(person) or int(person.get("absent", 0)) > 0 or int(person.get("sick", 0)) > 0:
+				continue
+			rows.append(person)
+	else:
+		for person in residents:
+			if _is_council(str(person.get("id", ""))) or _is_child(person) or int(person.get("absent", 0)) > 0:
+				continue
+			rows.append(person)
+	rows.sort_custom(func(a, b): return int(a.get("skills", {}).get("fight", 0)) < int(b.get("skills", {}).get("fight", 0)))
+	return rows
+
+
+func _loss_frac(won: bool) -> float:
+	if won:
+		return net_rng.randf_range(float(bal.get("battle_loss_win_min", 0.10)), float(bal.get("battle_loss_win_max", 0.25)))
+	return net_rng.randf_range(float(bal.get("battle_loss_lose_min", 0.35)), float(bal.get("battle_loss_lose_max", 0.55)))
+
+
+func _roll_injury() -> bool:
+	if injury_bias >= 0.0:
+		return injury_bias >= 0.5
+	var chance := float(bal.get("battle_injury_chance", 0.30))
+	if _room_ready("infirmary"):
+		chance = float(bal.get("battle_injury_chance_infirmary", 0.50))
+	return net_rng.randf() < chance
+
+
+func _add_battle_discontent(amount: int) -> void:
+	var room := mini(amount, 9 - battle_dis_week)
+	if room <= 0:
+		return
+	_add_discontent(room, "battle")
+	battle_dis_week += room
+
+
+func _resolve_battle(atk: Dictionary, sid: String, breach: bool) -> Dictionary:
+	var factors := _battle_factors(atk, sid, breach)
+	var roll := net_rng.randf_range(0.8, 1.2)
+	var win := float(factors.attack) * roll > float(factors.defense)
+	var def_frac := _loss_frac(not win)
+	var atk_hurt := _hurt_side(atk, sid, _loss_frac(win))
+	var def_hurt := {"dead": [], "injured": []}
+	var defender: Dictionary = factors.get("defender", {})
+	if not defender.is_empty() and str(defender.get("faction", "")) != str(atk.get("faction", "")):
+		def_hurt = _hurt_side(defender, sid, def_frac)
+	if stations.has(sid):
+		var st: Dictionary = stations[sid]
+		st.garrison = maxi(2, int(round(float(st.get("garrison", 2)) * (1.0 - def_frac))))
+	var player_hurt := atk_hurt if str(atk.get("faction", "")) == player else def_hurt
+	return {"win": win, "player": player_hurt, "attack": factors.attack, "defense": factors.defense, "mods": factors.mods}
+
+
+func _hurt_side(sq: Dictionary, sid: String, frac: float) -> Dictionary:
+	var dead: Array = []
+	var injured: Array = []
+	var place := _station_place(sid)
+	if str(sq.get("faction", "")) != player or not sq.has("roster"):
+		var nxt := int(round(float(sq.get("size", 1)) * (1.0 - frac)))
+		sq.size = clampi(nxt, 1, int(sq.get("max_size", maxi(1, nxt))))
+		return {"dead": dead, "injured": injured}
+	var loss_n := maxi(0, int(round(_effective_size(sq) * frac)))
+	var pool := _named_pool(sq)
+	var hits := mini(loss_n, pool.size())
+	for i in hits:
+		var person: Dictionary = pool[i]
+		var id := str(person.get("id", ""))
+		var pname := str(person.get("name", id))
+		var known := int(person.get("memory", 0)) >= 40
+		if _roll_injury():
+			person.absent = 2
+			_unassign(id)
+			_note_fought(person, place)
+			_journal(person, "injured", {"room": place})
+			injured.append({"name": pname, "known": known, "weeks": 2})
+			_log(Copy.fill("combat.log.named_injury", {"name": pname, "place": place}), true)
+		else:
+			_remove_resident(id, "died", "battle", place)
+			dead.append({"name": pname, "known": known})
+			_add_battle_discontent(3)
+			_log(Copy.fill("combat.log.named_death", {"name": pname, "place": place}), true)
+	var abstract := loss_n - hits
+	if abstract > 0:
+		sq.attrition = int(sq.get("attrition", 0)) + abstract
+	_sync_party(sq)
+	return {"dead": dead, "injured": injured}
+
+
+func _tick_player_party() -> void:
+	if not squads.has(player):
+		return
+	var sq: Dictionary = squads[player]
+	if bool(sq.get("returning", false)):
+		if week > int(sq.get("return_week", week)):
+			_step_party_home(sq)
+		return
+	if int(sq.get("secure", 0)) > 0:
+		sq.secure = int(sq.secure) - 1
+
+
+func _step_party_home(sq: Dictionary) -> void:
+	var home := str(sq.get("return_to", capital_id))
+	if home == "":
+		home = capital_id
+	if str(sq.get("station", "")) == home:
+		sq.returning = false
+		sq.secure = 0
+		_sync_party(sq)
+		return
+	var path := _path(str(sq.station), home)
+	if path.size() < 2:
+		sq.station = home
+		sq.returning = false
+		sq.secure = 0
+		_sync_party(sq)
+		return
+	var nxt := str(path[1])
+	if _edge_flooded(str(sq.station), nxt) and int(sq.get("ford", 0)) < 1:
+		sq.ford = 1
+		return
+	sq.ford = 0
+	sq.station = nxt
+	if str(sq.station) == home:
+		sq.returning = false
+		sq.secure = 0
+	_sync_party(sq)
+
+
+func _note_fought(person: Dictionary, place: String) -> void:
+	if typeof(person.get("story_events", [])) != TYPE_ARRAY:
+		person.story_events = []
+	person.story_events.append({
+		"pool": "fought",
+		"id": "fought",
+		"week": week,
+		"name": str(person.get("name", "")),
+		"room": place,
+	})
+	person.memory = mini(100, int(person.get("memory", 0)) + 5)
+
+
+func _battle_death_text(person_name: String, name_ru: String, place: String) -> Dictionary:
+	var key := "combat.death.battle" if place == "" else "combat.death.battle_at"
+	var packed := Copy.pack(key)
+	var ru_name := name_ru if name_ru != "" else person_name
+	var en := fill_text({"en": str(packed.get("en", "")), "ru": str(packed.get("en", ""))}, {"name": person_name, "place": place})
+	var ru := fill_text({"en": str(packed.get("ru", "")), "ru": str(packed.get("ru", ""))}, {"name": ru_name, "place": place})
+	return {"en": en, "ru": ru}

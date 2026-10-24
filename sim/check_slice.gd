@@ -25,6 +25,8 @@ func _init() -> void:
 		failed = true
 	if not _check_modals():
 		failed = true
+	if not _check_battle(catalog):
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
@@ -459,6 +461,176 @@ func _check_modals() -> bool:
 		print("Modals: FAIL empty")
 		return false
 	print("Modals: ok")
+	return true
+
+
+func _check_battle(catalog: Catalog) -> bool:
+	Copy.set_lang("en")
+	if Copy.t("combat.toast.armor") != "Platform guard in scrap plate.":
+		print("Battle: FAIL armor toast")
+		return false
+	if Copy.t("combat.epilogue.force_moment") != "Was the platform worth their names?":
+		print("Battle: FAIL force moment")
+		return false
+	if Copy.t("combat.dead") != "%s — dead" or Copy.t("combat.injured") != "%s — injured %d weeks":
+		print("Battle: FAIL named loss lines")
+		return false
+	if Copy.t("combat.named_risk") != "~%d named at risk" or Copy.t("combat.mod_flood") != "Flooded edge":
+		print("Battle: FAIL mod or named risk key")
+		return false
+	if Copy.t("order.assault_gate") != "Need a Breach kit or 2 pressure weeks.":
+		print("Battle: FAIL assault gate key")
+		return false
+	Copy.set_lang("ru")
+	if Copy.t("combat.order.patrol") != "Патруль" or Copy.t("combat.order.raid") != "Набег" or Copy.t("combat.order.assault") != "Штурм":
+		print("Battle: FAIL RU order titles")
+		return false
+	Copy.set_lang("en")
+	var game := Game.new()
+	game.setup(catalog, 3, 40)
+	if game.over == "error":
+		print("Battle: FAIL setup ", game.errors)
+		return false
+	var roster: Dictionary = game.party_roster()
+	if roster.members.size() != 8 or absf(float(roster.effective_size) - 8.0) > 0.01:
+		print("Battle: FAIL roster ", roster.members.size(), " eff ", roster.effective_size)
+		return false
+	for member in roster.members:
+		if str(member.id) == "jonah":
+			print("Battle: FAIL Jonah rostered")
+			return false
+	var cap := str(game.capital_id)
+	var hop := ""
+	for n in game._neighbors(cap):
+		hop = str(n)
+		break
+	if hop == "":
+		print("Battle: FAIL no neighbor")
+		return false
+	var sq: Dictionary = game.squads[game.player]
+	var edge := game._edge(cap, hop)
+	edge.state = "flooded"
+	edge.flooded = true
+	game.stations[hop].unrest = 0
+	var wet: Dictionary = game._battle_factors(sq, hop, false)
+	edge.state = "open"
+	edge.flooded = false
+	var dry: Dictionary = game._battle_factors(sq, hop, false)
+	if not is_equal_approx(float(wet.attack), float(dry.attack) * 0.85):
+		print("Battle: FAIL flood atk ", wet.attack, " ", dry.attack)
+		return false
+	game.stations[hop].unrest = 4
+	var dark: Dictionary = game._battle_factors(sq, hop, false)
+	if not is_equal_approx(float(dark.attack), float(dry.attack) * 1.10):
+		print("Battle: FAIL dark atk ", dark.attack, " ", dry.attack)
+		return false
+	if not is_equal_approx(float(dark.defense), float(dry.defense) * 0.90):
+		print("Battle: FAIL dark def ", dark.defense, " ", dry.defense)
+		return false
+	game.stations[hop].unrest = 0
+	var enemy: Dictionary = game.squads.directorate
+	var parked := str(sq.station)
+	sq.station = "vault" if game.stations.has("vault") else hop
+	if str(sq.station) == cap or str(sq.station) == hop:
+		sq.station = str(game.squads.exchange.station)
+	var guarded: Dictionary = game._battle_factors(enemy, hop, false)
+	sq.station = parked
+	var open: Dictionary = game._battle_factors(enemy, hop, false)
+	var fort := float(game.stations[hop].fort)
+	var expect := float(guarded.defense) / float(open.defense)
+	if not is_equal_approx(expect, (fort + 0.10) / fort):
+		print("Battle: FAIL home guard ", expect, " fort ", fort)
+		return false
+	var gear0 := float(sq.gear)
+	game.stock.materials = 40
+	var shop := "room_0_1_workshop"
+	if not game.apply({"kind": "upgrade", "room": shop}) or bool(sq.get("armor_fit", false)):
+		print("Battle: FAIL first upgrade")
+		return false
+	if not game.apply({"kind": "upgrade", "room": shop}) or not bool(sq.armor_fit):
+		print("Battle: FAIL armor upgrade")
+		return false
+	if not is_equal_approx(float(sq.gear), gear0 + 0.15):
+		print("Battle: FAIL gear ", sq.gear)
+		return false
+	var plated := false
+	for note in game.notices:
+		if str(note) == Copy.t("combat.toast.armor"):
+			plated = true
+	if not plated:
+		print("Battle: FAIL armor notice")
+		return false
+	game.stations[hop].owner = "directorate"
+	game.stations[hop].known = true
+	game.stations[hop].garrison = 1
+	game.stations[hop].fort = 0.2
+	game.stations[hop].unrest = 0
+	var before_station := str(sq.station)
+	if game._order_patrol(hop) or str(sq.station) != before_station:
+		print("Battle: FAIL patrol fought a hostile")
+		return false
+	game.injury_bias = 0.0
+	sq.gear = 8.0
+	game.stock.food = 30
+	var pop0 := game.residents.size()
+	if not game._order_raid(hop, true) or game.residents.size() >= pop0:
+		print("Battle: FAIL raid deaths ", pop0, " -> ", game.residents.size(), " block ", game._raid_gate(hop))
+		return false
+	var fresh := Game.new()
+	fresh.setup(catalog, 5, 40)
+	fresh.week = 4
+	fresh.injury_bias = 1.0
+	var side := ""
+	for n in fresh._neighbors(fresh.capital_id):
+		side = str(n)
+		break
+	fresh.stations[side].owner = "directorate"
+	fresh.stations[side].known = true
+	fresh.stations[side].garrison = 1
+	fresh.stations[side].fort = 0.2
+	fresh.stations[side].unrest = 0
+	fresh.stations[side].low_weeks = 2
+	fresh.at_war.directorate = true
+	fresh.squads[fresh.player].gear = 8.0
+	var hope0 := fresh.hope
+	var pop1 := fresh.residents.size()
+	if not fresh._order_assault(side, true):
+		print("Battle: FAIL assault ", fresh._assault_gate(side))
+		return false
+	if str(fresh.stations[side].owner) != fresh.player:
+		print("Battle: FAIL force capture")
+		return false
+	if fresh.hope - hope0 != int(fresh.bal.assault_hope):
+		print("Battle: FAIL hope ", fresh.hope - hope0, " expected ", fresh.bal.assault_hope)
+		return false
+	if fresh.residents.size() != pop1:
+		print("Battle: FAIL injuries killed ", pop1, " -> ", fresh.residents.size())
+		return false
+	var pushed := Game.new()
+	pushed.setup(catalog, 7, 40)
+	pushed.week = 4
+	pushed.injury_bias = 1.0
+	var gate := ""
+	for n in pushed._neighbors(pushed.capital_id):
+		gate = str(n)
+		break
+	pushed.stations[gate].owner = "directorate"
+	pushed.stations[gate].known = true
+	pushed.stations[gate].garrison = 1
+	pushed.stations[gate].fort = 0.2
+	pushed.stations[gate].low_weeks = 0
+	pushed.stations[gate].unrest = 0
+	pushed.at_war.directorate = true
+	pushed.squads[pushed.player].gear = 8.0
+	pushed.artifacts.breach = 1
+	if not pushed._order_assault(gate, true) or str(pushed.stations[gate].owner) != pushed.player or int(pushed.artifacts.breach) != 0:
+		print("Battle: FAIL breach skip ", pushed._assault_gate(gate), " owner ", pushed.stations[gate].owner)
+		return false
+	var preview: Dictionary = game.battle_preview("raid", hop)
+	if not preview.has("named_at_risk") or not preview.has("mods"):
+		print("Battle: FAIL preview shape")
+		return false
+	print("Battle: ok")
 	return true
 
 
