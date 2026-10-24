@@ -9978,17 +9978,6 @@ class Yard extends Control:
 		"kneeling": "res://assets/figures/fig_kneeling.webp",
 		"sitting": "res://assets/figures/fig_sitting.webp",
 	}
-	const LAMP := {
-		"air_filter": Color(0.62, 0.82, 1.0, 0.42),
-		"generator": Color(1.0, 0.32, 0.10, 0.46),
-		"infirmary": Color(0.55, 0.95, 0.68, 0.40),
-		"hydroponics": Color(1.0, 0.38, 0.58, 0.42),
-		"quarters": Color(1.0, 0.62, 0.28, 0.40),
-		"workshop": Color(0.95, 0.55, 0.22, 0.16),
-		"meeting_hall": Color(0.72, 0.58, 0.95, 0.16),
-		"radio": Color(0.55, 0.78, 1.0, 0.18),
-		"platform": Color(1.0, 0.72, 0.40, 0.14),
-	}
 	# Backdrop image: tunnel rail, and how much of each side is the mouth.
 	const BACKDROP_RAIL := 0.783
 	# Inner lip of each tunnel mouth, so the arches meet the station edges.
@@ -10004,18 +9993,32 @@ class Yard extends Control:
 	var tier_cache := {}
 	var poses := {}
 	var figure_scale_px := 660.0
-	var lamp_glow: Texture2D
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
-	## Station structure, painted (docs/briefs/art_station_walls_prompts.txt): a pillar on every boundary between
-	## cells, a slab across every gap between levels, a soft shadow at every cell's edges. Each one is only drawn
-	## when its picture is in assets/station/; nothing here is drawn as geometry.
-	var wall_pillar: Texture2D
-	var floor_slab: Texture2D
-	var room_shade: Texture2D
-	const WALL_DIR := "res://assets/station/"
-	## Widest a pillar may be, as a share of a cell (wider pictures are cropped at the sides, never squashed).
-	const PILLAR_W := 0.3
+	## Room separation from Underline_Asset_Pack. Every picture is placed as-is: no wall is drawn as geometry.
+	## SEP_W is the steel divider centred on each grid line, as a share of a cell. SKIN_W is how far that room's
+	## own wall finish reaches in from the same line. BEAM_H is the ceiling beam between levels, as a share of
+	## the cell height. AO strips darken the room toward those edges so a lamp cannot read as the next room's.
+	const SEP_W := 0.14
+	const SKIN_W := 0.11
+	const BEAM_H := 0.26
+	const AO_SIDE := 0.22
+	const AO_EDGE := 0.16
+	var wall_bulkhead: Texture2D
+	var wall_pillar_face: Texture2D
+	var wall_blast: Texture2D
+	var sep_pillar: Texture2D
+	var sep_frame: Texture2D
+	var sep_trim: Texture2D
+	var edge_beam: Texture2D
+	var ao_corner: Texture2D
+	var ao_door: Texture2D
+	var ao_floor: Texture2D
+	var ao_ceiling: Texture2D
+	var room_walls: Array = []
+	var room_glows: Array = []
+	## "level:cell" -> 0..3. Orthogonal neighbours never share a finish or a light.
+	var style_now := {}
 	var backdrop_tex: Texture2D
 	var scaffold: Texture2D
 	var ghosts := {}
@@ -10157,9 +10160,7 @@ class Yard extends Control:
 			art_aspect = float(tex.get_width()) / float(tex.get_height())
 			art[type] = tex
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
-		wall_pillar = _station_art("wall_pillar")
-		floor_slab = _station_art("floor_slab")
-		room_shade = _station_art("room_shade")
+		_load_separation()
 		cell_dug = ArtPack.load_texture("res://assets/cells/cell_dug.webp")
 		backdrop_tex = ArtPack.load_texture("res://assets/backdrop_station.webp")
 		for pose_name in POSE_ART:
@@ -10596,6 +10597,7 @@ class Yard extends Control:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.06, 0.07))
 		draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
 		var geo := _geo()
+		style_now = _room_styles()
 		_draw_backdrop(geo)
 		var span := float(geo.w) * 6.0
 		for gap in 2:
@@ -10610,59 +10612,228 @@ class Yard extends Control:
 		_draw_room_chrome(geo)
 		_draw_hover_label(geo)
 
-	## A station structure picture from assets/station/ (.png or .webp), or null while it has not been delivered.
-	func _station_art(stem: String) -> Texture2D:
-		for ext in [".png", ".webp"]:
-			var path: String = WALL_DIR + stem + ext
-			if ResourceLoader.exists(path):
-				return ArtPack.load_texture(path)
-		return null
+	func _load_separation() -> void:
+		wall_bulkhead = ArtPack.load_texture("res://assets/walls/wall_concrete_bulkhead_albedo.png")
+		wall_pillar_face = ArtPack.load_texture("res://assets/walls/wall_concrete_pillar_steel_edge_albedo.png")
+		wall_blast = ArtPack.load_texture("res://assets/walls/wall_blast_door_panel_albedo.png")
+		sep_pillar = ArtPack.load_texture("res://assets/separators/sep_pillar_panel_albedo.png")
+		sep_frame = ArtPack.load_texture("res://assets/separators/sep_door_frame_albedo.png")
+		sep_trim = ArtPack.load_texture("res://assets/separators/sep_bulkhead_trim_albedo.png")
+		edge_beam = ArtPack.load_texture("res://assets/edges/edge_ceiling_beam_albedo.png")
+		ao_corner = ArtPack.load_texture("res://assets/edges/ao_edge_strip_vertical_corner.png")
+		ao_door = ArtPack.load_texture("res://assets/edges/ao_doorway_shadow_band.png")
+		ao_floor = ArtPack.load_texture("res://assets/edges/ao_edge_strip_floor_wall.png")
+		ao_ceiling = ArtPack.load_texture("res://assets/edges/ao_edge_strip_ceiling_wall.png")
+		room_walls = [
+			ArtPack.load_texture("res://assets/walls/wall_metro_tile_albedo.png"),
+			ArtPack.load_texture("res://assets/walls/wall_concrete_worn_albedo.png"),
+			ArtPack.load_texture("res://assets/walls/wall_painted_steel_albedo.png"),
+			ArtPack.load_texture("res://assets/walls/wall_metal_ribbed_albedo.png"),
+		]
+		room_glows = [
+			ArtPack.load_texture("res://assets/lights/glow_coolwhite.png"),
+			ArtPack.load_texture("res://assets/lights/glow_amber.png"),
+			ArtPack.load_texture("res://assets/lights/glow_teal.png"),
+			ArtPack.load_texture("res://assets/lights/glow_red.png"),
+		]
 
-	## How far a pillar reaches into a cell from each side (half its width), so room notes and badges sit clear of
-	## it; 0 while there is no pillar picture.
+	## Public halls, service rooms, utility rooms, restricted rooms. Neighbours are nudged off a shared choice.
+	func _style_pref(room_type: String) -> int:
+		match room_type:
+			"platform", "meeting_hall":
+				return 0
+			"air_filter", "infirmary", "radio":
+				return 2
+			"generator":
+				return 3
+			_:
+				return 1
+
+	func _room_styles() -> Dictionary:
+		var out := {}
+		if station == null or station.game == null:
+			return out
+		for level in 3:
+			for cell in 6:
+				var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
+				if _kind(spot) != "room":
+					continue
+				var room = station.game._room(str(spot.room))
+				var pref := _style_pref(str(room.type) if room != null else "")
+				var left := int(out.get("%d:%d" % [level, cell - 1], -1)) if cell > 0 else -1
+				var up := int(out.get("%d:%d" % [level - 1, cell], -1)) if level > 0 else -1
+				var style := pref
+				while style == left or style == up:
+					style = (style + 1) % 4
+					if style == pref:
+						break
+				out["%d:%d" % [level, cell]] = style
+		return out
+
+	func _edge_style(level: int, edge: int) -> int:
+		var left := int(style_now.get("%d:%d" % [level, edge - 1], -1)) if edge > 0 else -1
+		var right := int(style_now.get("%d:%d" % [level, edge], -1)) if edge < 6 else -1
+		if left >= 0:
+			return left
+		if right >= 0:
+			return right
+		return 1
+
+	func _face_tex(style: int) -> Texture2D:
+		match style:
+			0:
+				return sep_frame
+			2:
+				return sep_pillar
+			3:
+				return wall_blast
+			_:
+				return wall_pillar_face
+
+	## How far the wall finish reaches into a cell, so notes and badges sit clear of it.
 	func _wall_inset() -> float:
-		if wall_pillar == null:
-			return 0.0
-		var geo := _geo()
-		var art := wall_pillar.get_size()
-		var tall := float(geo.h) + float(geo.band)
-		return minf(tall * art.x / maxf(art.y, 1.0), float(geo.w) * PILLAR_W) * 0.5
+		return float(_geo().w) * SKIN_W
 
-	## Walls between rooms: the edge shadow over every cell that is open (rooms and dug cells), the slab across
-	## every gap between levels and above and below the station, then a pillar on every cell boundary and at both
-	## ends, standing over the slabs. Hidden cells stay as they are.
+	func _beam_overlap(geo: Dictionary) -> float:
+		return maxf(0.0, float(geo.h) * BEAM_H - float(geo.band)) * 0.5
+
+	## The glow picture fades to nothing at its own edge. Inset to the steel, it cannot enter the next cell.
+	func _light_rect(rect: Rect2) -> Rect2:
+		var geo := _geo()
+		var ix := float(geo.w) * SEP_W * 0.5
+		var iy := _beam_overlap(geo)
+		return Rect2(
+			rect.position + Vector2(ix, iy),
+			Vector2(maxf(4.0, rect.size.x - ix * 2.0), maxf(4.0, rect.size.y - iy * 2.0)))
+
+	func _blit_tex(tex: Texture2D, dest: Rect2, modulate := Color.WHITE, flip_h := false, flip_v := false) -> void:
+		if tex == null or dest.size.x == 0.0 or dest.size.y == 0.0:
+			return
+		var r := dest
+		if flip_h:
+			r.position.x += r.size.x
+			r.size.x = -r.size.x
+		if flip_v:
+			r.position.y += r.size.y
+			r.size.y = -r.size.y
+		draw_texture_rect(tex, r, false, modulate)
+
+	## Repeat a picture along a strip. src picks a band out of a square sheet; an empty src uses the whole picture.
+	func _blit_tiles(tex: Texture2D, dest: Rect2, along_x: bool, src := Rect2()) -> void:
+		if tex == null or dest.size.x <= 1.0 or dest.size.y <= 1.0:
+			return
+		if src.size.x <= 1.0 or src.size.y <= 1.0:
+			src = Rect2(Vector2.ZERO, tex.get_size())
+		if along_x:
+			var tile_w := dest.size.y * src.size.x / src.size.y
+			if tile_w < 1.0:
+				return
+			var x := dest.position.x
+			while x < dest.end.x - 0.5:
+				var slice := minf(tile_w, dest.end.x - x)
+				draw_texture_rect_region(
+					tex,
+					Rect2(x, dest.position.y, slice, dest.size.y),
+					Rect2(src.position.x, src.position.y, src.size.x * slice / tile_w, src.size.y))
+				x += slice
+		else:
+			var tile_h := dest.size.x * src.size.y / src.size.x
+			if tile_h < 1.0:
+				return
+			var y := dest.position.y
+			while y < dest.end.y - 0.5:
+				var slice := minf(tile_h, dest.end.y - y)
+				draw_texture_rect_region(
+					tex,
+					Rect2(dest.position.x, y, dest.size.x, slice),
+					Rect2(src.position.x, src.position.y, src.size.x, src.size.y * slice / tile_h))
+				y += slice
+
+	func _blit_rotated(tex: Texture2D, center: Vector2, extents: Vector2, angle: float) -> void:
+		if tex == null:
+			return
+		draw_set_transform(pan + center * zoom, angle, Vector2(zoom, zoom))
+		draw_texture_rect(tex, Rect2(-extents.x * 0.5, -extents.y * 0.5, extents.x, extents.y), false)
+		draw_set_transform(pan, 0.0, Vector2(zoom, zoom))
+
+	func _draw_ao(rect: Rect2) -> void:
+		var side := rect.size.x * AO_SIDE
+		if ao_corner != null:
+			_blit_tex(ao_corner, Rect2(rect.position.x, rect.position.y, side, rect.size.y))
+			_blit_tex(ao_corner, Rect2(rect.end.x - side, rect.position.y, side, rect.size.y), Color.WHITE, true, false)
+		var lip := rect.size.y * AO_EDGE
+		if ao_ceiling != null:
+			_blit_tex(ao_ceiling, Rect2(rect.position.x, rect.position.y, rect.size.x, lip), Color.WHITE, false, true)
+		if ao_floor != null:
+			_blit_tex(ao_floor, Rect2(rect.position.x, rect.end.y - lip, rect.size.x, lip), Color.WHITE, false, true)
+
+	func _draw_skin(rect: Rect2, style: int) -> void:
+		var tex: Texture2D = room_walls[style] if style >= 0 and style < room_walls.size() else null
+		if tex == null:
+			tex = wall_bulkhead
+		if tex == null:
+			return
+		var skin := rect.size.x * SKIN_W
+		_blit_tiles(tex, Rect2(rect.position.x, rect.position.y, skin, rect.size.y), false)
+		_blit_tiles(tex, Rect2(rect.end.x - skin, rect.position.y, skin, rect.size.y), false)
+
+	## Separators hung on the grid: a beam between levels, a bulkhead and a face on every vertical line,
+	## each open cell darkened toward those edges. Pictures only.
 	func _draw_structure(geo: Dictionary) -> void:
 		var w := float(geo.w)
 		var h := float(geo.h)
 		var band := float(geo.band)
 		var origin: Vector2 = geo.origin
-		if room_shade != null:
+		for level in 3:
+			for cell in 6:
+				if _job_span(level, cell).x >= 0:
+					continue
+				var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
+				var kind := _kind(spot)
+				if kind != "room" and kind != "dug":
+					continue
+				var rect := _rect(geo, level, cell)
+				var style := int(style_now.get("%d:%d" % [level, cell], 1))
+				_draw_skin(rect, style if kind == "room" else 1)
+				_draw_ao(rect)
+		if ao_door != null:
+			var reach := w * SEP_W * 1.35
+			var span := h + band
 			for level in 3:
-				for cell in 6:
-					var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
-					if _kind(spot) in ["room", "dug"] and _job_span(level, cell).x < 0:
-						draw_texture_rect(room_shade, _rect(geo, level, cell), false)
-		if floor_slab != null:
-			## One slab per cell at the picture's own proportions, so every seam sits behind a pillar.
-			var tex := floor_slab.get_size()
-			var slab_h := w * tex.y / maxf(tex.x, 1.0)
+				var mid_y := origin.y + float(level) * (h + band) - band * 0.5 + span * 0.5
+				for edge in 7:
+					_blit_rotated(ao_door, Vector2(origin.x + float(edge) * w, mid_y), Vector2(span, reach), PI * 0.5)
+		if edge_beam != null:
+			var beam_h := h * BEAM_H
+			var sheet := edge_beam.get_size()
+			var src := Rect2(0.0, sheet.y * 0.38, sheet.x, sheet.y * 0.28)
 			for gap in 4:
 				var mid := origin.y + float(gap) * (h + band) - band * 0.5
-				for cell in 6:
-					draw_texture_rect(floor_slab, Rect2(origin.x + float(cell) * w, mid - slab_h * 0.5, w, slab_h), false)
-		if wall_pillar != null:
-			## From the middle of the slab above to the middle of the slab below, at the picture's own proportions.
-			var art := wall_pillar.get_size()
-			var tall := h + band
-			var natural := tall * art.x / maxf(art.y, 1.0)
-			var pillar_w := minf(natural, w * PILLAR_W)
-			var src_w := art.x * pillar_w / maxf(natural, 0.001)
-			var src := Rect2((art.x - src_w) * 0.5, 0.0, src_w, art.y)
-			for level in 3:
-				var top := origin.y + float(level) * (h + band) - band * 0.5
-				for edge in 7:
-					var x := origin.x + float(edge) * w - pillar_w * 0.5
-					draw_texture_rect_region(wall_pillar, Rect2(x, top, pillar_w, tall), src)
+				_blit_tiles(edge_beam, Rect2(origin.x, mid - beam_h * 0.5, w * 6.0, beam_h), true, src)
+		var col_w := w * SEP_W
+		var tall := h + band
+		var trim_src := Rect2()
+		if sep_trim != null:
+			var trim_sheet := sep_trim.get_size()
+			trim_src = Rect2(0.0, trim_sheet.y * 0.235, trim_sheet.x, trim_sheet.y * 0.125)
+		for level in 3:
+			var top := origin.y + float(level) * (h + band) - band * 0.5
+			for edge in 7:
+				var style := _edge_style(level, edge)
+				var x := origin.x + float(edge) * w - col_w * 0.5
+				var column := Rect2(x, top, col_w, tall)
+				if wall_bulkhead != null:
+					_blit_tiles(wall_bulkhead, column, false)
+				var face := _face_tex(style)
+				var face_w := col_w * 0.78
+				var face_dest := Rect2(x + (col_w - face_w) * 0.5, top, face_w, tall)
+				if face == wall_blast:
+					_blit_tex(face, face_dest)
+				else:
+					_blit_tiles(face, face_dest, false)
+				if sep_trim != null:
+					var lintel_h := col_w * 0.5
+					_blit_tiles(sep_trim, Rect2(x, top, col_w, lintel_h), true, trim_src)
 
 	func _platform_rail_y(geo: Dictionary) -> float:
 		var plat := _rect(geo, 1, 0)
@@ -10762,7 +10933,7 @@ class Yard extends Control:
 			if room != null and not off:
 				_draw_motes(rect, salt)
 			if room != null and int(room.upgrade) > 0 and tier_tex == null:
-				_draw_tier_light(rect, int(room.upgrade))
+				_draw_tier_light(rect, int(room.upgrade), room_type, level, cell)
 		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
 		if losing:
 			draw_rect(rect, Color(0, 0, 0, _lamp(level, cell)))
@@ -10953,39 +11124,23 @@ class Yard extends Control:
 		draw_rect(ring, Color(0.95, 0.84, 0.55, alpha), false, 2.0)
 		_draw_status(rect.get_center() - Vector2(12, 12), "dig")
 
-	func _lamp_texture() -> Texture2D:
-		if lamp_glow != null:
-			return lamp_glow
-		var n := 64
-		var image := Image.create(n, n, false, Image.FORMAT_RGBA8)
-		var center := Vector2(float(n) * 0.5, float(n) * 0.5)
-		var radius := float(n) * 0.5
-		for y in n:
-			for x in n:
-				var dist := Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(center) / radius
-				var alpha := 0.0
-				if dist < 1.0:
-					alpha = pow(1.0 - dist, 2.0) * 0.15
-				image.set_pixel(x, y, Color(1, 1, 1, alpha))
-		lamp_glow = ImageTexture.create_from_image(image)
-		return lamp_glow
+	func _glow_tex(level: int, cell: int, room_type: String) -> Texture2D:
+		var style := _style_pref(room_type) if room_type != "" else int(style_now.get("%d:%d" % [level, cell], 1))
+		if style < 0 or style >= room_glows.size():
+			return null
+		return room_glows[style]
 
 	func _draw_lamp_glow(rect: Rect2, room_type: String, salt := 0, weak := false, off := false) -> void:
-		var tex := _lamp_texture()
-		if tex == null:
-			return
+		var level := int(salt / 6)
+		var cell := salt % 6
+		var tex := _glow_tex(level, cell, room_type)
 		var lit := 0.0 if off else _flicker(salt, weak)
 		if lit < 1.0:
-			draw_rect(rect, Color(0, 0, 0, (1.0 - lit) * 0.3))
-		var warm := Color(1.0, 0.78, 0.46, 1.0)
-		var typed: Color = LAMP.get(room_type, warm)
-		var col := warm.lerp(Color(typed.r, typed.g, typed.b, 1.0), 0.12)
-		col.a = 1.0
-		var glow_w := rect.size.x * 0.34
-		var glow_h := rect.size.y * 0.28
-		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.06)
-		col.a = lit
-		draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, col)
+			var inner := _light_rect(rect)
+			draw_rect(inner, Color(0, 0, 0, (1.0 - lit) * 0.45))
+		if tex == null or lit <= 0.0:
+			return
+		draw_texture_rect(tex, _light_rect(rect), false, Color(1, 1, 1, 0.45 * lit))
 
 	## How bright a room's lamps burn this frame, 0..1: a slow, barely visible breath; only a room short of power
 	## dips now and then, slowly enough not to strobe. Still with reduce motion.
@@ -11046,18 +11201,12 @@ class Yard extends Control:
 			var a := 0.5 * sin(fall * PI)
 			draw_circle(Vector2(x, y), maxf(0.8, rect.size.y * 0.0045), Color(1.0, 0.86, 0.6, a))
 
-	## An upgraded room's lamps burn warmer and wider and the room reads a little brighter, more with each tier.
-	func _draw_tier_light(rect: Rect2, tier: int) -> void:
-		draw_rect(rect, Color(1.0, 0.82, 0.5, 0.04 + 0.03 * float(tier)))
-		var tex := _lamp_texture()
+	## An upgraded room's own lamp burns a little brighter. Same picture, same bounds, so it still stops at the wall.
+	func _draw_tier_light(rect: Rect2, tier: int, room_type: String, level: int, cell: int) -> void:
+		var tex := _glow_tex(level, cell, room_type)
 		if tex == null:
 			return
-		var warm := Color(1.0, 0.74, 0.4, 1.0)
-		var glow_w := rect.size.x * (0.5 + 0.1 * float(tier))
-		var glow_h := rect.size.y * (0.4 + 0.08 * float(tier))
-		var origin := rect.position + Vector2((rect.size.x - glow_w) * 0.5, rect.size.y * 0.02)
-		for i in tier + 1:
-			draw_texture_rect(tex, Rect2(origin, Vector2(glow_w, glow_h)), false, warm)
+		draw_texture_rect(tex, _light_rect(rect), false, Color(1, 1, 1, 0.14 + 0.06 * float(tier)))
 
 	## The brass flash on a room just upgraded, fading out over UPGRADE_FLASH_MS.
 	func _draw_flash(rect: Rect2, uid: String) -> void:
