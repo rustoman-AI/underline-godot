@@ -7371,7 +7371,7 @@ func _hub_texture() -> Texture2D:
 	if game == null:
 		return null
 	var path := ""
-	if str(game.capital_id) == "coney" and str(game.player) == "depot":
+	if str(game.capital_id) in ["coney", "southdepot"] and str(game.player) == "depot":
 		path = "res://assets/hubs/hub_coney_island.webp"
 	if path == "":
 		return null
