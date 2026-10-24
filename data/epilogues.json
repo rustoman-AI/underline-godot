@@ -1,0 +1,390 @@
+{
+  "verdicts": {
+    "time": {
+      "watch": {
+        "en": "Forty weeks on the Timetable. The yard held.",
+        "ru": "Сорок недель по Расписанию. Двор устоял."
+      },
+      "chapel": {
+        "en": "Forty weeks under the Covenant. The lamps stayed lit.",
+        "ru": "Сорок недель под Заветом. Лампы не гасли."
+      },
+      "market": {
+        "en": "Forty weeks, and every debt was paid. The yard stayed open.",
+        "ru": "Сорок недель, и все долги закрыты. Двор остался открыт."
+      },
+      "none": {
+        "en": "Forty weeks. The Depot kept its own counsel.",
+        "ru": "Сорок недель. Депо держало своё слово."
+      }
+    },
+    "revolt": {
+      "watch": {
+        "en": "The platform turned on the Timetable.",
+        "ru": "Платформа повернулась против Расписания."
+      },
+      "chapel": {
+        "en": "The platform turned on the Covenant.",
+        "ru": "Платформа повернулась против Завета."
+      },
+      "market": {
+        "en": "The platform turned on the price.",
+        "ru": "Платформа повернулась против цены."
+      },
+      "none": {
+        "en": "The platform turned on the yard.",
+        "ru": "Платформа повернулась против двора."
+      }
+    },
+    "hope": {
+      "watch": {
+        "en": "Hope ran out under the Watch.",
+        "ru": "Надежда кончилась под Дозором."
+      },
+      "chapel": {
+        "en": "Hope ran out in the Chapel.",
+        "ru": "Надежда кончилась в Часовне."
+      },
+      "market": {
+        "en": "Hope ran out at the Rate.",
+        "ru": "Надежда кончилась у Курса."
+      },
+      "none": {
+        "en": "Hope ran out. The work stopped.",
+        "ru": "Надежда кончилась. Работа встала."
+      }
+    },
+    "collapse": {
+      "watch": {
+        "en": "The yard emptied under the Watch.",
+        "ru": "Двор опустел под Дозором."
+      },
+      "chapel": {
+        "en": "The yard emptied under the Covenant.",
+        "ru": "Двор опустел под Заветом."
+      },
+      "market": {
+        "en": "The yard emptied when the Rate closed.",
+        "ru": "Двор опустел, когда Курс закрылся."
+      },
+      "none": {
+        "en": "The yard emptied. Fewer than eight stayed.",
+        "ru": "Двор опустел. Меньше восьми осталось."
+      }
+    },
+    "capital": {
+      "watch": {
+        "en": "The capital was lost. The Timetable had no answer.",
+        "ru": "Столица потеряна. У Расписания не нашлось ответа."
+      },
+      "chapel": {
+        "en": "The capital was lost. The Covenant did not hold the gate.",
+        "ru": "Столица потеряна. Завет ворота не удержал."
+      },
+      "market": {
+        "en": "The capital was lost. No price bought it back.",
+        "ru": "Столица потеряна. Цена её не вернула."
+      },
+      "none": {
+        "en": "The capital was lost. The Depot had nowhere left to stand.",
+        "ru": "Столица потеряна. Депо негде было стоять."
+      }
+    }
+  },
+  "judgments": [
+    {
+      "id": "sent_down",
+      "en": "Twelve went down the line so the rest could stay. Was the yard worth it?",
+      "ru": "Двенадцать ушли вниз по линии, чтобы остальные остались. Стоил ли двор этого?"
+    },
+    {
+      "id": "sealed_sick",
+      "en": "You sealed the sick below and kept the air. Was that mercy, or accounting?",
+      "ru": "Вы запечатали больных внизу и сохранили воздух. Это была милость или учёт?"
+    },
+    {
+      "id": "turned_away",
+      "en": "You turned people from the gate. The tags they left are still on the post. Who were you saving?",
+      "ru": "Вы не пустили людей у ворот. Их жетоны всё ещё на столбе. Кого вы спасали?"
+    },
+    {
+      "id": "sold_route",
+      "en": "You sold Fran's route to keep Rhee quiet. Did the tokens buy silence, or only time?",
+      "ru": "Вы сдали маршрут Фрэн, чтобы Ри замолчал. Жетоны купили тишину — или только время?"
+    },
+    {
+      "id": "ledger_dead",
+      "en": "The Ledger took the names. The materials came back. What did you bury?",
+      "ru": "Гроссбух забрал имена. Материалы вернулись. Что вы похоронили?"
+    },
+    {
+      "id": "timetable",
+      "en": "The Timetable kept the revolt at bay. Someone still went down the line each week. Did order save you?",
+      "ru": "Расписание держало бунт на расстоянии. Кто-то всё равно уходил вниз каждую неделю. Спас ли вас порядок?"
+    },
+    {
+      "id": "covenant",
+      "en": "You kept the Covenant and the hope floor. The Ex-drivers never forgave it. Whose faith was it?",
+      "ru": "Вы держали Завет и пол надежды. Бывшие машинисты так и не простили. Чья это была вера?"
+    },
+    {
+      "id": "price",
+      "en": "Everything had a price. You sold a bunk and bought a week. Who set the Rate?",
+      "ru": "У всего была цена. Вы продали койку и купили неделю. Кто выставил Курс?"
+    },
+    {
+      "id": "cough_list",
+      "en": "Three sick went to Flushing and did not all come back. Was the list kinder than the seal?",
+      "ru": "Трое больных ушли во Флашинг — и вернулись не все. Был ли список мягче, чем печать?"
+    },
+    {
+      "id": "held_stations",
+      "en": "You held five stations and lost the people who took them. What did the pins cost?",
+      "ru": "Вы держали пять станций и потеряли тех, кто их брал. Сколько стоили булавки?"
+    },
+    {
+      "id": "floor_papers",
+      "en": "You chased the Floor and the papers. The bunkers did not give them freely. What did you leave behind?",
+      "ru": "Вы гнались за Этажом и страницами. Бункеры отдавали их недаром. Что вы оставили позади?"
+    },
+    {
+      "id": "quiet_survive",
+      "en": "No creed. No line. Forty weeks of work and quiet losses. Was keeping your hands clean enough?",
+      "ru": "Без кредо. Без черты. Сорок недель работы и тихих потерь. Хватило ли чистых рук?"
+    }
+  ],
+  "fates": [
+    {
+      "id": "survived_40",
+      "en": "{name} was still on the platform at week 40.",
+      "ru": "{name} всё ещё стоял{a} на платформе на 40-й неделе."
+    },
+    {
+      "id": "kept_room",
+      "en": "{name} kept the {room} until the end.",
+      "ru": "{name} держал{a} {room} до конца."
+    },
+    {
+      "id": "kept_room_left",
+      "en": "{name} kept the {room} until week {week}, then walked to {place}.",
+      "ru": "{name} держал{a} {room} до {week}-й недели, потом ушёл{a} на {place}."
+    },
+    {
+      "id": "walked_place",
+      "en": "{name} walked to {place} in week {week}.",
+      "ru": "{name} ушёл{a} на {place} на {week}-й неделе."
+    },
+    {
+      "id": "walked_dilemma",
+      "en": "{name} walked after the choice at week {week}. The gate still remembers.",
+      "ru": "{name} ушёл{a} после выбора на {week}-й неделе. Ворота всё ещё помнят."
+    },
+    {
+      "id": "died_sick",
+      "en": "{name} died of sickness in week {week}.",
+      "ru": "{name} умер{a} от болезни на {week}-й неделе."
+    },
+    {
+      "id": "died_cough",
+      "en": "{name} died in the cough in week {week}.",
+      "ru": "{name} умер{a} в кашле на {week}-й неделе."
+    },
+    {
+      "id": "died_food",
+      "en": "{name} died in the food shortage in week {week}.",
+      "ru": "{name} умер{a} в нехватку еды на {week}-й неделе."
+    },
+    {
+      "id": "died_air",
+      "en": "{name} died when the air ran out in week {week}.",
+      "ru": "{name} умер{a}, когда кончился воздух, на {week}-й неделе."
+    },
+    {
+      "id": "died_battle",
+      "en": "{name} fell in the fight for {place} in week {week}.",
+      "ru": "{name} пал{a} в бою за {place} на {week}-й неделе."
+    },
+    {
+      "id": "died_sealed",
+      "en": "{name} was below when the level was sealed in week {week}.",
+      "ru": "{name} был{a} внизу, когда ярус запечатали на {week}-й неделе."
+    },
+    {
+      "id": "died_accident",
+      "en": "{name} died in the {room} in week {week}. The tools were still warm.",
+      "ru": "{name} погиб{a} в {room} на {week}-й неделе. Инструменты ещё были тёплыми."
+    },
+    {
+      "id": "buried",
+      "en": "{name} was buried in week {week}. The hall was quiet.",
+      "ru": "{name} похоронили на {week}-й неделе. В зале было тихо."
+    },
+    {
+      "id": "ledger",
+      "en": "{name}'s name went into the Ledger in week {week}.",
+      "ru": "Имя {name} ушло в Гроссбух на {week}-й неделе."
+    },
+    {
+      "id": "council_held",
+      "en": "{name} held the {seat} seat through week 40.",
+      "ru": "{name} держал{a} пост {seat} до 40-й недели."
+    },
+    {
+      "id": "council_broke",
+      "en": "{name} broke under the {seat} orders in week {week}.",
+      "ru": "{name} сломал{a}ся под приказами {seat} на {week}-й неделе."
+    },
+    {
+      "id": "council_replaced",
+      "en": "{name} left the {seat} seat in week {week}. Someone else took the chair.",
+      "ru": "{name} покинул{a} пост {seat} на {week}-й неделе. Кресло занял другой."
+    },
+    {
+      "id": "known_lost",
+      "en": "{name} was Known. Losing them cost more than a bunk.",
+      "ru": "{name} был{a} Известным. Потеря стоила больше койки."
+    },
+    {
+      "id": "night_runner",
+      "en": "{name} ran the night routes until week {week}.",
+      "ru": "{name} ходил{a} ночными маршрутами до {week}-й недели."
+    },
+    {
+      "id": "check_hero",
+      "en": "{name} passed the hard checks. The yard still says the name.",
+      "ru": "{name} проходил{a} тяжёлые проверки. На дворе всё ещё говорят это имя."
+    },
+    {
+      "id": "stayed_sick",
+      "en": "{name} worked sick through week {week}. The cough took them after.",
+      "ru": "{name} работал{a} больным до {week}-й недели. Потом забрал кашель."
+    },
+    {
+      "id": "refuge_taken",
+      "en": "{name} came in at the gate and stayed until the end.",
+      "ru": "{name} пришёл{a} у ворот и остался{a} до конца."
+    },
+    {
+      "id": "child_grew",
+      "en": "{name} grew up in the yard. Week {week} was the first shift.",
+      "ru": "{name} вырос{a} во дворе. {week}-я неделя — первая смена."
+    },
+    {
+      "id": "left_conviction",
+      "en": "{name} left for a {lean} station when the laws turned against them.",
+      "ru": "{name} ушёл{a} на станцию {lean}, когда законы пошли против него{ee}."
+    },
+    {
+      "id": "bond_grief",
+      "en": "{name} never recovered after losing {other}.",
+      "ru": "{name} так и не оправился{a} после потери {other}."
+    },
+    {
+      "id": "inspired",
+      "en": "{name} stayed Inspired through the worst weeks.",
+      "ru": "{name} оставался{a} Воодушевлённым в худшие недели."
+    },
+    {
+      "id": "seasoned",
+      "en": "{name} became Seasoned in the {room}.",
+      "ru": "{name} стал{a} Бывалым в {room}."
+    },
+    {
+      "id": "sent_line",
+      "en": "{name} was sent down the line in week {week}. The Timetable required it.",
+      "ru": "{name} отправили вниз по линии на {week}-й неделе. Так требовало Расписание."
+    },
+    {
+      "id": "sold_exchange",
+      "en": "{name} was sold to the Exchange in week {week}. The Rate was paid.",
+      "ru": "{name} продали Бирже на {week}-й неделе. Курс был оплачен."
+    },
+    {
+      "id": "quiet_end",
+      "en": "{name} made it. No story. Just a bunk that stayed filled.",
+      "ru": "{name} дошёл{a}. Без истории. Просто койка, которая осталась занятой."
+    }
+  ],
+  "chronicle": [
+    {
+      "kind": "named_death",
+      "en": "Week {week}: {name} died — {cause}.",
+      "ru": "Неделя {week}: {name} умер{a} — {cause}."
+    },
+    {
+      "kind": "creed_line",
+      "en": "Week {week}: you crossed the line — {law}.",
+      "ru": "Неделя {week}: вы перешли черту — {law}."
+    },
+    {
+      "kind": "station_taken",
+      "en": "Week {week}: took {place}.",
+      "ru": "Неделя {week}: взяли {place}."
+    },
+    {
+      "kind": "station_lost",
+      "en": "Week {week}: lost {place}.",
+      "ru": "Неделя {week}: потеряли {place}."
+    },
+    {
+      "kind": "dilemma",
+      "en": "Week {week}: {title}. You chose {choice}.",
+      "ru": "Неделя {week}: {title}. Вы выбрали: {choice}."
+    },
+    {
+      "kind": "season",
+      "en": "Week {week}: survived the {season}.",
+      "ru": "Неделя {week}: пережили {season}."
+    },
+    {
+      "kind": "crunch",
+      "en": "Week {week}: the three bills came due. You covered two.",
+      "ru": "Неделя {week}: пришли три счёта. Закрыли два."
+    },
+    {
+      "kind": "creed_chosen",
+      "en": "Week {week}: the platform chose the {creed}.",
+      "ru": "Неделя {week}: платформа выбрала {creed}."
+    },
+    {
+      "kind": "refugees",
+      "en": "Week {week}: {n} at the gate. You {choice}.",
+      "ru": "Неделя {week}: у ворот {n}. Вы {choice}."
+    },
+    {
+      "kind": "battle",
+      "en": "Week {week}: fought at {place}. {result}.",
+      "ru": "Неделя {week}: бой у {place}. {result}."
+    },
+    {
+      "kind": "mandate",
+      "en": "Week {week}: took the Mandate — {mandate}.",
+      "ru": "Неделя {week}: взяли Мандат — {mandate}."
+    },
+    {
+      "kind": "floor",
+      "en": "Week {week}: papers reached {n}. The Floor answered.",
+      "ru": "Неделя {week}: страниц стало {n}. Этаж ответил."
+    },
+    {
+      "kind": "promise_kept",
+      "en": "Week {week}: kept a promise to the platform.",
+      "ru": "Неделя {week}: сдержали обещание платформе."
+    },
+    {
+      "kind": "promise_broke",
+      "en": "Week {week}: broke a promise. The platform remembered.",
+      "ru": "Неделя {week}: нарушили обещание. Платформа запомнила."
+    },
+    {
+      "kind": "known_lost",
+      "en": "Week {week}: lost {name}. They were Known.",
+      "ru": "Неделя {week}: потеряли {name}. Он{a} был{a} Известным."
+    },
+    {
+      "kind": "birth",
+      "en": "Week {week}: {name} was born in the yard.",
+      "ru": "Неделя {week}: во дворе родился{a} {name}."
+    }
+  ]
+}

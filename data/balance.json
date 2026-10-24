@@ -44,9 +44,9 @@
   "find_salvage_materials": 8,
   "forecast_weeks": 2,
   "revolt_warn": 70,
-  "rally_discontent": -8,
+  "rally_discontent": -4,
   "rally_hope": 1,
-  "rally_cooldown": 3,
+  "rally_cooldown": 6,
   "event_cooldown": 8,
   "event_minor_cap": 2,
   "law_cooldown": 3,
@@ -78,16 +78,60 @@
   "cough_infect": 3,
   "cough_spread": 0.4,
   "cough_pull": 3,
-  "overcrowd_discontent": 2,
-  "season_discontent": {"flood": 2, "cold": 1, "cough": 1},
-  "season_hope": {"flood": 0, "cold": 0, "cough": 0},
+  "overcrowd_discontent": 1,
+  "season_discontent": {
+    "flood": 3,
+    "cold": 3,
+    "cough": 5
+  },
+  "season_hope": {
+    "flood": 0,
+    "cold": 0,
+    "cough": 0
+  },
   "agent_discontent": 1,
   "agent_every": 6,
   "season_warning": 2,
   "seasons": [
-    {"week": 10, "id": "flood", "weeks": 3},
-    {"week": 20, "id": "cold", "weeks": 3},
-    {"week": 30, "id": "cough", "weeks": 3}
+    {
+      "week": 10,
+      "id": "flood",
+      "weeks": 3
+    },
+    {
+      "week": 20,
+      "id": "cold",
+      "weeks": 3
+    },
+    {
+      "week": 30,
+      "id": "cough",
+      "weeks": 3
+    }
   ],
-  "player_squad": {"size": 8, "gear": 1.1, "name": "Platform guard"}
+  "player_squad": {
+    "size": 8,
+    "gear": 1.1,
+    "name": "Platform guard"
+  },
+  "hardship_hope": -1,
+  "hard_food_weeks": 1.5,
+  "hard_sick_share": 0.12,
+  "comfort_hope": 1,
+  "comfort_food_weeks": 3,
+  "season_jitter": 2,
+  "agent_late_week": 20,
+  "agent_late_bonus": 1,
+  "hard_crowd": false,
+  "hardship_cap": 2,
+  "despair_discontent": 2,
+  "despair_hope": 30,
+  "settled_discontent": -1,
+  "hardship_dis_cap": 1,
+  "settled_needs_beds": false,
+  "address_influence": 3,
+  "hardship_ramp_week": 16,
+  "hardship_discontent_early": 2,
+  "hardship_discontent": 5,
+  "join_discontent": -3
 }
