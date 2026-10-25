@@ -11,6 +11,8 @@ func _init() -> void:
 		print("Catalog: FAIL ", catalog.error)
 		quit(1)
 		return
+	if not _check_banners(catalog):
+		failed = true
 	if not _check_queue(catalog):
 		failed = true
 	if not _check_power(catalog):
@@ -31,6 +33,15 @@ func _init() -> void:
 		return
 	print("SLICE OK")
 	quit(0)
+
+
+func _check_banners(catalog: Catalog) -> bool:
+	var missing := ArtPack.banner_faults(ArtPack.collect_banner_rows(catalog.events, catalog.check_events))
+	if missing.is_empty():
+		print("Banners: ok")
+		return true
+	print("Banners: FAIL %s" % ", ".join(missing))
+	return false
 
 
 func _check_queue(catalog: Catalog) -> bool:

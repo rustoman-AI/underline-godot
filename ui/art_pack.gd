@@ -42,8 +42,98 @@ static func load_font(path: String, cyrillic: bool = false) -> Font:
 	return face
 
 
+## Eight reusable mood plates. event_{hash%8} indexes this pool.
+const MOOD_PLATES := ["dark", "quarrel", "hunger", "scrap", "tools", "sleep", "chapel", "labor"]
+
+
 static func has_event_art(event_id: String) -> bool:
+	if event_id == "":
+		return false
 	return textures().has("res://assets/events/%s.webp" % event_id)
+
+
+## Plate, then the event tag's mood, then event_{hash%8} from MOOD_PLATES.
+static func resolve_event_banner(ev: Dictionary) -> String:
+	var plate := str(ev.get("banner", "")).strip_edges()
+	if plate == "":
+		plate = str(ev.get("id", "")).strip_edges()
+	if has_event_art(plate):
+		return plate
+	var mood := mood_for_tag(str(ev.get("tag", "")).strip_edges())
+	if has_event_art(mood):
+		return mood
+	var id := str(ev.get("id", "")).strip_edges()
+	if id == "":
+		id = plate
+	var hashed := event_hash_mood(id)
+	if has_event_art(hashed):
+		return hashed
+	return ""
+
+
+static func mood_for_tag(tag: String) -> String:
+	if tag != "" and MOOD_PLATES.has(tag):
+		return tag
+	return ""
+
+
+static func event_hash_mood(id: String) -> String:
+	var n := absi(id.hash()) % MOOD_PLATES.size()
+	return str(MOOD_PLATES[n])
+
+
+## Authored banner must name a registered plate. A blank banner still
+## passes when the tag mood or event_{hash%8} plate is registered.
+static func banner_faults(rows: Array) -> PackedStringArray:
+	var missing := PackedStringArray()
+	for row in rows:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var ev: Dictionary = row
+		var id := str(ev.get("id", "")).strip_edges()
+		var label := id if id != "" else "?"
+		var plate := str(ev.get("banner", "")).strip_edges()
+		if plate != "":
+			if not has_event_art(plate):
+				missing.append("%s -> %s" % [label, plate])
+			continue
+		if resolve_event_banner(ev) == "":
+			missing.append(label)
+	return missing
+
+
+static func collect_banner_rows(weighted: Array, check_root: Dictionary) -> Array:
+	var rows: Array = []
+	for ev in weighted:
+		rows.append(ev)
+	var checks = check_root.get("events", [])
+	if checks is Array:
+		for raw in checks:
+			rows.append(raw)
+	for id in crunch_ids():
+		rows.append(crunch_event_art(id))
+	return rows
+
+
+static func crunch_ids() -> PackedStringArray:
+	return PackedStringArray(["pantry", "ducts", "belt", "stacks", "shopbelt", "dynamo"])
+
+
+## Art for the crunch stand-in cards. Not a balance value.
+static func crunch_event_art(id: String) -> Dictionary:
+	match id:
+		"pantry":
+			return {"id": id, "banner": "hunger", "tag": "hunger"}
+		"ducts", "belt":
+			return {"id": id, "banner": "dark", "tag": "dark"}
+		"stacks":
+			return {"id": id, "banner": "rat", "tag": "scrap"}
+		"shopbelt":
+			return {"id": id, "banner": "tools", "tag": "tools"}
+		"dynamo":
+			return {"id": id, "banner": "brownout", "tag": "dark"}
+		_:
+			return {"id": id}
 
 
 static func audit() -> void:
@@ -107,6 +197,14 @@ static func textures() -> Dictionary:
 		"res://assets/events/showtime.webp": preload("res://assets/events/showtime.webp"),
 		"res://assets/events/toll.webp": preload("res://assets/events/toll.webp"),
 		"res://assets/events/vote.webp": preload("res://assets/events/vote.webp"),
+		"res://assets/events/chapel.webp": preload("res://assets/events/chapel.webp"),
+		"res://assets/events/dark.webp": preload("res://assets/events/dark.webp"),
+		"res://assets/events/hunger.webp": preload("res://assets/events/hunger.webp"),
+		"res://assets/events/labor.webp": preload("res://assets/events/labor.webp"),
+		"res://assets/events/quarrel.webp": preload("res://assets/events/quarrel.webp"),
+		"res://assets/events/scrap.webp": preload("res://assets/events/scrap.webp"),
+		"res://assets/events/sleep.webp": preload("res://assets/events/sleep.webp"),
+		"res://assets/events/tools.webp": preload("res://assets/events/tools.webp"),
 	}
 	return _textures
 

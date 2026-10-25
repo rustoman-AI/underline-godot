@@ -88,7 +88,8 @@ func _init() -> void:
 		failed = true
 		print("CHECK TARGET FAIL follower")
 	print("")
-	_print_banners()
+	if not _print_banners():
+		failed = true
 	print("")
 	if failed:
 		print("BOT RUN FAILED")
@@ -211,16 +212,17 @@ func _follower_seed(row: Dictionary) -> String:
 	return "FAIL " + ", ".join(why)
 
 
-func _print_banners() -> void:
-	var want := ["expedition", "moles", "showtime", "cough", "brownout"]
-	var missing: PackedStringArray = []
-	for id in want:
-		if not FileAccess.file_exists("res://assets/events/%s.webp" % id):
-			missing.append(id)
+func _print_banners() -> bool:
+	var catalog := Catalog.new()
+	if not catalog.load_all():
+		print("Missing banners: catalog %s" % catalog.error)
+		return false
+	var missing := ArtPack.banner_faults(ArtPack.collect_banner_rows(catalog.events, catalog.check_events))
 	if missing.is_empty():
 		print("Missing banners: none")
-	else:
-		print("Missing banners: %s" % ", ".join(missing))
+		return true
+	print("Missing banners: %s" % ", ".join(missing))
+	return false
 
 
 func _print_network(careful: Array, expander: Array, follower: Array) -> void:

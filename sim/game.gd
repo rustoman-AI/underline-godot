@@ -3796,7 +3796,7 @@ func _crunch_event(leg: Dictionary) -> Dictionary:
 	var hit: Dictionary = leg.hit
 	for key in hit:
 		suffer[key] = hit[key]
-	return {
+	var ev := {
 		"id": str(leg.id),
 		"title": str(leg.title),
 		"major": true,
@@ -3807,6 +3807,11 @@ func _crunch_event(leg: Dictionary) -> Dictionary:
 			suffer,
 		],
 	}
+	var art := ArtPack.crunch_event_art(str(leg.id))
+	if str(art.get("banner", "")) != "":
+		ev["banner"] = str(art.get("banner", ""))
+		ev["tag"] = str(art.get("tag", ""))
+	return ev
 
 
 func _bill_three(pool: int) -> Array:
