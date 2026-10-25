@@ -1,6 +1,10 @@
 class_name Game
 extends RefCounted
 const Brief = preload("res://sim/brief.gd")
+const JOURNAL_MAX := 200
+## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
+const HOPE_ZERO_LEAVE := 2
+const HOPE_ZERO_WEEKS := 3
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -38,6 +42,9 @@ var dig := {}
 var build := {}
 var expedition := {}
 var active_season := {}
+## This run's season calendar: bal.seasons with each start moved by the seed (season_jitter). Not saved; setup() and
+## import_state() rebuild it from the seed.
+var seasons: Array = []
 var artifacts := {"papers": 0, "iron": 0, "words": 0}
 var pumped := false
 var flood_guard := false
@@ -54,7 +61,41 @@ var hope_zero := 0
 var next_person := 0
 var demand_seq := 1
 var log: Array = []
+var journal: Array = []
+## Voice lines already heard this playthrough, keyed by line id.
+var vo_heard := {}
+var radio_week := 0
+## Conditions waiting to be voiced, matched to "system" lines in data/vo by the UI, which clears them.
+## Each name appears once, so the list stays small when nothing drains it.
+var vo_cues: Array = []
+const VO_COOLDOWN := 6
+## Leader opinion of the station, -100..100 per leader faction, apart from the map's `opinions`.
+var standing := {}
+## The last few deeds each leader remembers, as {"week", "deed", ...}; the UI words them.
+var standing_memory := {}
+## The leader at the door this week: {"faction", "week", "target"}. Empty when nobody waits.
+var audience := {}
+var audience_last := {}
+var audience_due := {}
+var audience_deals := {}
+## Each leader's first audience answer this run: {faction: {"answer": "accepted"|"refused"|"silence", "week"}}.
+## Set once, never overwritten; leader consequence events read it.
+var leader_answers := {}
+## Truth fragments learned this run (docs/STORY.md): {id: {"known": true, "how": "honest"|"dirty"|"found", "week"}}.
+## Set once by know_fragment(), never overwritten.
+var fragments := {}
+## Testimonies already granted for resident stories heard, one per STORY_WORDS_EVERY distinct stories.
+var story_words := 0
+## Week each leader was last helped; help waits audience_cooldown_weeks whatever the regard band.
+var help_last := {}
+## Bunker scenes (events with "trigger") an order has set off, shown at the next dawn in this order.
+var story_queue: Array = []
+## Proofs gained from choices ("proof": n) on top of the fragments learned honestly.
+var proof_extra := 0
 var errors: Array = []
+## Told about every applied action ("action", {...}) and journal row ("journal", row). Set by the UI for the
+## playtest log; never saved.
+var watcher: Callable
 var stats := {"shortages": 0, "ultimatums": 0, "min_decisions": 99}
 var food_buffers: Array = []
 var growth_bank := 0.0
@@ -96,29 +137,34 @@ var crisis_faults: Array = []
 var demand_log: Array = []
 var power_zero_streak := 0
 var rally_lock := 0
-var address_week := -1
+## The week the platform was last addressed (queued or given); once a week (address_cooldown).
+var address_week := -99
+## This week's hardship ids, the chronicle of heavy moments, people who have left, and burials still waiting.
 var hardship_now: Array = []
 var chronicle: Array = []
 var departed: Array = []
 var burials: Array = []
+## Creed stays empty until a line law sets it. No line law is in the book yet.
 var creed := ""
 var notices: Array = []
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
 var net_rng := RandomNumberGenerator.new()
+var story_rng := RandomNumberGenerator.new()
 var bal := {}
 
 
 func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	catalog = cat
+	bal = cat.balance
 	seed = run_seed
 	max_weeks = weeks
 	rng.seed = run_seed
 	net_rng.seed = run_seed * 17 + 3
-	_bind_balance(run_seed)
+	story_rng.seed = run_seed * 41 + 5
+	_jitter_seasons()
 	week = 1
-	address_week = -1
 	hardship_now = []
 	chronicle = []
 	departed = []
@@ -171,6 +217,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	_init_grid()
 	_init_map()
 	_init_squads()
+	_muster_start_guard()
+	_init_standing()
 	laws_on[str(cat.factions[player].law)] = true
 	_auto_staff()
 	if residents.size() != int(bal.start_pop):
@@ -220,12 +268,54 @@ func end_week() -> void:
 	week += 1
 	decisions = 0
 	_dawn()
+	_vo_watch()
+
+
+## Seasons always speak; anything else stays quiet for VO_COOLDOWN weeks after it last spoke.
+func _vo_cue(name: String) -> void:
+	if vo_cues.has(name):
+		return
+	var key := "@" + name
+	if not name.begins_with("season_") and vo_heard.has(key) and week - int(vo_heard[key]) < VO_COOLDOWN:
+		return
+	vo_heard[key] = week
+	vo_cues.append(name)
+
+
+## Raises a cue when a watched state turns on. The first look only records where things stand, and each state
+## needs to clear by a margin before it can fire again, so a value hovering at the line does not repeat.
+func _vo_watch() -> void:
+	var sick := 0
+	for person in residents:
+		if int(person.get("sick", 0)) > 0:
+			sick += 1
+	var food_low := bool(vo_heard.get("~food_critical", false))
+	var cheerful := bool(vo_heard.get("~morale_high", false))
+	var now := {
+		"food_critical": food_buffer_weeks() < (2.0 if food_low else 1.0),
+		"power_restored": power_zero_streak == 0 and not gen_down,
+		"disease_contained": sick == 0,
+		"morale_high": hope >= (65 if cheerful else 75),
+	}
+	for name in now:
+		var key := "~" + str(name)
+		var was = vo_heard.get(key, null)
+		vo_heard[key] = now[name]
+		if was != null and not bool(was) and bool(now[name]):
+			_vo_cue(str(name))
+	var pop := residents.size()
+	var last := int(vo_heard.get("~pop", pop))
+	vo_heard["~pop"] = pop
+	if pop > last:
+		_vo_cue("resident_joined")
 
 
 func apply(action: Dictionary) -> bool:
 	if over != "":
 		return false
 	var kind := str(action.get("kind", ""))
+	var entry := _journal_context(kind, action)
+	var scene: bool = kind == "event" and not pending.is_empty() and pending[0].has("trigger")
 	var ok := false
 	match kind:
 		"event":
@@ -267,9 +357,65 @@ func apply(action: Dictionary) -> bool:
 			ok = _move_power(str(action.get("room", "")), bool(action.get("up", false)))
 		"order":
 			ok = _apply_order(action)
+		"recruit":
+			ok = _apply_recruit()
+		"dismiss":
+			ok = _apply_dismiss()
+		"appoint":
+			ok = appoint_governor(str(action.get("station", "")), str(action.get("person", "")))
+		"recall":
+			ok = recall_governor(str(action.get("station", "")))
+		"audience":
+			ok = _apply_help() if bool(action.get("help", false)) else _apply_audience(bool(action.get("accept", false)))
 		_:
 			ok = false
+	if ok and not entry.is_empty():
+		_journal(kind, entry)
+	if ok and watcher.is_valid():
+		watcher.call("action", {"kind": kind, "action": action, "entry": entry, "scene": scene})
 	return ok
+
+
+## What the journal keeps about an action, read before the action changes state. Empty means not journaled.
+func _journal_context(kind: String, action: Dictionary) -> Dictionary:
+	match kind:
+		"event":
+			return {"event_id": str(action.get("event_id", "")), "choice_id": str(action.get("choice_id", ""))}
+		"build":
+			return {"type": str(action.get("type", ""))}
+		"dig":
+			return {"level": int(action.get("level", -1)), "cell": int(action.get("cell", -1))}
+		"upgrade", "demolish":
+			var room = _room(str(action.get("room", "")))
+			if room == null:
+				return {}
+			if kind == "upgrade":
+				return {"type": str(room.type), "name": str(upgrade_preview(str(room.uid)).name), "tier": int(room.upgrade) + 1}
+			return {"type": str(room.type)}
+		"law", "repeal":
+			return {"law": str(action.get("law", ""))}
+		"order":
+			return {"order": str(action.get("order", "")), "station": str(action.get("station", action.get("dest", "")))}
+		"pump", "quarantine", "burn", "rally":
+			return {"done": true}
+	return {}
+
+
+## Rows hold ids only; the UI words them. Oldest rows drop off past JOURNAL_MAX so saves stay small.
+func _journal(kind: String, data: Dictionary) -> void:
+	var row := data.duplicate(true)
+	row["kind"] = kind
+	row["week"] = week
+	journal.append(row)
+	if watcher.is_valid():
+		watcher.call("journal", row)
+	if journal.size() > JOURNAL_MAX:
+		journal = journal.slice(journal.size() - JOURNAL_MAX)
+
+
+## Notes a player action that happens outside apply(), such as a radio item heard.
+func journal_note(kind: String, data: Dictionary) -> void:
+	_journal(kind, data)
 
 
 func report() -> Dictionary:
@@ -368,13 +514,11 @@ func food_buffer_weeks() -> float:
 
 func food_need() -> int:
 	var shares := 0.0
-	var per := float(maxi(1, int(bal.food_per)))
 	for person in residents:
-		var share := 1.0
-		if _is_child(person):
-			share = 2.0 / 3.0
-		shares += share
-	var n := int(ceil(shares / per)) if shares > 0.0 else 0
+		shares += (2.0 / 3.0) if _is_child(person) else 1.0
+	var n := 0
+	if shares > 0.0:
+		n = ceili(shares / float(maxi(1, int(bal.food_per))))
 	if _law_on("rationing"):
 		n = int(round(float(n) * 0.75))
 	return n
@@ -397,7 +541,7 @@ func housing() -> int:
 	for room in rooms:
 		if room.offline:
 			continue
-		n += int(catalog.rooms[room.type].get("housing", 0))
+		n += room_housing(room)
 	for b in _merge_groups():
 		if str(b[0].type) != "quarters":
 			continue
@@ -408,6 +552,76 @@ func housing() -> int:
 		if live:
 			n += int(bal.get("merge_housing", 2)) * (b.size() - 1)
 	return n
+
+
+## Base output multiplier for a room at this upgrade tier. One tier is upgrade_output (0.75 = +75%).
+func output_scale(tier: int) -> float:
+	return 1.0 + float(bal.get("upgrade_output", 0.75)) * float(tier)
+
+
+## What a room's bought upgrades do beyond that output step (balance.json upgrade_fx), summed over
+## every tier bought. cough_spread multiplies, shrug_down is true if any tier has it, the rest add up.
+func upgrade_fx(room) -> Dictionary:
+	var out := {}
+	var steps: Array = catalog.rooms[room.type].get("upgrades", [])
+	var table: Dictionary = bal.get("upgrade_fx", {})
+	for i in mini(int(room.upgrade), steps.size()):
+		var fx: Dictionary = table.get(str(steps[i]), {})
+		for key in fx:
+			if key == "cough_spread":
+				out[key] = float(out.get(key, 1.0)) * float(fx[key])
+			elif key == "shrug_down":
+				out[key] = bool(out.get(key, false)) or bool(fx[key])
+			else:
+				out[key] = int(out.get(key, 0)) + int(fx[key])
+	return out
+
+
+func room_housing(room) -> int:
+	return maxi(0, int(catalog.rooms[room.type].get("housing", 0)) + int(upgrade_fx(room).get("housing", 0)))
+
+
+func room_power(room) -> int:
+	return maxi(0, int(catalog.rooms[room.type].get("power", 0)) + int(upgrade_fx(room).get("power", 0)))
+
+
+func filter_upkeep(room) -> int:
+	return maxi(0, int(bal.filter_upkeep) + int(upgrade_fx(room).get("upkeep", 0)))
+
+
+## Armour plates: events that shut the workshop down (shop_down, disabled weeks) pass it by.
+func shrugs_down(room) -> bool:
+	return bool(upgrade_fx(room).get("shrug_down", false))
+
+
+## The best value of a station-wide upgrade effect among rooms that are switched on: the smallest for
+## dig_turns and cough_spread, the largest for warning_weeks. Rooms of one type do not stack.
+func station_fx(key: String) -> float:
+	var best := 1.0 if key == "cough_spread" else 0.0
+	for room in rooms:
+		if bool(room.offline):
+			continue
+		var fx := upgrade_fx(room)
+		if not fx.has(key):
+			continue
+		if key == "warning_weeks":
+			best = maxf(best, float(fx[key]))
+		else:
+			best = minf(best, float(fx[key]))
+	return best
+
+
+## Weekly hope or discontent from upgrades (family corners, loudspeakers) in rooms that are switched on.
+func upgrade_mood(key: String) -> int:
+	var n := 0
+	for room in rooms:
+		if not bool(room.offline):
+			n += int(upgrade_fx(room).get(key, 0))
+	return n
+
+
+func flood_warning() -> int:
+	return int(bal.get("season_warning", 2)) + int(station_fx("warning_weeks"))
 
 
 func room_count(type: String) -> int:
@@ -526,6 +740,10 @@ func shortage_text(need: Dictionary) -> String:
 		needs.append(Copy.stock(want, str(key)))
 		short.append(Copy.stock(have, str(key)))
 	if needs.is_empty():
+		for key in ARTIFACTS:
+			var have := int(artifacts.get(key, 0))
+			if int(need.get(key, 0)) > have:
+				return Copy.t("Needs %s %d, you have %d") % [Copy.t(str(ARTIFACT_TEXT[key])), int(need[key]), have]
 		return ""
 	var line := Copy.t("Needs %s. You have %s.") % [", ".join(needs), ", ".join(short)]
 	var where: PackedStringArray = []
@@ -588,6 +806,11 @@ func dawn_projection() -> Dictionary:
 			hope_d += int(hope_table[season_id])
 	if residents.size() > housing():
 		dis_d += int(bal.get("overcrowd_discontent", 0))
+	var strain := tension_push(hardships(), hope)
+	hope_d += int(strain.hope)
+	dis_d += int(strain.dis) + int(strain.despair)
+	hope_d += upgrade_mood("hope_week")
+	dis_d += upgrade_mood("discontent_week")
 	for law_id in laws_on:
 		var defin: Dictionary = catalog.laws[law_id]
 		if defin.has("hope_week"):
@@ -603,7 +826,7 @@ func dawn_projection() -> Dictionary:
 			if int(opinions[fid]) < 0:
 				hostile = true
 		if hostile:
-			dis_d += int(bal.get("agent_discontent", 0))
+			dis_d += agent_push()
 	out.hope = clampi(hope + hope_d, 0, 100)
 	out.discontent = clampi(discontent + dis_d, 0, 100)
 	return out
@@ -621,7 +844,7 @@ func can_expedition() -> bool:
 	if not expedition.is_empty():
 		return false
 	var sq: Dictionary = squads[player]
-	if sq.away or str(sq.station) != capital_id:
+	if sq.away or str(sq.station) != capital_id or soldier_count() < int(bal.guard.move_min):
 		return false
 	var tunnel := _tunnel_by_id("to_ferry")
 	return not tunnel.is_empty() and not tunnel.dug
@@ -666,8 +889,10 @@ func dig_possible(for_space: bool) -> bool:
 
 func _dawn() -> void:
 	_resolve_queued()
-	_offer_burial()
 	orders_left = council.size()
+	for seat in council:
+		if governor_of(str(seat.id)) != "":
+			orders_left -= 1
 	seat_used = {}
 	pumped = false
 	quarantine = false
@@ -675,8 +900,12 @@ func _dawn() -> void:
 	_season_clock()
 	_queue_crunch()
 	_roll_events()
+	_offer_forced_event()
 	_release_white_checks()
 	_offer_checks()
+	_offer_story_event()
+	_offer_triggered()
+	_offer_burial()
 	_note_dawn_afford()
 	_log("DAWN food %d air %d power %d mat %d tok %d inf %d hope %d dis %d pop %d" % [
 		int(stock.food), int(stock.air), int(stock.power), int(stock.materials), int(stock.tokens), int(stock.influence), hope, discontent, residents.size()])
@@ -693,6 +922,7 @@ func _dawn() -> void:
 		if Copy.ru():
 			ultimatum = "ULTIMATUM %s хочет %s, осталось %s." % [Copy.t(_fname(str(d.faction))), Copy.stock(int(d.amount), "tokens"), Words.count(int(d.deadline), "week")]
 		_log(ultimatum, true)
+	_audience_dawn()
 
 
 func _rival_phase() -> void:
@@ -708,6 +938,7 @@ func _rival_phase() -> void:
 			if Copy.ru():
 				taken = "ULTIMATUM %s забирает цену. Еда −10." % Copy.t(_fname(str(d.faction)))
 			_log(taken, true)
+			_journal("ultimatum", {"faction": str(d.faction)})
 		else:
 			keep.append(d)
 	demands = keep
@@ -715,13 +946,14 @@ func _rival_phase() -> void:
 	telegraphed = []
 	for intent in batch:
 		_resolve_intent(intent)
+	_sorties()
 
 
 func _night() -> void:
+	var sick_now := sick_count()
 	if _season_is("cough"):
 		_spread_cough()
 		_cough_pull_workers()
-		_pull_sick_from_rooms()
 	_mark_brownout()
 	var produced := _tally(belt_down, workshop_down, gen_down, true)
 	var swing := int(bal.get("harvest_swing", 0))
@@ -736,6 +968,7 @@ func _night() -> void:
 	if vent_cut > 0:
 		stock.air = maxi(0, int(stock.air) - 2)
 		vent_cut = maxi(0, vent_cut - 1)
+	_tick_seats()
 	for room in rooms:
 		if int(room.get("mold", 0)) > 0:
 			room.mold = int(room.mold) - 1
@@ -766,7 +999,7 @@ func _night() -> void:
 		var people_short := food_short * int(bal.food_per) + air_short * int(bal.air_per)
 		var deaths := int(people_short / 10)
 		week_short = true
-		_note("SHORT food %d air %d" % [food_short, air_short], "SHORT еды не хватило на %d, воздуха на %d." % [food_short, air_short])
+		_note("SHORT Food ran short by %d, air by %d." % [food_short, air_short], "SHORT еды не хватило на %d, воздуха на %d." % [food_short, air_short])
 		if deaths > 0:
 			var cause := "food_shortage" if food_short > 0 else "air_shortage"
 			_kill(deaths, "Supplies ran out", cause)
@@ -776,8 +1009,11 @@ func _night() -> void:
 		_add_hope(int(bal.power_shortage_hope), "power")
 		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
-		_note("SHORT power %d" % power_short, "SHORT энергии не хватило на %d." % power_short)
+		_note("SHORT Power ran short by %d." % power_short, "SHORT энергии не хватило на %d." % power_short)
+	var dark_now := power_short > 0
 	for room in rooms:
+		if bool(room.get("browned", false)):
+			dark_now = true
 		room.browned = false
 	if int(stock.power) <= 0:
 		power_zero_streak += 1
@@ -785,6 +1021,7 @@ func _night() -> void:
 		power_zero_streak = 0
 	stats["power_zero_max"] = maxi(int(stats.get("power_zero_max", 0)), power_zero_streak)
 	if week_short:
+		_life_journal_shortage()
 		stats.shortage_weeks = int(stats.shortage_weeks) + 1
 		stats.shortages = int(stats.shortage_weeks)
 		if int(stats.first_shortage) == 0:
@@ -809,13 +1046,15 @@ func _night() -> void:
 	_note_new_sickness()
 	_apply_flood_if_needed()
 	_season_mood()
+	_tension(_hardship_ids(food_short > 0 or air_short > 0, food_short > 0, dark_now, sick_now))
 	_rival_agents()
 	if residents.size() > housing():
 		_add_discontent(int(bal.overcrowd_discontent), "overcrowd")
+	if upgrade_mood("hope_week") != 0:
+		_add_hope(upgrade_mood("hope_week"), "upgrades")
+	if upgrade_mood("discontent_week") != 0:
+		_add_discontent(upgrade_mood("discontent_week"), "upgrades")
 	_add_hope(int(bal.hope_drift), "drift")
-	_tension(food_short > 0, air_short > 0, power_short > 0)
-	if week_short:
-		_journal_shortage_staff()
 	for key in before:
 		last_net[key] = int(stock.get(key, 0)) - int(before[key])
 	_synod_preach()
@@ -857,8 +1096,8 @@ func _finish_checks() -> void:
 		_log("COLLAPSE the yard is empty", true)
 	if hope <= 0:
 		hope_zero += 1
-		_shed(2, "died", "hope")
-		if hope_zero >= 3 and over == "":
+		_shed(HOPE_ZERO_LEAVE, "died", "hope")
+		if hope_zero >= HOPE_ZERO_WEEKS and over == "":
 			over = "hope"
 			_log("HOPE the station stops working", true)
 	else:
@@ -903,7 +1142,7 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 		for key in base:
 			if not out.has(key):
 				continue
-			var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+			var amount := float(base[key]) * output_scale(int(room.upgrade))
 			var n := 0
 			if factor > 0.0:
 				n = Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
@@ -913,12 +1152,14 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 			n = int(round(float(n) * mult))
 			if drop_hydro_food and str(room.type) == "hydroponics" and str(key) == "food":
 				n = int(n / 2.0)
-			if drop_shop and str(room.type) == "workshop" and str(key) == "materials":
+			if drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
 				n = 0
 			if drop_gen and str(room.type) == "generator" and str(key) == "power":
 				n = int(n / 2.0)
 			if int(room.get("mold", 0)) > 0 and str(key) == "food":
 				n = 0
+			elif not (drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
+				n += crew_extra(skills, room, n)
 			out[key] = int(out[key]) + n
 			made[str(room.uid) + "|" + str(key)] = n
 	var mb := float(bal.get("merge_bonus", 0.0))
@@ -938,24 +1179,96 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 			out[key] = int(round(float(out[key]) * 0.75))
 	if _law_on("curfew"):
 		out.influence = int(round(float(out.influence) * float(catalog.laws.curfew.influence_mult)))
+	out.tokens = int(out.tokens) + radio_grant()
 	return out
 
 
+## A staffed radio that is actually running brings tokens. Flat, so an upgrade does not multiply it.
+func radio_grant() -> int:
+	var n := 0
+	for room in rooms:
+		if str(room.type) != "radio":
+			continue
+		if bool(room.get("offline", false)) or _flood_silences(room) or int(room.get("disabled", 0)) > 0:
+			continue
+		if bool(room.get("browned", false)):
+			continue
+		if _able_count(room) < 1:
+			continue
+		n += 2
+	return n
+
+
+## People on the roster who can actually work. Sick and absent stay listed, but they do not count.
+## What to add to a room's output (made) so each able worker is worth at least 1 of it, plus 1 for each
+## veteran (four weeks on the same seat), up to two.
+func crew_extra(skills: Array, room, made: int = 0) -> int:
+	var hands := 0
+	for s in skills:
+		if float(s) >= 1.0:
+			hands += 1
+	var vets := 0
+	if room is Dictionary:
+		for id in room.get("staff", []):
+			if not people.has(str(id)):
+				continue
+			var person: Dictionary = people[str(id)]
+			if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+				continue
+			if int(person.get("seat_weeks", 0)) >= 4:
+				vets += 1
+	return maxi(0, hands - made) + mini(vets, 2)
+
+
+func _tick_seats() -> void:
+	var seated := {}
+	for room in rooms:
+		for id in room.staff:
+			var key := str(id)
+			seated[key] = true
+			if people.has(key):
+				people[key]["seat_weeks"] = int(people[key].get("seat_weeks", 0)) + 1
+	for person in residents:
+		var key := str(person.id)
+		if seated.has(key):
+			continue
+		if str(person.get("post", "")) == "":
+			person["seat_weeks"] = 0
+
+
+func _able_count(room: Dictionary) -> int:
+	var n := 0
+	for id in room.get("staff", []):
+		if not people.has(str(id)):
+			continue
+		var person: Dictionary = people[str(id)]
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		n += 1
+	return n
+
+
 func _output_factor(room: Dictionary, defin: Dictionary) -> float:
-	var have := int(room.staff.size())
+	var listed := int(room.get("staff", []).size())
+	var have := _able_count(room)
 	var need := int(defin.get("staff_min", 0))
 	var grp := _merge_group_of(room)
 	if grp.size() > 1:
+		listed = 0
 		have = 0
 		for r in grp:
-			have += int(r.staff.size())
+			listed += int(r.get("staff", []).size())
+			have += _able_count(r)
 		need = need * grp.size() - int(bal.get("merge_crew_saving", 1)) * (grp.size() - 1)
+		need = maxi(0, need)
 	if str(room.type) == "generator":
 		if have <= 0:
 			return 0.0
 		if have < need:
 			return 0.5
 		return 1.0
+	if need > 0 and have <= 0:
+		return 0.0 if listed > 0 else 0.5
 	if need > 0 and have < need:
 		return 0.5
 	return 1.0
@@ -968,9 +1281,12 @@ func _mark_brownout() -> void:
 		dark_set[str(uid)] = true
 	for room in rooms:
 		var uid := str(room.uid)
+		var was_dark := bool(room.get("browned", false))
 		room.browned = dark_set.has(uid)
 		if room.browned:
 			_log("BROWN %s is dark" % str(catalog.rooms[room.type].name), true)
+			if not was_dark:
+				_journal("dark", {"type": str(room.type)})
 
 
 func _brownout_ids() -> Array:
@@ -980,7 +1296,7 @@ func _brownout_ids() -> Array:
 	for room in rooms:
 		if str(room.type) != "generator" or bool(room.offline):
 			continue
-		pool -= int(catalog.rooms.generator.get("power", 0)) * mult
+		pool -= room_power(room) * mult
 	if pool < 0:
 		pool = 0
 	var decided := {}
@@ -996,8 +1312,9 @@ func _brownout_ids() -> Array:
 		var draw := 0
 		for r in grp:
 			decided[str(r.uid)] = true
-			if not bool(r.offline):
-				draw += int(catalog.rooms[str(r.type)].get("power", 0)) * mult
+			if bool(r.offline) or _flood_silences(r) or str(r.type) == "generator":
+				continue
+			draw += room_power(r) * mult
 		if draw <= 0:
 			continue
 		if pool >= draw:
@@ -1035,16 +1352,25 @@ func forecasts() -> Array:
 		var name := Copy.res(key)
 		var when := "is gone" if left <= 0 else "runs out in %s" % _week_span(left)
 		var shown := left
+		# The meals count measures stores against the whole week's eating, the HUD shows the net after the harvest.
+		# While the harvest keeps the net slow, say the meals count is what is left if it fails.
+		var harvest := output_of("food") > 0
+		if thin and harvest and left <= horizon:
+			thin = false
 		if thin:
 			var meals := maxi(0, int(floor(food_buffer_weeks())))
 			when = "is down to %s of meals" % Words.count(meals, "week")
+			if harvest:
+				when = "stores hold %s of meals if the harvest fails" % Words.count(meals, "week")
+				if meals == 0:
+					when = "stores are empty, only the harvest feeds the station"
 			if left > horizon:
 				shown = horizon
 		if (key == "food" or key == "air") and _weeks_until_empty("power") <= horizon:
 			hint = _supply_hint("generator")
 		var stock_text := "%s %s. %s" % [name, when, str(hint.text)]
 		if Copy.ru():
-			stock_text = "%s %s" % [_ru_stock_when(key, left, thin, maxi(0, int(floor(food_buffer_weeks()))) if thin else left), str(hint.text)]
+			stock_text = "%s %s" % [_ru_stock_when(key, left, thin, maxi(0, int(floor(food_buffer_weeks()))) if thin else left, harvest), str(hint.text)]
 		rows.append({
 			"key": key,
 			"weeks": shown,
@@ -1118,11 +1444,27 @@ func crowd_line() -> String:
 	return "Overcrowding +%d/wk" % n
 
 
+func crowd_tip() -> String:
+	var people := residents.size()
+	var beds := housing()
+	var n := int(bal.get("overcrowd_discontent", 2))
+	var line := ""
+	if Copy.ru():
+		line = "Людей: %d. Коек: %d." % [people, beds]
+		if people > beds:
+			line += " Из-за нехватки коек недовольство растёт на %d в неделю." % n
+		return line
+	line = "People: %d. Beds: %d." % [people, beds]
+	if people > beds:
+		line += " Not enough beds raises discontent by %d a week." % n
+	return line
+
+
 func flood_line() -> String:
 	if flood_guard:
 		return ""
 	var eta := _flood_eta()
-	if eta > int(bal.get("season_warning", 2)):
+	if eta > flood_warning():
 		return ""
 	var spoil := Copy.t("Food on the lower level will spoil.")
 	if eta <= 0:
@@ -1135,7 +1477,7 @@ func flood_line() -> String:
 func _flood_eta() -> int:
 	if _season_is("flood"):
 		return 0
-	for season in bal.seasons:
+	for season in seasons:
 		if str(season.id) != "flood":
 			continue
 		var left := int(season.week) - week
@@ -1144,8 +1486,12 @@ func _flood_eta() -> int:
 	return 99
 
 
-func _ru_stock_when(key: String, left: int, thin: bool, meals: int) -> String:
+func _ru_stock_when(key: String, left: int, thin: bool, meals: int, harvest := false) -> String:
 	if key == "food" and thin:
+		if harvest and meals == 0:
+			return "Запасов еды нет, станцию кормит только урожай."
+		if harvest:
+			return "Если урожай подведёт, запасов еды хватит на %s." % Words.count(meals, "week")
 		return "Еды осталось на %s." % Words.count(meals, "week")
 	if left <= 0:
 		match key:
@@ -1192,24 +1538,17 @@ func revolt_warning() -> Dictionary:
 	else:
 		left = maxi(1, 100 - discontent)
 	var fixes := _best_fixes("discontent", 2)
-	var eta := Copy.t("revolt.in_about")
-	var lead: PackedStringArray = [eta % _week_span(left)]
-	var rows: Array = hardships()
-	if rows.size() == 1:
-		lead.append(Copy.t("revolt.push_one") % str(rows[0].get("label", "")))
-	elif rows.size() >= 2:
-		lead.append(Copy.t("revolt.push_two") % [str(rows[0].get("label", "")), str(rows[1].get("label", ""))])
-	var banner := " ".join(lead)
-	if banner.length() > 90:
-		banner = banner.substr(0, 89).strip_edges() + "…"
-	var bits: PackedStringArray = lead.duplicate()
+	var bits: PackedStringArray = [Copy.t("Revolt in about %s.") % _week_span(left)]
+	var push := hardship_push()
+	if push != "":
+		bits.append(push)
 	for fix in fixes:
 		bits.append(str(fix.text))
 	var first: Dictionary = fixes[0] if not fixes.is_empty() else {}
 	return {
 		"text": " ".join(bits),
-		"banner": banner,
 		"weeks": left,
+		"hardships": hardships(),
 		"fixes": fixes,
 		"hint": str(first.get("hint", "")),
 		"level": int(first.get("level", -1)),
@@ -1221,7 +1560,7 @@ func close_caption() -> String:
 	var choice := _free_choice(front_event())
 	if choice.is_empty():
 		return Copy.t("Close")
-	return Copy.t("Close: %s") % Copy.t(str(choice.label))
+	return Copy.t("Close: %s") % Copy.t(line_of(choice, "label"))
 
 
 func _food_thin() -> bool:
@@ -1262,21 +1601,16 @@ func _meter_gain(meter: String) -> int:
 
 func _coming_pushes(meter: String) -> Array:
 	var rows: Array = []
-	var hard: Array = forecast_hardships()
 	if meter == "hope":
 		var slide := -int(bal.hope_drift)
 		if slide > 0:
 			rows.append({"name": "the weekly slide", "amount": slide})
 		if _food_thin():
 			rows.append({"name": "a shortage", "amount": 4})
-		var per := -int(bal.get("hardship_hope", 0))
-		var cap := int(bal.get("hardship_cap", 0))
-		var left := mini(hard.size(), cap)
-		for entry in hard:
-			if left <= 0 or per <= 0:
-				break
-			rows.append({"name": str(entry), "amount": per})
-			left -= 1
+		var ids := hardships()
+		var hope_hit := -int(tension_push(ids, hope).hope)
+		if hope_hit > 0:
+			rows.append({"name": hardship_name(str(ids[0])), "amount": hope_hit})
 		for law_id in laws_on:
 			var defin: Dictionary = catalog.laws[law_id]
 			var hit := -int(defin.get("hope_week", 0))
@@ -1287,29 +1621,15 @@ func _coming_pushes(meter: String) -> Array:
 			var season_id := str(active_season.id)
 			var amount := int(bal.season_discontent[season_id])
 			if amount > 0:
-				rows.append({"name": _hardship_label("season_%s" % season_id), "amount": amount})
+				rows.append({"name": "the %s" % season_id, "amount": amount})
 		if residents.size() > housing():
 			rows.append({"name": "the crowd", "amount": int(bal.overcrowd_discontent)})
-		if not hard.is_empty():
-			var per_dis := int(bal.get("hardship_discontent", 0))
-			if week < int(bal.get("hardship_ramp_week", 0)):
-				per_dis = int(bal.get("hardship_discontent_early", per_dis))
-			var dn := mini(hard.size(), int(bal.get("hardship_dis_cap", int(bal.get("hardship_cap", 1)))))
-			if per_dis > 0 and dn > 0:
-				var label := str(hard[0])
-				var merged := false
-				for row in rows:
-					if str(row.name) != label:
-						continue
-					row.amount = int(row.amount) + per_dis * dn
-					merged = true
-					break
-				if not merged:
-					rows.append({"name": label, "amount": per_dis * dn})
-		else:
-			rows.append({"name": _hardship_label("settled"), "amount": int(bal.get("settled_discontent", 0))})
-		if _despair_due(hard.size()):
-			rows.append({"name": "low hope", "amount": int(bal.get("despair_discontent", 0))})
+		var ids := hardships()
+		var strain := tension_push(ids, hope)
+		if int(strain.dis) > 0:
+			rows.append({"name": hardship_name(str(ids[0])), "amount": int(strain.dis)})
+		if int(strain.despair) > 0:
+			rows.append({"name": "despair", "amount": int(strain.despair)})
 		for law_id in laws_on:
 			var defin: Dictionary = catalog.laws[law_id]
 			var hit := int(defin.get("discontent_week", 0))
@@ -1320,26 +1640,20 @@ func _coming_pushes(meter: String) -> Array:
 
 
 func _push_line(pushes: Array) -> String:
-	var named: Array = []
-	for push in pushes:
-		if int(push.amount) <= 0:
-			continue
-		named.append(str(push.name))
-		if named.size() >= 2:
-			break
-	var text := ""
-	if named.is_empty():
-		for push in pushes:
-			if str(push.name) == _hardship_label("settled"):
-				return Copy.t("tension.settled")
+	if pushes.is_empty():
 		return ""
-	elif named.size() == 1:
-		text = Copy.t("revolt.push_one") % Copy.t(str(named[0]))
+	var line := ""
+	if pushes.size() == 1:
+		line = "%s is pushing it." % str(pushes[0].name)
 	else:
-		text = Copy.t("revolt.push_two") % [Copy.t(str(named[0])), Copy.t(str(named[1]))]
-	if text == "" or Copy.ru():
-		return text
-	return text.substr(0, 1).to_upper() + text.substr(1)
+		line = "%s and %s are pushing it." % [str(pushes[0].name), str(pushes[1].name)]
+	line = line.substr(0, 1).to_upper() + line.substr(1)
+	if not Copy.ru():
+		return line
+	var first := Copy.t(str(pushes[0].name))
+	if pushes.size() == 1:
+		return Copy.t("%s is pushing it.") % first
+	return Copy.t("%s and %s are pushing it.") % [first, Copy.t(str(pushes[1].name))]
 
 
 func _best_fixes(meter: String, limit: int) -> Array:
@@ -1362,6 +1676,8 @@ func _best_fixes(meter: String, limit: int) -> Array:
 		_add_law(out, "sermons", Copy.t("Pass Sermons in the meeting hall."))
 		if out.is_empty():
 			_add_hall_step(out)
+		if order_block("address") == "":
+			out.append({"hint": "address", "text": Copy.t("Address the platform: hope +1."), "level": -1, "cell": -1})
 	if out.size() > limit:
 		out.resize(limit)
 	return out
@@ -1458,7 +1774,7 @@ func _full_power_draw() -> int:
 	for room in rooms:
 		if room.offline:
 			continue
-		n += int(catalog.rooms[room.type].get("power", 0))
+		n += room_power(room)
 	if _season_is("cold") or crunch_power:
 		n *= 2
 	return n
@@ -1604,7 +1920,7 @@ func _power_need() -> int:
 	for room in rooms:
 		if room.offline or bool(room.get("browned", false)):
 			continue
-		n += int(catalog.rooms[room.type].get("power", 0))
+		n += room_power(room)
 	return n
 
 
@@ -1631,7 +1947,7 @@ func _consumer_line(key: String) -> String:
 		for room in rooms:
 			if room.offline:
 				continue
-			var draw := int(catalog.rooms[room.type].get("power", 0))
+			var draw := room_power(room)
 			if draw <= 0:
 				continue
 			draws.append({"name": str(catalog.rooms[room.type].name), "draw": draw})
@@ -1657,13 +1973,13 @@ func _uncovered_power_ids() -> Array:
 	for room in rooms:
 		if room.offline:
 			continue
-		var draw := int(catalog.rooms[room.type].get("power", 0))
+		var draw := room_power(room)
 		if draw <= 0:
 			continue
 		rows.append(room)
 	rows.sort_custom(func(a, b):
-		var da := int(catalog.rooms[a.type].get("power", 0))
-		var db := int(catalog.rooms[b.type].get("power", 0))
+		var da := room_power(a)
+		var db := room_power(b)
 		if da == db:
 			return str(a.uid) < str(b.uid)
 		return da < db
@@ -1673,7 +1989,7 @@ func _uncovered_power_ids() -> Array:
 		left = int(left / 2.0)
 	var lost: Array = []
 	for room in rows:
-		var draw := int(catalog.rooms[room.type].get("power", 0))
+		var draw := room_power(room)
 		if left >= draw:
 			left -= draw
 		else:
@@ -1865,6 +2181,122 @@ func _season_mood() -> void:
 		_add_hope(int(hope_table[id]), "season")
 
 
+## Moves each season's start by up to season_jitter weeks either way, from the seed alone, so a loaded run gets the
+## same calendar back. Uses its own stream; the run's RNG is untouched.
+func _jitter_seasons() -> void:
+	var spread := int(bal.get("season_jitter", 0))
+	var roll := RandomNumberGenerator.new()
+	roll.seed = seed * 53 + 7
+	seasons = []
+	for row in bal.get("seasons", []):
+		var moved: Dictionary = row.duplicate()
+		if spread > 0:
+			moved.week = int(row.week) + roll.randi_range(-spread, spread)
+		seasons.append(moved)
+
+
+## This week's hardships as the dawn sees them: "shortage" (food will run short) or "air", else "thin food" (under
+## hard_food_weeks of food), "dark rooms" (power short or rooms browning out), "sickness" (hard_sick_share of the
+## people sick), "season" (one is on), and "crowd" only when hard_crowd is on.
+func hardships() -> Array:
+	var food_short := int(resource_outlook("food").next) < 0
+	var air_short := int(resource_outlook("air").next) < 0
+	var dark := int(resource_outlook("power").next) < 0 or not _brownout_ids().is_empty()
+	return _hardship_ids(food_short or air_short, food_short, dark, sick_count())
+
+
+func _hardship_ids(short_now: bool, food_short: bool, dark: bool, sick: int) -> Array:
+	var ids: Array = []
+	if short_now:
+		ids.append("shortage" if food_short else "air")
+	elif food_buffer_weeks() < float(bal.get("hard_food_weeks", 0)):
+		ids.append("thin food")
+	if dark:
+		ids.append("dark rooms")
+	if not residents.is_empty() and float(sick) / float(residents.size()) >= float(bal.get("hard_sick_share", 1.0)):
+		ids.append("sickness")
+	if not active_season.is_empty():
+		ids.append("season")
+	if bool(bal.get("hard_crowd", false)) and residents.size() > housing():
+		ids.append("crowd")
+	return ids
+
+
+## What a week with these hardships does: hope hardship_hope each, up to hardship_cap of them; discontent
+## hardship_discontent once (hardship_discontent_early before hardship_ramp_week), or settled_discontent with none;
+## despair_discontent more while hope is under despair_hope.
+## TODO(Code): comfort_hope and comfort_food_weeks are in the validated set, but the spec does not say how they
+## apply, so they do nothing yet.
+func tension_push(ids: Array, hope_now: int) -> Dictionary:
+	var out := {"hope": 0, "dis": 0, "despair": 0}
+	out.hope = mini(ids.size(), int(bal.get("hardship_cap", 0))) * int(bal.get("hardship_hope", 0))
+	if not ids.is_empty():
+		var each := int(bal.get("hardship_discontent", 0))
+		if week < int(bal.get("hardship_ramp_week", 0)):
+			each = int(bal.get("hardship_discontent_early", 0))
+		out.dis = each * mini(ids.size(), int(bal.get("hardship_dis_cap", 1)))
+	elif not bool(bal.get("settled_needs_beds", false)) or residents.size() <= housing():
+		out.dis = int(bal.get("settled_discontent", 0))
+	if hope_now < int(bal.get("despair_hope", 0)):
+		out.despair = int(bal.get("despair_discontent", 0))
+	return out
+
+
+func _tension(ids: Array) -> void:
+	hardship_now = []
+	for id in ids:
+		hardship_now.append(str(id))
+	var push := tension_push(ids, hope)
+	_add_hope(int(push.hope), "hardship")
+	_add_discontent(int(push.dis), "hardship" if not ids.is_empty() else "settled")
+	_add_discontent(int(push.despair), "despair")
+
+
+## Rival agents stir the yard; from agent_late_week they push harder.
+func agent_push() -> int:
+	var n := int(bal.get("agent_discontent", 0))
+	if week >= int(bal.get("agent_late_week", 999)):
+		n += int(bal.get("agent_late_bonus", 0))
+	return n
+
+
+func sick_count() -> int:
+	var n := 0
+	for person in residents:
+		if int(person.get("sick", 0)) > 0:
+			n += 1
+	return n
+
+
+## A hardship as a short phrase for lists and the revolt warning (Copy keys hardship.*).
+func hardship_name(id: String) -> String:
+	match id:
+		"shortage", "thin food":
+			return "low food stores"
+		"air":
+			return "not enough air"
+		"dark rooms":
+			return "dark rooms"
+		"sickness":
+			return "the sick"
+		"season":
+			return "the %s" % str(active_season.get("id", "season"))
+		"crowd":
+			return "the crowd"
+	return id
+
+
+## The revolt warning's push sentence from the first one or two hardships; "" when there are none.
+func hardship_push() -> String:
+	var ids := hardships()
+	if ids.is_empty():
+		return ""
+	var first := Copy.t(hardship_name(str(ids[0])))
+	if ids.size() == 1:
+		return Copy.t("Pushing toward revolt: %s.") % first
+	return Copy.t("Pushing toward revolt: %s and %s.") % [first, Copy.t(hardship_name(str(ids[1])))]
+
+
 func _rot_stores() -> void:
 	if week != rot_week:
 		return
@@ -1887,11 +2319,8 @@ func _rival_agents() -> void:
 			hostile = true
 	if not hostile:
 		return
-	var agent_hit := int(bal.agent_discontent)
-	if week >= int(bal.get("agent_late_week", 99)):
-		agent_hit += int(bal.get("agent_late_bonus", 0))
-	_add_discontent(agent_hit, "agent")
-	_note("AGENT a rival rumor moves through the yard", "AGENT По двору прошёл слух соперника.")
+	_add_discontent(agent_push(), "agent")
+	_note("AGENT a rival rumor moves through the yard", "AGENT По станции ползёт слух, пущенный соперником.")
 
 
 func _buffer_span() -> Dictionary:
@@ -1950,10 +2379,10 @@ func _apply_weekly_laws() -> void:
 
 
 func _decay_filters() -> void:
-	var upkeep := int(bal.filter_upkeep)
 	for room in rooms:
 		if room.type != "air_filter":
 			continue
+		var upkeep := filter_upkeep(room)
 		if int(stock.materials) >= upkeep:
 			stock.materials = int(stock.materials) - upkeep
 			room.efficiency = clampf(float(room.efficiency) - float(bal.filter_decay) + float(bal.filter_restore), 0.25, 1.0)
@@ -2085,7 +2514,9 @@ func upgrade_preview(uid: String) -> Dictionary:
 		return info
 	var defin: Dictionary = catalog.rooms[room.type]
 	var steps: Array = defin.get("upgrades", [])
-	info.materials = int(defin.get("upgrade_materials", 0))
+	info.materials = upgrade_cost(str(room.type), int(room.upgrade) + 1)
+	if steps.is_empty():
+		return info
 	if int(room.upgrade) >= steps.size():
 		info.reason = Copy.t("Nothing left to upgrade.")
 		return info
@@ -2098,6 +2529,16 @@ func upgrade_preview(uid: String) -> Dictionary:
 		return info
 	info.ok = true
 	return info
+
+
+## Materials for upgrading a room of this type to the given tier: upgrade_materials times the tier's
+## multiplier from balance.json upgrade_step_cost (tiers past the list use its last value), rounded up.
+func upgrade_cost(type: String, tier: int) -> int:
+	var base := int(catalog.rooms[type].get("upgrade_materials", 0))
+	var step: Array = bal.get("upgrade_step_cost", [1.0])
+	if step.is_empty() or tier < 1:
+		return base
+	return ceili(base * float(step[mini(tier, step.size()) - 1]) - 0.0001)
 
 
 func demolish_preview(uid: String) -> Dictionary:
@@ -2167,6 +2608,8 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 	_unassign(person_id)
 	var room = _room(uid)
 	room.staff.append(person_id)
+	people[person_id]["post"] = uid
+	people[person_id]["seat_weeks"] = 0
 	decisions += 1
 	_log("ASSIGN %s to %s" % [people[person_id].name, catalog.rooms[room.type].name])
 	return true
@@ -2175,6 +2618,8 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 func _apply_unassign(person_id: String) -> bool:
 	if not people.has(person_id):
 		return false
+	people[person_id].erase("post")
+	people[person_id]["seat_weeks"] = 0
 	_unassign(person_id)
 	decisions += 1
 	_log("UNASSIGN %s" % people[person_id].name)
@@ -2186,7 +2631,7 @@ func switch_preview(uid: String) -> Dictionary:
 	var room = _room(uid)
 	if room == null:
 		return info
-	var draw := int(catalog.rooms[room.type].get("power", 0))
+	var draw := room_power(room)
 	info.saves = draw
 	info.on = not bool(room.get("switched_off", false))
 	if str(room.type) == "platform" or draw <= 0:
@@ -2233,10 +2678,7 @@ func assign_preview(person_id: String, uid: String) -> Dictionary:
 	if bool(room.offline):
 		info.reason = Copy.t("The room is offline.")
 		return info
-	if _is_child(person):
-		info.reason = Copy.t("%s cannot work right now.") % Copy.person(str(person.name))
-		return info
-	if int(person.sick) > 0 or int(person.absent) > 0:
+	if _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0:
 		info.reason = Copy.t("%s cannot work right now.") % Copy.person(str(person.name))
 		return info
 	if _locked_ids().has(person_id):
@@ -2248,6 +2690,7 @@ func assign_preview(person_id: String, uid: String) -> Dictionary:
 			already = true
 	if not already and room.staff.size() >= int(defin.staff_max):
 		info.reason = Copy.t("The room is fully staffed.")
+		info["full"] = true
 		return info
 	info.ok = true
 	return info
@@ -2289,7 +2732,7 @@ func room_detail(uid: String) -> Dictionary:
 		block_staff += int(r.staff.size())
 		block_staff_max += int(catalog.rooms[str(r.type)].get("staff_max", 0))
 		if not bool(r.get("switched_off", false)):
-			block_power += int(catalog.rooms[str(r.type)].get("power", 0))
+			block_power += room_power(r)
 	var crew_need := int(defin.get("staff_min", 0))
 	if width > 1:
 		crew_need = crew_need * width - int(bal.get("merge_crew_saving", 1)) * (width - 1)
@@ -2324,7 +2767,7 @@ func room_detail(uid: String) -> Dictionary:
 		"skill": skill,
 		"staff": staff,
 		"staff_max": int(defin.staff_max),
-		"power": int(defin.get("power", 0)),
+		"power": room_power(room),
 		"outputs": outputs,
 		"upgrade": int(room.upgrade),
 		"offline": bool(room.offline),
@@ -2397,6 +2840,29 @@ func _apply_dig(for_space: bool) -> bool:
 	return true
 
 
+## Seasonal water leaves when the flood weeks end. A pump can clear it sooner. Rooms the player switched
+## off stay off.
+func _recede_flood() -> void:
+	var names: PackedStringArray = []
+	var any := false
+	for key in cells:
+		if not bool(cells[key].get("flooded", false)):
+			continue
+		any = true
+		cells[key].flooded = false
+		var uid := str(cells[key].room)
+		var flooded_room = _room(uid)
+		if uid != "" and flooded_room != null:
+			flooded_room.offline = bool(flooded_room.get("switched_off", false))
+			names.append(Copy.t(str(catalog.rooms[flooded_room.type].name)))
+	if not any:
+		return
+	if names.is_empty():
+		_note("SEASON The water is down.", "SEASON Вода сошла.")
+	else:
+		_note("SEASON The water is down. %s are working again." % ", ".join(names), "SEASON Вода сошла. Снова работают: %s." % ", ".join(names))
+
+
 func _apply_pump() -> bool:
 	if not can_pump():
 		return false
@@ -2445,9 +2911,11 @@ func _apply_law(law_id: String) -> bool:
 		if str(defin.get("creed", "")) != "":
 			creed = str(defin.creed)
 	if law_id == "conscription":
-		var sq: Dictionary = squads[player]
-		sq.size = int(sq.size) + int(defin.squad_bonus)
-		sq.max_size = int(sq.max_size) + int(defin.squad_bonus)
+		for _i in int(defin.squad_bonus):
+			var pick := _recruit_pick()
+			if pick == "":
+				break
+			_enlist(pick)
 	decisions += 1
 	_log("LAW %s" % defin.name, true)
 	return true
@@ -2457,16 +2925,28 @@ func _advance_jobs() -> void:
 	if not build.is_empty():
 		build.left = int(build.left) - 1
 		if int(build.left) <= 0:
+			var crew: Array = build.get("workers", []).duplicate()
 			_place_room(str(build.type), int(build.level), int(build.cell))
 			_log("%s is finished" % catalog.rooms[str(build.type)].name)
+			_journal("built", {"type": str(build.type)})
 			build = {}
+			_restore_posts(crew)
 	if not dig.is_empty():
 		dig.left = int(dig.left) - 1
 		if int(dig.left) <= 0:
+			var crew: Array = dig.get("workers", []).duplicate()
 			_finish_dig()
+			_restore_posts(crew)
+
+
+## "requires": "digging" holds while a crew is digging and the week after it breaks through, when the new
+## room is still open and nobody has cleared it.
+func _digging_now() -> bool:
+	return not dig.is_empty() or week - int(flags.get("dig_done_week", -99)) <= 1
 
 
 func _finish_dig() -> void:
+	flags["dig_done_week"] = week
 	var key := _ck(int(dig.level), int(dig.cell))
 	var cell: Dictionary = cells[key]
 	cell.dug = true
@@ -2482,6 +2962,7 @@ func _finish_dig() -> void:
 		var tunnel := _tunnel_by_id("to_floor")
 		if not tunnel.is_empty():
 			tunnel.dug = true
+		flags["first_sealed_tunnel"] = flags.get("first_sealed_tunnel", week)
 		_note("FIND a sealed door. The stencil says FLOOR.", "FIND запечатанная дверь. На трафарете: ЭТАЖ.")
 	elif find == "cable":
 		stock.power = int(stock.power) + int(bal.find_cable_power)
@@ -2489,6 +2970,8 @@ func _finish_dig() -> void:
 	elif find == "salvage":
 		stock.materials = int(stock.materials) + int(bal.find_salvage_materials)
 		_note("FIND salvage, +%d materials" % int(bal.find_salvage_materials), "FIND лом, +%d материалов." % int(bal.find_salvage_materials))
+	if find in ["flooded", "maintenance", "sealed_door", "cable", "salvage"]:
+		_journal("find", {"find": find})
 	if rng.randf() < 0.12 and dig.workers.size() > 0:
 		var hit := str(dig.workers[0])
 		if people.has(hit):
@@ -2504,6 +2987,7 @@ func _dig_cost(level: int) -> Dictionary:
 	var turns := 1 + level
 	if _law_on("engineers_charter"):
 		turns = maxi(1, turns - int(catalog.laws.engineers_charter.dig_faster))
+	turns = maxi(1, turns + int(station_fx("dig_turns")))
 	return {"turns": turns, "workers": mini(4, 2 + level)}
 
 
@@ -2563,9 +3047,14 @@ func _step_toward_find() -> Dictionary:
 func _apply_flood_if_needed() -> void:
 	if active_season.is_empty() or str(active_season.id) != "flood":
 		return
-	if week != int(active_season.start) or pumped or flood_guard:
-		if (pumped or flood_guard) and week == int(active_season.get("start", -1)):
-			_log("The Flood hits the pumps and holds.")
+	if week != int(active_season.start):
+		return
+	if flags.has("leak_patched"):
+		flood_guard = true
+		_note("SEASON The patched pipes hold. The flood does not reach the rooms.", "SEASON Заплатка держит. Паводок не доходит до комнат.")
+		return
+	if pumped or flood_guard:
+		_log("The Flood hits the pumps and holds.")
 		return
 	var lowest := -1
 	for key in cells:
@@ -2588,10 +3077,11 @@ func _apply_flood_if_needed() -> void:
 		names.append(str(extra))
 	if _any_trait("Claustrophobic"):
 		_add_hope(-2, "trait")
-	var flood_note := "SEASON flood on level %d (%s)" % [lowest, ", ".join(names)]
-	if Copy.ru():
-		flood_note = "SEASON Паводок на уровне %d (%s)." % [lowest, ", ".join(names)]
-	_log(flood_note, true)
+	if names.is_empty():
+		_note("SEASON Flood on level %d." % lowest, "SEASON Паводок на уровне %d." % lowest)
+	else:
+		_note("SEASON Flood on level %d (%s)." % [lowest, ", ".join(names)], "SEASON Паводок на уровне %d (%s)." % [lowest, ", ".join(names)])
+	_journal("flood", {"level": lowest})
 
 
 func _needs_pump() -> bool:
@@ -2600,7 +3090,7 @@ func _needs_pump() -> bool:
 			return true
 	if flood_guard:
 		return false
-	return _flood_eta() <= int(bal.get("season_warning", 2))
+	return _flood_eta() <= flood_warning()
 
 
 # --- council orders ---
@@ -2634,21 +3124,48 @@ func _apply_order(action: Dictionary) -> bool:
 			ok = _order_expedition()
 		"approach":
 			ok = _order_approach()
+		"approach_observatory":
+			ok = _order_approach_observatory()
+		"approach_quarantine":
+			ok = _order_approach_quarantine()
 		"address":
 			ok = _order_address()
 	if ok:
 		orders_left -= 1
 		decisions += 1
 		_take_seat(order)
+		if order == "trade":
+			_vo_cue("caravan_arrived")
+			flags["first_caravan"] = flags.get("first_caravan", week)
 	return ok
+
+
+## What propaganda adds at a station: the full swing, or only what is left to 100, so the last push does not
+## waste sympathy.
+func propaganda_gain(sid: String) -> int:
+	if not stations.has(sid):
+		return 0
+	var gap := maxi(0, 100 - int(stations[sid].get("sympathy", 0)))
+	return mini(sympathy_preview(sid), gap)
+
+
+## Propaganda's price: the full price for a full swing, or that share of it when the station needs less (rounded
+## up, at least 1), so five pushes of 22 toward 100 cost 6 + 6 + 6 + 6 + 4.
+func propaganda_cost(sid: String) -> int:
+	var full := int(bal.propaganda_influence)
+	var swing := sympathy_preview(sid)
+	var gain := propaganda_gain(sid)
+	if swing <= 0 or gain >= swing:
+		return full
+	return maxi(1, int(ceil(float(full) * float(gain) / float(swing))))
 
 
 func _order_propaganda(sid: String) -> bool:
 	if _propaganda_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
-	stock.influence = int(stock.influence) - int(bal.propaganda_influence)
-	var gain := sympathy_preview(sid)
+	stock.influence = int(stock.influence) - propaganda_cost(sid)
+	var gain := propaganda_gain(sid)
 	st.sympathy = int(st.sympathy) + gain
 	_log("ORDER propaganda %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
 	if int(st.sympathy) >= 100:
@@ -2678,11 +3195,22 @@ func _order_deal(sid: String) -> bool:
 	st.deals = int(st.get("deals", 0)) + 1
 	st.passage = true
 	_bump_need(st, _lowest_need(st), 0.25)
+	stock.food = int(stock.food) + 4
+	stock.materials = int(stock.materials) + 2
 	_log("DEAL %s (%d)" % [st.name, int(st.deals)], true)
 	if int(st.deals) >= 3 and str(st.owner) == "neutral":
 		_log("DEAL %s asks to join" % st.name, true)
 		_capture(sid, player, false)
 	return true
+
+
+## Why an order is short of influence; names the meeting hall while the station has none, since it makes nearly
+## all of it.
+func influence_short() -> String:
+	var why := Copy.t("Not enough influence.")
+	if room_count("meeting_hall") == 0:
+		why += " " + Copy.t("A meeting hall makes it.")
+	return why
 
 
 func _take_seat(order_name: String) -> void:
@@ -2700,7 +3228,7 @@ func order_councillor() -> Dictionary:
 	for seat in council:
 		var role := str(seat.role)
 		var pid := str(seat.id)
-		if str(seat_used.get(role, "")) != "" or busy.has(pid):
+		if str(seat_used.get(role, "")) != "" or busy.has(pid) or governor_of(pid) != "":
 			continue
 		var person: Dictionary = people.get(pid, {})
 		return {"role": role, "id": pid, "name": str(person.get("name", role))}
@@ -2710,16 +3238,31 @@ func order_councillor() -> Dictionary:
 func order_cost(kind: String, _sid: String = "") -> Dictionary:
 	match kind:
 		"propaganda":
-			return {"influence": int(bal.propaganda_influence)}
+			return {"influence": propaganda_cost(_sid)}
 		"envoy":
 			return {"influence": 3}
 		"trade":
 			return {"influence": 4}
 		"address":
-			return {"influence": int(bal.get("address_influence", 3))}
+			return {"influence": int(bal.get("address_influence", 0))}
+		"move":
+			var food := move_food(_sid)
+			return {"food": food} if food > 0 else {}
 		_:
 			return {}
 	return {}
+
+
+## Rations for a march off your own ground: food per two soldiers, rounded up. Walking home or between your
+## own stations is free.
+func move_food(dest: String) -> int:
+	var sq: Dictionary = squads.get(player, {})
+	if sq.is_empty() or not stations.has(dest):
+		return 0
+	var path := _path(str(sq.station), dest)
+	if path.size() < 2 or str(stations[str(path[1])].owner) == player:
+		return 0
+	return int(ceil(float(soldier_count()) / 2.0)) * int(bal.guard.food_per_two)
 
 
 func queue_order(action: Dictionary) -> bool:
@@ -2738,9 +3281,14 @@ func queue_order(action: Dictionary) -> bool:
 		stock[key] = int(stock.get(key, 0)) - int(cost[key])
 	orders_left -= 1
 	seat_used[str(who.role)] = kind
+	var prev_address := address_week
+	if kind == "address":
+		address_week = week
 	var target := sid
 	if kind == "expedition" and stations.has("vault"):
 		target = "vault"
+	elif kind == "approach" and stations.has("archive"):
+		target = "archive"
 	queued_orders.append({
 		"action": action.duplicate(true),
 		"role": str(who.role),
@@ -2750,9 +3298,9 @@ func queue_order(action: Dictionary) -> bool:
 		"home": capital_id,
 		"target": target,
 		"kind": kind,
+		"prev_address": prev_address,
 	})
-	if kind == "address":
-		address_week = week
+	_journal("order", {"order": kind, "station": target, "name": str(who.name)})
 	return true
 
 
@@ -2766,9 +3314,10 @@ func cancel_queued(role: String) -> bool:
 			stock[key] = int(stock.get(key, 0)) + int(cost[key])
 		seat_used.erase(role)
 		orders_left += 1
+		if str(row.get("kind", "")) == "address":
+			address_week = int(row.get("prev_address", -99))
 		queued_orders.remove_at(i)
-		if str(row.get("kind", "")) == "address" and address_week == week:
-			address_week = -1
+		_journal("cancel", {"order": str(row.get("kind", "")), "station": str(row.get("target", ""))})
 		return true
 	return false
 
@@ -2783,6 +3332,8 @@ func _resolve_queued() -> void:
 			stock[key] = int(stock.get(key, 0)) + int(cost[key])
 		var kind := str(action.get("order", ""))
 		var sid := str(action.get("station", ""))
+		var host := _order_host(kind, action)
+		var before := _order_before(kind, action)
 		var ok := false
 		match kind:
 			"propaganda":
@@ -2808,21 +3359,129 @@ func _resolve_queued() -> void:
 				ok = _order_expedition()
 			"approach":
 				ok = _order_approach()
+			"approach_observatory":
+				ok = _order_approach_observatory()
+			"approach_quarantine":
+				ok = _order_approach_quarantine()
 			"address":
 				ok = _order_address(true)
 		var place := sid
 		if kind == "move" and stations.has(str(action.get("dest", ""))):
-			place = str(stations[str(action.dest)].get("community", action.dest))
+			place = station_text(str(action.dest), "community")
 		elif stations.has(sid):
-			place = str(stations[sid].get("community", sid))
+			place = station_text(sid, "community")
 		seat_used.erase(str(row.get("role", "")))
 		var title := Copy.t("Dawn report")
-		var text := "%s · %s" % [str(row.get("name", "")), place]
+		var who := Copy.person(str(row.get("name", "")))
+		var text := _order_result_text(kind, action, who, place, before, ok)
 		if ok:
 			title = Copy.t(_order_title(kind))
-		else:
-			text = "%s %s" % [Copy.t("The order failed."), text]
-		order_reports.append({"title": title, "text": text, "ok": ok})
+		var report := {"title": title, "text": text, "ok": ok, "kind": kind, "person": str(row.get("person", "")),
+			"station": str(action.get("dest", "")) if kind == "move" else sid}
+		if ok and host != "":
+			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
+		order_reports.append(report)
+		if ok and kind == "trade":
+			_vo_cue("caravan_arrived")
+			flags["first_caravan"] = flags.get("first_caravan", week)
+		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
+
+
+## Stock, sympathy and the squad, read after the order's cost is refunded and before it resolves.
+func _order_before(kind: String, action: Dictionary) -> Dictionary:
+	var sid := str(action.get("station", action.get("dest", "")))
+	var snap := {"stock": {}}
+	for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+		snap.stock[key] = int(stock.get(key, 0))
+	if stations.has(sid):
+		var st: Dictionary = stations[sid]
+		snap.sympathy = int(st.get("sympathy", 0))
+		snap.owner = str(st.owner)
+	var sq: Dictionary = squads.get(player, {})
+	snap.squad = str(sq.get("station", ""))
+	if kind == "move":
+		var path := _path(str(snap.squad), str(action.get("dest", "")))
+		var nxt := str(path[1]) if path.size() >= 2 else ""
+		snap.step = nxt
+		snap.step_owner = str(stations[nxt].owner) if stations.has(nxt) else ""
+	return snap
+
+
+## What the dawn card says the order did: a line from the councillor, then the change.
+func _order_result_text(kind: String, action: Dictionary, who: String, place: String, before: Dictionary, ok: bool) -> String:
+	if not ok:
+		return "%s %s · %s" % [Copy.t("The order failed."), who, place]
+	var bits: PackedStringArray = ["%s · %s" % [who, place]]
+	var sid := str(action.get("station", ""))
+	match kind:
+		"propaganda", "envoy":
+			if stations.has(sid):
+				var now := int(stations[sid].get("sympathy", 0))
+				var gain := now - int(before.get("sympathy", now))
+				if str(stations[sid].owner) == player and str(before.get("owner", "")) != player:
+					bits.append(Copy.t("%s stands with you.") % place)
+				elif gain != 0:
+					bits.append(Copy.t("Sympathy is now %d (+%d).") % [now, gain])
+			if kind == "envoy":
+				bits.append(Copy.t("Their weakest need eases."))
+		"trade":
+			if sid == "":
+				bits.append(Copy.t("The Exchange opinion is now %d. Tokens come every week.") % int(opinions.get("exchange", 0)))
+			elif stations.has(sid):
+				bits.append(Copy.t("Passage is open. Deals with them: %d.") % int(stations[sid].get("deals", 0)))
+				if str(stations[sid].owner) == player and str(before.get("owner", "")) != player:
+					bits.append(Copy.t("%s stands with you.") % place)
+		"move":
+			var here := str(squads.get(player, {}).get("station", ""))
+			var step := str(before.get("step", ""))
+			if step != "" and here == step and str(stations[step].owner) == player and str(before.get("step_owner", "")) != player:
+				bits.append(Copy.t("The squad takes %s.") % (station_text(step, "community") if station_text(step, "community") != "" else place))
+			elif here != str(before.get("squad", "")):
+				var arrived := station_text(here, "community")
+				bits.append(Copy.t("The squad reaches %s.") % (arrived if arrived != "" else place))
+			else:
+				bits.append(Copy.t("The squad is held up on the way."))
+		"expedition":
+			bits.append(Copy.t("The squad is away for %s.") % Words.count(3, "week"))
+	var gained := _gained_since(before)
+	if gained != "":
+		bits.append(gained)
+	if bits.size() == 1:
+		bits.append(Copy.t("It is done."))
+	return " ".join(bits)
+
+
+func _gained_since(before: Dictionary) -> String:
+	var was: Dictionary = before.get("stock", {})
+	var bits: PackedStringArray = []
+	for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+		var d := int(stock.get(key, 0)) - int(was.get(key, 0))
+		if d > 0:
+			bits.append(Copy.stock(d, key))
+	if bits.is_empty():
+		return ""
+	return Copy.t("They send %s.") % ", ".join(bits)
+
+
+## The faction whose ground the order enters or whose trade it opens, read before the order resolves
+## because a capture changes the owner; "" when no faction is involved.
+func _order_host(kind: String, action: Dictionary) -> String:
+	var sid := str(action.get("station", ""))
+	match kind:
+		"envoy", "propaganda":
+			pass
+		"trade":
+			if sid == "":
+				return "exchange"
+		"move":
+			var sq: Dictionary = squads.get(player, {})
+			var path: Array = []
+			if not sq.is_empty():
+				path = _path(str(sq.get("station", "")), str(action.get("dest", "")))
+			sid = str(path[1]) if path.size() >= 2 else ""
+		_:
+			return ""
+	return str(stations[sid].owner) if stations.has(sid) else ""
 
 
 func _order_title(kind: String) -> String:
@@ -2837,13 +3496,19 @@ func _order_title(kind: String) -> String:
 			return "The deal is struck"
 		"expedition":
 			return "The expedition sets out"
-		"address":
-			return "Address the platform"
+		"approach":
+			return "Approach the Floor"
+		"approach_observatory":
+			return "Approach the Observatory"
+		"approach_quarantine":
+			return "Approach the Quarantine"
 		_:
 			return "Dawn report"
 
 
 func order_block(kind: String, sid: String = "") -> String:
+	if kind.begins_with("focus:"):
+		return focus_block(sid, kind.trim_prefix("focus:"))
 	if orders_left <= 0:
 		return Copy.t("No council order left this week.")
 	if order_councillor().is_empty():
@@ -2863,22 +3528,62 @@ func order_block(kind: String, sid: String = "") -> String:
 			if int(opinions.get("exchange", -100)) < 0:
 				return Copy.t("The Exchange will not deal with you.")
 			if int(stock.influence) < 4:
-				return Copy.t("Not enough influence.")
+				return influence_short()
 			return ""
 		"expedition":
 			return _expedition_block()
+		"approach":
+			return approach_block()
+		"approach_observatory":
+			return observatory_block()
+		"approach_quarantine":
+			return quarantine_block()
 		"address":
-			if _address_blocked():
-				return Copy.t("address.disabled_used")
-			if int(stock.influence) < int(bal.get("address_influence", 3)):
-				return Copy.t("address.disabled_influence")
-			return ""
+			return address_reason()
 		_:
 			return Copy.t("No such order.")
 	return ""
 
 
+## Why the Floor cannot be approached now; "" when it can (the order itself aside).
+func approach_block() -> String:
+	if floor_met:
+		return Copy.t("The Floor has already been met.")
+	var tunnel := _tunnel_by_id("to_floor")
+	if int(artifacts.get("papers", 0)) < 1 or tunnel.is_empty() or not bool(tunnel.get("dug", false)):
+		return Copy.t("Needs Papers and the Floor tunnel")
+	return ""
+
+
+## Why the Observatory cannot be approached now; "" when it can (the order itself aside).
+func observatory_block() -> String:
+	if _scene_used("st3_observatory"):
+		return Copy.t("The Observatory has already been met.")
+	if int(artifacts.get("words", 0)) < 2 or not fragment_known("synod_recording"):
+		return Copy.t("Needs 2 testimonies and the recording")
+	return ""
+
+
+func can_approach_observatory() -> bool:
+	return observatory_block() == "" and orders_left > 0
+
+
+## Why the Quarantine cannot be approached now; "" when it can (the order itself aside).
+func quarantine_block() -> String:
+	if _scene_used("st3_quarantine"):
+		return Copy.t("The Quarantine has already been met.")
+	if int(artifacts.get("iron", 0)) < 1 or not fragment_known("quarantine_path"):
+		return Copy.t("Needs the Lamplighters' path and iron")
+	return ""
+
+
+func can_approach_quarantine() -> bool:
+	return quarantine_block() == "" and orders_left > 0
+
+
 func order_risk(kind: String, sid: String = "") -> String:
+	if kind.begins_with("focus:"):
+		return Copy.t("No risk. Once the station can ship, this is what it sends home.")
 	match kind:
 		"envoy":
 			if not stations.has(sid):
@@ -2886,7 +3591,7 @@ func order_risk(kind: String, sid: String = "") -> String:
 			var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
 			return Copy.t("No risk. Sympathy +%d, and their weakest need improves.") % gain
 		"propaganda":
-			return Copy.t("No risk. Sympathy +%d.") % sympathy_preview(sid)
+			return Copy.t("No risk. Sympathy +%d.") % propaganda_gain(sid)
 		"trade":
 			if sid != "":
 				return Copy.t("No risk. A deal opens passage; three deals and a neutral station joins you.")
@@ -2901,21 +3606,23 @@ func order_risk(kind: String, sid: String = "") -> String:
 			var nxt := str(path[1])
 			var owner := str(stations[nxt].owner)
 			if owner == player or owner == "neutral" or owner == "ruin":
-				return Copy.t("No fight on the next step.")
+				return Copy.t("No fight on the next step. Marching: %s.") % Words.count(soldier_count(), "soldier")
 			var st: Dictionary = stations[nxt]
 			var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0)
 			var defense := float(st.garrison) * float(st.fort) * 1.3
 			var odds := 100
 			if attack > 0.0:
 				odds = int(round(clampf((1.2 - defense / attack) / 0.4, 0.0, 1.0) * 100.0))
-			var line := Copy.t("Battle at %s: about %d%% to win. A loss costs 30-60%% of the squad.") % [str(st.get("community", st.name)), odds]
+			var line := Copy.t("Battle at %s: about %d%% to win with %s. A loss kills a third to half of them; even a win costs some.") % [station_text(nxt, "community") if station_text(nxt, "community") != "" else Copy.t(str(st.name)), odds, Words.count(soldier_count(), "soldier")]
 			if not bool(at_war.get(owner, false)):
 				line += " " + Copy.t("Their opinion of you drops by 20.")
+			if opinions.has(owner):
+				line += " " + Copy.t("They strike back for %s.") % Words.count(int(bal.guard.provoke_weeks), "week")
 			return line
 		"expedition":
 			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
-		"address":
-			return Copy.t("address.tip_ok")
+		"approach", "approach_observatory", "approach_quarantine":
+			return Copy.t("No risk. The meeting comes at the next dawn.")
 	return ""
 
 
@@ -2935,8 +3642,8 @@ func _propaganda_block(sid: String) -> String:
 	var why := _court_block(sid)
 	if why != "":
 		return why
-	if int(stock.influence) < int(bal.propaganda_influence):
-		return Copy.t("Not enough influence.")
+	if int(stock.influence) < propaganda_cost(sid):
+		return influence_short()
 	return ""
 
 
@@ -2945,7 +3652,7 @@ func _envoy_block(sid: String) -> String:
 	if why != "":
 		return why
 	if int(stock.influence) < 3:
-		return Copy.t("Not enough influence.")
+		return influence_short()
 	return ""
 
 
@@ -2956,7 +3663,7 @@ func _deal_block(sid: String) -> String:
 	if int(stations[sid].get("deals", 0)) >= 3:
 		return Copy.t("Three deals are already in force.")
 	if int(stock.influence) < 4:
-		return Copy.t("Not enough influence.")
+		return influence_short()
 	return ""
 
 
@@ -2966,8 +3673,13 @@ func _move_block(dest: String) -> String:
 		return Copy.t("The squad is away.")
 	if not stations.has(dest):
 		return Copy.t("No open tunnel that way.")
-	if _path(str(sq.station), dest).size() < 2:
+	var path := _path(str(sq.station), dest)
+	if path.size() < 2:
 		return Copy.t("No open tunnel that way.")
+	if str(stations[str(path[1])].owner) != player and soldier_count() < int(bal.guard.move_min):
+		return Copy.t("Needs %d soldiers. Recruit them at your station.") % int(bal.guard.move_min)
+	if int(stock.food) < move_food(dest):
+		return Copy.t("Not enough food for the march.")
 	return ""
 
 
@@ -2977,6 +3689,8 @@ func _expedition_block() -> String:
 	var sq: Dictionary = squads.get(player, {})
 	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
 		return Copy.t("The squad must be home first.")
+	if soldier_count() < int(bal.guard.move_min):
+		return Copy.t("Needs %d soldiers. Recruit them at your station.") % int(bal.guard.move_min)
 	var tunnel := _tunnel_by_id("to_ferry")
 	if tunnel.is_empty() or bool(tunnel.get("dug", false)):
 		return Copy.t("South Ferry is already open.")
@@ -3048,9 +3762,10 @@ func _order_move(dest: String) -> bool:
 	var sq: Dictionary = squads[player]
 	if sq.away or not stations.has(dest):
 		return false
-	var path := _path(str(sq.station), dest)
-	if path.size() < 2:
+	if _move_block(dest) != "":
 		return false
+	var path := _path(str(sq.station), dest)
+	stock.food = int(stock.food) - move_food(dest)
 	return _step_squad(sq, str(path[1]), true)
 
 
@@ -3064,6 +3779,11 @@ func _order_focus(sid: String, focus: String) -> bool:
 	return true
 
 
+## Set when the South Ferry expedition walks back: the hook for story events ("needs": {"flag": ...}) that grant
+## what it found, such as "artifacts": {"iron": 1}.
+const EXPEDITION_FLAG := "expedition_ferry_back"
+
+
 func _order_expedition() -> bool:
 	if not can_expedition():
 		return false
@@ -3071,8 +3791,7 @@ func _order_expedition() -> bool:
 	expedition = {"left": 3, "tunnel": "to_ferry"}
 	_log("ORDER expedition to South Ferry", true)
 	# P7 night runs should call _note_night_run. The expedition is the outing that exists today.
-	var runners := _squad_names(2)
-	for pid in runners:
+	for pid in _squad_names(2):
 		_note_night_run(str(pid))
 	return true
 
@@ -3083,35 +3802,85 @@ func _order_approach() -> bool:
 	floor_met = true
 	_add_hope(2, "victory")
 	_log("The Floor is still holding a meeting. They ask who speaks for Coney Island.", true)
+	_fire_trigger("approach_floor")
 	return true
 
 
-func _order_address(committed := false) -> bool:
-	var cost := int(bal.get("address_influence", 3))
-	if not committed:
-		if _address_blocked() or int(stock.influence) < cost:
-			return false
-		address_week = week
-	elif int(stock.influence) < cost:
+func _order_approach_observatory() -> bool:
+	if observatory_block() != "":
+		return false
+	if stations.has("oldcommand"):
+		stations.oldcommand.hidden = false
+		stations.oldcommand.known = true
+	_log("Court St answers through the grate. Someone down there has been counting.", true)
+	_fire_trigger("approach_observatory")
+	return true
+
+
+func _order_approach_quarantine() -> bool:
+	if quarantine_block() != "":
+		return false
+	_fire_trigger("approach_quarantine")
+	return true
+
+
+## The bunker scenes an order can set off ("trigger": {"order": ...}); each order name is fired from one place.
+const TRIGGER_ORDERS := ["approach_floor", "approach_quarantine", "approach_observatory"]
+
+
+## Queues every bunker scene waiting on `order` whose trigger conditions hold, for the next dawn, once a run.
+func _fire_trigger(order: String) -> void:
+	for ev in catalog.events:
+		var trigger = ev.get("trigger", null)
+		if not (trigger is Dictionary) or str(trigger.get("order", "")) != order or _scene_used(str(ev.id)):
+			continue
+		if needs_hold(trigger.get("needs", {})):
+			story_queue.append(str(ev.id))
+
+
+func _scene_used(id: String) -> bool:
+	return events_seen.has(id) or story_queue.has(id) or _has_event(pending, id)
+
+
+## Bunker scenes queued by an order come at dawn after every other draw, so no pool or slot sees them.
+func _offer_triggered() -> void:
+	var keep: Array = []
+	for id in story_queue:
+		var ev := _event_by_id(str(id))
+		if ev.is_empty() or events_seen.has(str(id)):
+			continue
+		if not _present_event(ev):
+			keep.append(id)
+	story_queue = keep
+
+
+## Why the platform cannot be addressed now; "" when it can (the council order itself aside).
+func address_reason() -> String:
+	var cost := int(bal.get("address_influence", 0))
+	if week - address_week < int(bal.get("address_cooldown", 1)):
+		return Copy.t("Already addressed this week.")
+	for row in queued_orders:
+		if str(row.get("kind", "")) == "address":
+			return Copy.t("Already addressed this week.")
+	if int(stock.influence) < cost:
+		return Copy.t("Need %d influence.") % cost
+	return ""
+
+
+## Speaking to the platform: influence for hope, once a week. A queued address booked its week when the council
+## took it, so at dawn it only pays.
+func _order_address(queued := false) -> bool:
+	var cost := int(bal.get("address_influence", 0))
+	if not queued and address_reason() != "":
+		return false
+	if int(stock.influence) < cost:
 		return false
 	stock.influence = int(stock.influence) - cost
+	if not queued:
+		address_week = week
 	_add_hope(int(bal.get("address_hope", 1)), "address")
-	_add_discontent(int(bal.get("address_discontent", 0)), "address")
 	_log("ORDER address the platform")
 	return true
-
-
-func _address_blocked() -> bool:
-	if address_week < 0:
-		return false
-	var gap := maxi(1, int(bal.get("address_cooldown", 1)))
-	return week - address_week < gap
-
-
-func address_reason() -> String:
-	if over != "":
-		return Copy.t("The run is over.")
-	return order_block("address")
 
 
 func _tick_expedition() -> void:
@@ -3132,11 +3901,12 @@ func _tick_expedition() -> void:
 	st.garrison = 6
 	var sq: Dictionary = squads[player]
 	sq.away = false
-	sq.size = maxi(3, int(round(float(sq.size) * 0.85)))
+	_lose_soldiers(int(round(float(sq.size) * 0.15)), "The road to South Ferry")
 	stock.materials = int(stock.materials) + 10
 	_hire(2)
 	expedition = {}
-	_log("South Ferry is open. Two people walk back with the squad.", true)
+	flags[EXPEDITION_FLAG] = true
+	_note("BACK South Ferry is open. Two people walk back with the squad, and materials come with them.", "BACK Саут-Ферри открыт. Двое возвращаются с отрядом, и с ними материалы.")
 
 
 # --- rivals ---
@@ -3168,7 +3938,7 @@ func _book_calendar() -> void:
 	pressure = {}
 	warning_weeks = {}
 	crisis_faults = []
-	for season in bal.seasons:
+	for season in seasons:
 		var at := int(season.week)
 		var warn := at - int(bal.season_warning)
 		if warn > 0:
@@ -3285,7 +4055,7 @@ func _plan_one(fid: String) -> Dictionary:
 		stations[target].known = true
 	if target == "":
 		return {"faction": fid, "kind": "hold"}
-	if fid == "exchange" and not bool(at_war.get(fid, false)):
+	if fid == "exchange" and not _hostile_to_player(fid):
 		return {"faction": fid, "kind": "buy", "station": target}
 	return {"faction": fid, "kind": "squad", "station": target}
 
@@ -3340,10 +4110,78 @@ func _resolve_squad(fid: String, target: String) -> void:
 		return
 	var nxt := str(path[1])
 	var owner := str(stations[nxt].owner)
-	if owner == player and not bool(at_war.get(fid, false)):
+	if owner == player and not _hostile_to_player(fid):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
 		return
 	_step_squad(sq, nxt, false)
+
+
+# --- retaliation: a faction you march on strikes back ---
+
+## Marching your squad into a faction's station provokes it for a few weeks: its squad comes for your stations
+## and its garrisons raid your squad when it stands next to them.
+func _provoke(fid: String) -> void:
+	var was := provoked(fid)
+	flags["provoked_" + fid] = week + int(bal.guard.provoke_weeks)
+	if not was:
+		var line := "%s will strike back." % _fname(fid)
+		if Copy.ru():
+			line = "%s ответит ударом." % Copy.t(_fname(fid))
+		_log(line, true)
+
+
+func provoked(fid: String) -> bool:
+	return int(flags.get("provoked_" + fid, 0)) >= week
+
+
+func provoked_weeks(fid: String) -> int:
+	return maxi(0, int(flags.get("provoked_" + fid, 0)) - week)
+
+
+func _hostile_to_player(fid: String) -> bool:
+	return bool(at_war.get(fid, false)) or provoked(fid)
+
+
+## The nearest station you hold to a provoked faction's squad, your capital aside; "" when none is in reach.
+func _strike_target(fid: String) -> String:
+	if not squads.has(fid):
+		return ""
+	var from := str(squads[fid].station)
+	var best := ""
+	var best_hops := 999
+	for sid in _owned_by(player):
+		if sid == capital_id:
+			continue
+		var hops := _hops(from, sid)
+		if hops >= 0 and hops < best_hops:
+			best_hops = hops
+			best = sid
+	return best
+
+
+## Garrisons of a provoked faction raid your squad when it stands on or next to their ground.
+func _sorties() -> void:
+	var sq: Dictionary = squads.get(player, {})
+	if sq.is_empty() or bool(sq.away) or soldier_count() == 0:
+		return
+	var here := str(sq.station)
+	for fid in opinions.keys():
+		if not provoked(fid):
+			continue
+		var raider := ""
+		for n in _neighbors(here):
+			if str(stations[n].owner) == fid and int(stations[n].garrison) > 0:
+				raider = n
+				break
+		if raider == "":
+			continue
+		if net_rng.randf() >= float(bal.guard.sortie_chance):
+			continue
+		var hit := net_rng.randi_range(1, 2)
+		var place := station_text(raider, "community")
+		if place == "":
+			place = Copy.t(str(stations[raider].name))
+		_lose_soldiers(hit, Copy.t("A raid from %s") % place)
 
 
 func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
@@ -3357,6 +4195,7 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		edge.dug = true
 		edge.state = "open"
 		_log("DIG the tunnel toward %s is clear" % stations[nxt].name, true)
+		_journal("tunnel", {"station": nxt})
 		return true
 	var flooded: bool = state == "flooded" or bool(edge.get("flooded", false))
 	if flooded and int(sq.get("ford", 0)) < 1:
@@ -3376,7 +4215,9 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		return false
 	if player_move and owner != player and not bool(at_war.get(owner, false)):
 		_add_opinion(owner, -20)
-	if not player_move and owner == player and not bool(at_war.get(sq.faction, false)):
+	if player_move and owner != player and opinions.has(owner):
+		_provoke(owner)
+	if not player_move and owner == player and not _hostile_to_player(str(sq.faction)):
 		return false
 	if not player_move and nxt == capital_id and (week <= max_weeks or int(ambition.get(str(sq.faction), 0)) < 100):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
@@ -3408,21 +4249,24 @@ func _battle(sq: Dictionary, sid: String) -> bool:
 			garrison = float(psq.size)
 			defender = psq
 	var defense := garrison * float(st.fort) * 1.3
-	var before_player := int(squads[player].size)
 	var win := attack > defense
 	var loss := net_rng.randf_range(0.3, 0.6)
+	var ours := str(sq.faction) == player
 	if win:
 		st.garrison = clampi(int(round(float(st.garrison) * (1.0 - loss))), 2, 22)
 		_log("BATTLE %s takes %s" % [sq.name, st.name], true)
+		if ours:
+			_lose_soldiers(maxi(1, int(round(float(sq.size) * loss * 0.35))), "The garrison fought back")
 	else:
-		sq.size = clampi(int(round(float(sq.size) * (1.0 - loss))), 5, 20)
-		if not defender.is_empty():
-			defender.size = clampi(int(round(float(defender.size) * (1.0 - loss * 0.5))), 5, 20)
 		_log("BATTLE %s is thrown back from %s" % [sq.name, st.name], true)
-	var fell := before_player - int(squads[player].size)
-	if fell > 0:
-		_kill(fell, "The fight at %s" % str(st.name), "battle", str(st.name))
-		_note_moment("battle", {"place": str(st.name), "result": "the squad came back smaller"}, 3)
+		if ours:
+			_lose_soldiers(maxi(1, int(round(float(sq.size) * loss))), "Thrown back")
+		else:
+			sq.size = clampi(int(round(float(sq.size) * (1.0 - loss))), 5, 20)
+		if not defender.is_empty():
+			_lose_soldiers(int(round(float(defender.size) * loss * 0.5)), "The guard held the station")
+	if ours:
+		_note_moment("battle", {"place": str(st.name), "result": "the squad came back smaller" if not win else "the squad took the station"}, 3)
 	return win
 
 
@@ -3447,6 +4291,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	st.low_weeks = 0
 	if fid != player or force:
 		_note_flip(sid, prev, fid)
+	_journal("station", {"station": sid, "to": fid, "from": prev})
 	if str(st.focus) == "":
 		st.focus = "food"
 	for key in st.rival_symp:
@@ -3459,16 +4304,21 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_add_hope(int(bal.join_hope), "victory")
 		_add_discontent(int(bal.get("join_discontent", 0)), "victory")
 		_note_moment("station_taken", {"place": str(st.name)}, 3)
+		var shipment := _capture_shipment(st)
 		var how := "force" if force else "peace"
 		var joined := str(st.name)
 		if Copy.ru():
 			how = "силой" if force else "мирно"
 			joined = Copy.t(joined)
-		_log("JOIN %s (%s)" % [joined, how], true)
+		var line := "JOIN %s (%s)" % [joined, how]
+		if shipment != "":
+			line += ". " + shipment
+		_log(line, true)
 	else:
 		if prev == player:
 			_note_moment("station_lost", {"place": str(st.name)}, 3)
 		_log("%s takes %s" % [_fname(fid), st.name], true)
+	_settle_governors()
 	if sid == capital_id and fid != player and over == "":
 		over = "capital"
 		_log("The yard has fallen.", true)
@@ -3476,7 +4326,283 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	return true
 
 
+## A station that comes over sends one load home the week it joins, so the capture is not only a new pin.
+func _capture_shipment(st: Dictionary) -> String:
+	var goods: Dictionary = catalog.station_goods(str(st.get("id", "")))
+	var key := "food"
+	for good in goods:
+		if int(goods[good]) > int(goods.get(key, 0)):
+			key = str(good)
+	var n := int(CAPTURE_LOAD.get(key, 4))
+	stock[key] = int(stock.get(key, 0)) + n
+	return Copy.t("They send %s.") % Copy.stock(n, key)
+
+
+## The one load a station sends home the week it joins, by its biggest good.
+const CAPTURE_LOAD := {"food": 6, "materials": 4, "tokens": 4, "air": 4, "influence": 3}
+
+
+func focus_block(sid: String, focus: String) -> String:
+	if focus not in ["food", "air", "defense", "influence"]:
+		return Copy.t("No such order.")
+	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
+		return Copy.t("That station is out of reach.")
+	if str(stations[sid].get("focus", "")) == focus:
+		return Copy.t("They already send this home.")
+	return ""
+
+
+func set_outpost_focus(sid: String, focus: String) -> bool:
+	if focus_block(sid, focus) != "":
+		return false
+	stations[sid].focus = focus
+	_log("ORDER %s focuses on %s" % [stations[sid].name, focus])
+	return true
+
+
+## What a held station ships home at next dawn: the same flow _deliver_outposts pays, one week older.
+## Empty for the capital and for stations that are not the player's. A focus previews that focus instead of the
+## current one; settled previews what it ships once it is past settling in.
+func outpost_yield(sid: String, focus: String = "", settled: bool = false) -> Dictionary:
+	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
+		return {}
+	var st: Dictionary = stations[sid]
+	var age := int(st.get("held_weeks", 0)) + 1
+	if settled:
+		age = maxi(age, 5)
+	var use := focus if focus != "" else str(st.get("focus", ""))
+	var gov := str(st.get("governor", ""))
+	return Formulas.outpost_flow(age, _supply_hops(sid), use, governor_bonus(gov, use), governor_settle(gov), catalog.station_goods(sid))
+
+
+# --- governors ---
+## A resident who holds a station for the player (docs/GOVERNORS_PLAN.md). The station carries the person's id in
+## "governor"; while they govern they are away from home (absent, held there each week) and their room post is kept
+## for their return. A councillor may govern, but their seat gives no order while they are away.
+const GOVERNOR_SKILL := {"food": "labor", "air": "tech", "defense": "fight", "influence": "talk"}
+
+
+## The extra focus goods a person adds as governor: +1 at the first skill line, +2 at the second.
+func governor_bonus(pid: String, focus: String) -> int:
+	if not people.has(pid):
+		return 0
+	var g: Dictionary = bal.governor
+	var skill := int(people[pid].skills.get(str(GOVERNOR_SKILL.get(focus if focus != "" else "food", "labor")), 0))
+	if skill >= int(g.skill_plus_two):
+		return 2
+	if skill >= int(g.skill_plus_one):
+		return 1
+	return 0
+
+
+## Weeks a station takes to settle in under this governor (shorter with a strong worker in charge).
+func governor_settle(pid: String) -> int:
+	var g: Dictionary = bal.governor
+	if people.has(pid) and int(people[pid].skills.get("labor", 0)) >= int(g.labor_min):
+		return int(g.settle_weeks_labor)
+	return int(g.settle_weeks)
+
+
+## The station a person governs, or "".
+func governor_of(pid: String) -> String:
+	for sid in stations:
+		if str(stations[sid].get("governor", "")) == pid and pid != "":
+			return str(sid)
+	return ""
+
+
+func governor_block(sid: String, pid: String) -> String:
+	if not stations.has(sid) or str(stations[sid].owner) != player or sid == capital_id:
+		return Copy.t("That station is out of reach.")
+	if str(stations[sid].get("governor", "")) != "":
+		return Copy.t("The station already has a governor.")
+	if not people.has(pid):
+		return Copy.t("No such person.")
+	var person: Dictionary = people[pid]
+	if governor_of(pid) != "":
+		return Copy.t("They already govern a station.")
+	if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+		return Copy.t("They are not at the station now.")
+	if _locked_ids().has(pid) or bool(person.get("soldier", false)):
+		return Copy.t("They are on a crew or in the guard.")
+	if (bal.governor.get("too_young", []) as Array).has(pid):
+		return Copy.t("Too young to hold a station.")
+	if int(stock.influence) < int(bal.governor.appoint_influence):
+		return influence_short()
+	return ""
+
+
+## Who could govern a station, best first by what they would add to its focus: [{id, name, skill, bonus, council}].
+func governor_candidates(sid: String) -> Array:
+	var out: Array = []
+	if not stations.has(sid):
+		return out
+	var focus := str(stations[sid].get("focus", "food"))
+	var key := str(GOVERNOR_SKILL.get(focus if focus != "" else "food", "labor"))
+	for person in residents:
+		var pid := str(person.id)
+		var why := governor_block(sid, pid)
+		if why != "" and why != influence_short():
+			continue
+		out.append({"id": pid, "name": str(person.name), "skill": int(person.skills.get(key, 0)), "skill_key": key,
+			"bonus": governor_bonus(pid, focus), "council": _is_council(pid), "talk": int(person.skills.get("talk", 0))})
+	out.sort_custom(func(a, b): return [int(a.bonus), not bool(a.council), int(a.skill)] > [int(b.bonus), not bool(b.council), int(b.skill)])
+	return out
+
+
+func appoint_governor(sid: String, pid: String) -> bool:
+	if governor_block(sid, pid) != "":
+		return false
+	var g: Dictionary = bal.governor
+	stock.influence = int(stock.influence) - int(g.appoint_influence)
+	_mark_post(pid)
+	_unassign(pid)
+	people[pid].absent = maxi(int(people[pid].get("absent", 0)), 2)
+	stations[sid].governor = pid
+	if _has_trait(people[pid], "Veteran"):
+		stations[sid].garrison = int(stations[sid].garrison) + int(g.veteran_garrison)
+	if _is_council(pid):
+		for seat in council:
+			if str(seat.id) == pid and str(seat_used.get(str(seat.role), "")) == "":
+				orders_left = maxi(0, orders_left - 1)
+	decisions += 1
+	_note("%s now holds %s for us." % [people[pid].name, stations[sid].name], "%s теперь держит для нас станцию «%s»." % [Copy.person(str(people[pid].name)), Copy.t(str(stations[sid].name))])
+	_journal("governor", {"station": sid, "person": pid})
+	return true
+
+
+## Brings the governor home now; sick_weeks > 0 when they walk home from a lost station.
+func recall_governor(sid: String, sick_weeks: int = 0) -> bool:
+	if not stations.has(sid):
+		return false
+	var pid := str(stations[sid].get("governor", ""))
+	if pid == "":
+		return false
+	stations[sid].governor = ""
+	if not people.has(pid):
+		return true
+	if _has_trait(people[pid], "Veteran"):
+		stations[sid].garrison = maxi(0, int(stations[sid].garrison) - int(bal.governor.veteran_garrison))
+	people[pid].absent = 0
+	if sick_weeks > 0:
+		people[pid].sick = maxi(int(people[pid].get("sick", 0)), sick_weeks)
+		_note("%s walks home from %s, hurt." % [people[pid].name, stations[sid].name], "%s возвращается из «%s» с ранением." % [Copy.person(str(people[pid].name)), Copy.t(str(stations[sid].name))])
+	else:
+		_log("RECALL %s from %s" % [people[pid].name, stations[sid].name])
+		_restore_post(pid)
+	return true
+
+
+## Releases governors of stations that are no longer the player's (they walk home hurt) and of people who are gone.
+func _settle_governors() -> void:
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		var pid := str(st.get("governor", ""))
+		if pid == "":
+			continue
+		if not people.has(pid):
+			st.governor = ""
+		elif str(st.owner) != player:
+			recall_governor(str(sid), int(bal.governor.lost_sick_weeks))
+
+
+## Keeps every governor away from home through the weekly absence tick.
+func _hold_governors() -> void:
+	for sid in stations:
+		var pid := str(stations[sid].get("governor", ""))
+		if pid != "" and people.has(pid):
+			people[pid].absent = maxi(int(people[pid].get("absent", 0)), 2)
+
+
+## The governor's weekly price and the station-side effects of who they are. Called with the outpost deliveries.
+func _pay_governors() -> void:
+	var g: Dictionary = bal.governor
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		var pid := str(st.get("governor", ""))
+		if pid == "" or not people.has(pid):
+			continue
+		if int(stock.influence) < int(g.weekly_influence):
+			_note("No influence left to keep a governor. %s comes home." % people[pid].name, "Влияния на наместника не осталось. %s возвращается домой." % Copy.person(str(people[pid].name)))
+			recall_governor(str(sid))
+			continue
+		stock.influence = int(stock.influence) - int(g.weekly_influence)
+		var person: Dictionary = people[pid]
+		if int(person.skills.get("talk", 0)) >= int(g.talk_min):
+			st.loyalty = mini(100, int(st.loyalty) + int(g.talk_loyalty))
+		if _has_trait(person, "Devout") and int(st.unrest) > 0:
+			st.unrest = int(st.unrest) - 1
+		if _has_trait(person, "Black marketeer") and _supply_hops(str(sid)) < 900:
+			stock.tokens = int(stock.tokens) + int(g.marketeer_tokens)
+
+
+## What a station the player does not hold would ship home once taken and settled in, at its current focus (food
+## when it has none): the supply line would run through the best neighbour that already supplies. Empty for the
+## player's own stations; all zero when no neighbour supplies (it would be cut off).
+func yield_if_taken(sid: String) -> Dictionary:
+	if not stations.has(sid) or str(stations[sid].owner) == player or sid == capital_id:
+		return {}
+	var hops := 999
+	for n in _neighbors(sid):
+		if _supplies(str(n)):
+			hops = mini(hops, _supply_hops(str(n)) + 1)
+	var focus := str(stations[sid].get("focus", ""))
+	return Formulas.outpost_flow(5, hops, focus if focus != "" else "food", 0, 4, catalog.station_goods(sid))
+
+
+## The chain of stations an outpost's loads walk home along, outpost first and capital last, through stations
+## that supply (the same rule as _supply_hops). Empty when the line is cut.
+func supply_route(sid: String) -> Array:
+	if not stations.has(sid) or sid == capital_id:
+		return []
+	var prev := {capital_id: ""}
+	var queue: Array = [capital_id]
+	var qi := 0
+	while qi < queue.size():
+		var cur: String = queue[qi]
+		qi += 1
+		for n in _neighbors(cur):
+			var nb := str(n)
+			if prev.has(nb) or not _supplies(nb):
+				continue
+			prev[nb] = cur
+			if nb == sid:
+				var chain: Array = []
+				var p := nb
+				while p != "":
+					chain.append(p)
+					p = str(prev[p])
+				return chain
+			queue.append(nb)
+	return []
+
+
+## The open tunnel chain from the capital to a station, capital first, for caravans that walk to a trade partner.
+func trade_route(sid: String) -> Array:
+	if not stations.has(sid) or sid == capital_id:
+		return []
+	return _path(capital_id, sid)
+
+
+## The tunnel chain a squad walked from one station to another, for the map to animate; a straight hop when the
+## tunnels between them are closed now.
+func walk_route(from: String, to: String) -> Array:
+	var chain := _path(from, to)
+	return chain if not chain.is_empty() else [from, to]
+
+
+## The open tunnel chain from a rival station to its faction's seat, for the rival carts the map draws.
+func rival_route(sid: String, seat: String) -> Array:
+	if not stations.has(sid) or not stations.has(seat) or sid == seat:
+		return []
+	return _path(sid, seat)
+
+
 func _campaign_target(fid: String) -> String:
+	if provoked(fid):
+		var strike := _strike_target(fid)
+		if strike != "":
+			return strike
 	if int(stats.get("flip_week", 0)) == 0:
 		var locked := str(stats.get("flip_target", ""))
 		if locked != "" and stations.has(locked) and str(stations[locked].owner) == "neutral":
@@ -3495,7 +4621,7 @@ func _campaign_target(fid: String) -> String:
 			var owner := str(st.owner)
 			if owner == fid or owner == "bunker" or owner == "ruin":
 				continue
-			if owner == player and not bool(at_war.get(fid, false)):
+			if owner == player and not _hostile_to_player(fid):
 				continue
 			if owner != "neutral" and owner != player:
 				continue
@@ -3507,6 +4633,8 @@ func _campaign_target(fid: String) -> String:
 
 
 func _deliver_outposts() -> void:
+	_settle_governors()
+	_pay_governors()
 	for sid in stations.keys():
 		var st: Dictionary = stations[sid]
 		if str(st.owner) != player or sid == capital_id:
@@ -3515,7 +4643,8 @@ func _deliver_outposts() -> void:
 		var hops := _supply_hops(str(sid))
 		if hops >= 900:
 			continue
-		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus))
+		var gov := str(st.get("governor", ""))
+		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus), governor_bonus(gov, str(st.focus)), governor_settle(gov), catalog.station_goods(str(sid)))
 		var upkeep := int(flow.upkeep_materials)
 		if upkeep > 0:
 			stock.materials = maxi(0, int(stock.materials) - upkeep)
@@ -3566,12 +4695,14 @@ func _tick_holdings() -> void:
 					_capture(sid, suitor, false)
 				else:
 					_log("REVOLT %s throws the garrison out" % st.name, true)
+					_journal("station", {"station": sid, "to": "neutral", "from": player})
 					st.owner = "neutral"
 					st.loyalty = 45
 					st.sympathy = 0
 					st.unrest = 0
 					st.low_weeks = 0
 					_note_flip(sid, player, "neutral")
+					_settle_governors()
 
 
 func _press_loyalty(st: Dictionary) -> void:
@@ -3606,6 +4737,7 @@ func _drift_opinion() -> void:
 		if int(opinions[fid]) <= int(bal.opinion_war) and not bool(at_war.get(fid, false)):
 			at_war[fid] = true
 			_log("WAR %s" % _fname(fid), true)
+			_journal("war", {"faction": fid})
 
 
 # --- people ---
@@ -3669,9 +4801,7 @@ func _best_free(skill: String, used: Dictionary) -> String:
 	var best_v := -1
 	for person in residents:
 		var id := str(person.id)
-		if used.has(id):
-			continue
-		if _is_child(person):
+		if used.has(id) or _is_child(person):
 			continue
 		var v := 0 if skill == "" else int(person.skills.get(skill, 0))
 		if v > best_v:
@@ -3694,6 +4824,7 @@ func _pull_workers(n: int, skill: String) -> Array:
 	var chosen: Array = []
 	for i in n:
 		var id := str(pool[i].id)
+		_mark_post(id)
 		_unassign(id)
 		chosen.append(id)
 	return chosen
@@ -3705,6 +4836,7 @@ func _locked_ids() -> Array:
 		ids.append_array(dig.workers)
 	if not build.is_empty():
 		ids.append_array(build.workers)
+	ids.append_array(soldier_ids())
 	return ids
 
 
@@ -3757,12 +4889,15 @@ func _hire(n: int) -> void:
 		_fill_identity(person)
 		residents.append(person)
 		people[id] = person
+		_dress([person])
 
 
 func _kill(n: int, why: String, cause := "accident", place := "") -> void:
 	var names := _shed(n, "died", cause, place)
 	if names.size() > 0:
 		_log("%s. %s." % [why, ", ".join(names)], true)
+		_journal("deaths", {"n": names.size()})
+		_vo_cue("resident_lost")
 
 
 func _shed(n: int, how := "died", cause := "accident", place := "") -> PackedStringArray:
@@ -3773,42 +4908,234 @@ func _shed(n: int, how := "died", cause := "accident", place := "") -> PackedStr
 		if id == "":
 			break
 		names.append(str(people[id].get("name", id)))
-		_remove_resident(id, how, cause, place)
+		_remove_resident(id, how == "died", cause, how, place)
 		lost += 1
 	return names
 
 
-func _remove_resident(id: String, how := "died", cause := "accident", place := "") -> void:
-	if not people.has(id):
-		_unassign(id)
-		return
-	var person: Dictionary = people[id]
-	var memory := int(person.get("memory", 0))
-	var known := memory >= 40
-	var line_id := _death_line_id(cause, person)
-	_remember_departure(person, how, line_id, place)
-	if how == "died":
-		stats.named_dead = int(stats.get("named_dead", 0)) + 1
-		_note_moment("named_death", {"name": str(person.get("name", id)), "cause": _death_cause_label(line_id), "who": id}, 5)
-		if known:
-			_note_moment("known_lost", {"name": str(person.get("name", id))}, 5)
-			_add_hope(-2, "known")
-		if memory >= 30:
-			burials.append({"id": id, "name": str(person.get("name", id)), "name_ru": str(person.get("name_ru", "")), "cause": line_id, "memory": memory})
-	elif known:
-		_add_hope(-1, "known")
-		_note_moment("known_lost", {"name": str(person.get("name", id))}, 4)
+func _remove_resident(id: String, notice := false, cause := "", how := "died", place := "") -> void:
+	if people.has(id) and (notice or cause != ""):
+		var who: Dictionary = people[id]
+		var memory := int(who.get("memory", 0))
+		var known := memory >= 40
+		var line_id := _death_line_id(cause if cause != "" else "accident", who)
+		if how == "died":
+			_remember_departure(who, "died", line_id, place)
+			stats.named_dead = int(stats.get("named_dead", 0)) + 1
+			_note_moment("named_death", {"name": str(who.get("name", id)), "cause": _death_cause_label(line_id), "who": id}, 5)
+			if known:
+				_note_moment("known_lost", {"name": str(who.get("name", id))}, 5)
+				_add_hope(-2, "known")
+			if memory >= 30:
+				burials.append({
+					"id": id,
+					"name": str(who.get("name", id)),
+					"name_ru": str(who.get("name_ru", "")),
+					"cause": line_id,
+					"memory": memory,
+				})
+		elif how == "left":
+			_remember_departure(who, "left", line_id, place)
+			if known:
+				_add_hope(-1, "known")
+				_note_moment("known_lost", {"name": str(who.get("name", id))}, 4)
+	var gone := str(people[id].get("name", "")) if people.has(id) else ""
+	var seat := ""
+	if people.has(id):
+		var uid := _staff_room_of(id)
+		if uid == "":
+			uid = str(people[id].get("post", ""))
+		var room = _room(uid)
+		if room != null:
+			seat = Copy.t(str(catalog.rooms[room.type].name))
 	_unassign(id)
+	if notice and gone != "":
+		var name := Copy.person(gone)
+		var died := "умерла" if people.has(id) and sex_of(people[id]) == "f" else "умер"
+		if seat != "":
+			_note("LOST %s died. Their place in %s is empty." % [name, seat], "LOST %s %s. Место в «%s» пусто." % [name, died, seat])
+		else:
+			_note("LOST %s died." % name, "LOST %s %s." % [name, died])
 	people.erase(id)
 	var keep: Array = []
-	for row in residents:
-		if str(row.id) != id:
-			keep.append(row)
+	for person in residents:
+		if str(person.id) != id:
+			keep.append(person)
 	residents = keep
 	if not dig.is_empty():
 		dig.workers = _without(dig.workers, id)
 	if not build.is_empty():
 		build.workers = _without(build.workers, id)
+	_sync_guard()
+
+
+# --- the guard: the player's squad is made of residents ---
+
+## Residents standing in the platform guard. They eat and take beds like everyone else but work no room.
+func soldier_ids() -> Array:
+	var ids: Array = []
+	for person in residents:
+		if bool(person.get("soldier", false)):
+			ids.append(str(person.id))
+	return ids
+
+
+func soldier_count() -> int:
+	return soldier_ids().size()
+
+
+## The player's squad is as big as the guard; nothing refills it but recruiting.
+func _sync_guard() -> void:
+	if not squads.has(player):
+		return
+	var n := soldier_count()
+	squads[player].size = n
+	squads[player].max_size = n
+	if n == 0 and not bool(squads[player].get("away", false)):
+		squads[player].station = capital_id
+
+
+## Who joins the guard next: the best fighter outside the council, crews and sickbeds; idle people first on a tie.
+func _recruit_pick() -> String:
+	var locked := _locked_ids()
+	var best := ""
+	var best_v := -1
+	for person in residents:
+		var id := str(person.id)
+		if locked.has(id) or _is_council(id) or _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0:
+			continue
+		var v := int(person.skills.get("fight", 0)) * 2
+		if _staff_room_of(id) == "":
+			v += 1
+		if v > best_v:
+			best_v = v
+			best = id
+	return best
+
+
+func _staff_room_of(id: String) -> String:
+	for room in rooms:
+		for sid in room.staff:
+			if str(sid) == id:
+				return str(room.uid)
+	return ""
+
+
+## The room a person was taken from, so a dig crew or the guard can put them back.
+func _mark_post(id: String) -> void:
+	if not people.has(id):
+		return
+	var uid := _staff_room_of(id)
+	if uid != "":
+		people[id]["post"] = uid
+
+
+func _restore_post(id: String) -> void:
+	if not people.has(id):
+		return
+	if _staff_room_of(id) != "" or bool(people[id].get("soldier", false)):
+		return
+	if int(people[id].get("sick", 0)) > 0 or int(people[id].get("absent", 0)) > 0:
+		return
+	var uid := str(people[id].get("post", ""))
+	if uid == "" or not bool(assign_preview(id, uid).ok):
+		return
+	var room = _room(uid)
+	room.staff.append(id)
+
+
+func _restore_posts(ids: Array) -> void:
+	for id in ids:
+		_restore_post(str(id))
+
+
+func recruit_block() -> String:
+	var sq: Dictionary = squads.get(player, {})
+	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
+		return Copy.t("The squad must be home first.")
+	if soldier_count() >= int(bal.guard.max):
+		return Copy.t("The guard is full.")
+	if _recruit_pick() == "":
+		return Copy.t("Nobody is free to join the guard.")
+	if int(stock.materials) < int(bal.guard.recruit_materials):
+		return Copy.t("Not enough materials.")
+	return ""
+
+
+func dismiss_block() -> String:
+	var sq: Dictionary = squads.get(player, {})
+	if bool(sq.get("away", false)) or str(sq.get("station", "")) != capital_id:
+		return Copy.t("The squad must be home first.")
+	if soldier_count() == 0:
+		return Copy.t("The guard is empty.")
+	return ""
+
+
+## Who the next recruit would be, by name; "" when nobody can join.
+func recruit_preview() -> String:
+	var pick := _recruit_pick()
+	return Copy.person(str(people[pick].name)) if pick != "" else ""
+
+
+func _enlist(id: String) -> void:
+	_mark_post(id)
+	_unassign(id)
+	people[id].soldier = true
+	_sync_guard()
+
+
+func _apply_recruit() -> bool:
+	if recruit_block() != "":
+		return false
+	var id := _recruit_pick()
+	stock.materials = int(stock.materials) - int(bal.guard.recruit_materials)
+	_enlist(id)
+	decisions += 1
+	_log("RECRUIT %s joins the guard (%d)" % [people[id].name, soldier_count()])
+	return true
+
+
+func _apply_dismiss() -> bool:
+	if dismiss_block() != "":
+		return false
+	var pick := ""
+	var low := 99
+	for id in soldier_ids():
+		var v := int(people[id].skills.get("fight", 0))
+		if v < low:
+			low = v
+			pick = id
+	people[pick].soldier = false
+	_sync_guard()
+	_restore_post(pick)
+	decisions += 1
+	_log("DISMISS %s goes back to work (%d)" % [people[pick].name, soldier_count()])
+	return true
+
+
+## Soldiers killed in a fight or lost on the road leave the station for good; the weakest fall first.
+func _lose_soldiers(n: int, why: String) -> int:
+	var ids := soldier_ids()
+	ids.sort_custom(func(a, b): return int(people[a].skills.get("fight", 0)) < int(people[b].skills.get("fight", 0)))
+	var lost := 0
+	while lost < n and not ids.is_empty():
+		_remove_resident(str(ids.pop_front()), true, "battle", "died", why)
+		lost += 1
+	if lost > 0:
+		_log(Copy.t("%s. Killed: %s.") % [Copy.t(why), Words.count(lost, "soldier")], true)
+		_journal("deaths", {"n": lost})
+		_vo_cue("resident_lost")
+	return lost
+
+
+## The first guard of a new run, and of a save from before the guard was made of people.
+func _muster_start_guard() -> void:
+	squads[player].guard = true
+	for _i in int(bal.guard.start):
+		var pick := _recruit_pick()
+		if pick == "":
+			break
+		_enlist(pick)
 
 
 func _infect(n: int) -> void:
@@ -3843,11 +5170,15 @@ func _heal() -> void:
 
 
 func _tick_sickness() -> void:
+	_hold_governors()
 	for person in residents:
+		var was_out := int(person.absent) > 0 or int(person.sick) > 0
 		if int(person.absent) > 0:
 			person.absent = int(person.absent) - 1
 		if int(person.sick) > 0:
 			person.sick = int(person.sick) - 1
+		if was_out and int(person.absent) <= 0 and int(person.sick) <= 0:
+			_restore_post(str(person.id))
 
 
 func _double_shift_sickness() -> void:
@@ -3860,38 +5191,39 @@ func _double_shift_sickness() -> void:
 				people[id].sick = maxi(int(people[id].sick), 2)
 
 
+## A few workers fall ill during the Cough. They stay on the roster; output drops while they cannot work.
 func _cough_pull_workers() -> void:
 	if quarantine:
 		return
-	var pull := int(bal.cough_pull)
-	if pull <= 0:
+	var cap := int(bal.cough_pull)
+	if cap <= 0:
 		return
-	for room in rooms:
-		var removed := 0
-		var keep: Array = []
-		for id in room.staff:
-			if removed < pull and people.has(str(id)):
-				people[str(id)].sick = maxi(int(people[str(id)].sick), 2)
-				removed += 1
-				continue
-			keep.append(id)
-		room.staff = keep
+	var pool: Array = []
+	for person in residents:
+		if int(person.get("sick", 0)) > 0:
+			continue
+		if _staff_room_of(str(person.id)) == "":
+			continue
+		pool.append(person)
+	var hit := 0
+	while hit < cap and not pool.is_empty():
+		var person: Dictionary = pool.pop_at(rng.randi() % pool.size())
+		person.sick = maxi(int(person.sick), 2)
+		hit += 1
+	if hit > 0:
+		_note("SICK %s fall ill and stay at their posts." % Words.count(hit, "worker"), "SICK Заболели и остались на местах: %s." % Words.count(hit, "worker"))
 
 
+## Sick people used to be stripped off the roster here, which emptied rooms with no word why.
+## They stay listed. _output_factor ignores them until they are well.
 func _pull_sick_from_rooms() -> void:
-	for room in rooms:
-		var keep: Array = []
-		for id in room.staff:
-			if people.has(str(id)) and int(people[str(id)].sick) > 0:
-				continue
-			keep.append(id)
-		room.staff = keep
+	pass
 
 
 func _spread_cough() -> void:
 	if quarantine:
 		return
-	var chance := float(bal.cough_spread)
+	var chance := float(bal.cough_spread) * station_fx("cough_spread")
 	var sick_cells := {}
 	for room in rooms:
 		for id in room.staff:
@@ -3941,12 +5273,14 @@ func _grow() -> void:
 		guard += 1
 		growth_bank -= 1.0
 		var child_name := _birth()
-		if child_name != "":
-			born += 1
-			if born <= 2:
-				_add_hope(1, "birth")
+		if child_name == "":
+			continue
+		born += 1
+		if born <= 2:
+			_add_hope(1, "birth")
 	if born > 0:
 		_log("BORN %d" % born, true)
+		_journal("born", {"n": born})
 
 
 func _is_council(id: String) -> bool:
@@ -3994,6 +5328,19 @@ func _queue_crunch() -> void:
 
 
 func _crunch_legs() -> Array:
+	var legs := _crunch_table()
+	if crunch_kind == 1:
+		return [legs.stacks, legs.ducts, legs.shopbelt]
+	if crunch_kind == 2:
+		return [legs.pantry, legs.dynamo, legs.belt]
+	return [legs.pantry, legs.ducts, legs.belt]
+
+
+func crunch_leg(id: String) -> Dictionary:
+	return _crunch_table().get(id, {})
+
+
+func _crunch_table() -> Dictionary:
 	var food_gap := _cover_gap("food")
 	var air_gap := _cover_gap("air")
 	var power_pain := 14 if int(stock.power) < _power_need() * 2 else 5
@@ -4036,11 +5383,7 @@ func _crunch_legs() -> Array:
 		"pay": "Spend %s to grease the bearing", "suffer": "Let the dynamo limp",
 		"pain": gen_pain, "hit": {"gen_down": true, "hope": -1},
 	}
-	if crunch_kind == 1:
-		return [stacks, ducts, shop]
-	if crunch_kind == 2:
-		return [pantry, dynamo, belt]
-	return [pantry, ducts, belt]
+	return {"pantry": pantry, "ducts": ducts, "belt": belt, "stacks": stacks, "shopbelt": shop, "dynamo": dynamo}
 
 
 func _crunch_event(leg: Dictionary) -> Dictionary:
@@ -4106,6 +5449,161 @@ func _roll_events() -> void:
 	_present_event(_weighted(pool))
 
 
+## Events with "needs" show once a run, only while every condition in it holds, and never enter the random
+## pool (_event_ok). A forced one (needs_forced) is shown at dawn unless a major event is already waiting, then
+## it tries again next dawn until its window closes; one per week at most, the one whose window closes first.
+## Draws nothing from the random streams. The others are story beats (_offer_story_event).
+func _offer_forced_event() -> void:
+	for ev in pending:
+		if bool(ev.get("major", false)):
+			return
+	var pick := {}
+	var pick_left := 1 << 30
+	for ev in catalog.events:
+		if not needs_forced(ev):
+			continue
+		var left := needs_window(ev)
+		if left >= 0 and left < pick_left:
+			pick = ev
+			pick_left = left
+	if not pick.is_empty():
+		_present_event(pick)
+
+
+## The story slot: at most one story beat a week, on top of whatever the random pool brought, weighted among
+## the beats whose window is open, drawn only from story_rng so the pool's stream and order stay as they were.
+## Outside the pool's cooldown and minor cap. A busy week (story_slot_free) passes; a beat whose window holds no
+## free week does not show this run.
+func _offer_story_event() -> void:
+	if not story_slot_free():
+		return
+	var open: Array = []
+	for ev in catalog.events:
+		if story_beat(ev) and not _has_event(pending, str(ev.id)) and needs_window(ev) >= 0:
+			open.append(ev)
+	if not open.is_empty():
+		_present_event(_weighted(open, story_rng))
+
+
+## No story beat in a week that already brought 3 or more other events, a leader consequence, a season, or a
+## food or air crisis (a shortage last night, or stock plus a night's output short of a night's need).
+func story_slot_free() -> bool:
+	var others := 0
+	for id in week_event_ids:
+		var ev := _event_by_id(str(id))
+		if ev.has("needs"):
+			if needs_forced(ev):
+				return false
+			continue
+		others += 1
+	if others >= 3 or not active_season.is_empty():
+		return false
+	var causes: Array = stats.get("shortage_causes", [])
+	if not causes.is_empty() and int(causes[-1].week) == week - 1 and str(causes[-1].cause) != "power":
+		return false
+	return int(stock.food) + output_of("food") >= food_need() and int(stock.air) + output_of("air") >= air_need()
+
+
+static func story_beat(ev: Dictionary) -> bool:
+	return ev.has("needs") and not needs_forced(ev) and not bool(ev.get("chain_only", false)) \
+		and not bool(ev.get("check_only", false))
+
+
+const NEEDS_KEYS := ["leader", "answer", "after_weeks", "standing_min", "standing_max", "band", "fragment",
+	"no_fragment", "flag", "no_flag", "artifacts_min", "week", "season", "ending_blocked"]
+## Weeks a window stays open when nothing in "needs" closes it.
+const OPEN_WINDOW := 1 << 20
+
+## "forced": true, or by default any leader consequence (needs.leader), as data/events_leaders.json has none.
+static func needs_forced(ev: Dictionary) -> bool:
+	var needs = ev.get("needs", null)
+	if not (needs is Dictionary):
+		return false
+	return bool(ev.get("forced", needs.has("leader")))
+
+
+## Weeks left in the event's window this dawn (OPEN_WINDOW when nothing closes it), or -1 when it cannot show
+## now: it has shown already or a condition in "needs" does not hold. Every key is optional; all must hold.
+func needs_window(ev: Dictionary) -> int:
+	var needs = ev.get("needs", null)
+	if not (needs is Dictionary) or events_seen.has(str(ev.id)):
+		return -1
+	var left := OPEN_WINDOW
+	if needs.has("leader"):
+		var row: Dictionary = leader_answers.get(str(needs.leader), {})
+		if row.is_empty() or not answer_matches(str(needs.get("answer", "")), str(row.answer)):
+			return -1
+		if needs.has("after_weeks"):
+			var span: Array = needs.after_weeks
+			var since := week - int(row.week)
+			if since < int(span[0]) or since > int(span[1]):
+				return -1
+			left = mini(left, int(span[1]) - since)
+	if needs.has("week"):
+		var weeks: Array = needs.week
+		if week < int(weeks[0]) or week > int(weeks[1]):
+			return -1
+		left = mini(left, int(weeks[1]) - week)
+	if offers_ending(ev) and not _ending_open(ev):
+		return -1
+	if str(ev.get("requires", "")) == "digging" and not _digging_now():
+		return -1
+	return left if needs_hold(needs) else -1
+
+
+## The conditions in "needs" that do not depend on a window.
+func needs_hold(needs: Dictionary) -> bool:
+	for fid in needs.get("standing_min", {}):
+		if int(standing.get(str(fid), 0)) < int(needs.standing_min[fid]):
+			return false
+	for fid in needs.get("standing_max", {}):
+		if int(standing.get(str(fid), 0)) > int(needs.standing_max[fid]):
+			return false
+	for fid in needs.get("band", {}):
+		if standing_band(str(fid)) != str(needs.band[fid]):
+			return false
+	if needs.has("fragment") and not fragment_known(str(needs.fragment)):
+		return false
+	if needs.has("no_fragment") and fragment_known(str(needs.no_fragment)):
+		return false
+	if needs.has("flag") and not flags.has(str(needs.flag)):
+		return false
+	if needs.has("no_flag") and flags.has(str(needs.no_flag)):
+		return false
+	for key in needs.get("artifacts_min", {}):
+		if int(artifacts.get(str(key), 0)) < int(needs.artifacts_min[key]):
+			return false
+	if needs.has("season") and not _season_is(str(needs.season)):
+		return false
+	if needs.has("ending_blocked") and ending_blocked() != bool(needs.ending_blocked):
+		return false
+	return true
+
+
+## Whether every story ending is closed: no choice with an "ending" in any event has its "requires" met.
+func ending_blocked() -> bool:
+	for ev in catalog.events:
+		if _ending_open(ev):
+			return false
+	return true
+
+
+static func offers_ending(ev: Dictionary) -> bool:
+	return ev.get("choices", []).any(func(c): return c is Dictionary and str(c.get("ending", "")) != "")
+
+
+## An event offering endings is only worth showing while at least one of those endings can be chosen.
+func _ending_open(ev: Dictionary) -> bool:
+	for choice in ev.get("choices", []):
+		if str(choice.get("ending", "")) != "" and requires_reason(choice.get("requires", {})) == "":
+			return true
+	return false
+
+
+static func answer_matches(wanted: String, given: String) -> bool:
+	return wanted == given or (wanted == "refused" and given == "silence")
+
+
 func _present_due_follows() -> void:
 	var keep: Array = []
 	var presented := 0
@@ -4125,6 +5623,7 @@ func _present_due_follows() -> void:
 		var by = ev.get("by", {})
 		if by is Dictionary and by.has(memory):
 			copy.text = str(by[memory])
+			copy.follow_memory = memory
 		if _present_event(copy):
 			presented += 1
 	follows = keep
@@ -4153,7 +5652,7 @@ func _schedule_follow(ev: Dictionary, choice: Dictionary) -> void:
 	var follow := str(ev.get("follow", ""))
 	if follow == "":
 		return
-	var gap := rng.randi_range(2, 6)
+	var gap := (story_rng if story_beat(ev) else rng).randi_range(2, 6)
 	var due := week + gap
 	var earliest := 0
 	if event_last.has(follow):
@@ -4170,6 +5669,34 @@ func front_event() -> Dictionary:
 	if pending.is_empty():
 		return {}
 	return pending[0]
+
+
+## Big decisions are the ones the dawn card opens with: major events, story beats (st1_, st2_, st3_), forced
+## scenes, crisis legs and leader consequences (lc_, lc2_). The rest are small: the player meets them during the
+## week (ui/station.gd), one at a time as they work, and all that are left when they end the week.
+func event_is_big(ev: Dictionary) -> bool:
+	var id := str(ev.get("id", ""))
+	if bool(ev.get("major", false)) or ev.has("trigger") or not crunch_leg(id).is_empty():
+		return true
+	return id.begins_with("st1_") or id.begins_with("st2_") or id.begins_with("st3_") or id.begins_with("lc_") or id.begins_with("lc2_")
+
+
+## Moves the big decisions to the front of the queue, keeping each group's order, so dawn shows those first and
+## the small ones wait. Only the player's screen calls this; bots answer the queue as it was drawn.
+func big_first() -> void:
+	var big: Array = []
+	var small: Array = []
+	for ev in pending:
+		(big if event_is_big(ev) else small).append(ev)
+	pending = big + small
+
+
+func small_pending() -> int:
+	var n := 0
+	for ev in pending:
+		if not event_is_big(ev):
+			n += 1
+	return n
 
 
 func modal_ids() -> Array:
@@ -4199,7 +5726,7 @@ func dismiss_front() -> bool:
 
 func _free_choice(ev: Dictionary) -> Dictionary:
 	for choice in ev.choices:
-		if _cost_empty(choice.get("cost", {})):
+		if _cost_empty(choice.get("cost", {})) and str(choice.get("ending", "")) == "":
 			return choice
 	return {}
 
@@ -4239,6 +5766,8 @@ func _present_event(ev: Dictionary) -> bool:
 func _event_pool(major_only: bool) -> Array:
 	var pool: Array = []
 	for ev in catalog.events:
+		if ev.has("needs") or ev.has("trigger"):
+			continue
 		if major_only and not bool(ev.get("major", false)):
 			continue
 		if not major_only and bool(ev.get("major", false)) and rng.randf() < 0.5:
@@ -4257,12 +5786,14 @@ func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
 	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
 		return false
+	if ev.has("needs") or ev.has("trigger"):
+		return false
 	if id == "lamps" and week == crunch_week:
 		return false
 	var cool := maxi(int(bal.get("event_cooldown", 8)), int(ev.get("cooldown", 8)))
 	if event_last.has(id) and week - int(event_last[id]) < cool:
 		return false
-	if not bool(ev.get("major", false)) and int(event_times.get(id, 0)) >= int(bal.get("event_minor_cap", 2)):
+	if not bool(ev.get("major", false)) and int(event_times.get(id, 0)) >= int(bal.get("event_minor_cap", 1)):
 		return false
 	if week < int(ev.get("min_week", 1)):
 		return false
@@ -4270,7 +5801,7 @@ func _event_ok(ev: Dictionary) -> bool:
 		return false
 	if discontent < int(ev.get("min_discontent", 0)):
 		return false
-	if str(ev.get("requires", "")) == "digging" and dig.is_empty():
+	if str(ev.get("requires", "")) == "digging" and not _digging_now():
 		return false
 	return true
 
@@ -4282,7 +5813,7 @@ func _resolve_pending() -> void:
 		var ev: Dictionary = pending[0]
 		var choice := {}
 		for c in ev.choices:
-			if choice_locked(c) or not choice_offered(c) or not _afford(c.get("cost", {})):
+			if choice_locked(c) or not choice_offered(c) or not _afford(c.get("cost", {})) or str(c.get("ending", "")) != "":
 				continue
 			choice = c
 			break
@@ -4297,7 +5828,146 @@ func _resolve_pending() -> void:
 
 
 func choice_locked(choice: Dictionary) -> bool:
-	return bool(choice.get("locked", false))
+	return bool(choice.get("locked", false)) or requires_reason(choice.get("requires", {})) != ""
+
+
+## Why a locked choice is closed, one line for the card: a check's lock_reason or the first unmet "requires".
+func lock_reason(choice: Dictionary) -> String:
+	if bool(choice.get("locked", false)):
+		return str(choice.get("lock_reason", ""))
+	return requires_reason(choice.get("requires", {}))
+
+
+## Choice-level "requires": the "needs" keys plus these.
+const REQUIRES_EXTRA := ["proofs_min", "hope_min", "any_flag", "any_of"]
+## What a flag read by "requires" is called on the card; any other flag shows its id with spaces.
+const FLAG_TEXT := {
+	"floor_published": "the minutes read aloud",
+	"floor_deal": "a place on the Floor's list",
+	"floor_to_directorate": "the Floor handed over",
+	"observatory_trusted": "the Observatory's trust",
+	"observatory_sheltered": "the Observatory sheltered",
+	"observatory_stripped": "the Observatory stripped",
+	"quarantine_open": "the Quarantine door opened",
+}
+const ARTIFACT_TEXT := {"papers": "Papers", "iron": "Iron", "words": "Words"}
+
+
+static func flag_text(flag: String) -> String:
+	return Copy.t(str(FLAG_TEXT.get(flag, flag.replace("_", " "))))
+
+
+## The first condition in `req` that does not hold, as one line in the current language; "" when all hold.
+## Never empty for an unmet condition, so a closed choice always says why.
+func requires_reason(req) -> String:
+	if not (req is Dictionary) or req.is_empty():
+		return ""
+	if req.has("week"):
+		var weeks: Array = req.week
+		if week < int(weeks[0]) or week > int(weeks[1]):
+			return Copy.t("Only in weeks %d to %d") % [int(weeks[0]), int(weeks[1])]
+	if req.has("leader"):
+		var row: Dictionary = leader_answers.get(str(req.leader), {})
+		if row.is_empty() or not answer_matches(str(req.get("answer", "")), str(row.answer)):
+			return Copy.t("Needs your answer to %s") % _leader_display(str(req.leader))
+		if req.has("after_weeks"):
+			var since := week - int(row.week)
+			if since < int(req.after_weeks[0]) or since > int(req.after_weeks[1]):
+				return Copy.t("Only %d to %d weeks after your answer to %s") % [int(req.after_weeks[0]), int(req.after_weeks[1]), _leader_display(str(req.leader))]
+	for fid in req.get("standing_min", {}):
+		var now := int(standing.get(str(fid), 0))
+		if now < int(req.standing_min[fid]):
+			return Copy.t("Needs %s's trust: %d") % [_faction_of(str(fid)), int(req.standing_min[fid])]
+	for fid in req.get("standing_max", {}):
+		var now := int(standing.get(str(fid), 0))
+		if now > int(req.standing_max[fid]):
+			return Copy.t("Needs %s's regard at %d or lower, now %d") % [_leader_display(str(fid)), int(req.standing_max[fid]), now]
+	for fid in req.get("band", {}):
+		if standing_band(str(fid)) != str(req.band[fid]):
+			return Copy.t("Needs %s at %s") % [_leader_display(str(fid)), Copy.t(str(req.band[fid]))]
+	if req.has("fragment") and not fragment_known(str(req.fragment)):
+		return Copy.t("Needs the fragment: %s") % _fragment_name(str(req.fragment))
+	if req.has("no_fragment") and fragment_known(str(req.no_fragment)):
+		return Copy.t("Closed: you already know %s") % _fragment_name(str(req.no_fragment))
+	if req.has("flag") and not flags.has(str(req.flag)):
+		return Copy.t("Needs %s") % flag_text(str(req.flag))
+	if req.has("no_flag") and flags.has(str(req.no_flag)):
+		return Copy.t("Closed: %s") % flag_text(str(req.no_flag))
+	for key in req.get("artifacts_min", {}):
+		var have := int(artifacts.get(str(key), 0))
+		if have < int(req.artifacts_min[key]):
+			return Copy.t("Needs %s %d, you have %d") % [Copy.t(str(ARTIFACT_TEXT.get(str(key), key))), int(req.artifacts_min[key]), have]
+	if req.has("season") and not _season_is(str(req.season)):
+		return Copy.t("Only during the %s") % Copy.season(str(req.season))
+	if req.has("ending_blocked") and ending_blocked() != bool(req.ending_blocked):
+		return Copy.t("Not while an ending is open") if bool(req.ending_blocked) else Copy.t("Only while an ending is open")
+	if req.has("proofs_min") and proofs() < int(req.proofs_min):
+		if Copy.ru():
+			return "Нужно %d %s, у тебя %d" % [int(req.proofs_min), Copy.plural(int(req.proofs_min), ["доказательство", "доказательства", "доказательств"]), proofs()]
+		return "Needs %d %s, you have %d" % [int(req.proofs_min), "proof" if int(req.proofs_min) == 1 else "proofs", proofs()]
+	if req.has("hope_min") and hope < int(req.hope_min):
+		return Copy.t("Needs hope %d, now %d") % [int(req.hope_min), hope]
+	if req.has("any_flag"):
+		var names: PackedStringArray = []
+		var any := false
+		for flag in req.any_flag:
+			any = any or flags.has(str(flag))
+			names.append(flag_text(str(flag)))
+		if not any:
+			return Copy.t("Needs %s") % Copy.t(" or ").join(names)
+	if req.has("any_of"):
+		var whys: PackedStringArray = []
+		var nouns: PackedStringArray = []
+		for sub in req.any_of:
+			var why := requires_reason(sub)
+			if why == "":
+				return ""
+			whys.append(why)
+			nouns.append(_unmet_noun(sub))
+		if not nouns.has(""):
+			return Copy.t("Needs %s") % Copy.t(" or ").join(nouns)
+		return Copy.t("; or ").join(whys)
+	return ""
+
+
+## The first unmet condition in `req` as a short noun for an "either way" reason; "" when it has none.
+func _unmet_noun(req: Dictionary) -> String:
+	if req.size() != 1:
+		return ""
+	if req.has("flag") and not flags.has(str(req.flag)):
+		return flag_text(str(req.flag))
+	for fid in req.get("standing_min", {}):
+		if int(standing.get(str(fid), 0)) < int(req.standing_min[fid]):
+			return Copy.t("%s's trust: %d") % [_faction_of(str(fid)), int(req.standing_min[fid])]
+	if req.has("hope_min") and hope < int(req.hope_min):
+		return Copy.t("hope %d") % int(req.hope_min)
+	return ""
+
+
+func _leader_display(fid: String) -> String:
+	var pair = leader_name(fid, "name")
+	if pair is Dictionary:
+		var out := str(pair.get("ru", "")) if Copy.ru() else ""
+		return out if out != "" else str(pair.get("en", fid))
+	return str(pair) if str(pair) != "" else fid
+
+
+## Russian takes the faction in the genitive ("доверие Дирекции"); English uses its short name.
+const FACTION_OF_RU := {"depot": "Депо", "directorate": "Дирекции", "synod": "Синода", "exchange": "Биржи", "black_flag": "Фонарщиков"}
+
+
+## The faction as read in a reason line: "the Directorate" / "Дирекции".
+func _faction_of(fid: String) -> String:
+	if Copy.ru() and FACTION_OF_RU.has(fid):
+		return str(FACTION_OF_RU[fid])
+	if catalog.factions.has(fid):
+		return "the " + str(catalog.factions[fid].short)
+	return "the Lamplighters" if fid == "black_flag" else _leader_display(fid)
+
+
+func _fragment_name(id: String) -> String:
+	var title := fragment_text(id, "title")
+	return title if title != "" else id.replace("_", " ")
 
 
 func choice_offered(choice: Dictionary) -> bool:
@@ -4308,6 +5978,8 @@ func choice_offered(choice: Dictionary) -> bool:
 func line_of(node: Dictionary, key: String) -> String:
 	if not node.has(key):
 		return ""
+	if Copy.ru() and node.get("ru_own", null) is Dictionary and node.ru_own.has(key):
+		return str(node.ru_own[key])
 	var pack = node[key]
 	if pack is Dictionary:
 		var lang := "ru" if Copy.ru() else "en"
@@ -4322,7 +5994,7 @@ func best_check_resident(skill: String) -> String:
 	var best_v := -1
 	var best_named := false
 	for person in residents:
-		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+		if _is_child(person) or int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
 			continue
 		var value := check_value(person, skill)
 		var named := _named_cast(person)
@@ -4438,7 +6110,7 @@ func check_preview(choice: Dictionary, person_id: String) -> Dictionary:
 		"modifiers": check_modifiers(skill),
 		"chance": check_chance(skill, int(check.get("difficulty", 10)), person_id, str(check.get("color", ""))),
 		"locked": choice_locked(choice),
-		"reason": str(choice.get("lock_reason", "")),
+		"reason": lock_reason(choice),
 	}
 
 
@@ -4599,13 +6271,12 @@ func _offer_checks() -> void:
 			continue
 		if _present_event(ev):
 			item.done = true
-			if not bool(ev.get("opened", false)):
-				var live: Dictionary = pending[pending.size() - 1]
+			var live: Dictionary = pending[pending.size() - 1]
+			if not bool(live.get("opened", false)):
 				_apply_effect_block(live.get("effects_on_open", {}), "", false, live)
-				ev.opened = true
 				live.opened = true
 		else:
-			item.week = week + 1
+			item.week = week + 3
 
 
 func _release_white_checks() -> void:
@@ -4664,12 +6335,12 @@ func _retry_line(choice: Dictionary) -> String:
 	if retry.has("level"):
 		var named := str(catalog.rooms[str(retry.get("room", ""))].name)
 		if Copy.ru():
-			return "Повтор, когда %s достигнет уровня %d" % [Copy.t(named), int(retry.level)]
+			return "Повтор, когда %s дойдёт до ступени %d" % [Copy.t(named), int(retry.level)]
 		return "Retry after: %s level %d" % [named, int(retry.level)]
 	if retry.has("room"):
 		var name := str(catalog.rooms[str(retry.room)].name)
 		if Copy.ru():
-			return "Повтор, когда построите: %s" % Copy.t(name)
+			return "Повтор, когда построишь: %s" % Copy.t(name)
 		return "Retry after: build %s" % name
 	if retry.has("skill"):
 		var label := Copy.skill(str(retry.skill))
@@ -4717,7 +6388,7 @@ func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bo
 		line = "ПРОВЕРКА %s %s %s против %d. %s." % [Copy.skill(skill), face, signed, difficulty, verdict]
 	_log(line, true)
 	if people.has(person_id):
-		_journal(people[person_id], "check_rolled", {})
+		_life_note(people[person_id], "check_rolled", {})
 		if success:
 			people[person_id].checks_passed = int(people[person_id].get("checks_passed", 0)) + 1
 	if success:
@@ -4732,7 +6403,7 @@ func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bo
 	if retried:
 		choice.locked = true
 		choice.spent = true
-		choice.lock_reason = "The roll stands." if not Copy.ru() else "Бросок остаётся."
+		choice.lock_reason = "The roll stands." if not Copy.ru() else "Перебросить нельзя."
 		return false
 	choice.locked = true
 	choice.retry_open = false
@@ -4818,9 +6489,13 @@ func _apply_event(action: Dictionary) -> bool:
 		_resolve_bet(choice)
 	else:
 		_apply_deltas(choice)
+		_apply_standing_choice(ev, choice)
 	decisions += 1
 	if not keep:
 		return true
+	var mark := str(choice.get("flag", ""))
+	if mark != "":
+		flags[mark] = true
 	if bool(choice.get("crunch_suffer", false)):
 		var drops: Array = stats.get("crunch_drops", [])
 		drops.append(str(ev.title))
@@ -4834,8 +6509,84 @@ func _apply_event(action: Dictionary) -> bool:
 		_note_moment("dilemma", {"title": line_of(ev, "title"), "choice": line_of(choice, "label")}, 3)
 		var named := str(action.get("person", ""))
 		if named != "" and people.has(named):
-			_journal(people[named], "named_dilemma", {})
+			_life_note(people[named], "named_dilemma", {})
 	return true
+
+
+## What picking this event choice changes right now, already clamped the way _apply_event applies it, so the
+## button can say it in words: {stock: {key: delta}, hope, discontent, people, sick, papers, standing: {fid: delta},
+## check, bet}. A check or a bet only pays its cost up front; the rest is decided by the roll.
+func choice_effects(choice: Dictionary) -> Dictionary:
+	var fx := {"stock": {}, "hope": 0, "discontent": 0, "people": 0, "sick": 0, "papers": 0, "standing": {},
+		"check": choice.has("check"), "bet": choice.has("bet")}
+	var after: Dictionary = stock.duplicate()
+	var cost = choice.get("cost", {})
+	if cost is Dictionary:
+		for key in cost:
+			if ARTIFACTS.has(str(key)):
+				if str(key) == "papers":
+					fx.papers = -int(cost[key])
+			else:
+				after[key] = int(after.get(key, 0)) - int(cost[key])
+	if not fx.check and not fx.bet:
+		for key in ["food", "air", "power", "materials", "tokens", "influence"]:
+			if choice.has(key):
+				after[key] = maxi(0, int(after[key]) + int(choice[key]))
+		var h := clampi(hope + int(choice.get("hope", 0)), 0, 100)
+		var lifts = choice.get("trait_hope", {})
+		if lifts is Dictionary:
+			for trait_name in lifts:
+				if _any_trait(str(trait_name)):
+					h = clampi(h + int(lifts[trait_name]), 0, 100)
+		var away = choice.get("trait_absent", {})
+		if away is Dictionary:
+			for trait_name in away:
+				for person in residents:
+					if _has_trait(person, str(trait_name)):
+						h = clampi(h - 2, 0, 100)
+		fx.hope = h - hope
+		fx.discontent = clampi(discontent + int(choice.get("discontent", 0)), 0, 100) - discontent
+		fx.people = int(choice.get("people", 0))
+		fx.sick = maxi(0, int(choice.get("sick", 0)))
+		fx.papers = int(fx.papers) + int(choice.get("papers", 0))
+		var shifts = choice.get("standing", {})
+		if shifts is Dictionary:
+			for fid in shifts:
+				var now := 0
+				if standing.has(str(fid)):
+					now = int(standing[str(fid)])
+				elif not leader(str(fid)).is_empty():
+					now = clampi(int(leader(str(fid)).get("start_opinion", 0)), -100, 100)
+				else:
+					continue
+				var moved := clampi(now + int(shifts[fid]), -100, 100) - now
+				if moved != 0:
+					fx.standing[str(fid)] = moved
+	for key in after:
+		var delta := int(after[key]) - int(stock.get(key, 0))
+		if delta != 0:
+			fx.stock[key] = delta
+	return fx
+
+
+## Choice effect "standing": {faction: delta} moves that leader's regard (clamped -100..100). The leader
+## remembers the event as a deed, and the journal gets a "regard" row with the change that actually happened.
+func _apply_standing_choice(ev: Dictionary, choice: Dictionary) -> void:
+	var shifts = choice.get("standing", {})
+	if not (shifts is Dictionary):
+		return
+	_init_standing()
+	for fid in shifts:
+		var key := str(fid)
+		if not standing.has(key):
+			continue
+		var was := int(standing[key])
+		_add_standing(key, int(shifts[fid]), {"deed": "event", "event": str(ev.id), "choice": str(choice.id)})
+		var moved := int(standing[key]) - was
+		if moved == 0:
+			continue
+		_journal("regard", {"faction": key, "delta": moved, "event_id": str(ev.id)})
+		_log("STANDING %s %s" % [key, "+%d" % moved if moved >= 0 else str(moved)], true)
 
 
 func _apply_effect_block(effects: Dictionary, person_id: String, red: bool, host: Dictionary) -> void:
@@ -4904,8 +6655,7 @@ func _injure(n: int, first_id: String) -> void:
 		picked.append(id)
 	for id in picked:
 		people[id].absent = maxi(int(people[id].absent), 2)
-		_unassign(str(id))
-		_journal(people[id], "injured", {})
+		_life_note(people[id], "injured", {})
 	if not picked.is_empty():
 		_log("INJURED %d" % picked.size(), true)
 
@@ -4928,7 +6678,7 @@ func use_medkits() -> bool:
 	for person in residents:
 		if healed >= 2:
 			break
-		if int(person.get("absent", 0)) > 0:
+		if int(person.get("absent", 0)) > 0 and governor_of(str(person.id)) == "":
 			person.absent = 0
 			healed += 1
 	for person in residents:
@@ -4946,7 +6696,7 @@ func use_medkits() -> bool:
 func medkit_targets() -> int:
 	var n := 0
 	for person in residents:
-		if int(person.get("absent", 0)) > 0 or int(person.get("sick", 0)) > 0:
+		if (int(person.get("absent", 0)) > 0 and governor_of(str(person.id)) == "") or int(person.get("sick", 0)) > 0:
 			n += 1
 	return n
 
@@ -4958,6 +6708,9 @@ func _disable_room(type: String, weeks: int) -> void:
 	for room in rooms:
 		if str(room.type) != type:
 			continue
+		if shrugs_down(room):
+			_log("ARMOURED %s keeps working" % type, true)
+			return
 		for r in _merge_group_of(room):
 			r.disabled = maxi(int(r.get("disabled", 0)), weeks)
 		_log("DISABLED %s %d" % [type, int(room.disabled)], true)
@@ -5012,6 +6765,187 @@ func _apply_deltas(choice: Dictionary) -> void:
 		workshop_down = true
 	if bool(choice.get("gen_down", false)):
 		gen_down = true
+	_apply_story_effects(choice)
+
+
+## Story effects (docs/briefs/cursor_story_engine.txt): "artifacts" {papers|iron|words: n}, "fragment" (learned
+## the choice's "how" way, "found" by default) and "flag" (set for "needs" to read).
+func _apply_story_effects(choice: Dictionary) -> void:
+	var found = choice.get("artifacts", {})
+	if found is Dictionary:
+		for key in found:
+			if not ARTIFACTS.has(str(key)) or int(found[key]) == 0:
+				continue
+			artifacts[str(key)] = maxi(0, int(artifacts.get(str(key), 0)) + int(found[key]))
+			_log("ARTIFACT %s %+d" % [str(key), int(found[key])], true)
+	if choice.has("fragment"):
+		know_fragment(str(choice.fragment), str(choice.get("how", "found")))
+	var flag := str(choice.get("flag", ""))
+	if flag != "":
+		flags[flag] = true
+		_log("FLAG %s" % flag, true)
+	if int(choice.get("proof", 0)) > 0:
+		proof_extra += int(choice.proof)
+		_journal("proof", {"amount": int(choice.proof)})
+	var ending := str(choice.get("ending", ""))
+	if ending != "" and over == "":
+		over = ending
+		stats.pop40 = residents.size()
+		_journal("ending", {"ending": ending})
+		_log("ENDING %s" % ending, true)
+
+
+## The run's ending: the story endings set by a choice keep their id, and the old game over reasons map to
+## theirs (time -> winter). "" while the run goes on.
+const STORY_ENDINGS := ["open_door", "exodus", "order"]
+const OVER_ENDINGS := {"time": "winter", "collapse": "collapse", "hope": "hope", "revolt": "revolt", "capital": "capital"}
+const ENDINGS := ["open_door", "exodus", "order", "winter", "collapse", "hope", "revolt", "capital"]
+
+
+func ending_id() -> String:
+	if STORY_ENDINGS.has(over):
+		return over
+	return str(OVER_ENDINGS.get(over, ""))
+
+
+## The ending's "title" or "text" from data/endings.json in the current language.
+func ending_text(id: String, key: String) -> String:
+	return _pair_text(catalog.endings.get("endings", {}).get(id, {}).get(key, {}))
+
+
+## The epilogue line for a leader by the recorded answer: accepted, refused (or silence), helped, none.
+func leader_epilogue_state(fid: String) -> String:
+	var answer := str(leader_answers.get(fid, {}).get("answer", ""))
+	match answer:
+		"accepted":
+			return "accepted"
+		"refused", "silence":
+			return "refused"
+		"helped":
+			return "helped"
+	return "none"
+
+
+func leader_epilogue(fid: String) -> String:
+	return _pair_text(catalog.endings.get("leaders", {}).get(fid, {}).get(leader_epilogue_state(fid), {}))
+
+
+## proof with 3 or more proofs, some with any fragment known, none otherwise.
+func truth_state() -> String:
+	if proofs() >= 3:
+		return "proof"
+	for id in fragments:
+		if fragment_known(str(id)):
+			return "some"
+	return "none"
+
+
+func truth_epilogue() -> String:
+	return _pair_text(catalog.endings.get("truth", {}).get(truth_state(), {}))
+
+
+func _pair_text(pair) -> String:
+	if not (pair is Dictionary):
+		return ""
+	var out := str(pair.get("ru", "")) if Copy.ru() else ""
+	return out if out != "" else str(pair.get("en", ""))
+
+
+## Leader deals taken and turned away over the run, from the journal (silence counts as turned away).
+func deals_tally() -> Dictionary:
+	var made := 0
+	var refused := 0
+	for row in journal:
+		if str(row.get("kind", "")) != "audience":
+			continue
+		match str(row.get("result", "")):
+			"deal":
+				made += 1
+			"refused", "silence":
+				refused += 1
+	return {"made": made, "refused": refused}
+
+
+const FRAGMENTS := {
+	"depot_order": "depot", "directorate_ledger": "directorate", "synod_recording": "synod",
+	"exchange_papers": "exchange", "quarantine_path": "black_flag",
+}
+const FRAGMENT_HOWS := ["honest", "dirty", "found"]
+const ARTIFACTS := ["papers", "iron", "words"]
+const STORY_WORDS_EVERY := 3
+
+
+## Learns a truth fragment once: a "truth" journal row and a line in the next dawn report. Returns false when
+## the id is unknown or the fragment is already known; the first way it was learned stays.
+func know_fragment(id: String, how: String = "found") -> bool:
+	if not FRAGMENTS.has(id) or fragment_known(id):
+		return false
+	if not FRAGMENT_HOWS.has(how):
+		how = "found"
+	fragments[id] = {"known": true, "how": how, "week": week}
+	_journal("truth", {"id": id, "how": how})
+	var title := fragment_text(id, "title")
+	_note("TRUTH Learned: %s." % title, "TRUTH Узнано: %s." % title)
+	return true
+
+
+func fragment_known(id: String) -> bool:
+	var row = fragments.get(id, null)
+	return row is Dictionary and bool(row.get("known", false))
+
+
+## Proofs the endings weigh: fragments learned the honest way plus proofs gained in bunker scenes.
+func proofs() -> int:
+	return honest_fragments() + proof_extra
+
+
+func honest_fragments() -> int:
+	var n := 0
+	for id in fragments:
+		if fragment_known(str(id)) and str(fragments[id].get("how", "")) == "honest":
+			n += 1
+	return n
+
+
+## A fragment's "title", "hint" or "text" from data/truth.json in the current language, "" when unwritten.
+func fragment_text(id: String, key: String) -> String:
+	var pair = catalog.truth.get(id, {}).get(key, {})
+	if not (pair is Dictionary):
+		return str(pair) if pair != null else ""
+	var out := str(pair.get("ru", "")) if Copy.ru() else ""
+	return out if out != "" else str(pair.get("en", ""))
+
+
+## A resident's recorded story played to the end. Every STORY_WORDS_EVERY distinct stories heard (vo_heard
+## true, any language) grant one Words artifact, each threshold once. Returns how many were granted now.
+func hear_story(id: String) -> int:
+	if id == "":
+		return 0
+	vo_heard[id] = true
+	var due := stories_heard() / STORY_WORDS_EVERY
+	var granted := 0
+	while story_words < due:
+		story_words += 1
+		granted += 1
+		artifacts.words = int(artifacts.get("words", 0)) + 1
+		_journal("testimony", {"stories": story_words * STORY_WORDS_EVERY})
+		_note("TESTIMONY Gathered from the stories heard: Words +1.", "TESTIMONY Собрано из услышанных историй: «Слова» +1.")
+	return granted
+
+
+## Distinct resident stories heard to the end this run.
+func stories_heard() -> int:
+	var n := 0
+	for row in Voice.of_type("story"):
+		var mark = vo_heard.get(str(row.get("id", "")), null)
+		if mark is bool and mark:
+			n += 1
+	return n
+
+
+## Stories still to hear before the next Words artifact.
+func stories_to_testimony() -> int:
+	return maxi(1, (story_words + 1) * STORY_WORDS_EVERY - stories_heard())
 
 
 # --- map ---
@@ -5138,26 +7072,34 @@ func _faction_dead(fid: String) -> bool:
 
 
 func _season_clock() -> void:
-	var warning := int(bal.season_warning)
-	for season in bal.seasons:
+	for season in seasons:
 		var at := int(season.week)
+		var warning := flood_warning() if str(season.id) == "flood" else int(bal.season_warning)
 		if week == at - warning:
 			var soon := "SEASON warning %s" % str(season.id)
 			if Copy.ru():
 				soon = "SEASON Скоро %s." % Copy.season(str(season.id))
 			_log(soon, true)
+			_journal("season", {"id": str(season.id), "soon": true})
+			_vo_cue("season_%s_soon" % str(season.id))
+			if str(season.id) == "flood":
+				_vo_cue("tunnel_warning")
 		if week == at:
 			active_season = {"id": str(season.id), "start": at, "until": at + int(season.weeks) - 1}
 			var begun := "SEASON %s" % str(season.id)
 			if Copy.ru():
 				begun = "SEASON Начался %s." % Copy.season(str(season.id))
 			_log(begun, true)
+			_journal("season", {"id": str(season.id)})
+			_vo_cue("season_%s" % str(season.id))
 			if str(season.id) == "cough":
 				_infect(int(bal.cough_infect))
 	if not active_season.is_empty() and week > int(active_season.until):
 		_note_moment("season", {"season": str(active_season.id)}, 2)
+		if str(active_season.id) == "flood":
+			_recede_flood()
 		active_season = {}
-	if flood_guard and _flood_eta() > int(bal.get("season_warning", 2)):
+	if flood_guard and _flood_eta() > flood_warning():
 		flood_guard = false
 
 
@@ -5194,6 +7136,13 @@ func _demand_open(fid: String) -> bool:
 	return false
 
 
+func has_radio_room() -> bool:
+	for room in rooms:
+		if room.type == "radio":
+			return true
+	return false
+
+
 func _has_radio() -> bool:
 	for room in rooms:
 		if room.type == "radio" and not room.offline and room.staff.size() >= 1:
@@ -5204,6 +7153,8 @@ func _has_radio() -> bool:
 func _heal_squads() -> void:
 	for fid in squads:
 		var sq: Dictionary = squads[fid]
+		if fid == player:
+			continue
 		if not bool(sq.away) and int(sq.size) < int(sq.max_size):
 			sq.size = mini(int(sq.max_size), int(sq.size) + int(bal.squad_heal))
 
@@ -5216,12 +7167,12 @@ func _init_people() -> void:
 		person.sick = 0
 		person.absent = 0
 		_stamp_checks(person)
-		_fill_identity(person)
 		residents.append(person)
 		people[str(person.id)] = person
 		if str(person.get("council", "")) != "":
 			council.append({"role": str(person.council), "id": str(person.id), "loyalty": 80})
 	_apply_coney_cast()
+	_dress(residents)
 
 
 const CONEY_SLOTS := ["chris", "mina", "kim", "drew", "ann"]
@@ -5241,6 +7192,7 @@ func _apply_coney_cast() -> void:
 		var name: Dictionary = row.get("name", {})
 		person.name = str(name.get("en", person.name))
 		person.name_ru = str(name.get("ru", ""))
+		person.cast_id = str(row.get("id", ""))
 		person.core = true
 		var skills: Dictionary = row.get("skills", {})
 		person.checks = {
@@ -5255,6 +7207,136 @@ func _apply_coney_cast() -> void:
 			"bio": row.get("bio", {}),
 			"hook": row.get("hook", {}),
 		}
+
+
+## Backstory key for a resident. Saves from before cast_id fall back to the Coney slot order.
+func cast_id_of(person: Dictionary) -> String:
+	if str(person.get("cast_id", "")) != "":
+		return str(person.cast_id)
+	var slot := CONEY_SLOTS.find(str(person.get("id", "")))
+	var rows: Array = catalog.coney.get("characters", [])
+	if person.has("dossier") and slot >= 0 and slot < rows.size():
+		return str(rows[slot].get("id", ""))
+	return str(person.get("id", ""))
+
+
+## Cast id of a resident for the portrait, "" for residents outside the cast and for ids that are not residents.
+func cast_of(id: String) -> String:
+	if not people.has(id):
+		return ""
+	var person: Dictionary = people[id]
+	var cast := cast_id_of(person)
+	return "" if cast == str(person.get("id", "")) else cast
+
+
+func has_coney_cast() -> bool:
+	return capital_id == "southdepot" or capital_id == "coney"
+
+
+## The portrait a resident wears, out of `names` (portrait_01, portrait_02...): the face chosen when they
+## arrived (see _dress), kept for the whole game and across load. Ids that are not residents, or whose face is
+## not among `names`, get an unpinned face by hash.
+func portrait_name(id: String, names: Array) -> String:
+	if names.is_empty():
+		return ""
+	if people.has(id) and names.has(str(people[id].get("face", ""))):
+		return str(people[id].face)
+	var pinned := pinned_faces() if catalog != null else {}
+	var rest: Array = names.filter(func(name): return not pinned.has(name))
+	if rest.is_empty():
+		rest = names
+	return str(rest[_stable_hash(id) % rest.size()])
+
+
+## Faces pinned to somebody: the profile pins of the core residents and, in a Coney game, the cast pins.
+func pinned_faces() -> Dictionary:
+	var out := {}
+	var rows: Dictionary = catalog.profiles.get("residents", {})
+	for id in rows:
+		if rows[id].has("portrait"):
+			out[str(rows[id].portrait)] = true
+	if has_coney_cast():
+		for cast in catalog.cast_portraits:
+			out[str(catalog.cast_portraits[cast])] = true
+	return out
+
+
+## The pinned face of a person: the cast pin for a Coney cast member, the profile pin for a core resident who
+## keeps their own name, "" for everyone else.
+func portrait_pin(person: Dictionary) -> String:
+	var id := str(person.get("id", ""))
+	var cast := cast_id_of(person)
+	if cast != id:
+		return str(catalog.cast_portraits.get(cast, ""))
+	return str(catalog.profiles.get("residents", {}).get(id, {}).get("portrait", ""))
+
+
+## "m" or "f": a Coney cast member's from the cast, a core resident's from the profile, anyone else's from the
+## first name (data/resident_profiles.json generated_names), or by a stable hash of the id for an unknown name.
+func sex_of(person: Dictionary) -> String:
+	var id := str(person.get("id", ""))
+	var cast := cast_id_of(person)
+	var prof: Dictionary = catalog.profiles
+	if cast != id and prof.get("cast", {}).has(cast):
+		return str(prof.cast[cast].get("sex", "m"))
+	var row: Dictionary = prof.get("residents", {}).get(id, {})
+	if row.has("sex"):
+		return str(row.sex)
+	var first := str(person.get("name", "")).get_slice(" ", 0)
+	var names: Dictionary = prof.get("generated_names", {})
+	if names.has(first):
+		return str(names[first])
+	return "f" if _stable_hash(id) % 2 == 1 else "m"
+
+
+## Gives `rows` (already among the residents) their sex and face. Pinned people take their pin; the others a
+## face of their own sex, by id: first one pinned to nobody and worn by no living resident, then any of their
+## sex nobody living wears, then any of their sex.
+func _dress(rows: Array) -> void:
+	var worn := {}
+	for person in residents:
+		if str(person.get("face", "")) != "":
+			worn[str(person.face)] = true
+	var later: Array = []
+	for person in rows:
+		if not person.has("sex"):
+			person["sex"] = sex_of(person)
+		if str(person.get("face", "")) != "":
+			continue
+		var pin := portrait_pin(person)
+		if pin != "":
+			person["face"] = pin
+			worn[pin] = true
+		else:
+			later.append(person)
+	var faces: Dictionary = catalog.profiles.get("portrait_sex", {})
+	var pinned := pinned_faces()
+	for person in later:
+		var own: Array = faces.keys().filter(func(face): return str(faces[face]) == str(person.sex))
+		own.sort()
+		var pick := ""
+		for pool in [own.filter(func(face): return not pinned.has(face) and not worn.has(face)), own.filter(func(face): return not worn.has(face)), own]:
+			if not pool.is_empty():
+				pick = str(pool[_stable_hash(str(person.id)) % pool.size()])
+				break
+		person["face"] = pick
+		worn[pick] = true
+
+
+static func _stable_hash(text: String) -> int:
+	var n := 0
+	for i in text.length():
+		n = (n * 33 + text.unicode_at(i)) % 1000003
+	return n
+
+
+## Profession, before-the-Silence line or keepsake from a resident's profile in the game language; "" for the
+## Coney cast (their dossier has its own) and for people without a profile.
+func profile_line(person: Dictionary, key: String) -> String:
+	var id := str(person.get("id", ""))
+	if cast_id_of(person) != id:
+		return ""
+	return line_of(catalog.profiles.get("residents", {}).get(id, {}), key)
 
 
 func _init_grid() -> void:
@@ -5490,6 +7572,22 @@ func _synod_preach() -> void:
 		_capture(best, "synod", false)
 
 
+const STATION_TEXT := ["community", "who", "conflict", "art"]
+
+
+## Community, who, conflict or art for the current language. Russian comes from data/station_communities.json
+## (then the station itself, for saves from before a station was in the file); English from
+## station_communities_en.json, falling back to the Russian line when the English one is missing.
+func station_text(sid: String, field: String) -> String:
+	var ru := str(catalog.communities.get("stations", {}).get(sid, {}).get(field, ""))
+	if ru == "":
+		ru = str(stations.get(sid, {}).get(field, ""))
+	if Copy.ru():
+		return ru
+	var en := str(catalog.communities_en.get("stations", {}).get(sid, {}).get(field, ""))
+	return en if en != "" else ru
+
+
 func _init_map() -> void:
 	var legacy := {}
 	for raw in catalog.stations:
@@ -5532,6 +7630,7 @@ func _init_map() -> void:
 			"loyalty": 78 if owner != "ruin" else 40,
 			"unrest": 0,
 			"focus": "",
+			"governor": "",
 			"deals": 0,
 			"passage": false,
 			"known": false,
@@ -5673,7 +7772,8 @@ func _afford(cost) -> bool:
 	if not (cost is Dictionary):
 		return true
 	for key in cost:
-		if int(stock.get(key, 0)) < int(cost[key]):
+		var have := int(artifacts.get(key, 0)) if ARTIFACTS.has(str(key)) else int(stock.get(key, 0))
+		if have < int(cost[key]):
 			return false
 	return true
 
@@ -5682,7 +7782,10 @@ func _pay(cost) -> void:
 	if not (cost is Dictionary):
 		return
 	for key in cost:
-		stock[key] = int(stock.get(key, 0)) - int(cost[key])
+		if ARTIFACTS.has(str(key)):
+			artifacts[str(key)] = int(artifacts.get(str(key), 0)) - int(cost[key])
+		else:
+			stock[key] = int(stock.get(key, 0)) - int(cost[key])
 
 
 func _add_opinion(fid: String, amount: int, why: String = "") -> void:
@@ -5754,13 +7857,13 @@ func _drop_id(rows: Array, id: String) -> Array:
 	return keep
 
 
-func _weighted(pool: Array) -> Dictionary:
+func _weighted(pool: Array, stream: RandomNumberGenerator = null) -> Dictionary:
 	var total := 0
 	for ev in pool:
 		total += int(ev.get("weight", 1))
 	if total <= 0:
 		return pool[0]
-	var roll := rng.randi_range(1, total)
+	var roll := (stream if stream != null else rng).randi_range(1, total)
 	var acc := 0
 	for ev in pool:
 		acc += int(ev.get("weight", 1))
@@ -5807,6 +7910,390 @@ func _invariants() -> void:
 		over = "error"
 
 
+## Rooms a deal raises by one tier for free, and laws it puts in force; the deal text in faction_leaders.json names them.
+const DEAL_ROOM := {"burn_papers": "workshop", "the_list": "air_filter"}
+const DEAL_LAW := {"the_list": "curfew"}
+
+
+## Mechanics only (data/faction_leaders.json); every word a leader shows comes from data/leader_lines.json.
+func leader(fid: String) -> Dictionary:
+	for row in catalog.leaders.get("factions", []):
+		if str(row.get("id", "")) == fid:
+			return row
+	return {}
+
+
+## The faction "name", the "leader" or their "title" as {en, ru}, from data/leader_lines.json.
+func leader_name(fid: String, key: String) -> Dictionary:
+	return catalog.lines.get("factions", {}).get(fid, {}).get(key, {})
+
+
+## One {en, ru} line from data/leader_lines.json; "bands" takes the band name. A missing, empty or
+## unwritten line falls back to first_contact, and to {} only when that is missing too.
+func leader_line(fid: String, key: String, band: String = "") -> Dictionary:
+	var row: Dictionary = catalog.lines.get("factions", {}).get(fid, {})
+	var pair = row.get("bands", {}).get(band, {}) if key == "bands" else row.get(key, {})
+	if not line_written(pair):
+		pair = row.get("first_contact", {})
+	return pair if line_written(pair) else {}
+
+
+static func line_written(pair) -> bool:
+	if not pair is Dictionary:
+		return false
+	var en := str(pair.get("en", "")).strip_edges()
+	return en != "" and en != "TODO_REWRITE"
+
+
+## First meeting gets first_contact; after that the line for the leader's current regard band.
+func audience_opening(fid: String) -> Dictionary:
+	if not audience_last.has(fid):
+		return leader_line(fid, "first_contact")
+	return leader_line(fid, "bands", standing_band(fid))
+
+
+## Which line audience_opening shows, as a voice key: "first_contact" or "band_<band>".
+func audience_opening_key(fid: String) -> String:
+	if audience_last.has(fid):
+		var band := standing_band(fid)
+		if line_written(catalog.lines.get("factions", {}).get(fid, {}).get("bands", {}).get(band, {})):
+			return "band_" + band
+	return "first_contact"
+
+
+## A territory or trade line for the order report, at most once per faction every LEADER_LINE_GAP weeks.
+## Flavour only: the week it was last shown sits in flags under "line_<faction>".
+const LEADER_LINE_GAP := 4
+
+func _leader_flavour(kind: String, fid: String) -> Dictionary:
+	if fid == "" or fid == player or leader(fid).is_empty():
+		return {}
+	var key := "line_" + fid
+	if flags.has(key) and week - int(flags[key]) < LEADER_LINE_GAP:
+		return {}
+	var pair := leader_line(fid, kind)
+	if pair.is_empty():
+		return {}
+	flags[key] = week
+	return {"faction": fid, "line": pair, "line_key": kind}
+
+
+func _init_standing() -> void:
+	for row in catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if not standing.has(fid):
+			standing[fid] = clampi(int(row.get("start_opinion", 0)), -100, 100)
+		if not standing_memory.has(fid):
+			standing_memory[fid] = []
+
+
+func standing_band(fid: String) -> String:
+	var value := int(standing.get(fid, 0))
+	for band in catalog.leaders.get("opinion_bands", []):
+		if value >= int(band.min) and value <= int(band.max):
+			return str(band.id)
+	return ""
+
+
+func _add_standing(fid: String, amount: int, deed: Dictionary) -> void:
+	if not standing.has(fid) or amount == 0:
+		return
+	standing[fid] = clampi(int(standing[fid]) + amount, -100, 100)
+	_remember(fid, deed)
+
+
+func _remember(fid: String, deed: Dictionary) -> void:
+	var rows: Array = standing_memory.get(fid, [])
+	var row := deed.duplicate()
+	row["week"] = week
+	rows.append(row)
+	var slots := int(catalog.leaders.memory_slots)
+	if rows.size() > slots:
+		rows = rows.slice(rows.size() - slots)
+	standing_memory[fid] = rows
+
+
+## Arrival rules read "<a>_or_<b>"; "week_N" takes N from the data.
+func _arrived(rule: String) -> bool:
+	for part in rule.split("_or_"):
+		var key := str(part)
+		if key.begins_with("week_"):
+			if week >= key.trim_prefix("week_").to_int():
+				return true
+			continue
+		match key:
+			"radio_built":
+				if _has_radio():
+					return true
+			"directorate_intent":
+				for intent in telegraphed:
+					if str(intent.get("faction", "")) != "directorate" or str(intent.get("kind", "")) != "squad" or bool(intent.get("hidden", false)):
+						continue
+					var sid := str(intent.get("station", ""))
+					if stations.has(sid) and (str(stations[sid].owner) == player or borders_player(sid)):
+						return true
+			"food_critical":
+				if food_buffer_weeks() < 1.0:
+					return true
+			"first_season":
+				if not active_season.is_empty():
+					return true
+			"first_caravan", "first_sealed_tunnel":
+				if flags.has(key):
+					return true
+	return false
+
+
+## A leader left waiting a week counts as turned away. Then at most one leader comes per dawn, chosen among
+## those who have arrived, have no deal done and are out of cooldown (hostile and pact leaders have none).
+## Least recently seen goes first: never seen before anyone seen, then the oldest audience_last; ties go to
+## the earlier arrival, then to the order in faction_leaders.json. A refused or silent leader is requeued
+## behind everyone waiting, so a repeater cannot keep the door from the others.
+func _audience_dawn() -> void:
+	if catalog.leaders.is_empty():
+		return
+	_init_standing()
+	if not audience.is_empty():
+		_audience_refuse("silence")
+	for row in catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if not audience_due.has(fid) and _arrived(str(row.get("arrival", ""))):
+			audience_due[fid] = week
+	var best := ""
+	var best_key: Array = []
+	for row in catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if not audience_eligible(fid):
+			continue
+		var key := [int(audience_last.get(fid, -1)), int(audience_due[fid])]
+		if best == "" or key < best_key:
+			best = fid
+			best_key = key
+	if best == "":
+		return
+	var target := ""
+	if str(leader(best).get("dirty_deal", {}).get("id", "")) == "the_list":
+		target = list_target()
+	audience = {"faction": best, "week": week, "target": target}
+
+
+## Arrived, deal not done, and either never seen, out of the cooldown, or hostile or pact.
+func audience_eligible(fid: String) -> bool:
+	if not audience_due.has(fid) or audience_deals.has(fid):
+		return false
+	var band := standing_band(fid)
+	if band == "hostile" or band == "pact" or not audience_last.has(fid):
+		return true
+	return week - int(audience_last[fid]) >= int(catalog.leaders.audience_cooldown_weeks)
+
+
+## Who the Directorate's list would name: the least skilled resident outside the council.
+func list_target() -> String:
+	var pick := ""
+	var low := 1 << 30
+	for person in residents:
+		var id := str(person.id)
+		if _is_council(id):
+			continue
+		var total := _skill_total(person)
+		if total < low:
+			low = total
+			pick = id
+	return pick
+
+
+func audience_reason() -> String:
+	if audience.is_empty():
+		return Copy.t("Nobody is waiting.")
+	var deal: Dictionary = leader(str(audience.faction)).get("dirty_deal", {})
+	if str(deal.get("id", "")) == "the_list" and not people.has(str(audience.get("target", ""))):
+		return Copy.t("There is nobody to hand over.")
+	var food := int(deal.get("food", 0))
+	if food < 0 and int(stock.food) < -food:
+		return Copy.t("Needs %s, the stores have %s.") % [Copy.stock(-food, "food"), Copy.stock(int(stock.food), "food")]
+	return ""
+
+
+func _audience_refuse(how: String) -> void:
+	var fid := str(audience.get("faction", ""))
+	_record_answer(fid, how)
+	audience_last[fid] = week
+	_remember(fid, {"deed": how})
+	_journal("audience", {"faction": fid, "result": how})
+	audience = {}
+
+
+## The week is the audience's own: a leader left waiting is counted at the next dawn but was answered by
+## silence the week they came.
+## "helped" answers no deal: the first answer to the deal itself, coming later, takes its place.
+func _record_answer(fid: String, answer: String) -> void:
+	if fid == "":
+		return
+	if leader_answers.has(fid) and not (str(leader_answers[fid].get("answer", "")) == "helped" and answer != "helped"):
+		return
+	leader_answers[fid] = {"answer": answer, "week": int(audience.get("week", week))}
+
+
+## The leader at the door's honest favour from faction_leaders.json: {resource, amount, standing}, or {}.
+func help_terms() -> Dictionary:
+	if audience.is_empty():
+		return {}
+	var help = leader(str(audience.faction)).get("help", {})
+	if not (help is Dictionary) or not stock.has(str(help.get("resource", ""))):
+		return {}
+	return help
+
+
+## What offering help changes this turn: the stock it takes and the regard it gives, already clamped.
+func help_effects() -> Dictionary:
+	var help := help_terms()
+	if help.is_empty():
+		return {}
+	var fid := str(audience.faction)
+	var now := int(standing.get(fid, 0))
+	return {"resource": str(help.resource), "amount": int(help.amount),
+		"standing": clampi(now + int(help.get("standing", 0)), -100, 100) - now}
+
+
+## Weeks before this leader can be helped again; 0 when help is open. Counts from the last help, in every band.
+func help_wait(fid: String) -> int:
+	if not help_last.has(fid):
+		return 0
+	return maxi(0, int(help_last[fid]) + int(catalog.leaders.audience_cooldown_weeks) - week)
+
+
+## Why help cannot be offered now; "" when it can.
+func help_reason() -> String:
+	var help := help_terms()
+	if help.is_empty():
+		return Copy.t("Nobody is waiting.")
+	var wait := help_wait(str(audience.faction))
+	if wait == 1:
+		return Copy.t("You helped recently, 1 week left")
+	if wait > 1:
+		return Copy.t("You helped recently, %d weeks left") % wait
+	var key := str(help.resource)
+	if int(stock.get(key, 0)) < int(help.amount):
+		return Copy.t("Needs %s, the stores have %s.") % [Copy.stock(int(help.amount), key), Copy.stock(int(stock.get(key, 0)), key)]
+	return ""
+
+
+## The favour line on the card ("offer") or the leader's thanks ("reply") from leader_lines.json.
+func help_line(fid: String, part: String) -> Dictionary:
+	var pair = catalog.lines.get("factions", {}).get(fid, {}).get("help", {}).get(part, {})
+	return pair if line_written(pair) else {}
+
+
+## Offer help: pay the stock, earn the regard, close the audience with "helped". No deal, no deal flag, no
+## consequence events; the leader comes back after the usual cooldown with the deal still on the table.
+func _apply_help() -> bool:
+	if help_reason() != "":
+		return false
+	var fid := str(audience.faction)
+	var fx := help_effects()
+	var key := str(fx.resource)
+	stock[key] = int(stock[key]) - int(fx.amount)
+	_add_standing(fid, int(help_terms().get("standing", 0)), {"deed": "helped"})
+	var spent: Dictionary = stats.get("help_spent", {})
+	spent[key] = int(spent.get(key, 0)) + int(fx.amount)
+	stats["help_spent"] = spent
+	_record_answer(fid, "helped")
+	audience_last[fid] = week
+	help_last[fid] = week
+	_journal("audience", {"faction": fid, "result": "helped", "resource": key, "amount": int(fx.amount), "standing": int(fx.standing)})
+	_log("STANDING %s %s" % [fid, "+%d" % int(fx.standing) if int(fx.standing) >= 0 else str(fx.standing)], true)
+	audience = {}
+	decisions += 1
+	return true
+
+
+func _apply_audience(accept: bool) -> bool:
+	if audience.is_empty():
+		return false
+	if not accept:
+		_audience_refuse("refused")
+		decisions += 1
+		return true
+	if audience_reason() != "":
+		return false
+	var fid := str(audience.faction)
+	var deal: Dictionary = leader(fid).get("dirty_deal", {})
+	var deal_id := str(deal.get("id", ""))
+	var fx := audience_effects()
+	var deed := {"deed": deal_id}
+	if str(fx.hand_over) != "":
+		var person: Dictionary = people[str(fx.hand_over)]
+		deed["name"] = str(person.get("name", ""))
+		deed["name_ru"] = str(person.get("name_ru", ""))
+		_remove_resident(str(fx.hand_over))
+		_journal("handed_over", {"faction": fid, "name": deed.name, "name_ru": deed.name_ru})
+	if deal_id == "burn_papers":
+		if bool(fx.papers):
+			artifacts.papers = int(artifacts.papers) - 1
+		_journal("papers_burned", {"faction": fid, "destroyed": bool(fx.papers)})
+	if bool(fx.toll_lost):
+		_journal("false_way", {"faction": fid})
+	_add_hope(int(fx.hope), "audience")
+	_add_discontent(int(fx.discontent), "audience")
+	stock.food = int(stock.food) + int(fx.food)
+	for other in fx.standing:
+		_add_standing(str(other), int(fx.standing[other]), deed)
+	if not fx.tier.is_empty():
+		var room = _room(str(fx.tier.uid))
+		room.upgrade = int(room.upgrade) + 1
+		_log("UPGRADE %s to %s" % [catalog.rooms[room.type].name, str(fx.tier.name)])
+	if str(fx.law) != "":
+		laws_on[str(fx.law)] = true
+	flags[str(fx.flag)] = week
+	_journal("audience", {"faction": fid, "result": "deal", "deal": deal_id})
+	_record_answer(fid, "accepted")
+	audience_deals[fid] = week
+	audience_last[fid] = week
+	audience = {}
+	decisions += 1
+	return true
+
+
+## Everything taking the deal at the door changes this turn, already clamped to the meters, so the card can show
+## exactly what will move. Promises in the deal text with no mechanic behind them are not here.
+func audience_effects() -> Dictionary:
+	var fx := {
+		"hope": 0, "discontent": 0, "food": 0, "standing": {}, "hand_over": "", "law": "",
+		"tier": {}, "papers": false, "toll_lost": false, "flag": "",
+	}
+	if audience.is_empty():
+		return fx
+	var fid := str(audience.faction)
+	var deal: Dictionary = leader(fid).get("dirty_deal", {})
+	var deal_id := str(deal.get("id", ""))
+	fx.flag = str(deal.get("flag", deal_id))
+	fx.hope = clampi(hope + int(deal.get("hope", 0)), 0, 100) - hope
+	fx.discontent = clampi(discontent + int(deal.get("discontent", 0)), 0, 100) - discontent
+	fx.food = maxi(0, int(stock.food) + int(deal.get("food", 0))) - int(stock.food)
+	var shifts: Dictionary = deal.get("opinion", {})
+	for other in shifts:
+		if not standing.has(str(other)):
+			continue
+		var now := int(standing[other])
+		var moved := clampi(now + int(shifts[other]), -100, 100) - now
+		if moved != 0:
+			fx.standing[str(other)] = moved
+	if deal_id == "the_list" and people.has(str(audience.get("target", ""))):
+		fx.hand_over = str(audience.target)
+	if DEAL_LAW.has(deal_id) and not _law_on(str(DEAL_LAW[deal_id])):
+		fx.law = str(DEAL_LAW[deal_id])
+	if DEAL_ROOM.has(deal_id):
+		var type := str(DEAL_ROOM[deal_id])
+		var steps: Array = catalog.rooms[type].get("upgrades", [])
+		for room in rooms:
+			if str(room.type) == type and int(room.upgrade) < steps.size():
+				fx.tier = {"uid": str(room.uid), "type": type, "name": str(steps[int(room.upgrade)])}
+				break
+	fx.papers = deal_id == "burn_papers" and int(artifacts.papers) > 0
+	fx.toll_lost = deal_id == "lantern_toll" and int(standing.get(fid, 0)) < 0
+	return fx
+
+
 const PERSIST := [
 	"seed", "week", "max_weeks", "over", "player", "player_lean", "capital_id",
 	"stock", "hope", "discontent", "residents", "people", "cells", "rooms",
@@ -5821,36 +8308,403 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
-	"check_schedule", "white_pending", "vent_cut", "relations", "flags",
-	"address_week", "hardship_now", "chronicle", "departed", "burials", "creed",
+	"power_zero_streak", "rally_lock", "address_week", "hardship_now", "chronicle", "departed", "burials", "creed", "notices", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
+	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
+	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
+	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
+	"story_queue", "proof_extra",
 ]
 
 
+## SaveGame stamps files with "schema": SAVE_SCHEMA; such saves must carry every PERSIST key plus all
+## RNG_KEYS or they are rejected. Data without "schema" is version 1, the format from before.
+## Adding a PERSIST key needs a new schema number and its own migration list. Version 7 added sex and face to
+## every person; older saves get them from the profiles and names on load (_dress_legacy). Version 8 added
+## "governor" to every station; older saves start with no governors. Version 9 added "address_week"; older saves
+## start with the platform not yet addressed. Version 10 added the chronicle, departures, and burials.
+const SAVE_SCHEMA := 10
+const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
+## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
+## leader's start_opinion, never anything from the run being replaced.
+const V1_ADDED := [
+	"flood_guard", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
+	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal", "vo_heard", "radio_week",
+	"standing", "standing_memory", "audience", "audience_last", "audience_due", "audience_deals", "vo_cues",
+]
+## Version 1 saves predate these streams; they restart from the seed the same way setup() seeds them.
+const V1_RNG_ADDED := ["net_state", "check_state"]
+## Fields a version 1 or 2 save may lack; they start empty like a fresh Game (no answers recorded yet).
+const V2_ADDED := ["leader_answers"]
+const ANSWERS := ["accepted", "refused", "silence"]
+## What leader_answers may hold: the deal answers, or "helped" until the deal itself is answered. Consequence
+## events key on ANSWERS only, so "helped" opens none of them.
+const SAVED_ANSWERS := ["accepted", "refused", "silence", "helped"]
+## Fields a version 1 to 3 save may lack: no fragment known, no testimony granted yet (stories already heard
+## count toward the next one when a story ends).
+const V3_ADDED := ["fragments", "story_words"]
+## Version 1 to 3 saves predate the story slot; its stream restarts from the seed the way setup() seeds it.
+const V3_RNG_ADDED := ["story_state"]
+## Fields a version 1 to 4 save may lack: no leader helped yet, so help is open to everyone.
+const V4_ADDED := ["help_last"]
+## Fields a version 1 to 5 save may lack: no bunker scene waiting, no proof beyond the fragments.
+const V5_ADDED := ["story_queue", "proof_extra"]
+## Fields a version 1 to 8 save may lack: the platform not addressed yet.
+const V8_ADDED := ["address_week"]
+## Fields a version 1 to 9 save may lack: no chronicle, no named departures, no burial waiting.
+const V9_ADDED := ["hardship_now", "chronicle", "departed", "burials", "creed", "notices"]
+
+## Why the last import_state() refused its data; "" after a successful import.
+var load_error := ""
+
+
 func export_state() -> Dictionary:
-	var data := {"rng_state": rng.state, "crunch_state": crunch_rng.state, "net_state": net_rng.state, "check_state": check_rng.state}
+	var data := {
+		"rng_state": rng.state, "crunch_state": crunch_rng.state,
+		"net_state": net_rng.state, "check_state": check_rng.state, "story_state": story_rng.state,
+	}
 	for key in PERSIST:
-		data[key] = get(key)
+		var value = get(key)
+		data[key] = value.duplicate(true) if value is Array or value is Dictionary else value
 	return data
 
 
+## Replaces the whole run with the saved one, or leaves the game untouched and returns false.
 func import_state(data: Dictionary) -> bool:
-	if not data.has("week"):
+	var staged := stage_state(data, catalog)
+	load_error = str(staged.error)
+	if load_error != "":
 		return false
+	var state: Dictionary = staged.state
+	for key in PERSIST:
+		set(key, state[key])
+	rng.state = int(state.rng_state)
+	crunch_rng.state = int(state.crunch_state)
+	net_rng.state = int(state.net_state)
+	check_rng.state = int(state.check_state)
+	story_rng.state = int(state.story_state)
+	last_check = {}
+	_init_standing()
+	if bal.is_empty():
+		bal = catalog.balance
+	_jitter_seasons()
+	if squads.has(player) and not bool(squads[player].get("guard", false)):
+		_muster_start_guard()
+	_sync_guard()
+	return true
+
+
+## Migrates and validates save data into a complete, detached state without touching any live game.
+## Returns {"error": String, "state": Dictionary}; state is only filled when error is "".
+static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
+	if cat == null:
+		return {"error": "no catalog", "state": {}}
+	var schema = data.get("schema", 1)
+	if typeof(schema) != TYPE_INT or int(schema) < 1 or int(schema) > SAVE_SCHEMA:
+		return {"error": "unsupported schema %s" % str(schema), "state": {}}
+	var base := Game.new()
+	base.catalog = cat
+	base._init_standing()
+	var state := {}
 	for key in PERSIST:
 		if data.has(key):
-			set(key, data[key])
-	if data.has("rng_state"):
-		rng.state = int(data.rng_state)
-	if data.has("crunch_state"):
-		crunch_rng.state = int(data.crunch_state)
-	if data.has("net_state"):
-		net_rng.state = int(data.net_state)
-	if data.has("check_state"):
-		check_rng.state = int(data.check_state)
-	if catalog != null:
-		_bind_balance(seed)
-	return true
+			state[key] = data[key]
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)):
+			state[key] = base.get(key)
+		else:
+			return {"error": "missing %s" % key, "state": {}}
+		var want := typeof(base.get(key))
+		var got := typeof(state[key])
+		if got != want and not (want == TYPE_FLOAT and got == TYPE_INT):
+			return {"error": "%s has type %s" % [key, type_string(got)], "state": {}}
+	for key in RNG_KEYS:
+		if data.has(key):
+			if typeof(data[key]) != TYPE_INT:
+				return {"error": "%s is not an int" % key, "state": {}}
+			state[key] = data[key]
+		elif (int(schema) == 1 and V1_RNG_ADDED.has(key)) or (int(schema) <= 3 and V3_RNG_ADDED.has(key)):
+			state[key] = _v1_stream(key, int(state.seed))
+		else:
+			return {"error": "missing %s" % key, "state": {}}
+	if int(schema) == 1 and not data.has("check_schedule"):
+		var rebuilt := _v1_checks(cat, int(state.seed))
+		state.check_schedule = rebuilt.schedule
+		if not data.has("check_state"):
+			state.check_state = rebuilt.state
+	state = state.duplicate(true)
+	if int(schema) <= 6:
+		_dress_legacy(state, cat)
+	if int(schema) <= 7 and state.stations is Dictionary:
+		for sid in state.stations:
+			if state.stations[sid] is Dictionary and not state.stations[sid].has("governor"):
+				state.stations[sid]["governor"] = ""
+	var why := _state_problem(state, cat)
+	if why != "":
+		return {"error": why, "state": {}}
+	var linked: Array = []
+	for person in state.residents:
+		linked.append(state.people[str(person.id)])
+	state.residents = linked
+	return {"error": "", "state": state}
+
+
+## setup() draws the check weeks first from the freshly seeded check stream, so a version 1 save gets
+## the schedule and stream state a new run of the same seed starts with.
+static func _v1_checks(cat: Catalog, run_seed: int) -> Dictionary:
+	var game := Game.new()
+	game.catalog = cat
+	game._install_check_events()
+	game.check_rng.seed = run_seed * 29 + 11
+	game._schedule_checks()
+	return {"schedule": game.check_schedule, "state": game.check_rng.state}
+
+
+## A version 1 to 6 save has people without sex and face: dress them in resident order as a new run would.
+## Malformed records are left for _state_problem to refuse.
+static func _dress_legacy(state: Dictionary, cat: Catalog) -> void:
+	if not (state.people is Dictionary) or not (state.residents is Array):
+		return
+	var game := Game.new()
+	game.catalog = cat
+	game.capital_id = str(state.capital_id)
+	var rows: Array = []
+	for row in state.residents:
+		if row is Dictionary and state.people.get(str(row.get("id", ""))) is Dictionary:
+			rows.append(state.people[str(row.id)])
+	game.people = state.people
+	game.residents = rows
+	game._dress(rows)
+
+
+static func _v1_stream(key: String, run_seed: int) -> int:
+	var stream := RandomNumberGenerator.new()
+	match key:
+		"net_state":
+			stream.seed = run_seed * 17 + 3
+		"story_state":
+			stream.seed = run_seed * 41 + 5
+		_:
+			stream.seed = run_seed * 29 + 11
+	return stream.state
+
+
+## Structure and identity checks on a staged state; "" when it can be played.
+static func _state_problem(state: Dictionary, cat: Catalog) -> String:
+	if int(state.max_weeks) < 1 or int(state.week) < 1 or int(state.week) > int(state.max_weeks):
+		return "week %d of %d" % [int(state.week), int(state.max_weeks)]
+	if not cat.factions.has(str(state.player)):
+		return "unknown player %s" % state.player
+	if not state.stations.has(str(state.capital_id)):
+		return "unknown capital %s" % state.capital_id
+	for id in state.people:
+		var person = state.people[id]
+		if not (person is Dictionary) or str(person.get("id", "")) != str(id):
+			return "person %s malformed" % str(id)
+		var faces: Dictionary = cat.profiles.get("portrait_sex", {})
+		if not ["m", "f"].has(person.get("sex")):
+			return "person %s sex %s" % [str(id), str(person.get("sex"))]
+		if str(faces.get(person.get("face", ""), "")) != str(person.sex):
+			return "person %s (%s) wears %s" % [str(id), str(person.sex), str(person.get("face"))]
+	var seen := {}
+	for person in state.residents:
+		if not (person is Dictionary) or not state.people.has(str(person.get("id", ""))):
+			return "resident outside people"
+		if seen.has(str(person.id)):
+			return "resident %s twice" % person.id
+		seen[str(person.id)] = true
+	if seen.size() != state.people.size():
+		return "people %d, residents %d" % [state.people.size(), seen.size()]
+	for seat in state.council:
+		if not (seat is Dictionary) or not seat.has("id") or not seat.has("role"):
+			return "council seat malformed"
+	var uids := {}
+	for room in state.rooms:
+		if not (room is Dictionary) or not cat.rooms.has(str(room.get("type", ""))) or not (room.get("staff") is Array) or not (room.get("uid") is String):
+			return "room malformed"
+		if uids.has(str(room.get("uid", ""))):
+			return "room %s twice" % str(room.get("uid", ""))
+		uids[str(room.uid)] = true
+		for id in room.staff:
+			if not state.people.has(str(id)):
+				return "room %s staffed by unknown %s" % [room.uid, id]
+	for job in [state.dig, state.build]:
+		for id in job.get("workers", []):
+			if not state.people.has(str(id)):
+				return "worker %s unknown" % id
+	var leaders := {}
+	for row in cat.leaders.get("factions", []):
+		leaders[str(row.get("id", ""))] = true
+	for fid in state.standing:
+		if not leaders.has(str(fid)) or typeof(state.standing[fid]) != TYPE_INT:
+			return "standing %s malformed" % str(fid)
+	if not state.audience.is_empty():
+		if not leaders.has(str(state.audience.get("faction", ""))):
+			return "audience faction %s unknown" % str(state.audience.get("faction", ""))
+		var target := str(state.audience.get("target", ""))
+		if target != "" and not state.people.has(target):
+			return "audience target %s unknown" % target
+	for fid in state.leader_answers:
+		var row = state.leader_answers[fid]
+		if not leaders.has(str(fid)) or not (row is Dictionary):
+			return "leader answer %s malformed" % str(fid)
+		if not SAVED_ANSWERS.has(str(row.get("answer", ""))):
+			return "leader answer %s is %s" % [str(fid), str(row.get("answer", ""))]
+		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
+			return "leader answer %s week %s" % [str(fid), str(row.get("week"))]
+	for fid in state.help_last:
+		var at = state.help_last[fid]
+		if not leaders.has(str(fid)) or typeof(at) != TYPE_INT or int(at) < 1 or int(at) > int(state.week):
+			return "help %s week %s" % [str(fid), str(at)]
+	for id in state.story_queue:
+		var queued := false
+		for ev in cat.events:
+			if str(ev.get("id", "")) == str(id) and ev.has("trigger"):
+				queued = true
+		if not queued:
+			return "story queue %s is not a bunker scene" % str(id)
+	if typeof(state.proof_extra) != TYPE_INT or int(state.proof_extra) < 0:
+		return "proof_extra %s" % str(state.proof_extra)
+	for key in ARTIFACTS:
+		if typeof(state.artifacts.get(key)) != TYPE_INT or int(state.artifacts[key]) < 0:
+			return "artifact %s is %s" % [key, str(state.artifacts.get(key))]
+	for id in state.fragments:
+		var row = state.fragments[id]
+		if not FRAGMENTS.has(str(id)) or not (row is Dictionary) or typeof(row.get("known")) != TYPE_BOOL:
+			return "fragment %s malformed" % str(id)
+		if not FRAGMENT_HOWS.has(str(row.get("how", ""))):
+			return "fragment %s learned %s" % [str(id), str(row.get("how", ""))]
+		if typeof(row.get("week")) != TYPE_INT or int(row.week) < 1 or int(row.week) > int(state.week):
+			return "fragment %s week %s" % [str(id), str(row.get("week"))]
+	if int(state.story_words) < 0:
+		return "story_words %d" % int(state.story_words)
+	for law in state.laws_on:
+		if not cat.laws.has(str(law)):
+			return "law %s unknown" % str(law)
+	for tunnel in state.tunnels:
+		if not (tunnel is Dictionary) or not state.stations.has(str(tunnel.get("a", ""))) or not state.stations.has(str(tunnel.get("b", ""))):
+			return "tunnel to an unknown station"
+	var why_shape := _shape_problem(state, cat)
+	if why_shape != "":
+		return why_shape
+	for sid in state.stations:
+		var gov := str(state.stations[sid].get("governor", ""))
+		if gov != "" and not state.people.has(gov):
+			return "station %s governed by unknown %s" % [str(sid), gov]
+	return ""
+
+
+## Shapes of a fresh run on this catalog: the keys every person, station, room and council seat carries there,
+## with their types. A saved record must carry them too, or the week code reads a hole.
+static var _models := {}
+
+
+static func _model(cat: Catalog) -> Dictionary:
+	var id := cat.get_instance_id()
+	if not _models.has(id):
+		var fresh := Game.new()
+		fresh.setup(cat, 1, 40)
+		_models.clear()
+		_models[id] = {
+			"stock": _common([fresh.stock]), "person": _common(fresh.people.values()),
+			"station": _common(fresh.stations.values()), "room": _common(fresh.rooms), "seat": _common(fresh.council),
+			"tunnel": _common(fresh.tunnels),
+		}
+	return _models[id]
+
+
+## What every row shares: a Dictionary of the keys all rows have (each with what their values share),
+## a sample value when all rows are of one kind, or null when they differ.
+static func _common(rows: Array):
+	if rows.is_empty():
+		return null
+	var first = rows[0]
+	for row in rows:
+		if not _same_kind(row, first):
+			return null
+	if not first is Dictionary:
+		return [] if first is Array else first
+	var out := {}
+	for key in first:
+		var values: Array = []
+		for row in rows:
+			if not row.has(key):
+				values = []
+				break
+			values.append(row[key])
+		if not values.is_empty():
+			out[key] = _common(values)
+	return out
+
+
+static func _same_kind(a, b) -> bool:
+	if (a is int or a is float) and (b is int or b is float):
+		return true
+	return typeof(a) == typeof(b)
+
+
+static func _shape(value, model, path: String) -> String:
+	if model == null:
+		return ""
+	if not _same_kind(value, model):
+		return "%s is %s" % [path, type_string(typeof(value))]
+	if model is Dictionary:
+		for key in model:
+			if not value.has(key):
+				return "%s.%s missing" % [path, str(key)]
+			var why := _shape(value[key], model[key], "%s.%s" % [path, str(key)])
+			if why != "":
+				return why
+	return ""
+
+
+static func _shape_problem(state: Dictionary, cat: Catalog) -> String:
+	var model := _model(cat)
+	var why := _shape(state.stock, model.stock, "stock")
+	for id in state.people:
+		if why == "":
+			why = _shape(state.people[id], model.person, "person %s" % str(id))
+	for id in state.stations:
+		if why == "":
+			why = _shape(state.stations[id], model.station, "station %s" % str(id))
+	for room in state.rooms:
+		if why == "":
+			why = _shape(room, model.room, "room %s" % str(room.uid))
+	for seat in state.council:
+		if why == "":
+			why = _shape(seat, model.seat, "council seat")
+	for tunnel in state.tunnels:
+		if why == "":
+			why = _shape(tunnel, model.tunnel, "tunnel")
+	if why != "":
+		return why
+	for item in state.check_schedule:
+		if not (item is Dictionary) or not (item.get("id") is String) or not _same_kind(item.get("week"), 0) or not (item.get("done") is bool):
+			return "check schedule malformed"
+	for ev in state.pending + state.white_pending:
+		why = _event_problem(ev, cat)
+		if why != "":
+			return why
+	return ""
+
+
+## A waiting event needs its id and choices, each choice its id, and every number the catalog's choice
+## carries must still be a number.
+static func _event_problem(ev, cat: Catalog) -> String:
+	if not (ev is Dictionary) or not (ev.get("id") is String) or not (ev.get("choices") is Array):
+		return "waiting event malformed"
+	var source := {}
+	for row in cat.events:
+		if str(row.get("id", "")) == ev.id:
+			source = row
+	for choice in ev.choices:
+		if not (choice is Dictionary) or not (choice.get("id") is String):
+			return "event %s choice malformed" % ev.id
+		for row in source.get("choices", []):
+			if str(row.get("id", "")) != choice.id:
+				continue
+			for key in row:
+				if (row[key] is int or row[key] is float) and choice.has(key) and not _same_kind(choice[key], 0):
+					return "event %s choice %s %s is %s" % [ev.id, choice.id, str(key), type_string(typeof(choice[key]))]
+	return ""
 
 
 func _line_name(room_name: String, lower: bool) -> String:
@@ -5867,181 +8721,6 @@ func _log(text: String, important := false) -> void:
 	log.append({"week": week, "text": text, "important": important})
 
 
-func _bind_balance(run_seed: int) -> void:
-	bal = catalog.balance.duplicate(true)
-	_jitter_seasons(run_seed)
-
-
-func _jitter_seasons(run_seed: int) -> void:
-	var j := int(bal.get("season_jitter", 0))
-	if j <= 0:
-		return
-	var r := RandomNumberGenerator.new()
-	r.seed = run_seed * 7 + 5
-	for season in bal.seasons:
-		season.week = int(season.week) + r.randi_range(-j, j)
-
-
-func hardships() -> Array:
-	var snap := _hardship_snapshot()
-	var out: Array = []
-	if bool(snap.food) or bool(snap.thin):
-		out.append({"id": "food_short", "label": Copy.t("hardship.food_short")})
-	if bool(snap.air):
-		out.append({"id": "air_short", "label": Copy.t("hardship.air_short")})
-	if bool(snap.power):
-		out.append({"id": "power_short", "label": Copy.t("hardship.power_short")})
-	if bool(snap.sick):
-		out.append({"id": "sick", "label": Copy.t("hardship.sick")})
-	var season := str(snap.season)
-	if season != "":
-		out.append({
-			"id": "season",
-			"season": season,
-			"label": Copy.t("hardship.season_%s" % season),
-		})
-	return out
-
-
-func _hardship_snapshot() -> Dictionary:
-	var food_out := output_of("food")
-	var air_out := output_of("air")
-	var power_out := output_of("power")
-	if _law_on("engineers_charter"):
-		power_out += int(catalog.laws.engineers_charter.get("power", 0))
-	var food_after := int(stock.food) + food_out - food_need()
-	var air_after := int(stock.air) + air_out - air_need()
-	var need_power := _power_need()
-	if _season_is("cold") or crunch_power:
-		need_power *= 2
-	var power_after := int(stock.power) + power_out - need_power
-	var buffer := float(maxi(0, food_after)) / float(maxi(1, food_need()))
-	var sick_n := 0
-	for person in residents:
-		if int(person.sick) > 0:
-			sick_n += 1
-	var sick := residents.size() > 0 and float(sick_n) / float(residents.size()) >= float(bal.get("hard_sick_share", 2.0))
-	var season := ""
-	if not active_season.is_empty():
-		season = str(active_season.id)
-	return {
-		"food": food_after < 0,
-		"air": air_after < 0,
-		"power": power_after < 0,
-		"thin": buffer < float(bal.get("hard_food_weeks", 0.0)),
-		"buffer": buffer,
-		"sick": sick,
-		"season": season,
-	}
-
-
-func _hardship_ids(food_short: bool, air_short: bool, power_now: bool, buffer: float) -> Array:
-	var out: Array = []
-	if food_short:
-		out.append("food_shortage")
-	elif air_short:
-		out.append("air_shortage")
-	elif buffer < float(bal.get("hard_food_weeks", 0.0)):
-		out.append("thin_food")
-	if power_now:
-		out.append("dark_rooms")
-	var sick := 0
-	for person in residents:
-		if int(person.sick) > 0:
-			sick += 1
-	if residents.size() > 0 and float(sick) / float(residents.size()) >= float(bal.get("hard_sick_share", 2.0)):
-		out.append("sickness_share")
-	if not active_season.is_empty():
-		out.append("season_%s" % str(active_season.id))
-	return out
-
-
-func forecast_hardships() -> Array:
-	var snap := _hardship_snapshot()
-	var labels: Array = []
-	for hid in _hardship_ids(bool(snap.food), bool(snap.air), bool(snap.power), float(snap.buffer)):
-		labels.append(_hardship_label(str(hid)))
-	return labels
-
-
-func _tension(food_short: bool, air_short: bool, power_now: bool) -> void:
-	var ids := _hardship_ids(food_short, air_short, power_now, food_buffer_weeks())
-	hardship_now = []
-	for hid in ids:
-		hardship_now.append(_hardship_label(str(hid)))
-	var per := int(bal.get("hardship_hope", 0))
-	var cap := int(bal.get("hardship_cap", 0))
-	var n := mini(ids.size(), cap)
-	if n > 0 and per != 0:
-		_add_hope(per * n, "hardship")
-	if n > 0:
-		var dn := mini(ids.size(), int(bal.get("hardship_dis_cap", cap)))
-		var per_dis := int(bal.get("hardship_discontent", 0))
-		if week < int(bal.get("hardship_ramp_week", 0)):
-			per_dis = int(bal.get("hardship_discontent_early", per_dis))
-		_add_discontent(per_dis * dn, "hardship")
-	elif residents.size() <= housing() or not bool(bal.get("settled_needs_beds", true)):
-		_add_discontent(int(bal.get("settled_discontent", 0)), "settled")
-	elif ids.is_empty() and food_buffer_weeks() >= float(bal.get("comfort_food_weeks", 99.0)):
-		_add_hope(int(bal.get("comfort_hope", 0)), "comfort")
-	if week >= int(bal.get("late_week", 99)):
-		_add_hope(int(bal.get("late_hope", 0)), "late")
-	if hope < int(bal.get("despair_hope", -1)):
-		_add_discontent(int(bal.get("despair_discontent", 0)), "despair")
-	if hope >= int(bal.get("calm_hope", 101)):
-		_add_discontent(int(bal.get("calm_discontent", 0)), "calm")
-
-
-func _despair_due(hard_n: int) -> bool:
-	var per := int(bal.get("hardship_hope", 0))
-	var cap := int(bal.get("hardship_cap", 0))
-	var n := mini(hard_n, cap)
-	var extra := int(bal.hope_drift) + per * n
-	if _food_thin():
-		extra += int(bal.shortage_hope)
-	for law_id in laws_on:
-		extra += int(catalog.laws[law_id].get("hope_week", 0))
-	return hope + extra < int(bal.get("despair_hope", -1))
-
-
-func _hardship_label(id: String) -> String:
-	var key := ""
-	match id:
-		"food_shortage", "thin_food", "food_short":
-			key = "hardship.food_short"
-		"air_shortage", "air_short":
-			key = "hardship.air_short"
-		"dark_rooms", "power_short":
-			key = "hardship.power_short"
-		"sickness_share", "sick":
-			key = "hardship.sick"
-		"season_flood", "season_cold", "season_cough":
-			key = "hardship." + id
-		"settled":
-			key = "tension.settled"
-		_:
-			if id.begins_with("season_"):
-				key = "hardship." + id
-	if key != "":
-		return Copy.t(key)
-	for row in catalog.hardship.get("hardship_reasons", []):
-		if str(row.get("id", "")) == id:
-			return text_pack(row)
-	return id.replace("_", " ")
-
-
-func _hardship_line(id: String, vars := {}) -> String:
-	for row in catalog.hardship.get("hardship_lines", []):
-		if str(row.get("id", "")) == id:
-			var text := fill_text(row, vars)
-			if text == "":
-				return ""
-			if not Copy.ru():
-				return text.substr(0, 1).to_upper() + text.substr(1)
-			return text
-	return ""
-
-
 func text_pack(pack) -> String:
 	if typeof(pack) != TYPE_DICTIONARY:
 		return str(pack)
@@ -6056,8 +8735,7 @@ func fill_text(pack, vars: Dictionary) -> String:
 
 
 func _note_moment(kind: String, fields: Dictionary, weight: int) -> void:
-	var row := {"week": week, "kind": kind, "weight": weight, "fields": fields.duplicate(true)}
-	chronicle.append(row)
+	chronicle.append({"week": week, "kind": kind, "weight": weight, "fields": fields.duplicate(true)})
 
 
 func chronicle_top(limit := 6) -> Array:
@@ -6371,8 +9049,10 @@ func _birth() -> String:
 		"story_events": [],
 	}
 	_fill_identity(person)
+	_stamp_checks(person)
 	residents.append(person)
 	people[id] = person
+	_dress([person])
 	_note_moment("birth", {"name": str(person.name)}, 2)
 	return str(person.name)
 
@@ -6435,7 +9115,7 @@ func _mark_served(person: Dictionary, room: Dictionary) -> void:
 	_log(toast, true)
 
 
-func _journal(person: Dictionary, pool: String, extra: Dictionary) -> void:
+func _life_note(person: Dictionary, pool: String, extra: Dictionary) -> void:
 	var rows: Array = catalog.names.get("journals", {}).get(pool, [])
 	if rows.is_empty():
 		return
@@ -6465,7 +9145,7 @@ func journal_line(ev: Dictionary) -> String:
 	return fill_text(pick, {"name": str(ev.get("name", "")), "room": Copy.t(str(ev.get("room", "")))})
 
 
-func _journal_shortage_staff() -> void:
+func _life_journal_shortage() -> void:
 	for room in rooms:
 		var defin: Dictionary = catalog.rooms[str(room.type)]
 		for id in room.staff:
@@ -6474,7 +9154,7 @@ func _journal_shortage_staff() -> void:
 			var person: Dictionary = people[str(id)]
 			if not can_work(person):
 				continue
-			_journal(person, "staffed_shortage", {"room": str(defin.get("name", ""))})
+			_life_note(person, "staffed_shortage", {"room": str(defin.get("name", ""))})
 
 
 func _note_night_run(person_id: String) -> void:
@@ -6482,7 +9162,7 @@ func _note_night_run(person_id: String) -> void:
 		return
 	var person: Dictionary = people[person_id]
 	person.night_runs = int(person.get("night_runs", 0)) + 1
-	_journal(person, "night_run", {})
+	_life_note(person, "night_run", {})
 
 
 func _note_new_sickness() -> void:
@@ -6490,15 +9170,15 @@ func _note_new_sickness() -> void:
 		if int(person.get("sick", 0)) > 0 and not bool(person.get("sick_noted", false)):
 			person.sick_noted = true
 			var room := str(person.get("last_room", ""))
-			_journal(person, "sick", {"room": room})
+			_life_note(person, "sick", {"room": room})
 		elif int(person.get("sick", 0)) <= 0:
 			person.sick_noted = false
 
 
 func _fill_identity(person: Dictionary) -> void:
-	if str(person.get("before_silence", "")) == "" or person.get("before_silence") is Dictionary and str(person.before_silence.get("en", "")) == "":
+	if str(person.get("before_silence", "")) == "" or (person.get("before_silence") is Dictionary and str(person.before_silence.get("en", "")) == ""):
 		person.before_silence = _identity_pack(person, "pasts")
-	if str(person.get("keepsake", "")) == "" or person.get("keepsake") is Dictionary and str(person.keepsake.get("en", "")) == "":
+	if str(person.get("keepsake", "")) == "" or (person.get("keepsake") is Dictionary and str(person.keepsake.get("en", "")) == ""):
 		person.keepsake = _identity_pack(person, "keepsakes")
 	if not person.has("memory"):
 		person.memory = 0
@@ -6571,6 +9251,8 @@ func _death_line_id(cause: String, person: Dictionary) -> String:
 			return "dilemma"
 		"sickness", "sick":
 			return "cough" if _season_is("cough") else "sickness"
+		"left":
+			return "left"
 		_:
 			return cause if cause != "" else "accident"
 
@@ -6578,17 +9260,17 @@ func _death_line_id(cause: String, person: Dictionary) -> String:
 func _death_cause_label(line_id: String) -> String:
 	match line_id:
 		"sickness":
-			return _hardship_label("sickness_share")
+			return Copy.t("hardship.sick")
 		"food_shortage":
-			return _hardship_label("food_shortage")
+			return Copy.t("hardship.food_short")
 		"air_shortage":
-			return _hardship_label("air_shortage")
+			return Copy.t("hardship.air_short")
 		"cough":
-			return _hardship_label("season_cough")
+			return Copy.t("hardship.season_cough")
 		"cold":
-			return _hardship_label("season_cold")
+			return Copy.t("hardship.season_cold")
 		"flood":
-			return _hardship_label("season_flood")
+			return Copy.t("hardship.season_flood")
 		"battle":
 			return Copy.t("the line")
 		"dilemma":
@@ -6903,18 +9585,15 @@ func _room_output_rows(room: Dictionary) -> Array:
 	var skill := str(defin.get("skill", ""))
 	var skills: Array = []
 	for id in room.staff:
-		if not people.has(str(id)):
-			skills.append(0)
-			continue
 		var person: Dictionary = people[str(id)]
 		var value := 0 if skill == "" else int(person.skills.get(skill, 1))
-		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+		if int(person.sick) > 0 or int(person.absent) > 0:
 			value = 0
 		skills.append(value)
 	var outputs: Array = []
-	var base: Dictionary = defin.get("base", {})
+	var base: Dictionary = defin.base
 	for key in base:
-		var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+		var amount := float(base[key]) * output_scale(int(room.upgrade))
 		var factor := _output_factor(room, defin)
 		var n := 0
 		if factor > 0.0:
@@ -6924,12 +9603,13 @@ func _room_output_rows(room: Dictionary) -> Array:
 			n = int(round(float(n) * float(room.efficiency)))
 		if belt_down and str(room.type) == "hydroponics" and str(key) == "food":
 			n = int(n / 2.0)
-		if workshop_down and str(room.type) == "workshop" and str(key) == "materials":
+		if workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
 			n = 0
-		if gen_down and str(room.type) == "generator" and str(key) == "power":
+		elif gen_down and str(room.type) == "generator" and str(key) == "power":
 			n = int(n / 2.0)
-		if int(room.get("mold", 0)) > 0 and str(key) == "food":
-			n = 0
+			n += crew_extra(skills, room, n)
+		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
+			n += crew_extra(skills, room, n)
 		outputs.append({"key": str(key), "amount": n, "base": amount})
 	return outputs
 

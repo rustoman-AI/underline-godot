@@ -1,0 +1,32 @@
+MAP UNITS PILOT: EXACT PROMPTS FOR THE CHATGPT IMAGE TOOL (paste as is)
+
+=== STEP A: HANDCAR REFERENCE ===
+Attach: incoming-art/anim_pilot/walk_body03_accepted_sheet.png, incoming-art/anim_pilot/reference_body_03.png,
+incoming-art/anim_pilot/reference_body_01.png, assets/hubs/brickworks.webp
+
+Draw a single still image of a railway handcar from abandoned New York subway tunnels after a collapse, with two crew, in strict side view facing right. Match the attached images exactly in style: one consistent dark ink outline, flat colour with light texture, muted palette, warm lamp light, no gloss, no 3D render look, no photo realism.
+
+The handcar: a low flat deck of scarred wooden planks on a riveted iron frame, two small iron rail wheels with four spokes each, a short iron post in the middle carrying a see-saw pump lever (a long wooden beam with a handle bar at each end). Two sacks and a small crate lashed with rope at the back of the deck. A small oil lamp hangs at the front. A cloth band hangs along the side of the deck; paint this cloth band in plain flat light grey, hex #C8C8C8, and use that grey nowhere else in the image. The wheels sit on rails drawn as one thin straight horizontal line.
+
+The crew: two subway workers stand on the deck facing each other across the lever, one at each end, both hands on their handle, lever level, both upright. The front worker is the slim older man from the attached reference (dark knitted beanie, white stubble, navy quilted coat with a brown shoulder patch, rust shirt, grey-brown patched trousers, brown boots). The back worker is the woman from the attached reference (dark ponytail, rust-orange work jacket, tool belt, grey patched trousers, brown boots). Same clothes as the references.
+
+Transparent background with real alpha: no white, no checkerboard, no glow, no halo. Canvas about 1024 by 512, the handcar centred with plenty of empty space around it. No ground, no shadow, no text, no numbers.
+
+=== STEP B: PUMP LOOP (only after Step A is accepted) ===
+Attach: the accepted handcar_reference image, plus incoming-art/anim_pilot/walk_body03_accepted_sheet.png
+
+Draw an animation sheet of the attached handcar and its two crew pumping the lever: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, handcar, crew and clothes as the attached reference. Nothing changes between frames except what moves.
+
+Frame 1: lever level, both workers upright, hands at chest height.
+Frame 2: front end of the lever going down, the front worker bends forward pushing down, the back worker rises.
+Frame 3: front end at its lowest, the front worker bent deepest, the back worker straight with arms raised.
+Frame 4: lever level again, both upright, the same as frame 1.
+Frame 5: back end of the lever going down, the back worker bends forward pushing down, the front worker rises.
+Frame 6: back end at its lowest, the back worker bent deepest, the front worker straight with arms raised.
+
+The wheels turn one sixth of a turn each frame. The deck, sacks, crate, lamp and grey cloth band (#C8C8C8) never move or change. The rails are one thin straight line at the same height in every frame, and the handcar is the same size in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames, at least a quarter of one frame's width, so no lever end, arm or lamp comes close to the next frame. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+
+=== CORRECTION (second or third attempt, attach the previous sheet too) ===
+Keep frame 1 exactly as it is in the attached sheet. Redraw frames 2 to 6 so they match frame 1 exactly in the handcar, the crew, their clothes, the size and the rail height, and so that the lever alternates: the front end goes down in frames 2 and 3, the back end goes down in frames 5 and 6. Keep the wide empty gaps between frames and the transparent background.

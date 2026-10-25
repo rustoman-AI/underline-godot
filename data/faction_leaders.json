@@ -1,0 +1,104 @@
+{
+  "opinion_bands": [
+    {"id": "hostile", "min": -100, "max": -50},
+    {"id": "cold", "min": -49, "max": -15},
+    {"id": "wary", "min": -14, "max": 14},
+    {"id": "useful", "min": 15, "max": 49},
+    {"id": "pact", "min": 50, "max": 100}
+  ],
+  "audience_cooldown_weeks": 6,
+  "memory_slots": 3,
+  "factions": [
+    {
+      "id": "depot",
+      "leader_id": "berni_shaw",
+      "capital": "southdepot",
+      "start_opinion": 20,
+      "symbol": "res://assets/factions/depot_symbol.png",
+      "color": "#B46B4D",
+      "arrival": "radio_built_or_week_6",
+      "holds": "burned_order_at_stillwell",
+      "fear": "people_abandon_tunnels",
+      "help": {"resource": "materials", "amount": 6, "standing": 10},
+      "dirty_deal": {
+        "id": "burn_papers",
+        "flag": "buried_papers",
+        "hope": -4,
+        "opinion": {"depot": 25, "synod": -5, "exchange": -10}
+      }
+    },
+    {
+      "id": "directorate",
+      "leader_id": "lionel_abelard",
+      "capital": "northgate",
+      "start_opinion": 0,
+      "symbol": "res://assets/factions/directorate_symbol.png",
+      "color": "#B86972",
+      "arrival": "directorate_intent_or_food_critical",
+      "holds": "bunker_admission_lists",
+      "fear": "the_schedule_stops_being_feared",
+      "help": {"resource": "tokens", "amount": 8, "standing": 10},
+      "dirty_deal": {
+        "id": "the_list",
+        "flag": "collaborator",
+        "hope": -8,
+        "discontent": -6,
+        "opinion": {"directorate": 30, "depot": -25, "synod": -15, "black_flag": 5}
+      }
+    },
+    {
+      "id": "synod",
+      "leader_id": "dorothy_chen",
+      "capital": "chapel",
+      "start_opinion": 0,
+      "symbol": "res://assets/factions/synod_symbol.png",
+      "color": "#8CA2CF",
+      "arrival": "first_season_or_week_10",
+      "holds": "surface_recording_of_wind",
+      "fear": "the_surface_is_empty_not_damned",
+      "help": {"resource": "food", "amount": 6, "standing": 10},
+      "dirty_deal": {
+        "id": "stay_down",
+        "flag": "stayed_down",
+        "hope": 12,
+        "opinion": {"synod": 30, "depot": -10, "directorate": 5}
+      }
+    },
+    {
+      "id": "exchange",
+      "leader_id": "marcel_toussaint",
+      "capital": "trampark",
+      "start_opinion": 0,
+      "symbol": "res://assets/factions/exchange_symbol.png",
+      "color": "#77A993",
+      "arrival": "first_caravan",
+      "holds": "papers_bought_twice",
+      "fear": "the_truth_becomes_free",
+      "help": {"resource": "tokens", "amount": 8, "standing": 10},
+      "dirty_deal": {
+        "id": "open_books",
+        "flag": "open_books",
+        "food": 40,
+        "opinion": {"exchange": 25, "directorate": -5, "black_flag": -10}
+      }
+    },
+    {
+      "id": "black_flag",
+      "leader_id": "niki_ortega",
+      "capital": null,
+      "start_opinion": -10,
+      "symbol": "res://assets/factions/black_flag_symbol.png",
+      "color": "#B5ABA0",
+      "arrival": "first_sealed_tunnel_or_week_14",
+      "holds": "path_to_quarantine_bunker",
+      "fear": "becoming_a_legal_tax",
+      "help": {"resource": "food", "amount": 4, "standing": 10},
+      "dirty_deal": {
+        "id": "lantern_toll",
+        "flag": "lantern_toll",
+        "food": -8,
+        "opinion": {"black_flag": 20, "directorate": -10, "depot": -5}
+      }
+    }
+  ]
+}

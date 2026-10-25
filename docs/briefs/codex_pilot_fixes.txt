@@ -1,0 +1,13 @@
+CODEX: HANDCAR PILOT FIXES (from the 19 Oct review; paste as is)
+
+The handcar pilot is good up close. Three placement fixes before the rest of the set is ordered:
+1. Waiting bays collide with the yield chips and name tags. At fit zoom the car waiting at Sisters of the Garden
+   sits on its chip row and under its name tag (build/network_pilot_fit_crop.png). Treat the chip rows
+   (_yield_rows) and the placed tag boxes (_tags) as obstacles: put the bay on the free side of the pin along the
+   route, and if every side is taken, wait further out along the route instead.
+2. Tilt: on steep lines the whole sprite tilts about 20 degrees, so the crew lean (build/network_pilot_max_crop.png).
+   Cap the tilt at 6 degrees, or keep the car upright and only shift it along the line.
+3. Supply cars ride slightly off their line at max zoom: the wheels should sit on the route line (lane offset 0 for
+   supply and settle, the trade and rival lanes as before).
+Verify with fit and max crops, a new 10-second clip at build/clips/map_units_pilot2.mp4, all 9 gates, clarity
+count unchanged. Local commits only, no push.

@@ -1,0 +1,52 @@
+ART: MAP UNITS SET (ChatGPT image tool) — only after the handcar pilot is accepted
+
+WHERE WE ARE
+The handcar pilot (docs/briefs/art_map_units_pilot.txt) gave an accepted handcar reference and pump loop. This set
+draws the other units that move on the network map, the same way: for each unit first one still reference (the
+owner accepts it), then its loops with that reference attached to every attempt. Match the accepted handcar
+exactly in style, scale, line weight and light. Attach to every generation: the accepted handcar_reference and
+handcar_pump sheets, plus the references named below.
+
+SAME RULES AS THE PILOT
+- TRUE SIDE VIEW, facing right. Ink outline, flat colour with a little texture, muted palette, no gloss.
+- The owner-colour part painted PLAIN LIGHT GREY #C8C8C8 and nothing else uses that grey.
+- Transparent background, real alpha, no glow, no halo, no ground, no shadow, no text, no motion blur.
+- A WIDE EMPTY GAP between frames (at least a quarter of a frame's width); same scale in every frame; the rails or
+  the soles on one straight line in every frame.
+- Every frame the same people and objects: nothing appears, disappears or changes colour.
+- At most three attempts per sheet; "keep frame 1 exactly, redraw the others to match it" for the second attempt.
+
+THE UNITS (in this order; each is a reference, then its sheets)
+1. HANDCAR IDLE (no new reference, use the accepted handcar)
+   handcar_idle: 4 frames, the car standing still at a station. Front worker wipes his brow with a sleeve (frames
+   2 and 3), back worker leans on her end of the lever, both breathe. Lever level throughout.
+2. TRADER CAR
+   trader_reference: a longer four-wheeled handcar with a canvas canopy on hoops over crates and bundles; the canopy
+   is the grey part. A hanging lantern at the front. One trader in a long patched coat and scarf works a side pump
+   handle. Like the handcar in materials and size of people.
+   trader_roll: 6 frames, the trader pumping (handle down, lowest, up, level, as in the pilot), wheels turning one
+   sixth of a turn a frame, the lantern swinging a little forward and back.
+3. SQUAD (three people on foot, no vehicle)
+   squad_reference: three guards side by side in step, gas masks pushed up on their heads, padded coats, grey
+   armbands (the grey part). Front one holds a lamp up, middle one a long pipe-spear on the shoulder, back one a
+   round scrap-metal shield. Faces like the station residents (attach reference_body_07.png and
+   reference_body_11.png from incoming-art/anim_pilot/ for two of them).
+   squad_walk: 6 frames, one calm march cycle (two steps): contact, down, passing, contact (other leg), down,
+   passing. All three in step. The lamp, spear and shield keep their size and shape.
+   squad_stand: 4 frames, standing guard, small shift of weight, the lamp flame flickering.
+4. EXPEDITION (two people on foot)
+   expedition_reference: two scouts with big packs and coiled rope; the front one carries a pole with a small grey
+   pennant (the grey part) and a lamp, the back one a pick over the shoulder.
+   expedition_walk: 6 frames, a heavy, slow walking cycle, the same leg order as the squad.
+5. DUST PUFF
+   puff: 6 frames of a small grey-brown dust puff from appearing to gone, side view, no unit.
+
+DELIVERY
+incoming-art/map_units/<name>_v1.png (v2, v3) and <name>_prompt.txt for every reference and sheet, plus HANDOFF.txt
+as in the pilot (preferred versions, real canvas sizes, frames near a gap, anything that changes between frames).
+Do not install anything into assets/.
+
+WHAT HAPPENS NEXT
+The lead finds the frames by the gaps, aligns them on the rail or sole line and cuts them into assets/map/units/
+with tools/cut_map_units.gd; Codex plays them on the map (docs/briefs/codex_map_units.txt). The owner accepts on a
+clip of the map.

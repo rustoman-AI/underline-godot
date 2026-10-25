@@ -1,0 +1,102 @@
+ART: STEAM KEY ART AND CAPSULES (ChatGPT image generation)
+Draft v1, 17 Oct 2026. Stage 4 of docs/RELEASE_PLAN.md, item 3. Pilot first, then STOP (see ORDER OF WORK).
+
+CONTEXT
+Underline is a turn-based strategy game about holding one New York subway station after the Silence: one night the surface stopped answering, and whoever went up never came back. The Steam store needs key art in several fixed sizes. You draw the picture only. There is NO TEXT in anything you deliver: the UNDERLINE logo is made separately and we place it ourselves. Your job is to leave calm, empty room for it in the places given below.
+
+Key line of the game (for mood only, never drawn as text): "Hold one station. Keep the lights on. Do not ask what happened up there."
+
+STYLE (locked, do not change)
+Open these before drawing and match them:
+- incoming-art/hubs/style_v2/brickworks.png (the target drawing)
+- incoming-art/hubs/coney.png (ignore the station sign in its top left; never copy any lettering)
+The look: one consistent ink outline weight, flat cel colour with at most one shadow tone per surface, muted blue grey and ochre base, very light paper grain. Large calm planes of wall, floor and ceiling. Not a render: no micro detail everywhere, no bloom, no glow haze, no lens flare, no god rays, no glossy wet floors, no mirror reflections, no rows of lamps, no cinematic "epic" lighting.
+The key art must look like it belongs to the same game as the station pictures. If a draft looks more impressive than brickworks.png but in a different style, it is wrong.
+
+THE PICTURE: "THE LAST LAMP"
+Place: the bottom of a station exit stairway at the end of the Coney line. A long, steep, plain concrete stair climbs out of frame into flat darkness. At the very top, barely visible, a closed folding steel gate, pulled shut. Nothing comes through it: no light, no sky, no glow, no colour. Above is simply dark.
+Main subject: at the foot of the stairs, one tired person (the keeper; any gender, about 50, patched work coat, practical) is reaching up to hang or adjust a single caged work lamp on a riveted column. That lamp is the only real light in the picture. Its warm ochre light makes one flat pool on the floor and catches the keeper's sleeve and face from below.
+Second beat: a little apart, a child (about 9, oversized coat) stands on the bottom step looking UP the stairs into the dark. The keeper does not look up. That contrast is the whole story of the picture.
+Background: two or three adults on the platform behind, simple silhouettes or small shapes with no faces drawn: someone carrying a water can, someone sitting on a bedroll. A plain cot, a crate, a coil of cable. Platform edge and a dark tunnel or the side of a dead train car toward one side, kept very quiet.
+Mood: tired, careful, quiet. People keep going. Nobody is heroic.
+
+RULES
+1. One main subject (the keeper and the lamp), readable in one second, off centre.
+2. At most five people in total. Nobody smiles. Nobody looks at the viewer. No posing, no weapons raised, no gas masks, no hazmat suits.
+3. Exactly one dominant lamp. At most one more faint light source (a candle stub far back) if the composition needs it.
+4. The top of the stairs stays dark and plain. Do NOT show the sky, the city, ruins, fire, an aurora, a bright flash, radiation signs, a glow, a light beam coming down, bodies, or anything that explains what happened up there. The picture must not answer that question.
+5. No text, letters, numbers, signs with glyphs, station name tiles, arrows, posters, flags, insignia, emblems or logos anywhere. Wall tiles are plain. Paper is grey scribble.
+6. No faction colours as flags or banners. Clothing is plain and mended.
+7. Floors matte, a small dull puddle at most.
+8. Large calm planes, especially in the LOGO ZONES below: dark wall or dark stairwell, low contrast, no figures, no lamp, no detail that would fight with lettering.
+
+TWO MASTER COMPOSITIONS
+Every Steam size is cut from one of two masters. Draw the masters; we crop. Coordinates below are in percent of the master: x from the left edge, y from the top edge.
+
+MASTER A, WIDE (aspect 3.1:1, for example 3840x1240 or the largest wide size you can produce at that aspect)
+- Stairwell: climbs up and to the left between x 15% and x 50%; its upper part is a big dark calm area.
+- Main subject (keeper, lamp, column): inside x 55% to 68%, y 30% to 88%.
+- Child on the bottom step: inside x 51% to 56%, below y 50% (just outside the logo zone).
+- Background figures and platform: x 68% to 95%, small and quiet.
+- Far left (x 0% to 15%) and far right (x 95% to 100%): plain wall or darkness, they are cut away in most sizes.
+- LOGO ZONE A: x 12% to 50%, y 8% to 70%. Calm and dark: the stairwell in shadow. The lower steps may show as plain dark shapes. The bottom left (x 5% to 40%, y 70% to 92%) is floor in shadow, also calm, for the library logo on the hero.
+
+MASTER B, VERTICAL (aspect 2:3, for example 1024x1536 or larger at 2:3)
+A separate drawing of the same scene, not a crop of Master A. The camera is lower and the stair rises straight up the frame.
+- Stairwell and closed gate: the top half; plain darkness.
+- Keeper and lamp: x 45% to 85%, y 50% to 90%.
+- Child: x 15% to 45%, on the lowest steps, below y 55%.
+- LOGO ZONE B: x 8% to 92%, y 13% to 33%. The darkest, calmest part of the stairwell.
+- Keep the outer 4% on every side free of anything important.
+
+STEAM SIZES (all cut by us from the masters; you do not deliver these separately unless asked at stage 3)
+Format: name, size, master, crop in percent of the master, logo safe area inside the final image.
+
+1. Header capsule, 920x430 (also the library header). Master A, crop x 15% to 84%, full height.
+   Logo safe area: x 5% to 50%, y 10% to 68% of the capsule. Subject sits around x 58% to 77%.
+2. Small capsule, 462x174. Master A, crop x 7% to 93%, full height.
+   Logo safe area: x 6% to 50%, y 10% to 70%. At this size the logo is the point; the picture is only a mood behind it. The lamp must still read as a bright dot.
+3. Main capsule, 1232x706. Master A, crop x 22% to 78%, full height.
+   Logo safe area: x 5% to 48%, y 10% to 65%. Subject sits around x 59% to 82%.
+4. Vertical capsule, 748x896. Master B, full width, crop y 10% to 90%.
+   Logo safe area: x 8% to 92%, y 4% to 29%.
+5. Library hero, 3840x1240. Master A, full frame. NO logo on the image: Steam lays the library logo over it.
+   Keep the main subject inside the central x 20% to 80% (Steam crops the sides on narrow windows). Keep x 5% to 40%, y 35% to 90% calm for where the library logo will sit (bottom left by default; position is set in Steamworks).
+6. Library logo, 1280x720, transparent PNG. NOT drawn by you. Made by the project lead from the UNDERLINE logo. Listed here so the hero leaves room for it.
+7. Page background, 1438x810. Master A, crop x 21% to 79%, full height. We darken it, lower the contrast and may soften it ourselves so the store text stays readable. Nothing to do on your side beyond keeping Master A calm.
+8. Also required by Steam and missing from the release plan list: library capsule 600x900. Master B, full frame. Logo safe area: x 8% to 92%, y 8% to 30%. (Flag for the owner; it costs nothing extra because it comes from Master B.)
+
+Steam does not allow anything on capsules except the game artwork and the logo: no review quotes, no "Early Access" or "Coming soon" banners, no price, no awards. We do not add any.
+
+RESOLUTION
+Image models do not produce 3840 pixels natively. Generate at the largest size you can at the right aspect and report the actual size. Do NOT use an AI upscaler that invents detail: added micro detail is exactly the "AI look" we removed from the hubs. If the master is smaller than the target, the project lead scales it with a plain resampler, which keeps flat cel colour clean.
+
+ORDER OF WORK (pilot, then stop)
+STAGE 1, PILOT (one image)
+- Master A only, one take. Exact prompt saved next to it.
+- Plus one contact sheet: the master with the crop rectangles of sizes 1, 2, 3 and 5 drawn on it as thin grey boxes, and each logo safe area shaded at 30% grey. No lettering on the sheet except the file name in the sheet's margin if needed.
+- Plus the master placed side by side with incoming-art/hubs/style_v2/brickworks.png at the same height.
+- STOP. Do not draw Master B or any variant. The project lead and the owner review.
+
+STAGE 2, AFTER "go" FOR STAGE 2
+- Master B, one take, same deliverables (crop boxes for sizes 4 and 8, logo zones shaded). STOP again.
+
+STAGE 3, AFTER "go" FOR STAGE 3
+- Only the fixes asked for in review, at most two more takes per master. Then final PNG masters. We crop and export all Steam sizes ourselves.
+
+STOP AND REPORT AT ONCE IF
+- any letters, numbers or glyph-like marks appear and cannot be removed in the same take;
+- the style drifts toward a render (bloom, glow, glossy floor, micro detail) twice in a row;
+- the top of the stairs shows light, sky or anything that explains the Silence;
+- a face smiles or looks at the viewer;
+- you cannot keep a logo zone calm without breaking the composition. Then propose a different layout in words before drawing it.
+Never deliver more than one take per stage without asking. No batches of variants.
+
+DELIVERY
+incoming-art/steam/pilot/ for stage 1, incoming-art/steam/vertical/ for stage 2, incoming-art/steam/final/ for stage 3.
+File names: keyart_wide_take<k>.png, keyart_vertical_take<k>.png, <name>_prompt.txt next to each, contact_<name>.png.
+Opaque PNG, sRGB. Do not install anything into assets/, do not touch existing art, do not add text.
+
+AFTER ACCEPTANCE (project lead, not the artist)
+- Logo overlay and all Steam exports go to incoming-art/steam/export/ at the exact pixel sizes above.
+- Add "store artwork generated with ChatGPT image generation" to CREDITS.md (stage 5) so the AI disclosure in docs/steam/store_page.md stays true.

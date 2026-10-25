@@ -1,0 +1,11 @@
+Draw an animation sheet of a small puff of tunnel dust kicked up by a rail wheel: 6 frames in one horizontal row, left to right, side view, in the same ink-and-flat-colour style as the attached handcar. Grey-brown dust with a thin dark outline.
+
+Frame 1: a tiny tight puff just appearing at the bottom.
+Frame 2: it grows and rises a little, drifting left.
+Frame 3: biggest, three soft round lobes.
+Frame 4: it thins and drifts further left and up.
+Frame 5: broken into two faint wisps.
+Frame 6: one last faint wisp.
+The bottom of the puff starts on the same line in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no grid lines, no numbers, no text.

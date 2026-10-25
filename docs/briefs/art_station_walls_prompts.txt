@@ -1,0 +1,48 @@
+STATION WALLS: EXACT PROMPTS FOR THE CHATGPT IMAGE TOOL (paste as is)
+
+WHY
+On the station cross-section the rooms sit edge to edge, so neighbouring rooms read as one long hall. The game
+needs real structure between them: a pillar between every two cells, a floor slab between levels, and a soft
+shadow at every room's edges. The game only places these images; nothing is drawn by code.
+
+Attach to EVERY prompt (style references):
+  assets/rooms/room_quarters.webp
+  assets/rooms/room_workshop.webp
+  assets/cells/cell_dug.webp
+  assets/backdrop_station.webp
+Save results in incoming-art/station_walls/ as <name>_v1.png (v2, v3) with <name>_prompt.txt next to each.
+At most three attempts per image. The owner accepts each before it goes into the game.
+
+==================================================================
+1. PILLAR  (save as: wall_pillar)
+------------------------------------------------------------------
+Draw one structural pillar from an old New York subway station, seen straight from the front, in exactly the same hand-drawn style as the attached room pictures: dark ink outline, flat colour with gritty texture, muted palette, warm lamp light from the left, no gloss, no 3D render look.
+
+The pillar is a riveted steel I-beam column painted a dirty dark green-grey, set against a strip of stained concrete. At the top a heavy riveted bracket where it meets the ceiling beam; at the bottom a concrete footing with a chipped edge. One thin rusty conduit pipe runs down its right side with two clamps. A few streaks of water stain and rust run down from the rivets.
+
+The pillar is tall and narrow: the image is exactly 4 times as tall as it is wide, about 256 by 1024 pixels, and the pillar fills the full height from top edge to bottom edge, about two thirds of the width, centred. Transparent background with real alpha on both sides of the pillar: no white, no checkerboard, no glow, no halo. No floor line, no shadow on the background, no text, no numbers.
+
+==================================================================
+2. FLOOR SLAB  (save as: floor_slab)
+------------------------------------------------------------------
+Draw one horizontal floor slab between two levels of an old New York subway station, seen straight from the front, in exactly the same hand-drawn style as the attached room pictures: dark ink outline, flat colour with gritty texture, muted palette, no gloss, no 3D render look.
+
+The slab is a thick band of grey concrete with a riveted steel I-beam running along its whole length on the front face; the beam is the same dirty dark green-grey as old station steel. Along the bottom edge a thin strip of shadow under the beam, along the top edge a worn concrete lip with small chips. A cable bundle runs along the beam held by clamps every so often. Water stains run down in a few places.
+
+The image is a long thin strip, exactly 8 times as wide as it is tall, about 2048 by 256 pixels, and the slab fills it from top to bottom. It must tile seamlessly left to right: the left and right edges match so copies placed side by side show no seam. Transparent background with real alpha anywhere outside the slab. No text, no numbers.
+
+==================================================================
+3. ROOM EDGE SHADOW  (save as: room_shade)
+------------------------------------------------------------------
+Draw a soft shadow overlay for one room of a station cross-section: a rectangle about 1024 by 544 pixels (the same shape as the attached room pictures) that is fully transparent in the middle and darkens smoothly towards its left and right edges, with a gentler darkening along the top edge and a little along the bottom edge. Pure black with varying transparency only: the middle 60 percent of the width completely clear, the last 8 percent at each side about 70 percent dark, the top edge about 45 percent dark fading out within the top 15 percent of the height. Soft and smooth, like ambient occlusion in a room corner. No lines, no objects, no texture, no colour, no frame. Transparent background with real alpha: no white, no checkerboard.
+
+==================================================================
+CORRECTION (second or third attempt; attach the previous image too)
+------------------------------------------------------------------
+Keep this exactly as it is in style and design. Fix only: [say what is wrong, for example "the left and right edges do not match, make them tile seamlessly", or "the background must be transparent, not white", or "make it exactly 4 times as tall as it is wide"]. Keep the transparent background with real alpha.
+
+WHAT HAPPENS NEXT
+The lead puts the accepted images in assets/station/ (wall_pillar.png, floor_slab.png, room_shade.png). The station
+draws the pillar on every boundary between two cells and at both outer ends, the slab across every gap between
+levels and above the top and below the bottom level, and the shade over every room and dug cell, so each room reads
+as its own space and its light stops at its walls. Rock cells get the same pillars and slabs.

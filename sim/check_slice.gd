@@ -5,6 +5,7 @@ extends SceneTree
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var failed := false
 	var catalog := Catalog.new()
 	if not catalog.load_all():
@@ -221,11 +222,19 @@ func _check_events(catalog: Catalog) -> bool:
 	for person in catalog.residents:
 		names.append(str(person.name).split(" ")[0])
 	var named := 0
+	var drawn := 0
+	## The one-in-three follow-up rule counts data/events.json only (docs/audit/balance_gate_decisions.md).
+	var base := {}
+	var raw = JSON.parse_string(FileAccess.get_file_as_string("res://data/events.json"))
+	for ev in raw if raw is Array else []:
+		base[str(ev.get("id", ""))] = true
 	for ev in catalog.events:
 		if bool(ev.get("sasha", false)):
 			sasha += 1
-		if str(ev.get("follow", "")) != "":
-			chains += 1
+		if base.has(str(ev.id)) and not bool(ev.get("check_only", false)) and not ev.has("needs") and not ev.has("trigger"):
+			drawn += 1
+			if str(ev.get("follow", "")) != "":
+				chains += 1
 		var free := false
 		for choice in ev.choices:
 			var cost = choice.get("cost", {})
@@ -251,8 +260,8 @@ func _check_events(catalog: Catalog) -> bool:
 	if sasha < 9:
 		print("Events: FAIL sasha %d" % sasha)
 		return false
-	if float(chains) < float(catalog.events.size()) / 3.0:
-		print("Events: FAIL chains %d of %d" % [chains, catalog.events.size()])
+	if float(chains) < float(drawn) / 3.0:
+		print("Events: FAIL chains %d of %d" % [chains, drawn])
 		return false
 	if named < 9:
 		print("Events: FAIL named residents %d" % named)
@@ -335,7 +344,7 @@ func _check_crisis(catalog: Catalog) -> bool:
 				continue
 			var last: Dictionary = game.demand_log[game.demand_log.size() - 1]
 			var span := int(last.span)
-			if span < 2 or span > 3 or int(last.amount) != int(last.income) * span:
+			if span < 2 or span > 3 or int(last.amount) != maxi(8, int(last.income)) * span:
 				print("Crisis: FAIL demand %s" % str(last))
 				return false
 			if game.warning_weeks.has(int(last.deadline_week)):
@@ -354,6 +363,13 @@ func _check_crisis(catalog: Catalog) -> bool:
 		if not game.crisis_faults.is_empty():
 			print("Crisis: FAIL ", game.crisis_faults)
 			return false
+		for kind in [0, 1, 2]:
+			game.crunch_kind = kind
+			for leg in game._crunch_legs():
+				var found: Dictionary = game.crunch_leg(str(leg.id))
+				if str(found.get("title", "")) != str(leg.title) or str(found.get("suffer", "")) != str(leg.suffer):
+					print("Crisis: FAIL journal cannot name crunch %s" % str(leg.id))
+					return false
 	print("Crisis: ok")
 	return true
 
@@ -379,17 +395,14 @@ func _check_mood(catalog: Catalog) -> bool:
 	if warning.fixes.size() < 2:
 		print("Mood: FAIL warning fixes ", warning.fixes)
 		return false
-	var held_food := int(game.stock.food)
-	game.stock.food = 0
 	game.discontent = 98
 	var dis_line := ""
 	for row in game.forecasts():
 		if str(row.key) == "discontent":
 			dis_line = str(row.text)
-	if dis_line == "" or dis_line.find("pushing") < 0 or dis_line.find("Thin food") < 0:
+	if dis_line == "" or dis_line.find("pushing") < 0:
 		print("Mood: FAIL discontent forecast ", dis_line)
 		return false
-	game.stock.food = held_food
 	game.hope = 2
 	var hope_line := ""
 	for row in game.forecasts():

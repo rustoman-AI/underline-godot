@@ -1,0 +1,12 @@
+ART: FOUR FACTION HUBS WITHOUT EMBLEMS
+Second art job, after art_leader_portraits_symbols.txt. Hubs: northgate, chapel, trampark, brickworks (assets/hubs/<id>.webp, originals and prompts in incoming-art/hubs/).
+
+Why: the emblems painted on these hubs were copied from the rejected symbols. The Directorate banners also read as a swastika-flag composition (red field, white disc, black lower field, uniformed guards). New symbols will be added later; for now every hub must be emblem-free and clear of that palette.
+
+1. Audit first. For each hub list every faction sign, banner, patch, flag or armband and say whether it copies assets rejected earlier (incoming-art/rejected/).
+2. Repaint each hub with the emblems removed. Banners and patches stay as objects: plain cloth, rust, wear. No circles, symbols, letters, glyphs.
+3. Directorate (northgate): banners in dark slate-blue or dark green cloth, no red field, no white disc. Guards keep uniforms but no red armbands and no black-coat-with-red-accent look.
+4. Lamplighters (brickworks, former "Black Flag"): a camp of guides and refugees with hanging lanterns. No flags at all. No swastikas, runes, eagles, SS forms, crosses, red-white-black triad.
+5. Do not change composition, people, lighting, proportions, file size or format. A diff mask must show nothing changed outside the banners and patches.
+6. Output: replace assets/hubs/<id>.webp; move the previous versions to incoming-art/hubs/_rejected_emblems/. Keep the exact prompt next to each. Provide visit-screen screenshots EN and RU for all four.
+Do not touch assets/factions, poses or residents. Antigravity does not work on these.

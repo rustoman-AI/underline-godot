@@ -1,0 +1,61 @@
+ART: MAP UNITS PILOT, ONE HANDCAR (ChatGPT image tool)
+
+WHY
+The network map shows handcars carrying goods between stations along the tunnel lines. Today they are drawn by
+code and look like placeholders; the owner rejected them. This pilot does what the resident pilot did for the
+station: one design, then one animation loop, to see whether the image tool can keep a small machine and its crew
+the same from frame to frame. If yes, the same brief grows to the trader car, the squad and the expedition
+(docs/briefs/art_map_units_set.txt). One evening, nothing installed.
+
+OUR STYLE (match it exactly)
+One consistent dark ink outline, flat colour with a little texture, muted palette, warm lamp light, no gloss, no
+3D render look, no photo realism. Attach as style references: incoming-art/anim_pilot/walk_body03_accepted_sheet.png
+(the accepted walking resident) and assets/hubs/brickworks.webp (a station banner).
+
+STEP A: THE REFERENCE (one still image)
+A railway handcar from the subway tunnels, after the collapse, with two crew. TRUE SIDE VIEW, facing right.
+- The car: a low flat deck of scarred planks on a riveted iron frame, two small iron rail wheels with four spokes
+  each, a short iron post in the middle carrying a see-saw pump lever (a long wooden beam with a handle bar at each
+  end). Two sacks and a small crate lashed with rope at the back. A cloth band hangs along the side of the deck:
+  paint it PLAIN LIGHT GREY #C8C8C8, nothing else in the picture uses that grey (the game recolours it per faction).
+  A small oil lamp hangs at the front.
+- The crew: two subway workers standing on the deck facing each other across the lever, one at each end, both
+  hands on their handle. The front one is a slim older man in a dark knitted beanie and navy quilted coat (like
+  incoming-art/anim_pilot/reference_body_03.png); the back one is a woman with a dark ponytail and a rust work
+  jacket (like incoming-art/anim_pilot/reference_body_01.png). Same clothes as those references.
+- Lever level, both crew upright. Wheels sit on a thin pair of rails drawn as one straight line.
+- Canvas about 1024 x 512, transparent background (real alpha, no white, no checkerboard, no glow, no halo), the
+  car centred with a lot of empty space around it. No ground, no shadow, no text.
+Delivery: incoming-art/map_units/handcar_reference_v1.png (v2, v3 if retried) and handcar_reference_prompt.txt.
+The owner accepts one reference before Step B.
+
+STEP B: THE PUMP LOOP (one sheet, attach the accepted reference to every attempt)
+The same handcar and the same two crew pumping, 6 frames in one row, left to right. Nothing about the car or the
+people changes between frames except what moves.
+  1. lever level, both crew upright, hands at chest height
+  2. front end of the lever going down: the front worker bends forward pushing down, the back worker rises
+  3. front end at its lowest: front worker bent deepest, back worker straight with arms up
+  4. lever level again, both upright (like frame 1)
+  5. back end going down: the back worker bends pushing down, the front worker rises
+  6. back end at its lowest: back worker bent deepest, front worker straight with arms up
+The wheels turn one sixth of a turn each frame (four spokes, so the loop closes). The sacks, crate, lamp, deck and
+cloth band do not move or change. The rails stay one straight line at the same height in every frame.
+STRICT LAYOUT
+- One row, transparent background, real alpha, no glow, no halo.
+- LEAVE A WIDE EMPTY GAP between neighbouring frames, at least a quarter of a frame's width, so no part of one frame
+  (lever ends, arms, lamp) comes near the next. This matters more than the exact canvas size.
+- Same scale in every frame: the car the same length, the rails at the same height.
+- No ground line, no shadow, no motion blur, no speed lines, no numbers, no grid lines, no text.
+Delivery: incoming-art/map_units/handcar_pump_v1.png (v2, v3) and handcar_pump_prompt.txt.
+If the first sheet drifts (the car changes shape, the crew change clothes, the lever does not alternate), make a
+second attempt with the first sheet attached and say "keep frame 1 exactly, redraw the others to match it". Send
+what you have after three attempts; do not polish further.
+
+HANDOFF
+incoming-art/map_units/HANDOFF.txt: which version you prefer for each step and why, the real canvas size of every
+file, frames that touch a gap, and anything that changes between frames that should not.
+
+WHAT HAPPENS NEXT (the lead and Codex, not ChatGPT)
+The frames are found by the empty gaps (not equal cells), lined up on the rail line, cut into
+assets/map/units/handcar_pump/ with tools/cut_map_units.gd, recoloured per faction and played on the map at about
+8 frames a second while the car rolls. The owner accepts or rejects on a short clip of the map.

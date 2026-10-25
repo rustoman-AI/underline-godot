@@ -1,0 +1,948 @@
+{
+  "_note": "Leader consequence events (EA plan E1), written by the project lead. Same fields as data/events.json plus 'needs' (see docs/briefs/cursor_leader_consequences.txt) and the new choice effect 'standing': {faction_id: delta} for the leader's standing. 'ru' maps each English string to its Russian text, like data/ru.json. Numbers are first-pass and are tuned with the bot.",
+  "events": [
+    {
+      "id": "lc_depot_accepted",
+      "title": "Ash in the stove",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "depot",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "You burned the Stillwell copy, as Bernie asked. Now a Depot apprentice has found a scorched corner of it in the workshop ash and asks what it was. The whole crew is listening. Bernie is not in the room.",
+      "choices": [
+        {
+          "id": "copy",
+          "label": "Say it was just an old copy",
+          "hope": -1,
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "truth",
+          "label": "Tell her the truth",
+          "hope": 2,
+          "discontent": 2,
+          "standing": {
+            "depot": -10
+          }
+        },
+        {
+          "id": "bernie",
+          "label": "Send her to ask Bernie",
+          "standing": {
+            "depot": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc_depot_refused",
+      "title": "No parts from the Depot",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "depot",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "The relay for the platform lamps has burned out. Since you turned Bernie down, his crew lends you nothing. A Depot driver waits at the gate to see whether you will ask.",
+      "choices": [
+        {
+          "id": "ask",
+          "label": "Ask Bernie and pay for the part",
+          "cost": {
+            "tokens": 5
+          },
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "strip",
+          "label": "Take the part from your own workshop",
+          "cost": {
+            "materials": 10
+          }
+        },
+        {
+          "id": "dark",
+          "label": "Leave the platform dark",
+          "discontent": 3,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "lc_directorate_accepted",
+      "title": "The bunk that stayed made",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "directorate",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "The person you gave to the Directorate is gone. Their bunk is still made, and someone has left a spoon on it. In quarters people whisper: does the Directorate count people the way it counts wagons?",
+      "choices": [
+        {
+          "id": "silence",
+          "label": "Hold a minute of silence",
+          "discontent": -2,
+          "hope": -1
+        },
+        {
+          "id": "necessary",
+          "label": "Say it had to be done",
+          "discontent": 2,
+          "standing": {
+            "directorate": 5
+          }
+        },
+        {
+          "id": "nothing",
+          "label": "Say nothing",
+          "discontent": 1
+        }
+      ]
+    },
+    {
+      "id": "lc_directorate_refused",
+      "title": "The clerk with the tape",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "directorate",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "You refused Abelard. Now a Directorate clerk arrives with a measuring tape and a clipboard to count your beds \"for the ledger\". He is polite. He counts everything twice.",
+      "choices": [
+        {
+          "id": "count",
+          "label": "Let him count",
+          "discontent": 1,
+          "standing": {
+            "directorate": 5
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Throw him out",
+          "standing": {
+            "directorate": -12
+          }
+        },
+        {
+          "id": "coin",
+          "label": "Bribe him to write down a smaller number",
+          "cost": {
+            "tokens": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc_synod_accepted",
+      "title": "Someone wants to listen",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "synod",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "Since you told your people there is nothing up there worth climbing for, they sleep without dreams. A woman from hydroponics asks to go to the grate, only to listen. She is not asking to climb.",
+      "choices": [
+        {
+          "id": "let",
+          "label": "Let her go and listen",
+          "hope": -3
+        },
+        {
+          "id": "forbid",
+          "label": "Forbid it",
+          "discontent": 3,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "dorothy",
+          "label": "Send her to Dorothy",
+          "hope": 1,
+          "standing": {
+            "synod": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc_synod_refused",
+      "title": "Empty seats at supper",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "synod",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "Since you turned Dorothy down, half the seats at your supper are empty. Some of your people now eat in the Synod kitchens, where the soup is hot and the talk is short. Dorothy sends word that she keeps a list, and that it is only a list of who is hungry.",
+      "choices": [
+        {
+          "id": "soup",
+          "label": "Cook a soup as good as theirs",
+          "food": -6,
+          "hope": 1,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "go",
+          "label": "Let them eat there",
+          "discontent": 1,
+          "standing": {
+            "synod": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc_exchange_accepted",
+      "title": "The price list",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "exchange",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "Marcel has read your books. Now his clerks bring a printed price list made just for your station: bread, kerosene, bandages. The prices are uncomfortably exact. They know what you eat.",
+      "choices": [
+        {
+          "id": "accept",
+          "label": "Accept the price list",
+          "tokens": 10,
+          "discontent": 2
+        },
+        {
+          "id": "haggle",
+          "label": "Haggle over every line",
+          "tokens": 5,
+          "standing": {
+            "exchange": -3
+          }
+        },
+        {
+          "id": "tear",
+          "label": "Tear it up",
+          "hope": 1,
+          "standing": {
+            "exchange": -10
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc_exchange_refused",
+      "title": "A two-month-old debt for a loaf",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "exchange",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "Since you turned Marcel down, his market remembers everything. A boy brings a note: someone from your station has owed the market for a loaf for two months. Marcel writes debts on his arm, the note says, and he does not forget.",
+      "choices": [
+        {
+          "id": "pay",
+          "label": "Pay the debt",
+          "cost": {
+            "tokens": 8
+          },
+          "standing": {
+            "exchange": 3
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Refuse to pay",
+          "standing": {
+            "exchange": -10
+          }
+        },
+        {
+          "id": "work",
+          "label": "Let the debtor work it off at the market",
+          "discontent": 2,
+          "standing": {
+            "exchange": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc_lamp_accepted",
+      "title": "Lamps at night",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "black_flag",
+        "answer": "accepted",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "You paid Niki's lantern toll. At night you hear it: tapping on the pipes, small lights moving in the tunnel. The Lamplighters are leading a family through your station. A child asks for water.",
+      "choices": [
+        {
+          "id": "give",
+          "label": "Give water and bread",
+          "food": -4,
+          "hope": 2,
+          "standing": {
+            "black_flag": 5
+          }
+        },
+        {
+          "id": "toll",
+          "label": "Charge them for passing through",
+          "tokens": 6,
+          "discontent": 1,
+          "standing": {
+            "black_flag": -5
+          }
+        },
+        {
+          "id": "look",
+          "label": "Look the other way",
+          "discontent": 1
+        }
+      ]
+    },
+    {
+      "id": "lc_lamp_refused",
+      "title": "The tunnel without a lamp",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "black_flag",
+        "answer": "refused",
+        "after_weeks": [
+          3,
+          10
+        ]
+      },
+      "text": "You would not pay Niki's toll. A group tried the dark tunnel without a Lamplighter. Two came back. One did not. Niki's people say nothing. Your people say plenty.",
+      "choices": [
+        {
+          "id": "search",
+          "label": "Send a search party",
+          "cost": {
+            "materials": 4
+          },
+          "hope": 1,
+          "standing": {
+            "black_flag": 3
+          }
+        },
+        {
+          "id": "food",
+          "label": "Send food to the Lamplighters' camp",
+          "food": -8,
+          "standing": {
+            "black_flag": 10
+          }
+        },
+        {
+          "id": "choice",
+          "label": "Say it was their own choice",
+          "discontent": 2,
+          "hope": -2
+        }
+      ]
+    },
+    {
+      "id": "lc2_depot_accepted",
+      "title": "The second page",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "depot",
+        "answer": "accepted",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "Bernie comes himself, at night. Under the copy you burned there was a second page: the list of people left outside the gate at 03:40. He wants that one in the stove too. He does not sit down.",
+      "choices": [
+        {
+          "id": "burn",
+          "label": "Burn it with him",
+          "hope": -2,
+          "standing": {
+            "depot": 6
+          }
+        },
+        {
+          "id": "keep",
+          "label": "Keep it in your own drawer (Papers +1)",
+          "artifacts": {
+            "papers": 1
+          },
+          "standing": {
+            "depot": -8
+          }
+        },
+        {
+          "id": "families",
+          "label": "Read the names to the families",
+          "hope": 2,
+          "discontent": 3,
+          "standing": {
+            "depot": -15
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_depot_refused",
+      "title": "The Depot stops the night carts",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "depot",
+        "answer": "refused",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "Bernie's crew has stopped the night carts at the Coney switch. Nothing reaches your platform until you ask him properly. The driver calls it a safety check.",
+      "choices": [
+        {
+          "id": "pay",
+          "label": "Pay the crew for their \"safety check\"",
+          "cost": {
+            "tokens": 8
+          },
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "drivers",
+          "label": "Send your own people to push the carts",
+          "cost": {
+            "materials": 6
+          },
+          "discontent": 1
+        },
+        {
+          "id": "wait",
+          "label": "Wait them out",
+          "food": -6,
+          "hope": -1,
+          "standing": {
+            "depot": -3
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_directorate_accepted",
+      "title": "Room for one more line",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "directorate",
+        "answer": "accepted",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "The clerk with the tape is back. He opens the ledger at your station's page and turns it towards you. There is room for one more line, he says, and the Comptroller would be grateful.",
+      "choices": [
+        {
+          "id": "give",
+          "label": "Give him another name",
+          "hope": -3,
+          "discontent": 4,
+          "standing": {
+            "directorate": 10
+          }
+        },
+        {
+          "id": "close",
+          "label": "Slam the ledger shut in his hands",
+          "discontent": -1,
+          "standing": {
+            "directorate": -15
+          }
+        },
+        {
+          "id": "coin",
+          "label": "Pay him to forget your page",
+          "cost": {
+            "tokens": 10
+          },
+          "standing": {
+            "directorate": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_directorate_refused",
+      "title": "A toll at the junction",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "directorate",
+        "answer": "refused",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "Directorate guards have set a table across the junction north of you. Everything that passes pays, and your carts pay double. The sergeant says the order came from above.",
+      "choices": [
+        {
+          "id": "pay",
+          "label": "Pay the toll",
+          "cost": {
+            "tokens": 8
+          },
+          "standing": {
+            "directorate": 5
+          }
+        },
+        {
+          "id": "dark",
+          "label": "Go round through the dark tunnel",
+          "food": -4,
+          "hope": -1,
+          "standing": {
+            "black_flag": 3
+          }
+        },
+        {
+          "id": "exchange",
+          "label": "Complain to the Exchange",
+          "standing": {
+            "exchange": 3,
+            "directorate": -5
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_synod_accepted",
+      "title": "The grate is welded",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "synod",
+        "answer": "accepted",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "Synod orderlies came at dawn and welded the grate shut, \"for your peace\", they said. Most people slept through it. The woman from hydroponics did not, and she is standing under the grate now.",
+      "choices": [
+        {
+          "id": "thank",
+          "label": "Thank the Synod",
+          "discontent": 2,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "cut",
+          "label": "Cut the grate open again",
+          "cost": {
+            "materials": 4
+          },
+          "hope": 2,
+          "standing": {
+            "synod": -10
+          }
+        },
+        {
+          "id": "pipe",
+          "label": "Leave a pipe through it to listen",
+          "cost": {
+            "materials": 2
+          },
+          "hope": 1
+        }
+      ]
+    },
+    {
+      "id": "lc2_synod_refused",
+      "title": "The list of the hungry",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "synod",
+        "answer": "refused",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "Dorothy's list has your families on it now. She offers to take three of them into the Synod kitchens for the season. She says she only feeds people. Their neighbours say she also keeps them.",
+      "choices": [
+        {
+          "id": "let",
+          "label": "Let them eat at the Synod",
+          "food": 6,
+          "hope": -2,
+          "standing": {
+            "synod": 10
+          }
+        },
+        {
+          "id": "bread",
+          "label": "Feed them yourselves and bring them home",
+          "food": -8,
+          "hope": 1,
+          "standing": {
+            "synod": -5
+          }
+        },
+        {
+          "id": "visit",
+          "label": "Let them go, but visit every week",
+          "discontent": 1,
+          "standing": {
+            "synod": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_exchange_accepted",
+      "title": "Your books, for sale",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "exchange",
+        "answer": "accepted",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "A Directorate courier knows to the sack how much grain you hold. Marcel did not lie to you. He simply sold the copy he made while your books were open on his desk.",
+      "choices": [
+        {
+          "id": "buy",
+          "label": "Buy the copy back from Marcel",
+          "cost": {
+            "tokens": 15
+          },
+          "standing": {
+            "exchange": -5
+          }
+        },
+        {
+          "id": "false",
+          "label": "Leak a fake ledger to the market",
+          "cost": {
+            "influence": 4
+          },
+          "standing": {
+            "exchange": -10,
+            "directorate": -5
+          }
+        },
+        {
+          "id": "shrug",
+          "label": "Let them know (the Directorate takes its share)",
+          "food": -10,
+          "discontent": 2
+        }
+      ]
+    },
+    {
+      "id": "lc2_exchange_refused",
+      "title": "Bread at the other price",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "exchange",
+        "answer": "refused",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "The market still sells to your people, but at the other price: the one written small, for stations that turned Marcel down. The bakers say nothing. They point at the board.",
+      "choices": [
+        {
+          "id": "pay",
+          "label": "Pay the other price",
+          "cost": {
+            "tokens": 10
+          },
+          "standing": {
+            "exchange": 3
+          }
+        },
+        {
+          "id": "grow",
+          "label": "Grow it yourselves, slowly",
+          "hope": 1,
+          "food": -4
+        },
+        {
+          "id": "synod",
+          "label": "Buy from the Synod kitchens",
+          "cost": {
+            "tokens": 4
+          },
+          "food": 6,
+          "standing": {
+            "synod": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_lamp_accepted",
+      "title": "The toll becomes a debt",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "black_flag",
+        "answer": "accepted",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "Niki sends a boy with a tally stick. Last month your people walked her tunnels on credit, he says, and credit in the dark has a price. The stick has more notches than you remember.",
+      "choices": [
+        {
+          "id": "food",
+          "label": "Pay it off in food",
+          "food": -8,
+          "standing": {
+            "black_flag": 5
+          }
+        },
+        {
+          "id": "carry",
+          "label": "Lend two of your people to carry lamps",
+          "discontent": 2,
+          "standing": {
+            "black_flag": 8
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Break the stick",
+          "hope": -1,
+          "standing": {
+            "black_flag": -15
+          }
+        }
+      ]
+    },
+    {
+      "id": "lc2_lamp_refused",
+      "title": "Lamps going past",
+      "major": false,
+      "weight": 6,
+      "cooldown": 99,
+      "needs": {
+        "leader": "black_flag",
+        "answer": "refused",
+        "after_weeks": [
+          14,
+          24
+        ]
+      },
+      "text": "The Lamplighters lead people past your station now, not to it. Families who would have stopped here walk on to the Directorate. Your platform watches the lamps go by.",
+      "choices": [
+        {
+          "id": "offer",
+          "label": "Send Niki food as a peace offer",
+          "food": -6,
+          "standing": {
+            "black_flag": 10
+          }
+        },
+        {
+          "id": "own",
+          "label": "Hang your own lamps at the tunnel mouth",
+          "cost": {
+            "materials": 4
+          },
+          "hope": 1
+        },
+        {
+          "id": "pass",
+          "label": "Let them walk past",
+          "influence": -3,
+          "discontent": 1
+        }
+      ]
+    }
+  ],
+  "ru": {
+    "Ash in the stove": "Пепел в печи",
+    "You burned the Stillwell copy, as Bernie asked. Now a Depot apprentice has found a scorched corner of it in the workshop ash and asks what it was. The whole crew is listening. Bernie is not in the room.": "Копию стиллвеллского приказа сожгли, как просил Берни. Теперь ученица Депо нашла в золе мастерской обгоревший уголок и спрашивает, что это было. Вся бригада прислушивается. Берни рядом нет.",
+    "Say it was just an old copy": "Сказать, что это была старая ненужная копия",
+    "Tell her the truth": "Сказать правду",
+    "Send her to ask Bernie": "Отправить её с вопросом к Берни",
+    "No parts from the Depot": "Депо не даёт деталей",
+    "Ask Bernie and pay for the part": "Попросить Берни и заплатить за деталь",
+    "Take the part from your own workshop": "Снять деталь со своей мастерской",
+    "Leave the platform dark": "Оставить платформу без света",
+    "The bunk that stayed made": "Заправленная койка",
+    "The person you gave to the Directorate is gone. Their bunk is still made, and someone has left a spoon on it. In quarters people whisper: does the Directorate count people the way it counts wagons?": "Того, кого по твоему слову забрала Дирекция, больше нет. Койка так и стоит заправленной, на ней кто-то оставил ложку. В жилых отсеках шепчутся: не считает ли Дирекция людей так же, как вагоны?",
+    "Hold a minute of silence": "Почтить минутой молчания",
+    "Say it had to be done": "Сказать, что так было нужно",
+    "Say nothing": "Промолчать",
+    "The clerk with the tape": "Служащий с рулеткой",
+    "You refused Abelard. Now a Directorate clerk arrives with a measuring tape and a clipboard to count your beds \"for the ledger\". He is polite. He counts everything twice.": "После отказа Абеларду к тебе приходит служащий Дирекции с рулеткой и планшетом: пересчитать койки «для ведомости». Он вежлив и всё пересчитывает дважды.",
+    "Let him count": "Дать ему пересчитать",
+    "Throw him out": "Выставить его",
+    "Bribe him to write down a smaller number": "Сунуть ему монету, чтобы записал поменьше",
+    "Someone wants to listen": "Кто-то хочет послушать",
+    "Since you told your people there is nothing up there worth climbing for, they sleep without dreams. A woman from hydroponics asks to go to the grate, only to listen. She is not asking to climb.": "С тех пор как людям сказали, что наверх подниматься незачем, они спят без снов. Женщина из гидропоники просит пустить её к решётке, только послушать. Подниматься она не собирается.",
+    "Let her go and listen": "Пустить её послушать",
+    "Forbid it": "Запретить",
+    "Send her to Dorothy": "Отправить её к Дороти",
+    "Empty seats at supper": "Пустые места за ужином",
+    "Since you turned Dorothy down, half the seats at your supper are empty. Some of your people now eat in the Synod kitchens, where the soup is hot and the talk is short. Dorothy sends word that she keeps a list, and that it is only a list of who is hungry.": "После твоего отказа Дороти половина мест за ужином пустует. Часть людей теперь ест на кухнях Синода, где суп горячий, а разговоры короткие. Дороти передаёт, что ведёт список, но это всего лишь список голодных.",
+    "Cook a soup as good as theirs": "Сварить суп не хуже синодского",
+    "Let them eat there": "Пусть едят там",
+    "The price list": "Прейскурант",
+    "Marcel has read your books. Now his clerks bring a printed price list made just for your station: bread, kerosene, bandages. The prices are uncomfortably exact. They know what you eat.": "Марсель читал твои тетради. Теперь его служащие приносят прейскурант, отпечатанный специально для твоей станции: хлеб, керосин, бинты. Цены подозрительно точные. Они знают, чем вы питаетесь.",
+    "Accept the price list": "Принять прейскурант",
+    "Haggle over every line": "Торговаться за каждую строку",
+    "Tear it up": "Порвать его",
+    "A two-month-old debt for a loaf": "Долг за буханку",
+    "Since you turned Marcel down, his market remembers everything. A boy brings a note: someone from your station has owed the market for a loaf for two months. Marcel writes debts on his arm, the note says, and he does not forget.": "После твоего отказа рынок Марселя припомнил всё. Мальчишка приносит записку: кто-то с твоей станции уже два месяца должен рынку за буханку. Марсель, сказано в записке, пишет долги у себя на руке и ничего не забывает.",
+    "Pay the debt": "Заплатить долг",
+    "Refuse to pay": "Отказаться платить",
+    "Let the debtor work it off at the market": "Пусть должник отработает на рынке",
+    "Lamps at night": "Лампы ночью",
+    "You paid Niki's lantern toll. At night you hear it: tapping on the pipes, small lights moving in the tunnel. The Lamplighters are leading a family through your station. A child asks for water.": "Фонарную пошлину Ники заплатили. Ночью слышно, как стучат по трубам, в тоннеле движутся огоньки. Фонарщики ведут через твою станцию семью. Ребёнок просит воды.",
+    "Give water and bread": "Дать воды и хлеба",
+    "Charge them for passing through": "Взять с них плату за проход",
+    "Look the other way": "Отвернуться",
+    "The tunnel without a lamp": "Тоннель без лампы",
+    "You would not pay Niki's toll. A group tried the dark tunnel without a Lamplighter. Two came back. One did not. Niki's people say nothing. Your people say plenty.": "Пошлину Ники платить не стали, и группа пошла тёмным тоннелем без проводника. Двое вернулись. Один нет. Люди Ники молчат. Твои говорят без умолку.",
+    "Send a search party": "Отправить поисковую группу",
+    "Send food to the Lamplighters' camp": "Отправить еду в лагерь Фонарщиков",
+    "Say it was their own choice": "Сказать, что они сами так решили",
+    "The relay for the platform lamps has burned out. Since you turned Bernie down, his crew lends you nothing. A Depot driver waits at the gate to see whether you will ask.": "Сгорело реле ламп на платформе. После твоего отказа бригада Берни ничего тебе не одалживает. У ворот стоит машинист Депо и ждёт, попросишь ли ты.",
+    "The second page": "Вторая страница",
+    "Bernie comes himself, at night. Under the copy you burned there was a second page: the list of people left outside the gate at 03:40. He wants that one in the stove too. He does not sit down.": "Берни приходит сам, ночью. Под сожжённой копией лежал второй лист: список тех, кого в 03:40 оставили за воротами. Он хочет, чтобы и этот лист ушёл в печь. Сесть он так и не садится.",
+    "Burn it with him": "Сжечь вместе с ним",
+    "Keep it in your own drawer (Papers +1)": "Спрятать у себя в ящике (бумаги +1)",
+    "Read the names to the families": "Прочитать имена семьям",
+    "The Depot stops the night carts": "Депо держит ночные тележки",
+    "Bernie's crew has stopped the night carts at the Coney switch. Nothing reaches your platform until you ask him properly. The driver calls it a safety check.": "Бригада Берни остановила ночные тележки на стрелке Кони. До твоей платформы ничего не дойдёт, пока ты как следует не попросишь. Машинист называет это проверкой безопасности.",
+    "Pay the crew for their \"safety check\"": "Заплатить бригаде за «проверку»",
+    "Send your own people to push the carts": "Послать своих толкать тележки",
+    "Wait them out": "Переждать",
+    "Room for one more line": "Место ещё для одной строки",
+    "The clerk with the tape is back. He opens the ledger at your station's page and turns it towards you. There is room for one more line, he says, and the Comptroller would be grateful.": "Служащий с рулеткой вернулся. Он раскрывает ведомость на странице твоей станции и поворачивает к тебе. Здесь есть место ещё для одной строки, говорит он, и Контролёр был бы благодарен.",
+    "Give him another name": "Назвать ещё одно имя",
+    "Slam the ledger shut in his hands": "Захлопнуть ведомость у него в руках",
+    "Pay him to forget your page": "Заплатить, чтобы он забыл про эту страницу",
+    "A toll at the junction": "Пошлина на развилке",
+    "Directorate guards have set a table across the junction north of you. Everything that passes pays, and your carts pay double. The sergeant says the order came from above.": "Охрана Дирекции перегородила столом развилку к северу от тебя. Платит всё, что проходит, а твои тележки платят вдвойне. Сержант говорит, что приказ пришёл сверху.",
+    "Pay the toll": "Заплатить пошлину",
+    "Go round through the dark tunnel": "Ходить в обход, тёмным тоннелем",
+    "Complain to the Exchange": "Пожаловаться Бирже",
+    "The grate is welded": "Решётку заварили",
+    "Synod orderlies came at dawn and welded the grate shut, \"for your peace\", they said. Most people slept through it. The woman from hydroponics did not, and she is standing under the grate now.": "На рассвете пришли санитары Синода и заварили решётку. Сказали, что для вашего же покоя. Почти все это проспали. Женщина из гидропоники не спала и теперь стоит под решёткой.",
+    "Thank the Synod": "Поблагодарить Синод",
+    "Cut the grate open again": "Снова прорезать решётку",
+    "Leave a pipe through it to listen": "Вывести трубу, чтобы слушать",
+    "The list of the hungry": "Список голодных",
+    "Dorothy's list has your families on it now. She offers to take three of them into the Synod kitchens for the season. She says she only feeds people. Their neighbours say she also keeps them.": "Теперь в списке Дороти есть и твои семьи. Она предлагает взять три из них на кухни Синода до конца сезона. Говорит, что только кормит. Соседи говорят, что и оставляет у себя.",
+    "Let them eat at the Synod": "Пусть едят у Синода",
+    "Feed them yourselves and bring them home": "Кормить их самим и вернуть домой",
+    "Let them go, but visit every week": "Отпустить, но навещать каждую неделю",
+    "Your books, for sale": "Твои книги на продажу",
+    "A Directorate courier knows to the sack how much grain you hold. Marcel did not lie to you. He simply sold the copy he made while your books were open on his desk.": "Курьер Дирекции знает, сколько у тебя зерна, с точностью до мешка. Марсель тебе не лгал. Он просто продал копию, которую снял, пока твои тетради лежали у него.",
+    "Buy the copy back from Marcel": "Выкупить копию у Марселя",
+    "Leak a fake ledger to the market": "Подбросить рынку поддельные записи",
+    "Let them know (the Directorate takes its share)": "Пусть знают (Дирекция заберёт своё)",
+    "Bread at the other price": "Хлеб по другой цене",
+    "The market still sells to your people, but at the other price: the one written small, for stations that turned Marcel down. The bakers say nothing. They point at the board.": "Рынок по-прежнему продаёт твоим людям, но по другой цене. Её пишут мелко, для станций, которые отказали Марселю. Пекари молчат и показывают на доску.",
+    "Pay the other price": "Платить по другой цене",
+    "Grow it yourselves, slowly": "Выращивать самим, пусть и медленно",
+    "Buy from the Synod kitchens": "Покупать у кухонь Синода",
+    "The toll becomes a debt": "Плата становится долгом",
+    "Niki sends a boy with a tally stick. Last month your people walked her tunnels on credit, he says, and credit in the dark has a price. The stick has more notches than you remember.": "Ники присылает мальчишку с биркой. В прошлом месяце твои люди ходили её тоннелями в долг, говорит он, а долг в темноте стоит дорого. Зарубок на бирке больше, чем ты помнишь.",
+    "Pay it off in food": "Расплатиться едой",
+    "Lend two of your people to carry lamps": "Дать двоих носить фонари",
+    "Break the stick": "Сломать бирку",
+    "Lamps going past": "Фонари идут мимо",
+    "The Lamplighters lead people past your station now, not to it. Families who would have stopped here walk on to the Directorate. Your platform watches the lamps go by.": "Фонарщики теперь ведут людей мимо твоей станции, а не к ней. Семьи, которые остались бы здесь, идут дальше, к Дирекции. Платформа смотрит, как проходят фонари.",
+    "Send Niki food as a peace offer": "Послать Ники еду в знак мира",
+    "Hang your own lamps at the tunnel mouth": "Повесить свои фонари у входа в тоннель",
+    "Let them walk past": "Пусть идут мимо"
+  }
+}

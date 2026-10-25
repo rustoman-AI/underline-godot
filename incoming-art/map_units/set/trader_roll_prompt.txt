@@ -1,0 +1,11 @@
+Draw an animation sheet of the attached trader's car rolling: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, car, canopy, cargo, trader and size as the attached trader reference. Nothing changes between frames except what moves.
+
+Frame 1: pump handle level, trader upright.
+Frame 2: handle going down, trader leaning forward pushing down.
+Frame 3: handle at its lowest, trader bent deepest.
+Frame 4: handle level again, trader upright.
+Frame 5: handle going up, trader pulling up, leaning back a little.
+Frame 6: handle at its highest, trader straight with arms raised.
+The lantern swings a little forward in frames 2 and 3 and back in frames 5 and 6. The wheels turn one sixth of a turn each frame. The canopy (exactly the same grey as in the attached trader reference), hoops, crates and bundles never move or change. The rails are one thin straight line at the same height in every frame, and the car is the same size in every frame.
+
+Leave a wide empty transparent gap between neighbouring frames, clearly empty between frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.

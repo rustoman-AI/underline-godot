@@ -1,0 +1,33 @@
+ART BRIEF FOR CHATGPT (image tool): UPGRADED ROOM VARIANTS. STATUS: GO (owner, 12 Oct 2026: upgrades must be visible, "I want it like you see improvements"). CONFIRMED, start now.
+Do not start any other art. Local only, nothing is published.
+
+What this is
+The game has 8 rooms the player can upgrade. Today an upgraded room looks the same as before, only a brass plate is added by code. The owner wants to SEE the improvement: the same room, clearly better. We need 13 images in total.
+
+Source images (attach each one when you draw its variants): assets/rooms/room_<id>.webp in the project (quarters, hydroponics, air_filter, generator, workshop, infirmary, meeting_hall, radio). Same canvas size, same framing, same camera, same lamps, same wall and floor as the source. Only the named upgrade is added. The player must be able to put the old and the new room side by side and see the difference in one second.
+
+Rules for every image
+1. Same room, same angle, same size and proportions as the source file. Do not redraw the room from scratch; extend the source. Keep its palette: dim, dusty, orange lamp light, grey concrete. No bright new colours except small warm accents.
+2. The upgrade is shown by OBJECTS, not by effects: new equipment, repairs, better materials, extra furniture. No glow clouds, no floating icons, no arrows, no text, no labels, no numbers.
+3. Tier 1 is a modest, handmade improvement. Tier 2 is clearly more advanced AND still contains everything of tier 1 (so the three images read as a progression: source, tier 1, tier 2).
+4. Post-apocalypse look: scrap, welded plates, salvaged parts, cable, tape. Nothing clean or new. Nobody smiles; if a person is in the source, keep them as is. Do not add new people or faces. No real symbols, no flags, no party signs.
+5. Transparent background where the source has transparency; same alpha edges.
+6. Output: PNG at the source size (the lead converts to webp). One image per upgrade.
+
+The 13 images (file name, what to add)
+quarters_t1_bunks: second layer of steel bunk frames along the wall, folded blankets, a few more cots in the same floor space.
+quarters_t2_family: curtains or sheets hung as small family corners, a rug, a shelf with a few personal things, a small kerosene lamp on a crate. Keeps the bunks of tier 1.
+hydroponics_t1_grow_lamps: rows of lamps on welded frames over the beds, thicker green leaves, a water drum with a hose.
+hydroponics_t2_mushroom_beds: dark mushroom racks added in the shaded lower shelves, wooden crates with pale caps, damp cloths; the lamps stay.
+air_filter_t1_charcoal: a stack of charcoal canisters on a rack beside the unit, a new fan housing, tidy hoses.
+air_filter_t2_pressure_seals: thick rubber seals and bolted plates around the unit and the door frame, a pressure gauge with a brass rim; the charcoal stays.
+generator_t1_dynamo: a heavy hand-built dynamo with copper coils next to the generator, a new belt, a bundle of thick cables to the wall.
+generator_t2_substation: a wall of switch boxes, fuses and a breaker panel on bolted steel, labelled only by simple shapes (no letters); the dynamo stays.
+workshop_t1_drill_heads: a rack of heavy drill heads and bits on the wall, a drill press on the bench, a pile of metal shavings.
+workshop_t2_armor: sheets of welded armour plate stacked and leaning, a grinding wheel, a plate being cut with a torch spark on the bench; drill heads stay.
+infirmary_t1_quarantine_ward: a curtained or plastic-sheeted isolation bay in a corner with a cot and a lamp, a hanging sign shape (no letters), a steel basin.
+meeting_hall_t1_loudspeakers: horn loudspeakers bolted high on the wall, cable running down to a table, a dented microphone stand.
+radio_t1_antenna: a tall antenna mast rising through the ceiling hatch, new coax cables, a second receiver on the desk.
+
+Delivery
+Name files exactly as above plus ".png", put them in incoming-art/room_upgrades/, and report: which source each was drawn from, anything you changed besides the named objects, and any you are unhappy with. The lead and the owner accept or reject each image. Do not submit images with smiling faces, readable text, or a changed camera.
