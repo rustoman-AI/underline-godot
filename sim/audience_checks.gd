@@ -33,7 +33,9 @@ static func run(cat: Catalog) -> Dictionary:
 	checks.lines.append_array(story.lines)
 	var pool: Dictionary = load("res://sim/pool_checks.gd").run(cat)
 	checks.lines.append_array(pool.lines)
-	return {"ok": not checks.failed and bool(consequences.ok) and bool(story.ok) and bool(pool.ok), "lines": checks.lines}
+	var dilemmas: Dictionary = load("res://sim/dilemma_checks.gd").run(cat)
+	checks.lines.append_array(dilemmas.lines)
+	return {"ok": not checks.failed and bool(consequences.ok) and bool(story.ok) and bool(pool.ok) and bool(dilemmas.ok), "lines": checks.lines}
 
 
 func _expect(ok: bool, good: String, bad: String) -> void:

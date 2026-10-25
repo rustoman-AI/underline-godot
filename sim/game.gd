@@ -539,6 +539,10 @@ func food_buffer_weeks() -> float:
 	return float(stock.food) / float(maxi(1, food_need()))
 
 
+func air_buffer_weeks() -> float:
+	return float(stock.air) / float(maxi(1, air_need()))
+
+
 func food_need() -> int:
 	var shares := 0.0
 	for person in residents:
@@ -671,6 +675,22 @@ func build_slots() -> int:
 
 func output_of(key: String) -> int:
 	return int(_tally().get(key, 0))
+
+
+## 1 while the yard is not sharing short rations. share_output (balance dilemmas) while it is.
+func output_cut() -> float:
+	var until := int(stats.get("share_until", 0))
+	if until <= 0 or week > until:
+		return 1.0
+	return float(_dilemma().get("share_output", 1.0))
+
+
+## Room output after the equal-share cut. Radio tokens are added later and are not cut.
+func share_cut(n: int) -> int:
+	var cut := output_cut()
+	if cut >= 0.999:
+		return n
+	return int(round(float(n) * cut))
 
 
 func nearest_neutral() -> String:
@@ -1210,7 +1230,7 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 				n = 0
 			elif not (drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 				n += crew_extra(skills, room, n)
-			n = scale_push(n, room)
+			n = share_cut(scale_push(n, room))
 			out[key] = int(out[key]) + n
 			made[str(room.uid) + "|" + str(key)] = n
 	var mb := float(bal.get("merge_bonus", 0.0))
@@ -6149,14 +6169,26 @@ func _heal() -> void:
 
 func _tick_sickness() -> void:
 	_hold_governors()
+	var flushing_due: Array = []
+	var lent_due: Array = []
 	for person in residents:
+		var away := int(person.get("flushing_back", 0)) > 0
+		var lent := bool(person.get("lent", false))
 		var was_out := int(person.absent) > 0 or int(person.sick) > 0
 		if int(person.absent) > 0:
 			person.absent = int(person.absent) - 1
-		if int(person.sick) > 0:
+		if int(person.sick) > 0 and not away:
 			person.sick = int(person.sick) - 1
-		if was_out and int(person.absent) <= 0 and int(person.sick) <= 0:
+		if away and int(person.absent) <= 0:
+			flushing_due.append(str(person.id))
+		elif lent and int(person.absent) <= 0:
+			lent_due.append(str(person.id))
+		elif was_out and int(person.absent) <= 0 and int(person.sick) <= 0:
 			_restore_post(str(person.id))
+	if not flushing_due.is_empty():
+		_resolve_flushing(flushing_due)
+	for id in lent_due:
+		_resolve_lent(str(id))
 
 
 func _double_shift_sickness() -> void:
@@ -6199,7 +6231,7 @@ func _pull_sick_from_rooms() -> void:
 
 
 func _spread_cough() -> void:
-	if quarantine:
+	if quarantine or bool(flags.get("list_sealed", false)):
 		return
 	var chance := float(bal.cough_spread) * station_fx("cough_spread")
 	var sick_cells := {}
@@ -6417,19 +6449,278 @@ func _cover_gap(key: String) -> int:
 	return maxi(need, have - maxi(0, net))
 
 
+func _dilemma() -> Dictionary:
+	var row = bal.get("dilemmas", {})
+	if row is Dictionary:
+		return row
+	return {}
+
+
+## A state dilemma: weight 0, fired from the dawn trigger, never from the weighted pool.
+## Bunker scenes also carry "trigger", but theirs is an order, not a stock or season test.
+func _state_dilemma(ev: Dictionary) -> bool:
+	var trigger = ev.get("trigger", null)
+	if not (trigger is Dictionary):
+		return false
+	if trigger.has("order"):
+		return false
+	return trigger.has("food_weeks_lt") or trigger.has("air_weeks_lt") or trigger.has("sick_gte")
+
+
+## Once a run, and not within dilemma_cooldown weeks of a dilemma already shown. The trigger must hold now.
+func _dilemma_ready(ev: Dictionary) -> bool:
+	var id := str(ev.id)
+	if events_seen.has(id) or _has_event(pending, id) or week_event_ids.has(id):
+		return false
+	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
+		return false
+	var last := int(stats.get("dilemma_week", -99))
+	if last > 0 and week < last + int(bal.get("dilemma_cooldown", 2)):
+		return false
+	var trigger = ev.get("trigger", {})
+	return trigger is Dictionary and _trigger_holds(trigger)
+
+
+func _trigger_holds(trigger: Dictionary) -> bool:
+	if trigger.has("food_weeks_lt") and food_buffer_weeks() >= float(trigger.food_weeks_lt):
+		return false
+	if trigger.has("air_weeks_lt") and air_buffer_weeks() >= float(trigger.air_weeks_lt):
+		return false
+	if trigger.has("sick_gte") and sick_count() < int(trigger.sick_gte):
+		return false
+	if trigger.has("season") and not _season_is(str(trigger.season)):
+		return false
+	if trigger.has("station_known"):
+		var sid := _resolve_station(str(trigger.station_known))
+		if sid == "" or not bool(stations[sid].get("known", false)):
+			return false
+	return true
+
+
+## At most one dilemma a dawn, and none while a major card is already waiting. Dawn is the only caller.
+func _offer_dilemmas() -> void:
+	for ev in pending:
+		if event_is_big(ev):
+			return
+	for ev in catalog.events:
+		if not _state_dilemma(ev) or not _event_ok(ev):
+			continue
+		if _present_event(ev):
+			stats["dilemma_week"] = week
+		return
+
+
+## Numbers live in balance.json dilemmas. The catalog row stays free of them.
+func _stamp_dilemma(ev: Dictionary) -> void:
+	var d := _dilemma()
+	var id := str(ev.id)
+	for choice in ev.choices:
+		var cid := str(choice.id)
+		if id == "two_portions" and cid == "workers":
+			choice.hope = int(d.get("workers_hope", 0))
+			choice.discontent = int(d.get("workers_discontent", 0))
+		elif id == "two_portions" and cid == "pier":
+			choice.check = {"skill": "grit", "color": "white"}
+			choice.success = {"food": int(d.get("pier_food", 0))}
+			choice.failure = {"injured": int(d.get("pier_injured", 1))}
+		elif id == "breathers_price" and cid == "lend":
+			choice.air = int(d.get("air_gain", 0))
+		elif id == "breathers_price" and cid == "pay":
+			choice.cost = {"tokens": int(d.get("pay_tokens", 0))}
+			choice.air = int(d.get("air_gain", 0))
+		elif id == "breathers_price" and cid == "night":
+			choice.check = {"skill": "senses", "color": "red"}
+			choice.success = {"air": int(d.get("air_gain", 0))}
+			choice.failure = {"opinion_exchange": int(d.get("steal_opinion", 0))}
+		elif id == "the_list" and cid == "seal":
+			choice.hope = int(d.get("seal_hope", 0))
+		elif id == "the_list" and cid == "open":
+			choice.sick = int(d.get("open_sick", 0))
+			choice.synod = int(d.get("open_synod", 0))
+		elif id == "the_list" and cid == "flushing":
+			var sid := _flushing_id()
+			if not _has_passage(sid):
+				choice.locked = true
+				choice.lock_reason = {"en": "Needs passage to Flushing.", "ru": "Нужен проход до Флашинга."}
+
+
+func _apply_dilemma_choice(ev: Dictionary, choice: Dictionary) -> void:
+	var d := _dilemma()
+	var id := str(ev.id)
+	var cid := str(choice.id)
+	if id == "two_portions" and cid == "share":
+		var weeks := int(d.get("share_weeks", 2))
+		stats["share_until"] = week + weeks - 1
+		_note("The yard shares what is left. Every room gives less for %d weeks." % weeks, "Двор делит остаток. Каждая комната даёт меньше ещё %d нед." % weeks)
+	elif id == "two_portions" and cid == "workers":
+		_note("The workers eat first. The rest of the yard notices.", "Сначала едят рабочие. Остальной двор это видит.")
+	elif id == "breathers_price" and cid == "lend":
+		var n := int(d.get("lend_people", 2))
+		var weeks := int(d.get("lend_weeks", 4))
+		var sent := 0
+		for pid in _pick_away(n):
+			people[pid].absent = maxi(int(people[pid].get("absent", 0)), weeks)
+			people[pid].lent = true
+			sent += 1
+		_note("%s go to Bowling Green for %d weeks." % [Words.count(sent, "resident"), weeks], "В Боулинг-Грин на %d нед. уходят %s." % [weeks, Words.count(sent, "resident")])
+	elif id == "the_list" and cid == "seal":
+		flags["list_sealed"] = true
+		var names := _shed(int(d.get("seal_deaths", 1)), "died", "sealed")
+		if names.is_empty():
+			_note("The lower level is sealed. The cough stops at the door.", "Нижний ярус запечатан. Кашель останавливается у двери.")
+		else:
+			_note("The lower level is sealed. %s does not come back up. The cough stops at the door." % ", ".join(names), "Нижний ярус запечатан. %s не поднимается. Кашель останавливается у двери." % ", ".join(names))
+	elif id == "the_list" and cid == "flushing":
+		var weeks := int(d.get("flushing_weeks", 3))
+		var sent := 0
+		for pid in _pick_sick(int(d.get("flushing_count", 3))):
+			var person: Dictionary = people[pid]
+			person.flushing_sick = maxi(1, int(person.get("sick", 0)))
+			person.flushing_back = week + weeks
+			person.absent = maxi(int(person.get("absent", 0)), weeks)
+			sent += 1
+		_note("%s leave for Flushing." % Words.count(sent, "sick resident"), "Во Флашинг уходят %s." % Words.count(sent, "sick resident"))
+
+
+func _resolve_flushing(ids: Array) -> void:
+	var need := int(_dilemma().get("flushing_synod", 10))
+	var healed := synod >= need
+	var names: PackedStringArray = []
+	for raw in ids:
+		var id := str(raw)
+		if not people.has(id):
+			continue
+		var person: Dictionary = people[id]
+		var saved := maxi(1, int(person.get("flushing_sick", 1)))
+		person.erase("flushing_back")
+		person.erase("flushing_sick")
+		names.append(Copy.person(str(person.get("name", id))))
+		if healed:
+			person.sick = 0
+		else:
+			person.sick = maxi(int(person.sick), saved)
+		if int(person.absent) <= 0 and int(person.sick) <= 0:
+			_restore_post(id)
+	if names.is_empty():
+		return
+	var who := ", ".join(names)
+	if healed:
+		_note("%s return from Flushing. The cough is gone." % who, "%s возвращаются из Флашинга. Кашля нет." % who)
+	else:
+		_note("Flushing sends them back no better. The Synod did not answer.", "Флашинг возвращает их без перемен. Синод не ответил.")
+
+
+func _resolve_lent(id: String) -> void:
+	if not people.has(id):
+		return
+	var person: Dictionary = people[id]
+	person.erase("lent")
+	var name := Copy.person(str(person.get("name", id)))
+	var stay := float(_dilemma().get("lend_stay", 0.0))
+	var line := int(_dilemma().get("lend_opinion", 0))
+	if int(opinions.get("exchange", 0)) < line and rng.randf() < stay:
+		_remove_resident(id, false, "left", "left")
+		_note("%s stays with the Exchange." % name, "%s остаётся у Биржи." % name)
+		return
+	if int(person.get("absent", 0)) <= 0 and int(person.get("sick", 0)) <= 0:
+		_restore_post(id)
+	_note("%s comes back from Bowling Green." % name, "%s возвращается из Боулинг-Грина." % name)
+
+
+## Live station id for a trigger token. "bowling" is the old stations.json id; the map calls it Bowling Green.
+func _resolve_station(token: String) -> String:
+	if token == "flushing":
+		return _flushing_id()
+	if stations.has(token):
+		return token
+	var wanted := token
+	for raw in catalog.stations:
+		if str(raw.get("id", "")) == token:
+			wanted = str(raw.get("name", token))
+			break
+	for sid in stations:
+		var name := str(stations[sid].get("name", ""))
+		if name == wanted or name == token:
+			return str(sid)
+	return ""
+
+
+func _flushing_id() -> String:
+	if stations.has("garden"):
+		return "garden"
+	for sid in stations:
+		if str(stations[sid].get("name", "")) == "Flushing":
+			return str(sid)
+	return ""
+
+
+func _has_passage(sid: String) -> bool:
+	if sid == "" or not stations.has(sid):
+		return false
+	var st: Dictionary = stations[sid]
+	return str(st.get("owner", "")) == player or bool(st.get("passage", false))
+
+
+func _resident_by_cast(cast: String) -> String:
+	for person in residents:
+		if cast_id_of(person) == cast:
+			return str(person.id)
+	return ""
+
+
+## Lowest-labor adults who are not on the council, not governing, and not already away.
+func _pick_away(n: int) -> Array:
+	var pool: Array = []
+	for person in residents:
+		if _is_child(person) or _is_council(str(person.id)) or governor_of(str(person.id)) != "":
+			continue
+		if int(person.get("absent", 0)) > 0:
+			continue
+		pool.append(person)
+	pool.sort_custom(func(a, b): return int(a.skills.get("labor", 0)) < int(b.skills.get("labor", 0)))
+	var ids: Array = []
+	for person in pool:
+		if ids.size() >= n:
+			break
+		ids.append(str(person.id))
+	return ids
+
+
+func _pick_sick(n: int) -> Array:
+	var pool: Array = []
+	for person in residents:
+		if int(person.get("sick", 0)) <= 0 or int(person.get("absent", 0)) > 0:
+			continue
+		pool.append(person)
+	pool.sort_custom(func(a, b):
+		var a_free := not _is_council(str(a.id)) and governor_of(str(a.id)) == ""
+		var b_free := not _is_council(str(b.id)) and governor_of(str(b.id)) == ""
+		if a_free != b_free:
+			return a_free
+		return int(a.skills.get("labor", 0)) < int(b.skills.get("labor", 0))
+	)
+	var ids: Array = []
+	for person in pool:
+		if ids.size() >= n:
+			break
+		ids.append(str(person.id))
+	return ids
+
+
 func _roll_events() -> void:
 	if week == crunch_week:
 		for item in follows:
 			if int(item.due) <= week:
 				item.due = week + 1
+		_offer_dilemmas()
 		return
 	_present_due_follows()
 	var pool := _event_pool(rng.randf() < 0.4)
 	if pool.is_empty():
 		pool = _event_pool(false)
-	if pool.is_empty():
-		return
-	_present_event(_weighted(pool))
+	if not pool.is_empty():
+		_present_event(_weighted(pool))
+	_offer_dilemmas()
 
 
 ## Events with "needs" show once a run, only while every condition in it holds, and never enter the random
@@ -6735,6 +7026,8 @@ func _present_event(ev: Dictionary) -> bool:
 			if str(choice.id) == "take":
 				choice.people = n
 				choice.label = Copy.t("Take in %d") % n
+	if _state_dilemma(copy):
+		_stamp_dilemma(copy)
 	week_event_ids[id] = true
 	_calibrate_checks(copy)
 	pending.append(copy)
@@ -6759,6 +7052,8 @@ func _event_pool(major_only: bool) -> Array:
 			pool.append(ev)
 	if pool.is_empty() and not major_only:
 		for ev in catalog.events:
+			if ev.has("needs") or ev.has("trigger"):
+				continue
 			if not _event_ok(ev):
 				continue
 			pool.append(ev)
@@ -6767,6 +7062,8 @@ func _event_pool(major_only: bool) -> Array:
 
 func _event_ok(ev: Dictionary) -> bool:
 	var id := str(ev.id)
+	if _state_dilemma(ev):
+		return _dilemma_ready(ev)
 	if bool(ev.get("chain_only", false)) or bool(ev.get("check_only", false)):
 		return false
 	if ev.has("needs") or ev.has("trigger"):
@@ -6817,7 +7114,10 @@ func choice_locked(choice: Dictionary) -> bool:
 ## Why a locked choice is closed, one line for the card: a check's lock_reason or the first unmet "requires".
 func lock_reason(choice: Dictionary) -> String:
 	if bool(choice.get("locked", false)):
-		return str(choice.get("lock_reason", ""))
+		var reason = choice.get("lock_reason", "")
+		if reason is Dictionary:
+			return line_of({"lock_reason": reason}, "lock_reason")
+		return str(reason)
 	return requires_reason(choice.get("requires", {}))
 
 
@@ -7342,6 +7642,10 @@ func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bo
 	var color := str(check.get("color", "white"))
 	if color == "red" and week < 6:
 		return true
+	if str(ev.get("id", "")) == "two_portions" and str(choice.get("id", "")) == "pier":
+		var bait := _resident_by_cast("bait")
+		if bait != "":
+			person_id = bait
 	if person_id == "" or not people.has(person_id):
 		person_id = best_check_resident(skill)
 	var difficulty := int(check.get("difficulty", 10))
@@ -7379,8 +7683,8 @@ func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bo
 		if str(ev.id) == "vents":
 			vent_cut = 0
 		return true
-	if color == "red":
-		_apply_effect_block(choice.get("failure", {}), person_id, true, ev)
+	if color == "red" or _state_dilemma(ev):
+		_apply_effect_block(choice.get("failure", {}), person_id, color == "red", ev)
 		return true
 	_apply_effect_block(choice.get("failure", {}), person_id, false, ev)
 	if retried:
@@ -7476,6 +7780,8 @@ func _apply_event(action: Dictionary) -> bool:
 	decisions += 1
 	if not keep:
 		return true
+	if _state_dilemma(ev):
+		_apply_dilemma_choice(ev, choice)
 	var mark := str(choice.get("flag", ""))
 	if mark != "":
 		flags[mark] = true
@@ -11351,7 +11657,7 @@ func _room_output_rows(room: Dictionary) -> Array:
 			n += crew_extra(skills, room, n)
 		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 			n += crew_extra(skills, room, n)
-		n = scale_push(n, room)
+		n = share_cut(scale_push(n, room))
 		outputs.append({"key": str(key), "amount": n, "base": amount})
 	return outputs
 

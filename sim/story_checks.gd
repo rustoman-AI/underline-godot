@@ -189,12 +189,47 @@ func requires_problems(where: String, req) -> PackedStringArray:
 	return bad
 
 
+## State dilemmas (food, air, cough) use these keys. Bunker scenes use order and needs.
+const STATE_TRIGGER_KEYS := ["food_weeks_lt", "air_weeks_lt", "station_known", "season", "sick_gte"]
+const SEASON_IDS := ["flood", "cold", "cough"]
+
+
+func _state_trigger(trigger: Dictionary) -> bool:
+	return trigger.has("food_weeks_lt") or trigger.has("air_weeks_lt") or trigger.has("sick_gte")
+
+
+## Problems with a dilemma trigger: a buffer, a known station, a season, or a sick count. No scene order.
+func state_trigger_problems(id: String, ev: Dictionary) -> PackedStringArray:
+	var bad: PackedStringArray = []
+	var trigger = ev.get("trigger", null)
+	if not (trigger is Dictionary):
+		return PackedStringArray(["%s: trigger is not an object" % id])
+	for key in trigger:
+		if not STATE_TRIGGER_KEYS.has(str(key)):
+			bad.append("%s: unknown trigger key %s" % [id, key])
+	if trigger.has("food_weeks_lt") and (not _is_number(trigger.food_weeks_lt) or float(trigger.food_weeks_lt) <= 0.0):
+		bad.append("%s: food_weeks_lt %s" % [id, str(trigger.food_weeks_lt)])
+	if trigger.has("air_weeks_lt") and (not _is_number(trigger.air_weeks_lt) or float(trigger.air_weeks_lt) <= 0.0):
+		bad.append("%s: air_weeks_lt %s" % [id, str(trigger.air_weeks_lt)])
+	if trigger.has("sick_gte") and (not _is_number(trigger.sick_gte) or int(trigger.sick_gte) < 1):
+		bad.append("%s: sick_gte %s" % [id, str(trigger.sick_gte)])
+	if trigger.has("station_known") and (typeof(trigger.station_known) != TYPE_STRING or str(trigger.station_known).strip_edges() == ""):
+		bad.append("%s: station_known is not a station id" % id)
+	if trigger.has("season") and not SEASON_IDS.has(str(trigger.season)):
+		bad.append("%s: season %s" % [id, str(trigger.season)])
+	if ev.has("needs") or ev.has("forced"):
+		bad.append("%s: a dilemma trigger has needs or forced" % id)
+	return bad
+
+
 ## Problems with an event's "trigger": a known order, and "needs" keys that do not hang on a window.
 func trigger_problems(id: String, ev: Dictionary) -> PackedStringArray:
 	var bad: PackedStringArray = []
 	var trigger = ev.trigger
 	if not (trigger is Dictionary):
 		return PackedStringArray(["%s: trigger is not an object" % id])
+	if _state_trigger(trigger):
+		return state_trigger_problems(id, ev)
 	for key in trigger:
 		if not ["order", "needs"].has(str(key)):
 			bad.append("%s: unknown trigger key %s" % [id, key])
@@ -238,8 +273,12 @@ func _validate() -> void:
 			with_needs += 1
 			bad.append_array(needs_problems(id, ev))
 		if ev.has("trigger"):
-			triggered += 1
-			bad.append_array(trigger_problems(id, ev))
+			var trigger = ev.get("trigger", null)
+			if trigger is Dictionary and _state_trigger(trigger):
+				bad.append_array(state_trigger_problems(id, ev))
+			else:
+				triggered += 1
+				bad.append_array(trigger_problems(id, ev))
 		for choice in ev.get("choices", []):
 			bad.append_array(effect_problems("%s/%s" % [id, choice.get("id", "")], choice))
 			if str(choice.get("flag", "")) != "":
