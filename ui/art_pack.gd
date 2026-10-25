@@ -326,6 +326,29 @@ static func textures() -> Dictionary:
 		"res://assets/icons/map/blown.png": preload("res://assets/icons/map/blown.png"),
 		"res://assets/icons/map/blown_24.png": preload("res://assets/icons/map/blown_24.png"),
 		"res://assets/overlays/blown_flash.webp": preload("res://assets/overlays/blown_flash.webp"),
+		"res://assets/ui/salvage_board_panel.webp": preload("res://assets/ui/salvage_board_panel.webp"),
+		"res://assets/ui/salvage_board_empty.webp": preload("res://assets/ui/salvage_board_empty.webp"),
+		"res://assets/ui/salvage_board_no_blueprint.webp": preload("res://assets/ui/salvage_board_no_blueprint.webp"),
+		"res://assets/overlays/fitted_flash.webp": preload("res://assets/overlays/fitted_flash.webp"),
+		"res://assets/icons/ui/salvage.png": preload("res://assets/icons/ui/salvage.png"),
+		"res://assets/icons/ui/salvage_24.png": preload("res://assets/icons/ui/salvage_24.png"),
+		"res://assets/icons/ui/blueprint.png": preload("res://assets/icons/ui/blueprint.png"),
+		"res://assets/icons/ui/blueprint_24.png": preload("res://assets/icons/ui/blueprint_24.png"),
+		"res://assets/icons/ui/strip_scrap.png": preload("res://assets/icons/ui/strip_scrap.png"),
+		"res://assets/icons/ui/strip_scrap_24.png": preload("res://assets/icons/ui/strip_scrap_24.png"),
+		"res://assets/icons/ui/fitted.png": preload("res://assets/icons/ui/fitted.png"),
+		"res://assets/icons/ui/locked_blueprint.png": preload("res://assets/icons/ui/locked_blueprint.png"),
+		"res://assets/icons/ui/tier0.png": preload("res://assets/icons/ui/tier0.png"),
+		"res://assets/icons/ui/tier1.png": preload("res://assets/icons/ui/tier1.png"),
+		"res://assets/icons/ui/tier2.png": preload("res://assets/icons/ui/tier2.png"),
+		"res://assets/icons/ui/salvage_open.png": preload("res://assets/icons/ui/salvage_open.png"),
+		"res://assets/icons/ui/salvage_open_24.png": preload("res://assets/icons/ui/salvage_open_24.png"),
+		"res://assets/icons/ui/blueprint_ready.png": preload("res://assets/icons/ui/blueprint_ready.png"),
+		"res://assets/icons/ui/blueprint_ready_24.png": preload("res://assets/icons/ui/blueprint_ready_24.png"),
+		"res://assets/icons/status/salvage_open.png": preload("res://assets/icons/status/salvage_open.png"),
+		"res://assets/icons/status/salvage_open_24.png": preload("res://assets/icons/status/salvage_open_24.png"),
+		"res://assets/icons/status/blueprint_ready.png": preload("res://assets/icons/status/blueprint_ready.png"),
+		"res://assets/icons/status/blueprint_ready_24.png": preload("res://assets/icons/status/blueprint_ready_24.png"),
 	}
 	return _textures
 
@@ -402,7 +425,7 @@ static func _icon_names(kind: String) -> PackedStringArray:
 
 
 static func _load_icon(name: String) -> Texture2D:
-	var folders := ["", "resources/", "actions/", "rooms/", "status/", "ui/", "map/", "factions/"]
+	var folders := ["ui/", "", "resources/", "actions/", "rooms/", "status/", "map/", "factions/"]
 	for folder in folders:
 		for ext in ["webp", "png"]:
 			var path := "res://assets/icons/%s%s.%s" % [folder, name, ext]

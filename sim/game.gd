@@ -7,6 +7,25 @@ const HOPE_ZERO_LEAVE := 2
 const HOPE_ZERO_WEEKS := 3
 const PUSH_BLOCKED := ["infirmary", "radio", "quarters"]
 const PUSH_WINDOW := 4
+## Salvage Board (DEC-S2). Tier is the blueprint gate. Step is the room upgrade level this node fits.
+## Materials stay on the room's existing upgrade cost. No new balance.json numbers.
+const SALVAGE_NODES := [
+	{"id": "grow_lamps", "room": "hydroponics", "tier": 0, "step": 1},
+	{"id": "charcoal", "room": "air_filter", "tier": 0, "step": 1},
+	{"id": "dynamo", "room": "generator", "tier": 0, "step": 1},
+	{"id": "drill_heads", "room": "workshop", "tier": 0, "step": 1},
+	{"id": "bunks", "room": "quarters", "tier": 0, "step": 1},
+	{"id": "mushroom_beds", "room": "hydroponics", "tier": 1, "step": 2},
+	{"id": "pressure_seals", "room": "air_filter", "tier": 1, "step": 2},
+	{"id": "substation", "room": "generator", "tier": 1, "step": 2},
+	{"id": "armor", "room": "workshop", "tier": 1, "step": 2},
+	{"id": "quarantine_ward", "room": "infirmary", "tier": 1, "step": 1},
+	{"id": "antenna", "room": "radio", "tier": 1, "step": 1},
+	{"id": "pipe_taps", "room": "listening_post", "tier": 2, "step": 1},
+]
+const STRIP_MATERIALS := 4
+const STRIP_EVERY := 3
+const JUNK_EVERY := 6
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -20,6 +39,8 @@ var player_lean := "craft"
 var capital_id := "southdepot"
 
 var stock := {}
+## Strip cooldown, first-fit float, and the one-time raid blueprint. Blueprints themselves live on stock.
+var salvage := {"strip_week": 0, "floated": false, "raid_bp": false, "float_id": "", "float_uid": "", "junk_week": 0}
 var hope := 60
 var discontent := 15
 var residents: Array = []
@@ -206,7 +227,9 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		"materials": int(start.materials),
 		"tokens": int(start.tokens),
 		"influence": int(start.influence),
+		"blueprints": 0,
 	}
+	salvage = {"strip_week": 0, "floated": false, "raid_bp": false, "float_id": "", "float_uid": "", "junk_week": 0}
 	hope = int(start.hope)
 	discontent = int(start.discontent)
 	stats = {
@@ -351,6 +374,8 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_dig_action(action)
 		"upgrade":
 			ok = _apply_upgrade(str(action.get("room", "")))
+		"strip":
+			ok = _apply_strip()
 		"demolish":
 			ok = _apply_demolish(str(action.get("room", "")))
 		"assign":
@@ -423,7 +448,7 @@ func _journal_context(kind: String, action: Dictionary) -> Dictionary:
 			return {"law": str(action.get("law", ""))}
 		"order":
 			return {"order": str(action.get("order", "")), "station": str(action.get("station", action.get("dest", "")))}
-		"pump", "quarantine", "burn", "rally":
+		"pump", "quarantine", "burn", "rally", "strip":
 			return {"done": true}
 		"push":
 			var pushed = _room(str(action.get("room", "")))
@@ -1029,6 +1054,7 @@ func _rival_phase() -> void:
 
 
 func _night() -> void:
+	_grant_junk_blueprints()
 	var sick_now := sick_count()
 	if _season_is("cough"):
 		_spread_cough()
@@ -1247,6 +1273,8 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 				n += _effect_int("food_room_bonus")
 			if perk_boost and str(room.type) == "generator" and str(key) == "power":
 				n = int(round(float(n) * _generator_mult()))
+			if str(key) == "food" and factor > 0.0 and int(room.get("mold", 0)) <= 0:
+				n += mushroom_food(room)
 			n = share_cut(scale_push(n, room))
 			out[key] = int(out[key]) + n
 			made[str(room.uid) + "|" + str(key)] = n
@@ -1611,6 +1639,7 @@ func _brownout_ids() -> Array:
 		pool -= room_power(room) * mult
 	if pool < 0:
 		pool = 0
+	var spare := brownout_spare()
 	var decided := {}
 	for uid in power_order:
 		var room = _room(str(uid))
@@ -1631,6 +1660,8 @@ func _brownout_ids() -> Array:
 			continue
 		if pool >= draw:
 			pool -= draw
+		elif spare > 0:
+			spare -= 1
 		else:
 			for r in grp:
 				dark.append(str(r.uid))
@@ -2845,6 +2876,15 @@ func upgrade_preview(uid: String) -> Dictionary:
 	if bool(room.offline):
 		info.reason = Copy.t("The room is offline.")
 		return info
+	var node := salvage_for_step(str(room.type), int(room.upgrade) + 1)
+	if not node.is_empty():
+		info.tier = int(node.tier)
+		info.node = str(node.id)
+		info.blueprints = 1 if int(node.tier) >= 1 else 0
+		var gate := salvage_gate(node)
+		if gate != "":
+			info.reason = gate
+			return info
 	if int(stock.materials) < info.materials:
 		info.reason = Copy.t("Needs %s, the yard has %s.") % [Words.count(info.materials, "material"), Words.count(int(stock.materials), "material")]
 		return info
@@ -2860,6 +2900,272 @@ func upgrade_cost(type: String, tier: int) -> int:
 	if step.is_empty() or tier < 1:
 		return base
 	return ceili(base * float(step[mini(tier, step.size()) - 1]) - 0.0001)
+
+
+func salvage_def(id: String) -> Dictionary:
+	for row in SALVAGE_NODES:
+		if str(row.id) == id:
+			return row
+	return {}
+
+
+func salvage_for_step(type: String, step: int) -> Dictionary:
+	for row in SALVAGE_NODES:
+		if str(row.room) == type and int(row.step) == step:
+			return row
+	return {}
+
+
+## "" when the node can be fitted. Tier 1+ needs a blueprint. Pipe taps wait until a Listening Post exists.
+func salvage_gate(node: Dictionary) -> String:
+	if str(node.get("id", "")) == "pipe_taps" and not _listening_post_built():
+		return Copy.t("salvage.need_listening")
+	if int(node.get("tier", 0)) >= 1 and int(stock.get("blueprints", 0)) < 1:
+		return Copy.t("salvage.need_blueprint")
+	return ""
+
+
+func _listening_post_built() -> bool:
+	if catalog == null or not catalog.rooms.has("listening_post"):
+		return false
+	for room in rooms:
+		if str(room.type) == "listening_post":
+			return true
+	return false
+
+
+func salvage_fit_uid(id: String) -> String:
+	var node := salvage_def(id)
+	if node.is_empty() or not catalog.rooms.has(str(node.room)):
+		return ""
+	if salvage_gate(node) != "":
+		return ""
+	var step := int(node.step)
+	for room in rooms:
+		if str(room.type) != str(node.room) or bool(room.offline):
+			continue
+		if int(room.upgrade) == step - 1:
+			return str(room.uid)
+	return ""
+
+
+## Desk rows: fitted, the room that can take the fit, and why a locked node is locked.
+func salvage_board() -> Array:
+	var rows: Array = []
+	for node in SALVAGE_NODES:
+		var copy: Dictionary = node.duplicate()
+		var type := str(node.room)
+		var step := int(node.step)
+		var fitted := false
+		var uid := ""
+		for room in rooms:
+			if str(room.type) != type:
+				continue
+			if int(room.upgrade) >= step:
+				fitted = true
+			elif uid == "" and int(room.upgrade) == step - 1 and not bool(room.offline):
+				uid = str(room.uid)
+		copy.fitted = fitted
+		copy.uid = uid
+		copy.blueprints = 1 if int(node.tier) >= 1 else 0
+		copy.materials = upgrade_cost(type, step) if catalog.rooms.has(type) else 0
+		copy.name_key = "salvage.node." + str(node.id)
+		copy.gate = ""
+		copy.reason = ""
+		if not fitted:
+			if str(node.id) == "pipe_taps" and not _listening_post_built():
+				copy.gate = "listening"
+				copy.reason = Copy.t("salvage.need_listening")
+			elif uid == "":
+				copy.gate = "room"
+			elif int(node.tier) >= 1 and int(stock.get("blueprints", 0)) < 1:
+				copy.gate = "blueprint"
+				copy.reason = Copy.t("salvage.locked")
+			else:
+				var info := upgrade_preview(uid)
+				if not bool(info.ok):
+					copy.gate = "wait"
+					copy.reason = str(info.reason)
+		rows.append(copy)
+	return rows
+
+
+## Which clipboard the desk shows. Nothing fitted yet is the empty board. Once a fit is on the board and a
+## later node is waiting on a blueprint, the locked clipboard replaces it. Otherwise the working board.
+func salvage_face_of(rows: Array) -> String:
+	var fitted := false
+	var need_blueprint := false
+	for row in rows:
+		if bool(row.get("fitted", false)):
+			fitted = true
+		if str(row.get("gate", "")) == "blueprint":
+			need_blueprint = true
+	if not fitted:
+		return "empty"
+	if need_blueprint:
+		return "no_blueprint"
+	return "board"
+
+
+func salvage_face() -> String:
+	return salvage_face_of(salvage_board())
+
+
+func strip_preview() -> Dictionary:
+	var info := {"ok": false, "reason": "", "materials": STRIP_MATERIALS}
+	var reasons: PackedStringArray = []
+	if not _room_ready("workshop"):
+		reasons.append(Copy.t("salvage.strip_tip"))
+	var last := int(salvage.get("strip_week", 0))
+	if last > 0 and week < last + STRIP_EVERY:
+		reasons.append(Copy.t("salvage.strip_tip"))
+	if int(stock.get("materials", 0)) < STRIP_MATERIALS:
+		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(STRIP_MATERIALS, "material"), Words.count(int(stock.materials), "material")])
+	info.reason = " ".join(reasons)
+	info.ok = reasons.is_empty()
+	return info
+
+
+func _apply_strip() -> bool:
+	var info := strip_preview()
+	if not bool(info.ok):
+		return false
+	stock.materials = int(stock.materials) - STRIP_MATERIALS
+	salvage.strip_week = week
+	_gain_blueprint("strip")
+	decisions += 1
+	_log("STRIP scrap, blueprint")
+	return true
+
+
+func _gain_blueprint(source: String) -> void:
+	stock.blueprints = int(stock.get("blueprints", 0)) + 1
+	var line := Copy.t("salvage.gained_%s" % source)
+	notices.append(line)
+	_log(line, true)
+
+
+func _grant_first_raid_blueprint() -> void:
+	if bool(salvage.get("raid_bp", false)):
+		return
+	salvage.raid_bp = true
+	_gain_blueprint("raid")
+
+
+## P2 Junk good is not on this master: station goods have no "junk", and nothing sets flags.junk_flow.
+## When that flow exists, a held junk source grants +1 blueprint every 6 weeks.
+func junk_flowing() -> bool:
+	if bool(flags.get("junk_flow", false)):
+		return true
+	if catalog == null or not stations.has("clocktower"):
+		return false
+	if str(stations.clocktower.get("owner", "")) != player:
+		return false
+	return int(catalog.station_goods("clocktower").get("junk", 0)) > 0
+
+
+func _grant_junk_blueprints() -> void:
+	if not junk_flowing() or week % JUNK_EVERY != 0:
+		return
+	if int(salvage.get("junk_week", 0)) == week:
+		return
+	salvage.junk_week = week
+	_gain_blueprint("junk")
+
+
+func take_salvage_float() -> Dictionary:
+	var id := str(salvage.get("float_id", ""))
+	var uid := str(salvage.get("float_uid", ""))
+	salvage.float_id = ""
+	salvage.float_uid = ""
+	if id == "":
+		return {}
+	return {"id": id, "uid": uid}
+
+
+func _ready_salvage() -> void:
+	if typeof(salvage) != TYPE_DICTIONARY:
+		salvage = {}
+	salvage.strip_week = int(salvage.get("strip_week", 0))
+	salvage.floated = bool(salvage.get("floated", false))
+	salvage.raid_bp = bool(salvage.get("raid_bp", false))
+	salvage.float_id = str(salvage.get("float_id", ""))
+	salvage.float_uid = str(salvage.get("float_uid", ""))
+	salvage.junk_week = int(salvage.get("junk_week", 0))
+	if typeof(stock) != TYPE_DICTIONARY:
+		return
+	stock.blueprints = maxi(0, int(stock.get("blueprints", 0)))
+
+
+## Flat +1 food on a hydroponics room once mushroom beds are fitted. Hope does not move on the fit.
+func mushroom_food(room, tier: int = -1) -> int:
+	var at := int(room.upgrade) if tier < 0 else tier
+	if str(room.get("type", "")) != "hydroponics" or at < 2:
+		return 0
+	if bool(room.get("offline", false)):
+		return 0
+	return 1
+
+
+func _pressure_seals_online() -> bool:
+	for room in rooms:
+		if str(room.type) == "air_filter" and int(room.upgrade) >= 2 and not bool(room.offline):
+			return true
+	return false
+
+
+func cough_spread_chance() -> float:
+	var chance := float(bal.cough_spread) * station_fx("cough_spread")
+	if _pressure_seals_online():
+		chance *= 0.8
+	return chance
+
+
+func _substation_online() -> bool:
+	for room in rooms:
+		if str(room.type) == "generator" and int(room.upgrade) >= 2 and not bool(room.offline):
+			return true
+	return false
+
+
+## One extra room stays lit when a substation is online.
+func brownout_spare() -> int:
+	return 1 if _substation_online() else 0
+
+
+func _antenna_online() -> bool:
+	for room in rooms:
+		if str(room.type) == "radio" and int(room.upgrade) >= 1 and not bool(room.offline):
+			return true
+	return false
+
+
+func _listening_post_online() -> bool:
+	if not _listening_post_built():
+		return false
+	for room in rooms:
+		if str(room.type) == "listening_post" and not bool(room.offline):
+			return true
+	return false
+
+
+## Listening Post, when that room exists, hides nothing. Otherwise a staffed radio already hides nothing,
+## and an antenna cuts whatever hide chance remains in half.
+func intent_hide_chance() -> float:
+	if _listening_post_online():
+		return 0.0
+	var chance := 0.0 if _has_radio() else 0.25
+	if chance > 0.0 and _antenna_online():
+		chance *= 0.5
+	return chance
+
+
+## P29 owns the blown roll. Pipe taps cut that chance by 5% once the Listening Post upgrade is fitted.
+func blown_scale() -> float:
+	for room in rooms:
+		if str(room.type) == "listening_post" and int(room.get("upgrade", 0)) >= 1 and not bool(room.get("offline", false)):
+			return 0.95
+	return 1.0
 
 
 func demolish_preview(uid: String) -> Dictionary:
@@ -2890,9 +3196,16 @@ func _apply_upgrade(uid: String) -> bool:
 	if not bool(info.ok):
 		return false
 	var room = _room(uid)
+	var node := salvage_for_step(str(room.type), int(room.upgrade) + 1)
 	stock.materials = int(stock.materials) - int(info.materials)
+	if not node.is_empty() and int(node.tier) >= 1:
+		stock.blueprints = int(stock.get("blueprints", 0)) - 1
 	for r in _merge_group_of(room):
 		r.upgrade = int(r.upgrade) + 1
+	if not node.is_empty() and not bool(salvage.get("floated", false)):
+		salvage.floated = true
+		salvage.float_id = str(node.id)
+		salvage.float_uid = uid
 	if str(info.name) == "armor" and squads.has(player) and not bool(squads[player].get("armor_fit", false)):
 		squads[player].gear = float(squads[player].gear) + float(bal.get("armor_gear", 0.15))
 		squads[player].armor_fit = true
@@ -4903,7 +5216,9 @@ func _plan_intents() -> Array:
 		if _faction_dead(fid):
 			continue
 		var intent := _plan_one(fid)
-		intent.hidden = _intent_hidden(str(intent.kind))
+		var hide_p := intent_hide_chance()
+		var hide: bool = str(intent.kind) != "demand_posted" and hide_p > 0.0 and net_rng.randf() < hide_p
+		intent.hidden = hide
 		out.append(intent)
 	return out
 
@@ -6757,7 +7072,7 @@ func _pull_sick_from_rooms() -> void:
 func _spread_cough() -> void:
 	if quarantine or bool(flags.get("list_sealed", false)):
 		return
-	var chance := float(bal.cough_spread) * station_fx("cough_spread") * _cough_mult()
+	var chance := cough_spread_chance() * _cough_mult()
 	var sick_cells := {}
 	for room in rooms:
 		for id in room.staff:
@@ -10463,7 +10778,7 @@ func audience_effects() -> Dictionary:
 
 const PERSIST := [
 	"seed", "week", "max_weeks", "over", "player", "player_lean", "capital_id",
-	"stock", "hope", "discontent", "residents", "people", "cells", "rooms",
+	"stock", "salvage", "hope", "discontent", "residents", "people", "cells", "rooms",
 	"laws_on", "law_lock", "council", "stations", "tunnels", "squads",
 	"opinions", "ambition", "at_war", "trade_on", "telegraphed", "demands",
 	"pending", "dig", "build", "expedition", "active_season", "artifacts",
@@ -10491,7 +10806,8 @@ const PERSIST := [
 ## start with the platform not yet addressed. Version 10 added the chronicle, departures, and burials.
 ## Version 11 added the truce lock from tunnel combat; older saves start with none.
 ## Version 12 added the map rumor; older saves start with none.
-const SAVE_SCHEMA := 12
+## Version 13 added the salvage board; older saves start with none.
+const SAVE_SCHEMA := 13
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -10525,6 +10841,8 @@ const V9_ADDED := ["hardship_now", "chronicle", "departed", "burials", "creed", 
 const V10_ADDED := ["combat_lock"]
 ## Fields a version 1 to 11 save may lack: no map rumor yet.
 const V11_ADDED := ["rumor"]
+## Fields a version 1 to 12 save may lack: no salvage board yet.
+const V12_ADDED := ["salvage"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -10563,6 +10881,7 @@ func import_state(data: Dictionary) -> bool:
 	if squads.has(player) and not bool(squads[player].get("guard", false)):
 		_muster_start_guard()
 	_sync_guard()
+	_ready_salvage()
 	return true
 
 
@@ -10581,7 +10900,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -10610,6 +10929,9 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 		for sid in state.stations:
 			if state.stations[sid] is Dictionary and not state.stations[sid].has("governor"):
 				state.stations[sid]["governor"] = ""
+	## Blueprints live on stock. Saves from before the salvage board have none; they start at zero.
+	if int(schema) <= 11 and state.stock is Dictionary and not state.stock.has("blueprints"):
+		state.stock["blueprints"] = 0
 	var why := _state_problem(state, cat)
 	if why != "":
 		return {"error": why, "state": {}}
@@ -11994,6 +12316,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 		_add_discontent(int(bal.get("raid_discontent", 2)), "raid")
 		_note_moment("raid_win", {"place": place, "week": week}, 4)
 		notices.append(Copy.t("combat.toast.raid_win"))
+		_grant_first_raid_blueprint()
 		_log(Copy.fill("combat.log.raid_win", {"week": str(week), "place": place}), true)
 		sq.station = dest
 		sq.returning = true
@@ -12533,6 +12856,8 @@ func _room_output_rows(room: Dictionary) -> Array:
 			n += crew_extra(skills, room, n)
 		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 			n += crew_extra(skills, room, n)
+		if str(key) == "food" and factor > 0.0 and int(room.get("mold", 0)) <= 0:
+			n += mushroom_food(room)
 		n = share_cut(scale_push(n, room))
 		outputs.append({"key": str(key), "amount": n, "base": amount})
 	return outputs

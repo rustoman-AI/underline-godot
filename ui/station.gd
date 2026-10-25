@@ -216,6 +216,7 @@ var guide_skips := 0
 var toast_label: Label
 var toast_fade: Tween
 var blown_flash: TextureRect
+var salvage_float: Control
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
@@ -1009,6 +1010,8 @@ func _build() -> void:
 	burn_button = _tool("burn", "Burn", _ask_burn)
 	power_button = _tool("power", "Power", _show_power)
 	people_button = _tool("people", "People", _toggle_drawer)
+	var salvage_button := _tool("salvage_open", "salvage.title", _show_salvage)
+	salvage_button.tooltip_text = Copy.t("salvage.title")
 	var journal_button := _tool("journal", "Journal", _show_journal)
 	pending_button = _tool("lock", "Pending", _show_pending)
 	pending_button.visible = false
@@ -1016,7 +1019,7 @@ func _build() -> void:
 	power_button.tooltip_text = "Power order"
 	people_button.tooltip_text = "Residents"
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
-	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, journal_button, pending_button]:
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, salvage_button, journal_button, pending_button]:
 		tray.add_child(button)
 
 	end_button = _button("End turn", _end_turn)
@@ -1140,7 +1143,7 @@ func _top_bar() -> PanelContainer:
 	title_row.add_child(plaque)
 
 	res_grid = GridContainer.new()
-	res_grid.columns = 6
+	res_grid.columns = 7
 	res_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(res_grid)
 	for key in STOCK_KEYS:
@@ -1244,6 +1247,7 @@ func _top_bar() -> PanelContainer:
 			cell = gap
 		res_grid.add_child(cell)
 		chips[key] = {"box": chip, "value": value, "delta": delta, "icon": icon, "name": name, "pill": pill, "left": left_bar}
+	res_grid.add_child(_blueprint_chip())
 	title_row.add_child(_people_pill())
 
 	var meters := HBoxContainer.new()
@@ -1513,7 +1517,7 @@ func _layout() -> void:
 
 func _place_chrome() -> void:
 	if res_grid != null:
-		res_grid.columns = 6
+		res_grid.columns = 7
 	if meter_box != null and title_row != null and hud_box != null:
 		var row_w := title_row.get_combined_minimum_size().x
 		if meter_box.get_parent() != title_row:
@@ -1606,9 +1610,11 @@ func _place_chrome() -> void:
 		for child in tray.get_children():
 			if child is Control:
 				(child as Control).custom_minimum_size = Vector2(tool_w, tool_h)
+		var tools := tray.get_child_count()
+		var gap := float(tray.get_theme_constant("separation"))
 		tray.offset_left = margin
 		tray.offset_top = -margin - tool_h
-		tray.offset_right = margin + tool_w * 5.0 + 40.0
+		tray.offset_right = margin + tool_w * float(tools) + gap * float(maxi(0, tools - 1))
 		tray.offset_bottom = -margin
 	if footer != null:
 		footer.anchor_left = 0.0
@@ -1892,6 +1898,10 @@ func _refresh() -> void:
 	_sync_people_pill()
 	var roll := stock_week > 0 and game.week != stock_week and not game.last_net.is_empty()
 	_paint_stocks(roll)
+	_paint_blueprints()
+	var floated := game.take_salvage_float()
+	if str(floated.get("id", "")) != "":
+		_yard_float(Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node." + str(floated.id))}), str(floated.get("uid", "")))
 	stock_week = game.week
 	_sync_resource_names()
 	_sync_numbers()
@@ -3498,6 +3508,332 @@ func _confirm_build(type: String, level: int, cell: int) -> void:
 	})
 
 
+func _blueprint_chip() -> Control:
+	var chip := HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 6)
+	chip.mouse_filter = Control.MOUSE_FILTER_STOP
+	chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chip.alignment = BoxContainer.ALIGNMENT_CENTER
+	var icon := Glyph.new()
+	icon.kind = "blueprint"
+	icon.custom_minimum_size = Vector2(24, 24)
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var value := _label("0", 21)
+	value.add_theme_constant_override("outline_size", 4)
+	value.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	value.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if number_font != null:
+		value.add_theme_font_override("font", number_font)
+	var name := _label(Copy.t("salvage.blueprints"), 11)
+	name.visible = false
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.tooltip_text = Copy.t("salvage.blueprints")
+	chip.add_child(icon)
+	chip.add_child(value)
+	chip.add_child(name)
+	chip.gui_input.connect(_blueprint_chip_input)
+	var pill := PanelContainer.new()
+	var face := StyleBoxFlat.new()
+	face.bg_color = PILL
+	face.set_corner_radius_all(14)
+	face.content_margin_left = 8
+	face.content_margin_right = 8
+	face.content_margin_top = 1
+	face.content_margin_bottom = 1
+	pill.add_theme_stylebox_override("panel", face)
+	pill.mouse_filter = Control.MOUSE_FILTER_PASS
+	pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pill.add_child(chip)
+	chips["blueprints"] = {"box": chip, "value": value, "delta": _label("", 11), "icon": icon, "name": name, "pill": pill}
+	return pill
+
+
+func _blueprint_chip_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_show_salvage()
+
+
+func _paint_blueprints() -> void:
+	if game == null or not chips.has("blueprints"):
+		return
+	var n := int(game.stock.get("blueprints", 0))
+	var row: Dictionary = chips.blueprints
+	(row.value as Label).text = str(n)
+	var icon: Glyph = row.icon
+	var kind := "blueprint_ready" if n >= 1 else "blueprint"
+	if icon.kind != kind:
+		icon.kind = kind
+		icon.queue_redraw()
+	(row.box as Control).tooltip_text = Copy.t("salvage.blueprints")
+
+
+## Empty clipboard when nothing is fitted. Locked clipboard when a fit is waiting on a blueprint.
+func _salvage_panel(rows: Array) -> String:
+	match game.salvage_face_of(rows):
+		"empty":
+			return "res://assets/ui/salvage_board_empty.webp"
+		"no_blueprint":
+			return "res://assets/ui/salvage_board_no_blueprint.webp"
+		_:
+			return "res://assets/ui/salvage_board_panel.webp"
+
+
+func _show_salvage() -> void:
+	if game == null:
+		return
+	if not _claim(ModalDeck.AMBIENT, "salvage", _show_salvage):
+		return
+	_open_card(Copy.t("salvage.title"))
+	card_roomy = true
+	_fit_card()
+	var rows: Array = game.salvage_board()
+	var banner := TextureRect.new()
+	banner.texture = ArtPack.load_texture(_salvage_panel(rows))
+	banner.set_meta("banner", true)
+	banner.set_meta("salvage_face", game.salvage_face_of(rows))
+	banner.custom_minimum_size = Vector2(0, 84)
+	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card_body.add_child(banner)
+	var count := HBoxContainer.new()
+	count.add_theme_constant_override("separation", 6)
+	var mark := Glyph.new()
+	mark.kind = "blueprint_ready" if int(game.stock.get("blueprints", 0)) >= 1 else "blueprint"
+	mark.custom_minimum_size = Vector2(24, 24)
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	count.add_child(mark)
+	count.add_child(_label("%s %d" % [Copy.t("salvage.blueprints"), int(game.stock.get("blueprints", 0))], 16, true))
+	card_body.add_child(count)
+	card_body.add_child(_strip_card(true))
+	for tier in [0, 1, 2]:
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 6)
+		var tic := Glyph.new()
+		tic.kind = "tier%d" % tier
+		tic.custom_minimum_size = Vector2(22, 22)
+		tic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(tic)
+		head.add_child(_label(Copy.t("salvage.tier%d" % tier), 16, true))
+		card_body.add_child(head)
+		var flow := HFlowContainer.new()
+		flow.add_theme_constant_override("h_separation", 8)
+		flow.add_theme_constant_override("v_separation", 8)
+		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		for row in rows:
+			if int(row.tier) != tier:
+				continue
+			flow.add_child(_salvage_node(row))
+		card_body.add_child(flow)
+	_fit_card()
+
+
+func _salvage_node(row: Dictionary) -> Control:
+	var fitted: bool = bool(row.fitted)
+	var uid := str(row.get("uid", ""))
+	var gate := str(row.get("gate", ""))
+	var can := uid != "" and gate == "" and not fitted
+	var panel := _option_card(can, _fit_from_board.bind(uid) if can else Callable())
+	panel.custom_minimum_size = Vector2(210, 78)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 2)
+	var title := HBoxContainer.new()
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title.add_theme_constant_override("separation", 6)
+	var name := _label(Copy.t(str(row.name_key)), 15, true)
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_child(name)
+	if fitted:
+		title.add_child(_mini_glyph("fitted", 18))
+	elif gate == "blueprint":
+		title.add_child(_mini_glyph("locked_blueprint", 18))
+	box.add_child(title)
+	var sub := ""
+	if fitted:
+		sub = ""
+	elif gate == "listening":
+		sub = Copy.t("salvage.need_listening")
+	elif gate == "blueprint":
+		sub = Copy.t("salvage.locked")
+	elif str(row.get("reason", "")) != "":
+		sub = str(row.reason)
+	if sub != "":
+		var why := _label(sub, 13)
+		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why.add_theme_color_override("font_color", DELTA_DOWN if gate != "" else PAPER_MUTED)
+		box.add_child(why)
+	if not fitted and int(row.get("materials", 0)) > 0:
+		var cost := HBoxContainer.new()
+		cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cost.add_theme_constant_override("separation", 4)
+		cost.add_child(_mini_glyph("materials", 14))
+		cost.add_child(_label(str(int(row.materials)), 13))
+		if int(row.get("blueprints", 0)) > 0:
+			cost.add_child(_mini_glyph("blueprint", 14))
+			cost.add_child(_label(str(int(row.blueprints)), 13))
+		box.add_child(cost)
+	panel.add_child(box)
+	return panel
+
+
+func _fit_from_board(uid: String) -> void:
+	var room = game._room(uid)
+	var info := game.upgrade_preview(uid)
+	var gains := upgrade_gains(uid)
+	if room == null or not game.apply({"kind": "upgrade", "room": uid}):
+		_show_salvage()
+		return
+	Sound.play("upgrade")
+	if yard != null:
+		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
+	_refresh()
+	var line := upgrade_toast(str(room.type), str(info.name), gains)
+	line += "\n" + _salvage_staff_line("fit")
+	_toast(line, 3.2)
+	_show_salvage()
+
+
+func _strip_card(on_board: bool) -> Control:
+	var info := game.strip_preview()
+	var panel := VBoxContainer.new()
+	panel.add_theme_constant_override("separation", 2)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var icon := Glyph.new()
+	icon.kind = "strip_scrap"
+	icon.custom_minimum_size = Vector2(28, 28)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var button := _button("salvage.strip", _do_strip.bind(on_board))
+	button.text = Copy.t("salvage.strip")
+	button.disabled = not bool(info.ok)
+	button.tooltip_text = Copy.t("salvage.strip_tip")
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(button)
+	panel.add_child(row)
+	var tip := _label(Copy.t("salvage.strip_tip"), 13)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.add_theme_color_override("font_color", PAPER_MUTED if on_paper else MUTED)
+	if str(info.reason) != "" and not bool(info.ok):
+		tip.text = str(info.reason)
+	panel.add_child(tip)
+	return panel
+
+
+func _do_strip(on_board: bool) -> void:
+	var room_uid := ""
+	for room in game.rooms:
+		if str(room.type) == "workshop":
+			room_uid = str(room.uid)
+			break
+	if not game.apply({"kind": "strip"}):
+		if on_board:
+			_show_salvage()
+		elif room_uid != "":
+			_show_room(room_uid)
+		return
+	Sound.play("click")
+	_refresh()
+	_append_salvage_staff("strip")
+	if on_board:
+		_show_salvage()
+	elif room_uid != "":
+		_show_room(room_uid)
+
+
+func _append_salvage_staff(kind: String) -> void:
+	var line := _salvage_staff_line(kind)
+	if line == "":
+		return
+	if toast_label == null or not toast_label.visible:
+		_toast(line, 2.6)
+		return
+	toast_label.text = toast_label.text + "\n" + line
+
+
+func _salvage_staff_line(kind: String) -> String:
+	var named := _salvage_who_line(kind)
+	if named != "":
+		return named
+	var keys: PackedStringArray = []
+	if kind == "strip":
+		keys = PackedStringArray([
+			"staff.salvage.assign_1", "staff.salvage.assign_2", "staff.salvage.assign_3", "staff.salvage.assign_4",
+			"staff.salvage.strip_1", "staff.salvage.strip_2", "staff.salvage.strip_3",
+		])
+	else:
+		keys = PackedStringArray(["staff.salvage.fit_1", "staff.salvage.fit_2", "staff.salvage.fit_3"])
+	if keys.is_empty():
+		return ""
+	return Copy.t(keys[int(Time.get_ticks_msec()) % keys.size()])
+
+
+func _salvage_who_line(kind: String) -> String:
+	var want := ["Pete", "Benny"] if kind == "strip" else ["June"]
+	for room in game.rooms:
+		if kind == "strip" and str(room.type) != "workshop":
+			continue
+		for id in room.get("staff", []):
+			var full := str(game.people.get(str(id), {}).get("name", ""))
+			var first := full.split(" ")[0] if full != "" else ""
+			if not want.has(first):
+				continue
+			var key := "staff.salvage.who." + first
+			var line := Copy.t(key)
+			if line != key:
+				return line
+	return ""
+
+
+func _yard_float(text: String, uid: String) -> void:
+	if salvage_float != null and is_instance_valid(salvage_float):
+		salvage_float.queue_free()
+	var row := HBoxContainer.new()
+	row.z_index = 40
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	var burst := TextureRect.new()
+	burst.texture = ArtPack.load_texture("res://assets/overlays/fitted_flash.webp")
+	burst.custom_minimum_size = Vector2(64, 64)
+	burst.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	burst.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	burst.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(burst)
+	var lab := _label(text, 22, true)
+	lab.add_theme_color_override("font_color", Color("e9d6a6"))
+	lab.add_theme_constant_override("outline_size", 6)
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(lab)
+	add_child(row)
+	salvage_float = row
+	row.reset_size()
+	var w := row.get_combined_minimum_size().x
+	row.position = Vector2((size.x - w) * 0.5, size.y * 0.42)
+	if yard != null and uid != "":
+		yard.fitted_flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
+		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
+	var tw := create_tween()
+	tw.tween_property(row, "position:y", row.position.y - 42.0, 1.5)
+	tw.parallel().tween_property(row, "modulate:a", 0.0, 0.7).set_delay(0.9)
+	tw.finished.connect(func() -> void:
+		if is_instance_valid(row):
+			row.queue_free()
+		if salvage_float == row:
+			salvage_float = null
+	)
+
+
 func _show_room(uid: String) -> void:
 	var detail: Dictionary = game.room_detail(uid)
 	if detail.is_empty():
@@ -3566,6 +3902,7 @@ func _show_room(uid: String) -> void:
 		card_body.add_child(_upgrade_card(uid, false))
 	if str(detail.type) == "workshop":
 		_breach_craft_card()
+		card_body.add_child(_strip_card(false))
 	_body(Brief.demolish_line(game, uid))
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
@@ -4172,7 +4509,10 @@ func _do_upgrade(uid: String) -> void:
 	_action_voice("upgrade", "")
 	if yard != null:
 		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
-	_toast(upgrade_toast(str(room.type), str(info.name), gains), 3.2)
+	var fitted_line := upgrade_toast(str(room.type), str(info.name), gains)
+	if str(info.get("node", "")) != "":
+		fitted_line += "\n" + _salvage_staff_line("fit")
+	_toast(fitted_line, 3.2)
 
 
 func upgrade_toast(type: String, upgrade_id: String, gains: Array) -> String:
@@ -11228,6 +11568,8 @@ class Yard extends Control:
 	var pops: Array = []
 	## Room uid -> msec when its upgrade flash ends.
 	var flash := {}
+	## Room uid -> msec when the first-fit check burst ends.
+	var fitted_flash := {}
 	## Room uid -> the numeral its sign showed last frame (for the checks).
 	var sign_tiers := {}
 	var sign_incidents := {}
@@ -12286,9 +12628,20 @@ class Yard extends Control:
 		var left := float(int(flash[uid]) - Time.get_ticks_msec()) / float(station.UPGRADE_FLASH_MS)
 		if left <= 0.0:
 			flash.erase(uid)
+			fitted_flash.erase(uid)
 			return
 		draw_rect(rect, Color(1.0, 0.86, 0.5, 0.45 * left))
 		draw_rect(rect.grow(-2.0), Color(1.0, 0.9, 0.6, left), false, 4.0)
+		if fitted_flash.has(uid):
+			var burst := float(int(fitted_flash[uid]) - Time.get_ticks_msec()) / float(station.UPGRADE_FLASH_MS)
+			if burst <= 0.0:
+				fitted_flash.erase(uid)
+			else:
+				var tex := ArtPack.load_texture("res://assets/overlays/fitted_flash.webp")
+				if tex != null:
+					var side := minf(rect.size.x, rect.size.y) * 0.72
+					var origin := rect.get_center() - Vector2(side, side) * 0.5
+					draw_texture_rect(tex, Rect2(origin, Vector2(side, side)), false, Color(1, 1, 1, burst))
 
 	func _job_reveal(level: int, cell: int) -> float:
 		var job := _job_span(level, cell)

@@ -321,6 +321,8 @@ static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: 
 		if game.gen_down and str(room.type) == "generator" and key == "power":
 			n = int(n / 2.0)
 		n += int(game.crew_extra(skills, room, n))
+	if key == "food" and factor > 0.0 and int(room.get("mold", 0)) <= 0:
+		n += int(game.mushroom_food(room))
 	return n
 
 
@@ -352,6 +354,8 @@ static func _live(game, room: Dictionary, defin: Dictionary, upgrade: int, key: 
 		if game.gen_down and str(room.type) == "generator" and key == "power":
 			n = int(n / 2.0)
 		n += int(game.crew_extra(skills, room, n))
+	if key == "food" and factor > 0.0 and int(room.get("mold", 0)) <= 0:
+		n += int(game.mushroom_food(room, upgrade))
 	return n
 
 
