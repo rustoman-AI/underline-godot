@@ -304,6 +304,8 @@ static func textures() -> Dictionary:
 		"res://assets/rooms/room_listening_post.webp": preload("res://assets/rooms/room_listening_post.webp"),
 		"res://assets/rooms/room_listening_post_alt.webp": preload("res://assets/rooms/room_listening_post_alt.webp"),
 		"res://assets/overlays/room_probe.webp": preload("res://assets/overlays/room_probe.webp"),
+		"res://assets/overlays/room_offline.webp": preload("res://assets/overlays/room_offline.webp"),
+		"res://assets/overlays/room_offline_256.webp": preload("res://assets/overlays/room_offline_256.webp"),
 		"res://assets/map/chips/wired.webp": preload("res://assets/map/chips/wired.webp"),
 		"res://assets/map/chips/wired_tint.webp": preload("res://assets/map/chips/wired_tint.webp"),
 		"res://assets/map/chips/probing.webp": preload("res://assets/map/chips/probing.webp"),

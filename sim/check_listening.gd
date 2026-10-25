@@ -212,6 +212,8 @@ func _art(bad: PackedStringArray) -> void:
 		"res://assets/icons/map/blown.png",
 		"res://assets/icons/map/blown_24.png",
 		"res://assets/overlays/blown_flash.webp",
+		"res://assets/overlays/room_offline.webp",
+		"res://assets/overlays/room_offline_256.webp",
 	]
 	for path in paths:
 		if not tex.has(path):
@@ -222,6 +224,12 @@ func _art(bad: PackedStringArray) -> void:
 		bad.append("probing_24 did not load")
 	if ArtPack.icon_texture("blown", 48.0) == null or ArtPack.icon_texture("blown", 24.0) == null:
 		bad.append("blown icon did not load")
+	var full: Texture2D = tex.get("res://assets/overlays/room_offline.webp")
+	var twin: Texture2D = tex.get("res://assets/overlays/room_offline_256.webp")
+	if full == null or full.get_width() != 512 or full.get_height() != 320:
+		bad.append("room_offline wash size")
+	if twin == null or twin.get_width() != 256 or twin.get_height() != 160:
+		bad.append("room_offline_256 wash size")
 
 
 func _no_event_intel(catalog: Catalog, bad: PackedStringArray) -> void:

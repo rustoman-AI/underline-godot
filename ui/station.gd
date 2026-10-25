@@ -11026,6 +11026,9 @@ class Yard extends Control:
 	var figure_scale_px := 660.0
 	var lamp_glow: Texture2D
 	var probe_wash: Texture2D
+	var offline_wash: Texture2D
+	var offline_wash_256: Texture2D
+	var grey_plates := {}
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
 	## Room separation, kept light (Underline_Props_Pack_Light): one slim steel column on every line between cells,
@@ -11204,6 +11207,8 @@ class Yard extends Control:
 		if alt != null:
 			art["listening_post_alt"] = alt
 		probe_wash = ArtPack.load_texture("res://assets/overlays/room_probe.webp")
+		offline_wash = ArtPack.load_texture("res://assets/overlays/room_offline.webp")
+		offline_wash_256 = ArtPack.load_texture("res://assets/overlays/room_offline_256.webp")
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
 		sep_pillar = ArtPack.load_texture("res://assets/separators/sep_slim_steel_column.webp")
 		edge_beam = ArtPack.load_texture("res://assets/edges/edge_ceiling_beam_albedo.png")
@@ -11811,14 +11816,20 @@ class Yard extends Control:
 			var texture = tier_tex if tier_tex != null else art.get(room_type, null)
 			if room_type == "listening_post" and tier_tex == null:
 				texture = _listening_plate()
+			var shut := room != null and int(room.get("disabled", 0)) > 0
+			var plate := rect
 			if texture != null:
-				_blit_room(texture, rect)
-			if room_type == "listening_post" and station.game.listening_probe_live() and probe_wash != null:
+				plate = _blit_room(_grey_plate(texture) if shut else texture, rect)
+			if shut:
+				var wash := _offline_wash(plate)
+				if wash != null:
+					draw_texture_rect(wash, plate, false)
+			elif room_type == "listening_post" and station.game.listening_probe_live() and probe_wash != null:
 				draw_texture_rect(probe_wash, _art_rect(room_type, rect), false)
 			_draw_props(rect, room_type)
 			var salt := level * 6 + cell
 			var weak: bool = room != null and (bool(room.get("browned", false)) or station.dark_now.has(str(room.uid)) or station.power_loss.has(str(room.uid)))
-			var off: bool = room != null and bool(room.get("offline", false))
+			var off: bool = room != null and (bool(room.get("offline", false)) or shut)
 			_draw_lamp_glow(rect, room_type, salt, weak, off)
 			if room != null and not off and not weak and room_type in ["generator", "air_filter"]:
 				_draw_steam(rect, room_type, salt)
@@ -11931,10 +11942,10 @@ class Yard extends Control:
 			scale = target / maxf(float(texture.get_height()), 1.0)
 		return scale
 
-	func _blit_room(texture: Texture2D, rect: Rect2) -> void:
+	func _blit_room(texture: Texture2D, rect: Rect2) -> Rect2:
 		var tex := texture.get_size()
 		if tex.x < 1.0 or tex.y < 1.0:
-			return
+			return rect
 		var aspect := tex.x / tex.y
 		var cell_aspect := rect.size.x / maxf(rect.size.y, 1.0)
 		var dest := rect
@@ -11946,6 +11957,29 @@ class Yard extends Control:
 			dest = Rect2(rect.position.x, rect.position.y + (rect.size.y - h) * 0.5, rect.size.x, h)
 		draw_rect(rect, Color(0.1, 0.08, 0.06))
 		draw_texture_rect(texture, dest, false)
+		return dest
+
+	## Disabled week (Listening Post blown, or any room_disabled): the same plate, grey, under the tape wash.
+	func _grey_plate(texture: Texture2D) -> Texture2D:
+		if grey_plates.has(texture):
+			var cached = grey_plates[texture]
+			return cached if cached is Texture2D else texture
+		var image := texture.get_image()
+		if image == null or image.is_empty():
+			grey_plates[texture] = false
+			return texture
+		image = image.duplicate()
+		if image.get_format() != Image.FORMAT_RGBA8:
+			image.convert(Image.FORMAT_RGBA8)
+		image.adjust_bcs(1.0, 1.0, 0.0)
+		var grey := ImageTexture.create_from_image(image)
+		grey_plates[texture] = grey
+		return grey
+
+	func _offline_wash(dest: Rect2) -> Texture2D:
+		if dest.size.x <= 256.0 and offline_wash_256 != null:
+			return offline_wash_256
+		return offline_wash
 
 	func _lamp(level: int, cell: int) -> float:
 		var t := Time.get_ticks_msec() / 1000.0
