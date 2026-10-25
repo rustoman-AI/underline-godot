@@ -98,11 +98,23 @@ static func t(s: String) -> String:
 	return str(map.get(s, s))
 
 
+## Fill a Texts key. `{a}` is the Russian feminine ending (empty for masculine). `{ee}` is stripped.
 static func fill(key: String, vars: Dictionary = {}) -> String:
-	var text := t(key)
-	for slot in vars:
-		text = text.replace("{%s}" % str(slot), str(vars[slot]))
-	return text.replace("{a}", "").replace("{ee}", "")
+	var line := t(key)
+	var fem := bool(vars.get("fem", false))
+	for token in vars:
+		if str(token) == "fem":
+			continue
+		line = line.replace("{%s}" % str(token), str(vars[token]))
+	return line.replace("{a}", "а" if fem else "").replace("{ee}", "")
+
+
+static func clip(line: String, limit: int = 72) -> String:
+	if line.length() <= limit:
+		return line
+	if limit <= 1:
+		return "…"
+	return line.substr(0, limit - 1) + "…"
 
 
 static func pack(key: String) -> Dictionary:

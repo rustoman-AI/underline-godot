@@ -670,5 +670,97 @@
   "party.title": {
     "en": "Tunnel Party",
     "ru": "Тоннельная партия"
+  },
+  "order.toast_propaganda": {
+    "en": "Propaganda → {station} · Sympathy ~+{preview}",
+    "ru": "Агитация → {station} · Симпатия ~+{preview}"
+  },
+  "order.toast_envoy": {
+    "en": "Envoy → {station} · Sympathy ~+{gain}, {need} improves",
+    "ru": "Посланник → {station} · Симпатия ~+{gain}, {need} лучше"
+  },
+  "order.toast_deal": {
+    "en": "Deal → {station} · Deal {n}/3, passage opens",
+    "ru": "Сделка → {station} · Сделка {n}/3, проход открыт"
+  },
+  "order.report_propaganda_title": {
+    "en": "Leaflets at {community}",
+    "ru": "Листовки у {community}"
+  },
+  "order.report_envoy_title": {
+    "en": "Envoy returns",
+    "ru": "Посланник вернулся"
+  },
+  "order.report_deal_title": {
+    "en": "The deal is struck",
+    "ru": "Сделка заключена"
+  },
+  "order.report_propaganda_body": {
+    "en": "{name} spent the week on the platform.",
+    "ru": "{name} провёл{a} неделю на платформе."
+  },
+  "order.report_sympathy": {
+    "en": "Sympathy {before} → {after} (+{gain}).",
+    "ru": "Симпатия {before} → {after} (+{gain})."
+  },
+  "order.report_capture": {
+    "en": "They asked to stand with the Depot.",
+    "ru": "Они просят встать рядом с Депо."
+  },
+  "order.report_envoy_body": {
+    "en": "{name} sat with {community}.",
+    "ru": "{name} сидел{a} у {community}."
+  },
+  "order.report_need": {
+    "en": "{need}: {old}% → {new}%.",
+    "ru": "{need}: {old}% → {new}%."
+  },
+  "order.report_deal_body": {
+    "en": "{name} struck deal {n} of 3.",
+    "ru": "{name} заключил{a} сделку {n} из 3."
+  },
+  "order.report_passage": {
+    "en": "Passage to the yard is open.",
+    "ru": "Проход во двор открыт."
+  },
+  "order.report_join": {
+    "en": "They ask to join.",
+    "ru": "Они просят присоединиться."
+  },
+  "order.strike_deal": {
+    "en": "Strike a deal",
+    "ru": "Заключить сделку"
+  },
+  "order.open_trade_faction": {
+    "en": "Open trade with the Exchange",
+    "ru": "Открыть торговлю с Биржей"
+  },
+  "map.relation_band_cold": {
+    "en": "Cold",
+    "ru": "Холодно"
+  },
+  "map.relation_band_wary": {
+    "en": "Wary",
+    "ru": "Настороже"
+  },
+  "map.relation_band_warm": {
+    "en": "Warm",
+    "ru": "Тепло"
+  },
+  "map.relation_band_ready": {
+    "en": "Ready",
+    "ru": "Готовы"
+  },
+  "map.relation_band_join": {
+    "en": "With us",
+    "ru": "С нами"
+  },
+  "map.passage_open": {
+    "en": "Tunnel open to the yard.",
+    "ru": "Тоннель во двор открыт."
+  },
+  "map.deals_pips": {
+    "en": "Deals {n}/3",
+    "ru": "Сделки {n}/3"
   }
 }

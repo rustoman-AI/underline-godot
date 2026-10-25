@@ -216,6 +216,7 @@ var toast_fade: Tween
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
+var _soft_gap_warned := false
 var picker_busy_open := false
 var news_week := -1
 var net_guide := false
@@ -6706,7 +6707,7 @@ func _body_ready(text: String) -> void:
 
 func _label(text: String, size: int, display: bool = false) -> Label:
 	var lab := Label.new()
-	lab.text = Copy.t(text)
+	lab.text = Copy.t(text) if translate else text
 	lab.add_theme_font_size_override("font_size", size)
 	lab.add_theme_color_override("font_color", PAPER_INK if on_paper else INK)
 	if display and display_font != null:
