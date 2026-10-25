@@ -201,6 +201,7 @@ static func textures() -> Dictionary:
 		"res://assets/events/dark.webp": preload("res://assets/events/dark.webp"),
 		"res://assets/events/hunger.webp": preload("res://assets/events/hunger.webp"),
 		"res://assets/events/labor.webp": preload("res://assets/events/labor.webp"),
+		"res://assets/events/market_next.webp": preload("res://assets/events/market_next.webp"),
 		"res://assets/events/quarrel.webp": preload("res://assets/events/quarrel.webp"),
 		"res://assets/events/scrap.webp": preload("res://assets/events/scrap.webp"),
 		"res://assets/events/sleep.webp": preload("res://assets/events/sleep.webp"),

@@ -31,7 +31,7 @@
     {"id": "log", "label": "Write down every word", "papers": 1, "hope": 0},
     {"id": "ignore", "label": "Ignore it", "hope": -1}
   ]},
-  {"id": "market_food", "banner": "showtime", "tag": "hunger", "title": "Traders with sacks", "sasha": true, "major": false, "min_week": 2, "weight": 3, "cooldown": 8, "follow": "market_next", "who": "Benny", "text": "Benny waves in a handcar from the Exchange side. The sacks of food are real. The price is not kind.", "choices": [
+  {"id": "market_food", "banner": "market_next", "tag": "hunger", "title": "Traders with sacks", "sasha": true, "major": false, "min_week": 2, "weight": 3, "cooldown": 8, "follow": "market_next", "who": "Benny", "text": "Benny waves in a handcar from the Exchange side. The sacks of food are real. The price is not kind.", "choices": [
     {"id": "buy", "label": "Buy the sacks", "cost": {"tokens": 12}, "food": 16},
     {"id": "pass", "label": "Let them pass", "discontent": 1, "opinion_exchange": 2}
   ]},
@@ -119,7 +119,7 @@
     {"id": "keep", "label": "Add it to the papers", "papers": 1, "hope": 0},
     {"id": "stop", "label": "Take her off the radio", "hope": -1, "discontent": 1}
   ]},
-  {"id": "market_next", "banner": "showtime", "tag": "hunger", "title": "Benny's traders come back", "chain_only": true, "weight": 1, "who": "Benny", "text": "Benny's traders are at the handcar again.", "by": {"buy": "Benny's traders are back with more sacks, because you paid last time.", "pass": "Benny's traders are back. They remember that you let them pass, and the price has not improved."}, "choices": [
+  {"id": "market_next", "banner": "market_next", "tag": "hunger", "title": "Benny's traders come back", "chain_only": true, "weight": 1, "who": "Benny", "text": "Benny's traders are at the handcar again.", "by": {"buy": "Benny's traders are back with more sacks, because you paid last time.", "pass": "Benny's traders are back. They remember that you let them pass, and the price has not improved."}, "choices": [
     {"id": "buy", "label": "Buy a smaller load", "cost": {"tokens": 6}, "food": 8},
     {"id": "wave", "label": "Wave them through", "discontent": 1, "hope": -1}
   ]},
