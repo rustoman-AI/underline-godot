@@ -322,7 +322,7 @@ func _fill_free(game: Game, type: String, needed: bool) -> void:
 			var best := -1
 			for person in game.residents:
 				var id := str(person.id)
-				if used.has(id) or int(person.sick) > 0 or int(person.absent) > 0:
+				if used.has(id) or not game.can_work(person):
 					continue
 				var v := int(person.skills.get(skill, 0))
 				if v > best:
@@ -644,7 +644,7 @@ func _order(game: Game) -> Dictionary:
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
 	if game.owned_count() >= 2:
-		if game.hope < 40:
+		if game.hope < 40 and game.address_reason() == "":
 			return {"kind": "order", "order": "address"}
 		return {}
 	var border := _best_border(game)
@@ -666,7 +666,7 @@ func _order(game: Game) -> Dictionary:
 		var held: Dictionary = game.stations[sid]
 		if str(held.owner) == game.player and str(sid) != game.capital_id and str(held.focus) == "":
 			return {"kind": "order", "order": "focus", "station": str(sid), "focus": _focus_for(game)}
-	if game.hope < 40:
+	if game.hope < 40 and game.address_reason() == "":
 		return {"kind": "order", "order": "address"}
 	return {}
 
@@ -679,7 +679,7 @@ func _order_expander(game: Game) -> Dictionary:
 			return {"kind": "order", "order": "pay", "demand": str(demand.id)}
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
-	if game.hope < 40 and not _did_talk:
+	if game.hope < 40 and not _did_talk and game.address_reason() == "":
 		_did_talk = true
 		return {"kind": "order", "order": "address"}
 	if game.owned_count() >= 5:

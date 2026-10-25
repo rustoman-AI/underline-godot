@@ -1,5 +1,792 @@
 {
-  "first": ["Ned", "Ida", "Seth", "May", "Carl", "Eva", "Hugh", "Lois", "Walt", "Cora", "Fred", "Nina", "Otto", "Bea", "Gil", "Rosa", "Hank", "Thea", "Joel", "Pam"],
-  "last": ["Reed", "Moss", "Hale", "Crowe", "Bishop", "Lang", "Potter", "Gibbs", "Snow", "Falk", "Webb", "Dunn", "York", "Pryor", "Bell", "Hamm", "Vale", "Cross", "Mack", "Quinn"],
-  "traits": ["Claustrophobic", "Devout", "Black marketeer", "Veteran", "Insomniac", "Ex-driver"]
+  "first": [
+    "Ned",
+    "Ida",
+    "Seth",
+    "May",
+    "Carl",
+    "Eva",
+    "Hugh",
+    "Lois",
+    "Walt",
+    "Cora",
+    "Fred",
+    "Nina",
+    "Otto",
+    "Bea",
+    "Gil",
+    "Rosa",
+    "Hank",
+    "Thea",
+    "Joel",
+    "Pam"
+  ],
+  "last": [
+    "Reed",
+    "Moss",
+    "Hale",
+    "Crowe",
+    "Bishop",
+    "Lang",
+    "Potter",
+    "Gibbs",
+    "Snow",
+    "Falk",
+    "Webb",
+    "Dunn",
+    "York",
+    "Pryor",
+    "Bell",
+    "Hamm",
+    "Vale",
+    "Cross",
+    "Mack",
+    "Quinn"
+  ],
+  "traits": [
+    "Claustrophobic",
+    "Devout",
+    "Black marketeer",
+    "Veteran",
+    "Insomniac",
+    "Ex-driver"
+  ],
+  "pasts": {
+    "authored": {
+      "jonah": {
+        "en": "Rode the R train night shift before the Silence. Still keeps the badge in his boot.",
+        "ru": "До Тишины водил ночную смену на R. Жетон до сих пор в ботинке."
+      },
+      "inez": {
+        "en": "Negotiated freight slots at Jay St. Could talk a closed gate open.",
+        "ru": "Торговала слотами грузовых у Джей-стрит. Умела открыть закрытые ворота словами."
+      },
+      "mara": {
+        "en": "Drove the Coney yard switcher. Knew every bolt on the belt by touch.",
+        "ru": "Водила маневровый во дворе Кони. Каждый болт на ленте знала на ощупь."
+      },
+      "ruth": {
+        "en": "Night nurse at the ferry clinic. Never learned to sleep through a cough.",
+        "ru": "Ночная медсестра в клинике у парома. Так и не научилась спать сквозь кашель."
+      },
+      "benny": {
+        "en": "Moved unmarked crates under Bowling Green. Receipts were for other people.",
+        "ru": "Возил ящики без клейма под Боулинг-Грин. Расписки были для других."
+      },
+      "ellis": {
+        "en": "Swept the Synod passage and learned the hymns by standing still.",
+        "ru": "Подметал проход Синода и выучил гимны, просто стоя рядом."
+      },
+      "samira": {
+        "en": "Machinist on the Fulton dig. Kept a spare drill bit behind her ear.",
+        "ru": "Механик на копке Фултон. Запасное сверло держала за ухом."
+      },
+      "owen": {
+        "en": "Platform guard at Spring St. Counted bowls the way he counted rifles.",
+        "ru": "Охрана платформы на Спринг-стрит. Миски считал так же, как винтовки."
+      },
+      "lila": {
+        "en": "Mapped the upper vents for the Diggers. Never liked the closed ones.",
+        "ru": "Картировала верхние венты для Копателей. Закрытые не любила."
+      },
+      "pete": {
+        "en": "Haul crew on the Canal scrap run. Strong back, few words.",
+        "ru": "Таскал лом на маршруте Канал. Спина крепкая, слов мало."
+      },
+      "june": {
+        "en": "Radio tech at Myrtle. Heard the Silence arrive as static that never cleared.",
+        "ru": "Радистка на Мертл. Услышала приход Тишины как шорох, который так и не прошёл."
+      },
+      "hal": {
+        "en": "Night watch on the generator. Sleep never suited him anyway.",
+        "ru": "Ночной у генератора. Сон ему и раньше не шёл."
+      },
+      "nora": {
+        "en": "Water tester for the Keepers. Could taste salt before the meters moved.",
+        "ru": "Проверяла воду у Хранителей. Соль чуяла раньше приборов."
+      },
+      "vic": {
+        "en": "Scrap sorter at Canal. Knew which piles were fights waiting to happen.",
+        "ru": "Сортировал лом на Канале. Знал, какая куча ещё станет дракой."
+      },
+      "ada": {
+        "en": "Sewed filter cloth for the Sisters. Asked for little, kept curtains.",
+        "ru": "Шила ткань для фильтров у Сестёр. Просила мало, хранила занавески."
+      },
+      "rob": {
+        "en": "Belt hand in hydroponics. Stayed past the whistle without being asked.",
+        "ru": "У ленты на гидропонике. Оставался после свистка без просьб."
+      },
+      "tess": {
+        "en": "Sang in the Chapel before it had a name. The tunes were older than the Synod.",
+        "ru": "Пела в часовне, когда у той ещё не было имени. Напевы старше Синода."
+      },
+      "paul": {
+        "en": "Handcar driver on the ferry spur. Still draws routes that are not on the map.",
+        "ru": "Водил дрезину на ветке к парому. Всё ещё рисует маршруты, которых нет на карте."
+      },
+      "leo": {
+        "en": "Pick man for the Diggers. Three slow, three fast was how he tested rock.",
+        "ru": "Забойщик у Копателей. Три медленных, три быстрых — так он проверял породу."
+      },
+      "fran": {
+        "en": "Ran the quiet crate line with Benny. Preferred doors that did not ask names.",
+        "ru": "Тянула тихую ящичную линию с Бенни. Любила двери, которые не спрашивают имён."
+      }
+    },
+    "pool": [
+      {
+        "id": "past_pool_1",
+        "en": "Sold tickets at Times Sq until the boards went dark.",
+        "ru": "Продавал{a} билеты на Таймс-сквер, пока табло не погасли."
+      },
+      {
+        "id": "past_pool_2",
+        "en": "Fished the East River from a pier that is not there now.",
+        "ru": "Рыбачил{a} в Ист-Ривер с пирса, которого больше нет."
+      },
+      {
+        "id": "past_pool_3",
+        "en": "Kept books for a Wall St office that locked its doors mid-sentence.",
+        "ru": "Вёл{a} книги в офисе на Уолл-стрит; двери закрыли на полуслове."
+      },
+      {
+        "id": "past_pool_4",
+        "en": "Taught children under Grand Central before the trains stopped answering.",
+        "ru": "Учил{a} детей под Гранд-Сентрал, пока поезда не перестали отвечать."
+      },
+      {
+        "id": "past_pool_5",
+        "en": "Patched cable for the MTA. Still smells like burnt copper after rain.",
+        "ru": "Чинил{a} кабель для MTA. После дождя всё ещё пахнет горелой медью."
+      },
+      {
+        "id": "past_pool_6",
+        "en": "Ran a kitchen on the Fulton line. The recipes fit in one pocket.",
+        "ru": "Держал{a} кухню на линии Фултон. Рецепты помещались в один карман."
+      },
+      {
+        "id": "past_pool_7",
+        "en": "Played cards under Canal St. Lost more than money.",
+        "ru": "Играл{a} в карты под Канал-стрит. Терял{a} не только деньги."
+      },
+      {
+        "id": "past_pool_8",
+        "en": "Walked a beat at Chambers. The badge outlasted the precinct.",
+        "ru": "Патрулировал{a} Чамберс. Жетон переживал участок."
+      },
+      {
+        "id": "past_pool_9",
+        "en": "Grew mushrooms in a closet in Greenpoint. The closet was honest.",
+        "ru": "Выращивал{a} грибы в чулане в Гринпойнте. Чулан не врал."
+      },
+      {
+        "id": "past_pool_10",
+        "en": "Tuned pianos in hotels that forgot their names.",
+        "ru": "Настраивал{a} рояли в гостиницах, забывших свои имена."
+      },
+      {
+        "id": "past_pool_11",
+        "en": "Drove a black car that never asked where you were going.",
+        "ru": "Водил{a} чёрную машину, которая не спрашивала, куда едете."
+      },
+      {
+        "id": "past_pool_12",
+        "en": "Printed leaflets nobody paid for. Stacks are still in a crate.",
+        "ru": "Печатал{a} листовки, за которые никто не платил. Стопки до сих пор в ящике."
+      },
+      {
+        "id": "past_pool_13",
+        "en": "Fixed elevators. Misses the sound of cables that still moved.",
+        "ru": "Чинил{a} лифты. Скучает по звуку тросов, которые ещё ходили."
+      },
+      {
+        "id": "past_pool_14",
+        "en": "Sold salt fish from a cart near South Ferry.",
+        "ru": "Продавал{a} солёную рыбу с тележки у Саут-Ферри."
+      },
+      {
+        "id": "past_pool_15",
+        "en": "Kept a dog until the tunnels took the dog first.",
+        "ru": "Держал{a} собаку, пока тоннели не забрали её раньше."
+      },
+      {
+        "id": "past_pool_16",
+        "en": "Studied stars from a roof that now has no stairs.",
+        "ru": "Смотрел{a} на звёзды с крыши, к которой больше нет лестницы."
+      },
+      {
+        "id": "past_pool_17",
+        "en": "Welded rails. Still flinches at the smell of flux.",
+        "ru": "Сваривал{a} рельсы. До сих пор вздрагивает от запаха флюса."
+      },
+      {
+        "id": "past_pool_18",
+        "en": "Carried stretchers at the cough tents in week one of the Silence.",
+        "ru": "Таскал{a} носилки в палатках кашля в первую неделю Тишины."
+      },
+      {
+        "id": "past_pool_19",
+        "en": "Stole batteries from locked lockers and called it salvage.",
+        "ru": "Таскал{a} батареи из закрытых шкафов и называл{a} это утилем."
+      },
+      {
+        "id": "past_pool_20",
+        "en": "Sang for tips on the platform. The tips stopped before the songs did.",
+        "ru": "Пел{a} за чаевые на платформе. Чаевые кончились раньше песен."
+      },
+      {
+        "id": "past_pool_21",
+        "en": "Mapped the sewers for the city. Knows which maps lie.",
+        "ru": "Картировал{a} коллекторы для города. Знает, какие карты врут."
+      },
+      {
+        "id": "past_pool_22",
+        "en": "Sold flowers at Union Sq. Kept one dry petal in a book.",
+        "ru": "Продавал{a} цветы на Юнион-сквер. Один сухой лепесток лежит в книге."
+      },
+      {
+        "id": "past_pool_23",
+        "en": "Ran numbers for a clerk who vanished with the first flood.",
+        "ru": "Считал{a} цифры для клерка; тот пропал с первым паводком."
+      },
+      {
+        "id": "past_pool_24",
+        "en": "Repaired watches. Time still matters to them more than weeks.",
+        "ru": "Чинил{a} часы. Время для него{ee} всё ещё важнее недель."
+      },
+      {
+        "id": "past_pool_25",
+        "en": "Guided tourists who asked for the old city. None came back after.",
+        "ru": "Водил{a} туристов, которые просили старый город. После никто не вернулся."
+      },
+      {
+        "id": "past_pool_26",
+        "en": "Stacked sandbags at the first flood warning. Still has the calluses.",
+        "ru": "Клал{a} мешки с песком по первому предупреждению о паводке. Мозоли остались."
+      },
+      {
+        "id": "past_pool_27",
+        "en": "Wrote letters for people who could not. Kept none of their own.",
+        "ru": "Писал{a} письма за тех, кто не мог. Своих не оставил{a}."
+      },
+      {
+        "id": "past_pool_28",
+        "en": "Cut hair on a stool by the vents. Scissors still sharp.",
+        "ru": "Стриг{a} на табурете у вентов. Ножницы всё ещё острые."
+      },
+      {
+        "id": "past_pool_29",
+        "en": "Minded a newsstand that sold yesterday until yesterday ended.",
+        "ru": "Держал{a} киоск, где продавали вчерашний день, пока вчера не кончилось."
+      },
+      {
+        "id": "past_pool_30",
+        "en": "Came up from Flushing with nothing but a name and a cough.",
+        "ru": "Поднялся{a} из Флашинга — только имя и кашель."
+      }
+    ]
+  },
+  "keepsakes": {
+    "authored": {
+      "jonah": {
+        "en": "A cracked R-train badge, polished on one side.",
+        "ru": "Треснувший жетон линии R, с одной стороны начищен."
+      },
+      "inez": {
+        "en": "A folded rate card from Jay St, ink rubbed thin.",
+        "ru": "Сложенная тарифная карточка с Джей-стрит, чернила стёрлись."
+      },
+      "mara": {
+        "en": "A grease-stained glove with the fingers cut short.",
+        "ru": "Промасленная перчатка с обрезанными пальцами."
+      },
+      "ruth": {
+        "en": "A strip of clean bandage she never used on herself.",
+        "ru": "Полоска чистого бинта, которую на себя так и не наложила."
+      },
+      "benny": {
+        "en": "A blank receipt book, first page torn out.",
+        "ru": "Чистая книга расписок, первый лист вырван."
+      },
+      "ellis": {
+        "en": "A candle stub from the Synod passage.",
+        "ru": "Огарок свечи из прохода Синода."
+      },
+      "samira": {
+        "en": "A worn drill bit wrapped in cloth.",
+        "ru": "Стёртое сверло, обмотанное тряпкой."
+      },
+      "owen": {
+        "en": "A mess tin with two scratches for two wars.",
+        "ru": "Котелок с двумя царапинами — за две войны."
+      },
+      "lila": {
+        "en": "A vent map drawn on the back of a ration card.",
+        "ru": "Карта вентов на обороте продталона."
+      },
+      "pete": {
+        "en": "A leather strap from a haul harness.",
+        "ru": "Кожаный ремень от лямки."
+      },
+      "june": {
+        "en": "A radio dial painted with a single white mark.",
+        "ru": "Ручка настройки радио с одной белой меткой."
+      },
+      "hal": {
+        "en": "A cold thermos that never held coffee long.",
+        "ru": "Холодный термос, в котором кофе долго не жил."
+      },
+      "nora": {
+        "en": "A glass vial of river water, sealed with wax.",
+        "ru": "Стеклянная ампула речной воды, залитая воском."
+      },
+      "vic": {
+        "en": "A brass washer he calls lucky and will not spend.",
+        "ru": "Латунная шайба: говорит, счастливая, и не отдаёт."
+      },
+      "ada": {
+        "en": "A scrap of curtain cloth, hemmed by hand.",
+        "ru": "Обрезок занавески, подрубленный вручную."
+      },
+      "rob": {
+        "en": "A whistle without a pea. He blows it anyway.",
+        "ru": "Свисток без шарика. Всё равно свистит."
+      },
+      "tess": {
+        "en": "A hymn sheet with the Synod stamp crossed out.",
+        "ru": "Лист гимна, штамп Синода зачеркнут."
+      },
+      "paul": {
+        "en": "A handcar key on a frayed green cord.",
+        "ru": "Ключ от дрезины на потёртом зелёном шнурке."
+      },
+      "leo": {
+        "en": "A chip of rock from the first hollow he found.",
+        "ru": "Осколок породы из первой пустоты, которую нашёл."
+      },
+      "fran": {
+        "en": "A stamp with no ink and no owner mark.",
+        "ru": "Штамп без краски и без метки владельца."
+      }
+    },
+    "pool": [
+      {
+        "id": "keep_pool_1",
+        "en": "A brass button from a coat that no longer fits.",
+        "ru": "Латунная пуговица от пальто, которое больше не сходится."
+      },
+      {
+        "id": "keep_pool_2",
+        "en": "A metro map folded until the rivers tore.",
+        "ru": "Карта метро, сложенная так, что реки порвались."
+      },
+      {
+        "id": "keep_pool_3",
+        "en": "A child’s marble, cold in the palm.",
+        "ru": "Детский шарик, холодный на ладони."
+      },
+      {
+        "id": "keep_pool_4",
+        "en": "A spoon bent into a hook.",
+        "ru": "Ложка, согнутая крючком."
+      },
+      {
+        "id": "keep_pool_5",
+        "en": "A photograph with the faces rubbed blank.",
+        "ru": "Фотография со стёртыми лицами."
+      },
+      {
+        "id": "keep_pool_6",
+        "en": "A key that opens nothing in the yard.",
+        "ru": "Ключ, который во дворе ничего не открывает."
+      },
+      {
+        "id": "keep_pool_7",
+        "en": "A candle end wrapped in foil.",
+        "ru": "Огарок свечи в фольге."
+      },
+      {
+        "id": "keep_pool_8",
+        "en": "A ticket stub stamped Silence Eve.",
+        "ru": "Корешок билета со штампом «Канун Тишины»."
+      },
+      {
+        "id": "keep_pool_9",
+        "en": "A length of green cord, knotted twice.",
+        "ru": "Отрезок зелёного шнура, два узла."
+      },
+      {
+        "id": "keep_pool_10",
+        "en": "A tin of salve, half used.",
+        "ru": "Жестяная банка мази, наполовину пустая."
+      },
+      {
+        "id": "keep_pool_11",
+        "en": "A wooden bead from a broken rosary.",
+        "ru": "Деревянная бусина со сломанных чёток."
+      },
+      {
+        "id": "keep_pool_12",
+        "en": "A pencil worn to a stub, still sharp.",
+        "ru": "Карандаш до огрызка, всё ещё острый."
+      },
+      {
+        "id": "keep_pool_13",
+        "en": "A strip of red cloth for a sleeve.",
+        "ru": "Полоска красной ткани на рукав."
+      },
+      {
+        "id": "keep_pool_14",
+        "en": "A screw in a matchbox, labeled “spare”.",
+        "ru": "Винт в спичечном коробке, надпись «запас»."
+      },
+      {
+        "id": "keep_pool_15",
+        "en": "A dried orange peel that still smells.",
+        "ru": "Сухая апельсиновая корка — ещё пахнет."
+      },
+      {
+        "id": "keep_pool_16",
+        "en": "A playing card, the seven of spades.",
+        "ru": "Игральная карта — семёрка пик."
+      },
+      {
+        "id": "keep_pool_17",
+        "en": "A boot lace tied as a bracelet.",
+        "ru": "Шнурок от ботинка, завязанный браслетом."
+      },
+      {
+        "id": "keep_pool_18",
+        "en": "A cracked lens from a pair of glasses.",
+        "ru": "Треснувшая линза от очков."
+      },
+      {
+        "id": "keep_pool_19",
+        "en": "A page torn from a ledger, numbers only.",
+        "ru": "Лист, вырванный из гроссбуха — одни цифры."
+      },
+      {
+        "id": "keep_pool_20",
+        "en": "A whistle from a coach that never came.",
+        "ru": "Свисток от тренера, который так и не пришёл."
+      },
+      {
+        "id": "keep_pool_21",
+        "en": "A nail bent into a ring.",
+        "ru": "Гвоздь, согнутый кольцом."
+      },
+      {
+        "id": "keep_pool_22",
+        "en": "A scrap of sheet music, no title.",
+        "ru": "Обрывок нот без названия."
+      },
+      {
+        "id": "keep_pool_23",
+        "en": "A salt packet stamped Maggie.",
+        "ru": "Пакетик соли со штампом «Мэгги»."
+      },
+      {
+        "id": "keep_pool_24",
+        "en": "A bolt painted white at the tip.",
+        "ru": "Болт с белым кончиком."
+      },
+      {
+        "id": "keep_pool_25",
+        "en": "A cloth star cut from a flag.",
+        "ru": "Тканевая звезда, вырезанная из флага."
+      },
+      {
+        "id": "keep_pool_26",
+        "en": "A bottle cap polished bright.",
+        "ru": "Крышка от бутылки, начищенная до блеска."
+      },
+      {
+        "id": "keep_pool_27",
+        "en": "A list of names, half crossed out.",
+        "ru": "Список имён, половина зачёркнута."
+      },
+      {
+        "id": "keep_pool_28",
+        "en": "A feather found on a sealed platform.",
+        "ru": "Перо, найденное на запечатанной платформе."
+      },
+      {
+        "id": "keep_pool_29",
+        "en": "A chip of tile from the old station wall.",
+        "ru": "Осколок плитки со стены старой станции."
+      },
+      {
+        "id": "keep_pool_30",
+        "en": "A rubber band that still snaps.",
+        "ru": "Резинка, которая всё ещё щёлкает."
+      }
+    ]
+  },
+  "deaths": [
+    {
+      "id": "sickness",
+      "en": "{name} died in the night. The sickness did not wait for dawn.",
+      "ru": "{name} умер{a} ночью. Болезнь не стала ждать рассвета."
+    },
+    {
+      "id": "food_shortage",
+      "en": "{name} did not wake. The bowls had been short for too many days.",
+      "ru": "{name} не проснулся{a}. Миски были скудными слишком много дней."
+    },
+    {
+      "id": "air_shortage",
+      "en": "{name} stopped breathing in the dark. The filters had nothing left to give.",
+      "ru": "{name} перестал{a} дышать в темноте. Фильтрам больше нечего было дать."
+    },
+    {
+      "id": "battle",
+      "en": "{name} fell on the line. The squad brought back the tag.",
+      "ru": "{name} пал{a} на линии. Отряд вернул жетон."
+    },
+    {
+      "id": "cough",
+      "en": "{name} drowned in the cough. The bunk next to them is empty.",
+      "ru": "{name} захлебнулся{a} кашлем. Соседняя койка пуста."
+    },
+    {
+      "id": "sealed",
+      "en": "{name} was below when the level was sealed. The door did not open again.",
+      "ru": "{name} был{a} внизу, когда ярус запечатали. Дверь больше не открыли."
+    },
+    {
+      "id": "dilemma",
+      "en": "{name} paid for the choice the yard made. The platform knows the name.",
+      "ru": "{name} заплатил{a} за выбор двора. Платформа знает это имя."
+    },
+    {
+      "id": "accident",
+      "en": "{name} died at the tools. Nobody heard the last shout over the belt.",
+      "ru": "{name} погиб{a} у станков. Последний крик не расслышали за лентой."
+    },
+    {
+      "id": "cold",
+      "en": "{name} went cold in the dark week. Power never reached that bunk.",
+      "ru": "{name} остыл{a} в тёмную неделю. Ток до той койки не дошёл."
+    },
+    {
+      "id": "flood",
+      "en": "{name} was on the low level when the water came. The pumps were late.",
+      "ru": "{name} был{a} на нижнем ярусе, когда пришла вода. Насосы опоздали."
+    }
+  ],
+  "journals": {
+    "check_rolled": [
+      {
+        "id": "check_rolled_1",
+        "en": "{name} rolled the dice for the yard. The card still has their name.",
+        "ru": "{name} бросал{a} кости за двор. На карте всё ещё его{ee} имя."
+      },
+      {
+        "id": "check_rolled_2",
+        "en": "{name} took the check. Hands steady, voice not.",
+        "ru": "{name} пошёл{a} на проверку. Руки ровные, голос нет."
+      },
+      {
+        "id": "check_rolled_3",
+        "en": "The yard sent {name}. The result went into the book.",
+        "ru": "Двор послал {name}. Итог легли в книгу."
+      },
+      {
+        "id": "check_rolled_4",
+        "en": "{name} stood for the hard option. Nobody else stepped up.",
+        "ru": "{name} встал{a} на тяжёлый вариант. Больше никто не вышел."
+      },
+      {
+        "id": "check_rolled_5",
+        "en": "{name} failed a check and came back anyway.",
+        "ru": "{name} провалил{a} проверку и всё равно вернулся{a}."
+      },
+      {
+        "id": "check_rolled_6",
+        "en": "{name} passed when it mattered. The room went quiet after.",
+        "ru": "{name} прошёл{a}, когда это было важно. Потом в комнате стало тихо."
+      },
+      {
+        "id": "check_rolled_7",
+        "en": "{name} volunteered before the names were drawn.",
+        "ru": "{name} вызвался{a}, прежде чем тянули имена."
+      },
+      {
+        "id": "check_rolled_8",
+        "en": "A white check, {name} on the line. They will try again if they must.",
+        "ru": "Белая проверка, на линии {name}. Если надо — попробует снова."
+      }
+    ],
+    "injured": [
+      {
+        "id": "injured_1",
+        "en": "{name} came back hurt. Two weeks off the tools.",
+        "ru": "{name} вернулся{a} покалеченным. Две недели без станков."
+      },
+      {
+        "id": "injured_2",
+        "en": "{name} took the injury for the crew. The bandage is still wet.",
+        "ru": "{name} принял{a} рану за бригаду. Бинт ещё мокрый."
+      },
+      {
+        "id": "injured_3",
+        "en": "The yard lists {name} as absent. The bunk is made anyway.",
+        "ru": "Двор держит {name} как отсутствующего. Койку всё равно заправляют."
+      },
+      {
+        "id": "injured_4",
+        "en": "{name} limped in from the tunnels. No story asked for.",
+        "ru": "{name} пришёл{a} хромая из тоннелей. Историю не спрашивали."
+      },
+      {
+        "id": "injured_5",
+        "en": "{name} burned a hand on the belt. Still tried to finish the shift.",
+        "ru": "{name} обжёг{a} руку о ленту. Всё равно пытался{a} дотянуть смену."
+      },
+      {
+        "id": "injured_6",
+        "en": "{name} will not work for a while. The others cover the seat.",
+        "ru": "{name} пока не работает. Остальные закрывают место."
+      }
+    ],
+    "sick": [
+      {
+        "id": "sick_1",
+        "en": "{name} is coughing into a sleeve. The infirmary knows the name.",
+        "ru": "{name} кашляет в рукав. Медпункт знает это имя."
+      },
+      {
+        "id": "sick_2",
+        "en": "{name} went down with the sickness. The bunk has a bowl beside it.",
+        "ru": "{name} свалился{a} с болезнью. У койки стоит миска."
+      },
+      {
+        "id": "sick_3",
+        "en": "Fever took {name} off the roster. Hope they come back.",
+        "ru": "Жар снял {name} со списка. Пусть вернутся."
+      },
+      {
+        "id": "sick_4",
+        "en": "{name} hid the cough for a day. Then everyone heard it.",
+        "ru": "{name} сутки прятал{a} кашель. Потом услышали все."
+      },
+      {
+        "id": "sick_5",
+        "en": "{name} is sick in the {room}. The others step around the bed.",
+        "ru": "{name} болеет в {room}. Остальные обходят койку."
+      },
+      {
+        "id": "sick_6",
+        "en": "The cough list has {name} on it now.",
+        "ru": "В списке кашля теперь есть {name}."
+      }
+    ],
+    "named_dilemma": [
+      {
+        "id": "named_dilemma_1",
+        "en": "{name} was named when the yard had to choose.",
+        "ru": "{name} назвали, когда двору пришлось выбирать."
+      },
+      {
+        "id": "named_dilemma_2",
+        "en": "The dilemma card carried {name}. They heard it read aloud.",
+        "ru": "На карте дилеммы было имя {name}. Он{a} слышал{a}, как читают вслух."
+      },
+      {
+        "id": "named_dilemma_3",
+        "en": "{name} stood in the middle of a bad choice. The platform watched.",
+        "ru": "{name} оказался{a} в середине плохого выбора. Платформа смотрела."
+      },
+      {
+        "id": "named_dilemma_4",
+        "en": "Someone had to be the example. It was {name}.",
+        "ru": "Кто-то должен был стать примером. Это был{a} {name}."
+      },
+      {
+        "id": "named_dilemma_5",
+        "en": "{name} was on the list the dawn card would not ignore.",
+        "ru": "{name} был{a} в списке, который рассветная карта не обошла."
+      },
+      {
+        "id": "named_dilemma_6",
+        "en": "The yard used {name}’s name and then had to live with it.",
+        "ru": "Двор произнёс имя {name} — и теперь с этим жить."
+      }
+    ],
+    "staffed_shortage": [
+      {
+        "id": "staffed_shortage_1",
+        "en": "{name} kept the {room} through the shortage week.",
+        "ru": "{name} держал{a} {room} всю неделю нехватки."
+      },
+      {
+        "id": "staffed_shortage_2",
+        "en": "While stores ran thin, {name} stayed on the tools.",
+        "ru": "Пока запасы таяли, {name} оставался{a} у станков."
+      },
+      {
+        "id": "staffed_shortage_3",
+        "en": "{name} did not leave the {room} when the numbers went red.",
+        "ru": "{name} не ушёл{a} из {room}, когда цифры стали красными."
+      },
+      {
+        "id": "staffed_shortage_4",
+        "en": "Shortage week. {name} took the long shift without being ordered.",
+        "ru": "Неделя нехватки. {name} взял{a} длинную смену без приказа."
+      },
+      {
+        "id": "staffed_shortage_5",
+        "en": "{name} staffed through empty bowls. The others noticed.",
+        "ru": "{name} работал{a} при пустых мисках. Остальные заметили."
+      },
+      {
+        "id": "staffed_shortage_6",
+        "en": "The {room} did not stop. {name} was why.",
+        "ru": "{room} не остановилась. Из-за {name}."
+      },
+      {
+        "id": "staffed_shortage_7",
+        "en": "{name} kept output up when hope was down.",
+        "ru": "{name} держал{a} выработку, когда надежда падала."
+      }
+    ],
+    "night_run": [
+      {
+        "id": "night_run_1",
+        "en": "{name} went out on a night run. The bunk was empty until dawn.",
+        "ru": "{name} ушёл{a} в ночной выход. Койка пустовала до рассвета."
+      },
+      {
+        "id": "night_run_2",
+        "en": "{name} came back with a pack and less sleep.",
+        "ru": "{name} вернулся{a} с котомкой и без сна."
+      },
+      {
+        "id": "night_run_3",
+        "en": "Night run: {name} on the list. The yard waited.",
+        "ru": "Ночной выход: в списке {name}. Двор ждал."
+      },
+      {
+        "id": "night_run_4",
+        "en": "{name} scouted in the dark. The map gained a mark.",
+        "ru": "{name} разведывал{a} в темноте. На карте появилась метка."
+      },
+      {
+        "id": "night_run_5",
+        "en": "{name} carried what the backpack would hold. No more.",
+        "ru": "{name} унёс{a} столько, сколько держал рюкзак. Не больше."
+      },
+      {
+        "id": "night_run_6",
+        "en": "A run with {name}. The tunnels keep their own receipts.",
+        "ru": "Выход с {name}. Тоннели ведут свои расписки."
+      },
+      {
+        "id": "night_run_7",
+        "en": "{name} rested the week after. Night work costs a day shift.",
+        "ru": "{name} отдыхал{a} на следующей неделе. Ночная работа стоит дневной смены."
+      }
+    ]
+  }
 }

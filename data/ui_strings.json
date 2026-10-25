@@ -1,0 +1,218 @@
+{
+  "tension.this_week": {
+    "en": "This week:",
+    "ru": "На этой неделе:"
+  },
+  "tension.settled": {
+    "en": "No hardships this week. The platform is cooling.",
+    "ru": "На этой неделе без тягот. Платформа остывает."
+  },
+  "tension.address_hint": {
+    "en": "Address the platform from the HUD (3 influence, once a week).",
+    "ru": "Обратись к платформе с панели (3 влияния, раз в неделю)."
+  },
+  "hardship.food_short": {
+    "en": "Thin food",
+    "ru": "Тонкая еда"
+  },
+  "hardship.air_short": {
+    "en": "Air short",
+    "ru": "Мало воздуха"
+  },
+  "hardship.power_short": {
+    "en": "Dark rooms",
+    "ru": "Тёмные комнаты"
+  },
+  "hardship.sick": {
+    "en": "12%+ sick",
+    "ru": "Больных 12%+"
+  },
+  "hardship.season_flood": {
+    "en": "The flood",
+    "ru": "Паводок"
+  },
+  "hardship.season_cold": {
+    "en": "The cold",
+    "ru": "Холод"
+  },
+  "hardship.season_cough": {
+    "en": "The cough",
+    "ru": "Кашель"
+  },
+  "revolt.in_about": {
+    "en": "Revolt in about %s.",
+    "ru": "Бунт примерно через %s."
+  },
+  "revolt.push_one": {
+    "en": "%s is pushing it.",
+    "ru": "%s давит."
+  },
+  "revolt.push_two": {
+    "en": "%s and %s are pushing it.",
+    "ru": "%s и %s давят."
+  },
+  "address.button": {
+    "en": "Address",
+    "ru": "Обращение"
+  },
+  "address.cost": {
+    "en": "3 influence",
+    "ru": "3 влияния"
+  },
+  "address.tip_ok": {
+    "en": "Speak to the platform. Hope +1. Once this week.",
+    "ru": "Скажи платформе. Надежда +1. Раз за неделю."
+  },
+  "address.disabled_used": {
+    "en": "Already addressed this week.",
+    "ru": "На этой неделе уже обращались."
+  },
+  "address.disabled_influence": {
+    "en": "Need 3 influence.",
+    "ru": "Нужно 3 влияния."
+  },
+  "address.confirm_title": {
+    "en": "Address the platform?",
+    "ru": "Обратиться к платформе?"
+  },
+  "address.confirm_body": {
+    "en": "Spend 3 influence. Hope +1. You can do this once this week.",
+    "ru": "Потратить 3 влияния. Надежда +1. Раз за эту неделю."
+  },
+  "address.toast": {
+    "en": "You addressed the platform. Hope +1.",
+    "ru": "Ты обратился к платформе. Надежда +1."
+  },
+  "epilogue.eyebrow": {
+    "en": "Epilogue · %d of 3",
+    "ru": "Эпилог · %d из 3"
+  },
+  "epilogue.no_creed": {
+    "en": "No creed",
+    "ru": "Без вероучения"
+  },
+  "epilogue.continue": {
+    "en": "Continue",
+    "ru": "Дальше"
+  },
+  "epilogue.chronicle_title": {
+    "en": "The heaviest moments",
+    "ru": "Самое тяжёлое"
+  },
+  "epilogue.chronicle_empty": {
+    "en": "The yard left no chronicle.",
+    "ru": "Двор не оставил хроники."
+  },
+  "epilogue.fates_title": {
+    "en": "Who remains",
+    "ru": "Кто остался"
+  },
+  "epilogue.score": {
+    "en": "Score",
+    "ru": "Счёт"
+  },
+  "epilogue.score_parts": {
+    "en": "Weeks ×10 · Population ×2 · Stations ×15 · Hope · Named dead ×−5",
+    "ru": "Недели ×10 · Люди ×2 · Станции ×15 · Надежда · Именные смерти ×−5"
+  },
+  "epilogue.menu": {
+    "en": "Main menu",
+    "ru": "В меню"
+  },
+  "epilogue.new_run": {
+    "en": "New game",
+    "ru": "Новая игра"
+  },
+  "merge.joins": {
+    "en": "Joins %s: %s",
+    "ru": "Стыкуется с %s: %s"
+  },
+  "merge.shares": {
+    "en": "Shares power, sickness and disasters.",
+    "ru": "Общие энергия, болезнь и беды."
+  },
+  "merge.tag_hydro_2": {
+    "en": "Joins Hydroponics: +10% food, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Гидропоникой: +10% еды, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.bonus_food": {
+    "en": "+10% food, 1 fewer worker",
+    "ru": "+10% еды, на 1 меньше рабочих"
+  },
+  "merge.bonus_air": {
+    "en": "+10% air, 1 fewer worker",
+    "ru": "+10% воздуха, на 1 меньше рабочих"
+  },
+  "merge.bonus_power": {
+    "en": "+10% power, 1 fewer worker",
+    "ru": "+10% энергии, на 1 меньше рабочих"
+  },
+  "merge.bonus_materials": {
+    "en": "+10% materials, 1 fewer worker",
+    "ru": "+10% материалов, на 1 меньше рабочих"
+  },
+  "merge.bonus_housing": {
+    "en": "+2 housing, 1 fewer worker",
+    "ru": "+2 жилья, на 1 меньше рабочих"
+  },
+  "merge.sign": {
+    "en": "%s ×%d",
+    "ru": "%s ×%d"
+  },
+  "merge.cells": {
+    "en": "Level %d, cells %d–%d",
+    "ru": "Уровень %d, клетки %d–%d"
+  },
+  "merge.output": {
+    "en": "%s %+d/wk (+%d merge)",
+    "ru": "%s %+d/нед (+%d от блока)"
+  },
+  "merge.power": {
+    "en": "Power −%d/wk",
+    "ru": "Энергия −%d/нед"
+  },
+  "merge.crew": {
+    "en": "Crew %d/%d",
+    "ru": "Смена %d/%d"
+  },
+  "merge.disaster": {
+    "en": "A disaster here hits all %d cells.",
+    "ru": "Беда здесь бьёт по всем %d клеткам."
+  },
+  "merge.tag_hydro_3": {
+    "en": "Joins Hydroponics: +20% food, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Гидропоникой: +20% еды, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_filter_2": {
+    "en": "Joins Air filter: +10% air, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Фильтром воздуха: +10% воздуха, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_filter_3": {
+    "en": "Joins Air filter: +20% air, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Фильтром воздуха: +20% воздуха, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_generator_2": {
+    "en": "Joins Generator: +10% power, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Генератором: +10% энергии, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_generator_3": {
+    "en": "Joins Generator: +20% power, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Генератором: +20% энергии, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_workshop_2": {
+    "en": "Joins Workshop: +10% materials, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Мастерской: +10% материалов, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_workshop_3": {
+    "en": "Joins Workshop: +20% materials, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Мастерской: +20% материалов, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_quarters_2": {
+    "en": "Joins Quarters: +2 housing, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Жильём: +2 жилья, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_quarters_3": {
+    "en": "Joins Quarters: +4 housing, 2 fewer workers. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Жильём: +4 жилья, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  }
+}

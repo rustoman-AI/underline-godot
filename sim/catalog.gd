@@ -24,6 +24,10 @@ var pool_ru: Dictionary = {}
 var truth: Dictionary = {}
 ## Endings and epilogue lines (data/endings.json): "endings", "leaders" by answer, "truth" by proofs.
 var endings: Dictionary = {}
+## Three-beat epilogue: verdicts, chronicle lines, judgments, and fates (data/epilogues.json).
+var epilogues: Dictionary = {}
+## Hardship reason and line packs (data/hardship.json). The week's tension math does not read this file.
+var hardship: Dictionary = {}
 var coney: Dictionary = {}
 ## Cast id to the resident portrait it keeps, e.g. "bait": "portrait_05" (data/cast_portraits.json).
 var cast_portraits: Dictionary = {}
@@ -56,6 +60,8 @@ func load_all() -> bool:
 	story_ru = add_events(_obj("events_story.json"), base_ru)
 	truth = _index(_obj("truth.json").get("fragments", []), "id")
 	endings = _obj("endings.json")
+	epilogues = _obj("epilogues.json")
+	hardship = _obj("hardship.json")
 	check_events = _obj("events_checks.json")
 	coney = _obj("characters_coney.json")
 	cast_portraits = _obj("cast_portraits.json").get("pins", {})
