@@ -14,6 +14,8 @@ func _init() -> void:
 		return
 	if not _check_queue(catalog):
 		failed = true
+	if not _check_map_feedback(catalog):
+		failed = true
 	if not _check_power(catalog):
 		failed = true
 	if not _check_events(catalog):
@@ -318,6 +320,67 @@ func _check_events(catalog: Catalog) -> bool:
 		print("Events: FAIL follow-up forgot the choice: ", front)
 		return false
 	print("Events: ok (%d in the pool)" % catalog.events.size())
+	return true
+
+
+## P22: the queue previews match what lands at dawn, and each soft map order's report carries its exact numbers.
+func _check_map_feedback(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	game.week = 6
+	var picks := {}
+	for sid in game.stations:
+		if game._court_block(str(sid)) == "" and str(game.stations[sid].owner) == "neutral":
+			picks[picks.size()] = str(sid)
+	if picks.size() < 1:
+		print("Map feedback: FAIL no neutral neighbour to court")
+		return false
+	var sid := str(picks[0])
+	for kind in ["envoy", "propaganda", "trade"]:
+		game.stock.influence = 60
+		game.orders_left = 3
+		game.seat_used = {}
+		var st: Dictionary = game.stations[sid]
+		var envoy: Dictionary = game.envoy_preview(sid)
+		var push: int = game.propaganda_gain(sid)
+		var deal: int = game.deal_next(sid)
+		var was := int(st.sympathy)
+		if not game.queue_order({"kind": "order", "order": kind, "station": sid}):
+			print("Map feedback: FAIL %s did not queue on %s" % [kind, sid])
+			return false
+		game.order_reports = []
+		game._resolve_queued()
+		if game.order_reports.is_empty():
+			print("Map feedback: FAIL %s left no report" % kind)
+			return false
+		var report: Dictionary = game.order_reports[0]
+		match kind:
+			"envoy":
+				if int(report.get("gain", -1)) != mini(int(envoy.gain), 100 - was) or str(report.get("need_id", "")) != str(envoy.need_id):
+					print("Map feedback: FAIL envoy preview %s, report %s" % [envoy, report])
+					return false
+				if float(report.need_after) <= float(report.need_before):
+					print("Map feedback: FAIL envoy need did not rise ", report)
+					return false
+			"propaganda":
+				if int(report.get("gain", -1)) != push:
+					print("Map feedback: FAIL propaganda preview %d, report %s" % [push, report])
+					return false
+			"trade":
+				if str(report.get("kind", "")) != "deal" or int(report.get("deals", 0)) != deal or not bool(report.get("passage", false)):
+					print("Map feedback: FAIL deal preview %d, report %s" % [deal, report])
+					return false
+		if kind != "trade":
+			if int(report.before_sympathy) != was or int(report.after_sympathy) != was + int(report.gain):
+				print("Map feedback: FAIL %s before/after %s (was %d)" % [kind, report, was])
+				return false
+		for key in ["name", "community", "joined"]:
+			if not report.has(key):
+				print("Map feedback: FAIL %s report has no %s" % [kind, key])
+				return false
+		if bool(report.joined):
+			break
+	print("Map feedback: ok (%s)" % sid)
 	return true
 
 

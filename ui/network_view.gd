@@ -463,11 +463,21 @@ var _zoom_anchor := Vector2.ZERO
 var _splashes: Array = []
 var _owners_seen := {}
 var _anim_t := 0.0
+## P22 join pulse: one 0.5 s ring on a pin the week it joins, played once per join.
+var _pulses: Array = []
+var _pulsed := {}
 
 
 ## Notes every station that turned the player's since the last look and starts its wave; the first look only
 ## remembers, so opening the map does not splash what was already held.
 func _track_owners(game) -> void:
+	for sid in game.stations:
+		var joined := int(game.stations[sid].get("join_pulse", -1))
+		var key := "%s:%d" % [sid, joined]
+		if joined == int(game.week) and not _pulsed.has(key):
+			_pulsed[key] = true
+			if not _motion_off():
+				_pulses.append({"sid": str(sid), "age": 0.0})
 	var first := _owners_seen.is_empty()
 	for sid in game.stations:
 		var owner := str(game.stations[sid].owner)
@@ -488,6 +498,13 @@ func _draw_splashes(c: CanvasItem, game) -> void:
 		var r := lerpf(10.0, 170.0, ease)
 		c.draw_circle(at, r, Color(col, 0.22 * (1.0 - k)))
 		c.draw_arc(at, r, 0.0, TAU, 64, Color(col.darkened(0.3), 0.85 * (1.0 - k)), 3.0, true)
+	for row in _pulses:
+		var sid := str(row.sid)
+		if not _layout.has(sid):
+			continue
+		var k := clampf(float(row.age) / PULSE_S, 0.0, 1.0)
+		var pin_r := float(_layout[sid].r)
+		c.draw_arc(_layout[sid].at, lerpf(pin_r + 4.0, pin_r + 18.0, k), 0.0, TAU, 40, Color(_faction_color(game, str(game.player)), 0.9 * (1.0 - k)), 2.5, true)
 
 
 func _process(delta: float) -> void:
@@ -506,6 +523,11 @@ func _process(delta: float) -> void:
 		for row in _splashes:
 			row.age = float(row.age) + delta
 		_splashes = _splashes.filter(func(row): return float(row.age) < SPLASH_S)
+		busy = true
+	if not _pulses.is_empty():
+		for row in _pulses:
+			row.age = float(row.age) + delta
+		_pulses = _pulses.filter(func(row): return float(row.age) < PULSE_S)
 		busy = true
 	var game_now = _game()
 	if game_now != null and not game_now.telegraphed.is_empty() and not _motion_off():
@@ -1127,6 +1149,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	c.draw_set_transform_matrix(view * _map_xf)
 	_draw_lines(c, game)
 	_draw_tunnels(c, game)
+	_draw_passage_edges(c, game)
 	_draw_order_trails(c, game)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_layout_pins(game)
@@ -1134,6 +1157,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_leaders(c)
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
+	_draw_deal_pips(c, game)
 	_draw_line_badges(c, game)
 	_plan_yields(game)
 	_draw_tags(c, game)
@@ -1396,6 +1420,85 @@ func _draw_order_trails(c: CanvasItem, game) -> void:
 			t += 9.0 * k
 
 
+## P22 map feedback. Sympathy bands tint a ring on the pins you court; the colours are the muted paper-map set, never
+## ORDER_RED.
+const PASSAGE_BRASS := Color("e2a63a", 0.85)
+const PULSE_S := 0.5
+
+
+func _sympathy_band(game, sympathy: int) -> Color:
+	if sympathy >= 100:
+		return _faction_color(game, str(game.player))
+	if sympathy >= 70:
+		return Color("e2a63a")
+	if sympathy >= 50:
+		return Color("c4a574")
+	if sympathy >= 20:
+		return Color("8c8170")
+	return Color("6f8494")
+
+
+## The band's word for the sheet: Cold, Wary, Warm, Ready, With us.
+func _sympathy_word(sympathy: int) -> String:
+	if sympathy >= 100:
+		return "With us"
+	if sympathy >= 70:
+		return "Ready"
+	if sympathy >= 50:
+		return "Warm"
+	if sympathy >= 20:
+		return "Wary"
+	return "Cold"
+
+
+## A station you court: known, not yours, not a bunker or ruin, and carrying a sympathy number.
+func _courted(game, st: Dictionary) -> bool:
+	return bool(st.get("known", false)) and str(st.owner) != str(game.player) and not (str(st.owner) in ["bunker", "ruin", "enemy"]) \
+		and str(st.get("bunker", "")) == "" and st.has("sympathy") and not _secret(st)
+
+
+## A dashed brass edge from every station with an open passage home to the yard; persistent while the passage is
+## open, drawn under the red order trails.
+func _draw_passage_edges(c: CanvasItem, game) -> void:
+	var k := 1.0 / _map_scale()
+	var home := str(game.capital_id)
+	if not game.stations.has(home):
+		return
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if str(sid) == home or not bool(st.get("passage", false)) or not bool(st.get("known", false)) or _secret(st):
+			continue
+		var a := _map_spot(str(sid))
+		var b := _map_spot(home)
+		var length := a.distance_to(b)
+		if length < 1.0:
+			continue
+		var t := 0.0
+		while t <= length:
+			c.draw_circle(a.lerp(b, t / length), 1.8 * k, PASSAGE_BRASS)
+			t += 11.0 * k
+
+
+## Brass pips under a pin for each deal struck, three slots; nothing under a pin with no deal yet.
+func _draw_deal_pips(c: CanvasItem, game) -> void:
+	for sid in _layout:
+		var row: Dictionary = _layout[sid]
+		if not bool(row.known):
+			continue
+		var deals := clampi(int(game.stations[sid].get("deals", 0)), 0, 3)
+		if deals < 1:
+			continue
+		var r := float(row.r)
+		var lift := float(_lift.get(sid, 0.0))
+		var mid: Vector2 = row.at + Vector2(0, r + 8.0) - Vector2(0, 2.0 * lift)
+		for i in 3:
+			var at := mid + Vector2((float(i) - 1.0) * 7.0, 0.0)
+			if i < deals:
+				c.draw_circle(at, 2.8, Color("e2a63a"))
+			else:
+				c.draw_arc(at, 2.8, 0, TAU, 16, Color(GRAPHITE, 0.5), 1.0, true)
+
+
 func _pin_px(game, sid: String) -> float:
 	var st: Dictionary = game.stations[sid]
 	var big := bool(st.get("capital", false)) or sid == str(game.capital_id)
@@ -1586,6 +1689,12 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 			c.draw_arc(head, r * 0.72, 0, TAU, 24, Color(TAG_INK, 0.7), 1.0, true)
 			var s := r * 1.08
 			c.draw_texture_rect(mark, Rect2(head - Vector2(s, s) * 0.5, Vector2(s, s)), false)
+	if _courted(game, st):
+		var band := _sympathy_band(game, int(st.sympathy))
+		c.draw_arc(at - Vector2(0, 2.0 * lift), r + 2.5, 0, TAU, 28, Color(band, 0.92), 2.0, true)
+		var left := int(st.get("leaflet_until", 0)) - int(game.week)
+		if left > 0:
+			_draw_leaflet(c, at + Vector2(r * 0.55, -r * 0.95) - Vector2(0, 2.0 * lift), 1.0 if left >= 2 else 0.55)
 	if sid == selected:
 		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
 		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
@@ -1593,6 +1702,15 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 		var warn := ArtPack.icon_texture("warning", 16.0)
 		if warn != null:
 			c.draw_texture_rect(warn, Rect2(at + Vector2(r * 0.6, -r - 14.0), Vector2(16, 16)), false)
+
+
+## The leaflet chip: a recent Propaganda swing past 70, on a paper disc with a brass rim; faded in its last week.
+func _draw_leaflet(c: CanvasItem, at: Vector2, alpha: float) -> void:
+	c.draw_circle(at, 9.0, Color(TAG_PAPER, alpha))
+	c.draw_arc(at, 9.0, 0, TAU, 20, Color("e2a63a", alpha), 1.0, true)
+	var icon := ArtPack.icon_texture("propaganda", 14.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(at - Vector2(7, 7), Vector2(14, 14)), false, Color(0.35, 0.22, 0.14, 0.95 * alpha))
 
 
 func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
@@ -3346,12 +3464,31 @@ func _issue(kind: String, sid: String) -> void:
 		if host != null and host.has_method("note_spend"):
 			host.note_spend(cost)
 		if host != null and host.has_method("_toast"):
-			host._toast(Copy.t("Order sent. The result comes at next dawn."))
+			host._toast(_order_toast(game, kind, sid))
 		refresh()
 		if visit != null and visit.visible:
 			_fill_visit(sid)
 		else:
 			_fill_sheet(sid)
+
+
+## The one-line toast when an order queues (P22): the soft orders name the station and the change they expect, the
+## rest keep the plain line. Previews come from the sim; the toast never works out numbers itself.
+func _order_toast(game, kind: String, sid: String) -> String:
+	var place := Copy.t(str(game.stations[sid].name)) if game.stations.has(sid) else ""
+	var line := Copy.t("Order sent. The result comes at next dawn.")
+	match kind:
+		"propaganda":
+			line = Copy.t("Propaganda → %s · Sympathy ~+%d") % [place, int(game.propaganda_gain(sid))]
+		"envoy":
+			var envoy: Dictionary = game.envoy_preview(sid)
+			line = Copy.t("Envoy → %s · Sympathy ~+%d, %s improves") % [place, int(envoy.gain), Copy.t(str(envoy.need_id)).to_lower()]
+		"trade":
+			if sid != "":
+				line = Copy.t("Deal → %s · Deal %d/3, passage opens") % [place, int(game.deal_next(sid))]
+	if line.length() > 72:
+		line = line.left(71) + "…"
+	return line
 
 
 func _need_bar(need_id: String, fill: float) -> Control:
@@ -3429,7 +3566,7 @@ func _order_title(kind: String) -> String:
 		"move":
 			return "Move squad"
 		"trade":
-			return "Open trade"
+			return "Strike a deal"
 		"expedition":
 			return "Start expedition"
 		"approach":
@@ -3481,8 +3618,7 @@ func _trade_line(st: Dictionary) -> String:
 	var goods: PackedStringArray = []
 	for need in st.get("needs", []):
 		goods.append(Copy.t(str(need.id)))
-	if int(st.get("deals", 0)) > 0:
-		goods.append(Copy.t("Deals %d") % int(st.deals))
+	## The deal count lives in the Relation block's pips now (P22).
 	if goods.is_empty():
 		return ""
 	return "%s: %s" % [Copy.t("They trade"), ", ".join(goods)]
@@ -3632,7 +3768,7 @@ func order_rows(game, own: bool, sid: String = "") -> Array:
 			rows.append(["focus:influence", "Spread our name"])
 		rows.append(["move", "Garrison"])
 		return rows
-	var rows := [["envoy", "Send envoy"], ["propaganda", "Propaganda"], ["move", "Move squad"], ["trade", "Open trade"], ["expedition", "Start expedition"]]
+	var rows := [["envoy", "Send envoy"], ["propaganda", "Propaganda"], ["move", "Move squad"], ["trade", "Strike a deal"], ["expedition", "Start expedition"]]
 	if not game.floor_met:
 		rows.append(["approach", "Approach the Floor"])
 	if not game._scene_used("st3_quarantine"):
@@ -3683,14 +3819,94 @@ func _add_fold(parent: Node, body: VBoxContainer) -> void:
 
 
 ## Opinion number and bar, then up to three state marks from existing data.
-func _standing_row(game, st: Dictionary, sid: String) -> HBoxContainer:
+## The standing block under a station's name: the holding faction's opinion and the state marks on one row, then,
+## for a station you court, its Relation (sympathy) as a band-coloured bar, deal pips and the passage line (P22).
+func _standing_row(game, st: Dictionary, sid: String) -> Control:
+	var block := VBoxContainer.new()
+	block.add_theme_constant_override("separation", 4)
+	block.add_child(_opinion_row(game, st, sid))
+	if _courted(game, st):
+		_add_relation(game, st, block)
+	return block
+
+
+func _add_relation(game, st: Dictionary, parent: Node) -> void:
+	var sympathy := clampi(int(st.get("sympathy", 0)), 0, 100)
+	var band := _sympathy_band(game, sympathy)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var label := _lab(Copy.t("Relation"), 13, false)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	head.add_child(label)
+	var word := _lab(Copy.t(_sympathy_word(sympathy)), 14, true)
+	word.autowrap_mode = TextServer.AUTOWRAP_OFF
+	word.add_theme_color_override("font_color", band.darkened(0.25) if _on_paper else band)
+	word.set_meta("relation_band", _sympathy_word(sympathy))
+	head.add_child(word)
+	parent.add_child(head)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	var bar := ProgressBar.new()
+	bar.min_value = 0
+	bar.max_value = 100
+	bar.value = sympathy
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(160, 12)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color("2b2118", 0.28)
+	track.set_corner_radius_all(2)
+	bar.add_theme_stylebox_override("background", track)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = band
+	fill.set_corner_radius_all(2)
+	bar.add_theme_stylebox_override("fill", fill)
+	bar.set_meta("relation_bar", sympathy)
+	line.add_child(bar)
+	var num := _lab(str(sympathy), 13, false)
+	num.autowrap_mode = TextServer.AUTOWRAP_OFF
+	line.add_child(num)
+	parent.add_child(line)
+	var deals := clampi(int(st.get("deals", 0)), 0, 3)
+	if deals > 0:
+		var pips := HBoxContainer.new()
+		pips.add_theme_constant_override("separation", 4)
+		var count := _lab(Copy.t("Deals %d/3") % deals, 14, false)
+		count.autowrap_mode = TextServer.AUTOWRAP_OFF
+		pips.add_child(count)
+		for i in 3:
+			var pip := Panel.new()
+			pip.custom_minimum_size = Vector2(8, 8)
+			pip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			var dot := StyleBoxFlat.new()
+			dot.set_corner_radius_all(4)
+			if i < deals:
+				dot.bg_color = Color("e2a63a")
+			else:
+				dot.bg_color = Color(0, 0, 0, 0)
+				dot.border_color = Color(GRAPHITE, 0.5)
+				dot.set_border_width_all(1)
+			pip.add_theme_stylebox_override("panel", dot)
+			pips.add_child(pip)
+		pips.set_meta("deal_pips", deals)
+		parent.add_child(pips)
+	if bool(st.get("passage", false)):
+		var open := _lab(Copy.t("Tunnel open to the yard."), 15, false)
+		open.add_theme_color_override("font_color", Color("a8761c") if _on_paper else Color("e2a63a"))
+		open.set_meta("passage_line", true)
+		parent.add_child(open)
+
+
+func _opinion_row(game, st: Dictionary, sid: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	var relation := int(st.get("sympathy", 0))
-	var low := 0.0
-	if game.opinions.has(str(st.owner)):
-		relation = int(game.opinions[str(st.owner)])
-		low = -100.0
+	if not game.opinions.has(str(st.owner)):
+		## Sympathy reads in the Relation block below; this row only carries the state marks.
+		_add_state_marks(game, st, sid, row)
+		return row
+	var relation := int(game.opinions[str(st.owner)])
+	var low := -100.0
 	var words := _lab("%s: %d" % [Copy.t("Opinion"), relation], 15, true)
 	words.autowrap_mode = TextServer.AUTOWRAP_OFF
 	words.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -3712,6 +3928,11 @@ func _standing_row(game, st: Dictionary, sid: String) -> HBoxContainer:
 	bar.add_theme_stylebox_override("fill", fill)
 	bar.set_meta("opinion_bar", relation)
 	row.add_child(bar)
+	_add_state_marks(game, st, sid, row)
+	return row
+
+
+func _add_state_marks(game, st: Dictionary, sid: String, row: HBoxContainer) -> void:
 	for mark in state_marks(game, st, sid):
 		var tex := ArtPack.icon_texture(str(mark[0]), 24.0)
 		if tex == null:
@@ -3726,7 +3947,6 @@ func _standing_row(game, st: Dictionary, sid: String) -> HBoxContainer:
 		face.mouse_filter = Control.MOUSE_FILTER_PASS
 		face.set_meta("state_mark", str(mark[1]))
 		row.add_child(face)
-	return row
 
 
 ## [icon, words] for: can trade, an expedition under way, hostile, pact. At most three.

@@ -55,6 +55,9 @@ var orders_left := 0
 var seat_used := {}
 var queued_orders: Array = []
 var order_reports: Array = []
+## What the last soft map order (propaganda, envoy, deal) did, read before a capture resets sympathy; the dawn report
+## copies it so the card never re-guesses (P22). Not saved: it lives for one _resolve_queued pass.
+var last_order_fx: Dictionary = {}
 var choice_results: Array = []
 var decisions := 0
 var hope_zero := 0
@@ -659,6 +662,32 @@ func sympathy_preview(sid: String) -> int:
 	if not stations.has(sid):
 		return 0
 	return Formulas.sympathy_gain(float(bal.sympathy_base), player_lean, str(stations[sid].lean), _avg_fill(stations[sid]))
+
+
+## What an envoy sent today would bring, worked the way _order_envoy works it on a copy: the weakest need eases
+## first, then sympathy grows by a third of the swing (at least 2). {"gain", "need_id"} (P22 queue toast).
+func envoy_preview(sid: String) -> Dictionary:
+	if not stations.has(sid):
+		return {"gain": 0, "need_id": ""}
+	var st: Dictionary = stations[sid].duplicate(true)
+	var need_id := _lowest_need(st)
+	_bump_need(st, need_id, 0.2)
+	var swing := Formulas.sympathy_gain(float(bal.sympathy_base), player_lean, str(st.lean), _avg_fill(st))
+	return {"gain": maxi(2, int(round(float(swing) * 0.35))), "need_id": need_id}
+
+
+## The deal a Strike a deal order sent today would make: 1, 2 or 3.
+func deal_next(sid: String) -> int:
+	if not stations.has(sid):
+		return 1
+	return clampi(int(stations[sid].get("deals", 0)) + 1, 1, 3)
+
+
+func _need_fill(st: Dictionary, need_id: String) -> float:
+	for need in st.get("needs", []):
+		if str(need.id) == need_id:
+			return float(need.fill)
+	return 0.0
 
 
 func afford_choice(choice: Dictionary) -> bool:
@@ -3051,10 +3080,15 @@ func _order_propaganda(sid: String) -> bool:
 	var st: Dictionary = stations[sid]
 	stock.influence = int(stock.influence) - propaganda_cost(sid)
 	var gain := propaganda_gain(sid)
+	var was := int(st.sympathy)
 	st.sympathy = int(st.sympathy) + gain
 	_log("ORDER propaganda %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
+	last_order_fx = {"before_sympathy": was, "after_sympathy": int(st.sympathy), "gain": gain}
 	if int(st.sympathy) >= 100:
 		_capture(sid, player, false)
+	elif int(st.sympathy) >= 70:
+		## The leaflet chip on the pin (P22): this week and the next.
+		st.leaflet_until = week + 2
 	return true
 
 
@@ -3063,10 +3097,16 @@ func _order_envoy(sid: String) -> bool:
 		return false
 	var st: Dictionary = stations[sid]
 	stock.influence = int(stock.influence) - 3
-	_bump_need(st, _lowest_need(st), 0.2)
+	var need_id := _lowest_need(st)
+	var need_was := _need_fill(st, need_id)
+	_bump_need(st, need_id, 0.2)
 	var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
+	var was := int(st.sympathy)
 	st.sympathy = int(st.sympathy) + gain
 	_log("ORDER envoy %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
+	## Sympathy past 100 reads the same as 100 (they join), so the card stops at 100.
+	last_order_fx = {"before_sympathy": was, "after_sympathy": mini(100, int(st.sympathy)), "gain": mini(100, int(st.sympathy)) - was,
+		"need_id": need_id, "need_before": need_was, "need_after": _need_fill(st, need_id)}
 	if int(st.sympathy) >= 100:
 		_capture(sid, player, false)
 	return true
@@ -3083,6 +3123,7 @@ func _order_deal(sid: String) -> bool:
 	stock.food = int(stock.food) + 4
 	stock.materials = int(stock.materials) + 2
 	_log("DEAL %s (%d)" % [st.name, int(st.deals)], true)
+	last_order_fx = {"deals": int(st.deals), "passage": true}
 	if int(st.deals) >= 3 and str(st.owner) == "neutral":
 		_log("DEAL %s asks to join" % st.name, true)
 		_capture(sid, player, false)
@@ -3220,6 +3261,7 @@ func _resolve_queued() -> void:
 		var host := _order_host(kind, action)
 		var before := _order_before(kind, action)
 		var ok := false
+		last_order_fx = {}
 		match kind:
 			"propaganda":
 				ok = _order_propaganda(sid)
@@ -3265,6 +3307,14 @@ func _resolve_queued() -> void:
 			"station": str(action.get("dest", "")) if kind == "move" else sid}
 		if ok and host != "":
 			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
+		if ok and not last_order_fx.is_empty():
+			## The soft map orders carry their exact numbers, so the dawn card prints them as they happened (P22).
+			report.merge(last_order_fx, true)
+			report.kind = "deal" if kind == "trade" else kind
+			report.name = who
+			report.community = place
+			report.joined = stations.has(sid) and str(stations[sid].owner) == player and str(before.get("owner", "")) != player
+			report.sent = _gained_since(before)
 		order_reports.append(report)
 		if ok and kind == "trade":
 			_vo_cue("caravan_arrived")
@@ -4181,6 +4231,8 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		ambition[prev] = int(ambition.get(prev, 0)) + int(bal.ambition_taken)
 		_log("%s will remember %s." % [_fname(prev), st.name])
 	if fid == player:
+		## One map pulse on the pin the week it joins (P22); the map plays it once.
+		st.join_pulse = week
 		_add_hope(int(bal.join_hope), "victory")
 		_add_discontent(int(bal.get("join_discontent", 0)), "victory")
 		var shipment := _capture_shipment(st)

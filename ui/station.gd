@@ -4894,11 +4894,18 @@ func _show_order_report() -> void:
 	if not _claim(ModalDeck.NARRATIVE, "order", _show_order_report):
 		return
 	var row: Dictionary = game.order_reports[0]
-	_open_card(str(row.get("title", Copy.t("Dawn report"))))
+	var soft := row.has("deals") or row.has("before_sympathy")
+	var title := str(row.get("title", Copy.t("Dawn report")))
+	if soft and str(row.get("kind", "")) == "propaganda":
+		title = Copy.t("Leaflets at %s") % str(row.get("community", ""))
+	_open_card(title)
 	var art := _order_art(row)
 	if art != null:
 		card_body.add_child(art)
-	_body(str(row.get("text", "")))
+	if soft:
+		_order_numbers(row)
+	else:
+		_body(str(row.get("text", "")))
 	var said := _leader_said(str(row.get("faction", "")), row.get("line", {}))
 	if said != "":
 		_body(said)
@@ -4906,6 +4913,39 @@ func _show_order_report() -> void:
 		if line_key != "":
 			_leader_voice(str(row.faction), line_key, "report:%d:%s:%s" % [game.week, str(row.faction), str(row.get("text", ""))])
 	card_body.add_child(_button("Continue", _next_order_report))
+
+
+## A soft map order's dawn card body (P22): who went, then the exact change from the report payload: sympathy before
+## and after, the need an envoy eased, the deal count and the passage, and the join when it happened.
+func _order_numbers(row: Dictionary) -> void:
+	var kind := str(row.get("kind", ""))
+	var who := str(row.get("name", ""))
+	var place := str(row.get("community", ""))
+	match kind:
+		"propaganda":
+			_body(Copy.t("%s spent the week on the platform.") % who)
+		"envoy":
+			_body(Copy.t("%s sat with %s.") % [who, place])
+		"deal":
+			_body(Copy.t("%s struck deal %d of 3.") % [who, int(row.get("deals", 1))])
+	if row.has("before_sympathy"):
+		var delta := _label(Copy.t("Sympathy %d → %d (+%d).") % [int(row.before_sympathy), int(row.after_sympathy), int(row.gain)], 18, true)
+		delta.add_theme_color_override("font_color", PAPER_INK)
+		card_body.add_child(delta)
+	if kind == "envoy" and str(row.get("need_id", "")) != "":
+		var need := Copy.t(str(row.need_id))
+		need = need.left(1).to_upper() + need.substr(1)
+		_body(Copy.t("%s fill %d%% → %d%%.") % [need, int(round(float(row.need_before) * 100.0)), int(round(float(row.need_after) * 100.0))])
+	if kind == "deal" and bool(row.get("passage", false)):
+		var open := _label(Copy.t("Passage to the yard is open."), 16, false)
+		open.add_theme_color_override("font_color", Color("e2a63a"))
+		card_body.add_child(open)
+	if bool(row.get("joined", false)):
+		var joined := _label(Copy.t("They ask to join.") if kind == "deal" else Copy.t("They asked to stand with the Depot."), 16, false)
+		joined.add_theme_color_override("font_color", Color("ff7a2f"))
+		card_body.add_child(joined)
+	if str(row.get("sent", "")) != "":
+		_body(str(row.sent))
 
 
 ## The picture on an order's dawn card: the station's banner across the card, the councillor who carried the order
