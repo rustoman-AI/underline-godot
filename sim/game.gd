@@ -48,6 +48,7 @@ var orders_left := 0
 var seat_used := {}
 var queued_orders: Array = []
 var order_reports: Array = []
+var last_order_note := {}
 var choice_results: Array = []
 var decisions := 0
 var hope_zero := 0
@@ -443,6 +444,22 @@ func sympathy_preview(sid: String) -> int:
 	if not stations.has(sid):
 		return 0
 	return Formulas.sympathy_gain(float(bal.sympathy_base), player_lean, str(stations[sid].lean), _avg_fill(stations[sid]))
+
+
+## Toast-time envoy numbers. Same gain as `_order_envoy` before the dawn need bump.
+func envoy_preview(sid: String) -> Dictionary:
+	if not stations.has(sid):
+		return {"gain": 0, "need_id": ""}
+	var st: Dictionary = stations[sid]
+	var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
+	return {"gain": gain, "need_id": _lowest_need(st)}
+
+
+## The deal about to land at dawn, clamped to the 1–3 ladder.
+func deal_preview(sid: String) -> int:
+	if not stations.has(sid):
+		return 1
+	return clampi(int(stations[sid].get("deals", 0)) + 1, 1, 3)
 
 
 func afford_choice(choice: Dictionary) -> bool:
@@ -2480,12 +2497,20 @@ func _order_propaganda(sid: String) -> bool:
 	if _propaganda_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
+	var before_sym := int(st.sympathy)
 	stock.influence = int(stock.influence) - int(bal.propaganda_influence)
 	var gain := sympathy_preview(sid)
-	st.sympathy = int(st.sympathy) + gain
-	_log("ORDER propaganda %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
-	if int(st.sympathy) >= 100:
-		_capture(sid, player, false)
+	st.sympathy = before_sym + gain
+	var after_sym := int(st.sympathy)
+	_log("ORDER propaganda %s +%d (%d)" % [st.name, gain, after_sym])
+	var joined := false
+	if after_sym >= 100:
+		joined = _capture(sid, player, false)
+	if after_sym >= 70:
+		st.leaflet_until = int(week) + 2
+	if joined:
+		st.join_pulse = true
+	_stamp_soft_note(st, sid, "propaganda", before_sym, after_sym, gain, "", 0.0, 0.0, int(st.get("deals", 0)), joined)
 	return true
 
 
@@ -2493,13 +2518,22 @@ func _order_envoy(sid: String) -> bool:
 	if _envoy_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
+	var before_sym := int(st.sympathy)
+	var need_id := _lowest_need(st)
+	var need_before := _need_fill(st, need_id)
 	stock.influence = int(stock.influence) - 3
-	_bump_need(st, _lowest_need(st), 0.2)
+	_bump_need(st, need_id, 0.2)
+	var need_after := _need_fill(st, need_id)
 	var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
-	st.sympathy = int(st.sympathy) + gain
-	_log("ORDER envoy %s +%d (%d)" % [st.name, gain, int(st.sympathy)])
-	if int(st.sympathy) >= 100:
-		_capture(sid, player, false)
+	st.sympathy = before_sym + gain
+	var after_sym := int(st.sympathy)
+	_log("ORDER envoy %s +%d (%d)" % [st.name, gain, after_sym])
+	var joined := false
+	if after_sym >= 100:
+		joined = _capture(sid, player, false)
+	if joined:
+		st.join_pulse = true
+	_stamp_soft_note(st, sid, "envoy", before_sym, after_sym, gain, need_id, need_before, need_after, int(st.get("deals", 0)), joined)
 	return true
 
 
@@ -2507,14 +2541,22 @@ func _order_deal(sid: String) -> bool:
 	if _deal_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
+	var before_sym := int(st.sympathy)
+	var need_id := _lowest_need(st)
+	var need_before := _need_fill(st, need_id)
 	stock.influence = int(stock.influence) - 4
 	st.deals = int(st.get("deals", 0)) + 1
 	st.passage = true
-	_bump_need(st, _lowest_need(st), 0.25)
+	_bump_need(st, need_id, 0.25)
+	var need_after := _need_fill(st, need_id)
 	_log("DEAL %s (%d)" % [st.name, int(st.deals)], true)
+	var joined := false
 	if int(st.deals) >= 3 and str(st.owner) == "neutral":
 		_log("DEAL %s asks to join" % st.name, true)
-		_capture(sid, player, false)
+		joined = _capture(sid, player, false)
+	if joined:
+		st.join_pulse = true
+	_stamp_soft_note(st, sid, "deal", before_sym, before_sym, 0, need_id, need_before, need_after, int(st.deals), joined)
 	return true
 
 
@@ -2610,6 +2652,7 @@ func _resolve_queued() -> void:
 			stock[key] = int(stock.get(key, 0)) + int(cost[key])
 		var kind := str(action.get("order", ""))
 		var sid := str(action.get("station", ""))
+		last_order_note = {}
 		var ok := false
 		match kind:
 			"propaganda":
@@ -2643,6 +2686,10 @@ func _resolve_queued() -> void:
 		elif stations.has(sid):
 			place = str(stations[sid].get("community", sid))
 		seat_used.erase(str(row.get("role", "")))
+		var note := _take_soft_note(kind, sid, row, ok)
+		if not note.is_empty():
+			order_reports.append(note)
+			continue
 		var title := Copy.t("Dawn report")
 		var text := "%s · %s" % [str(row.get("name", "")), place]
 		if ok:
@@ -2666,6 +2713,134 @@ func _order_title(kind: String) -> String:
 			return "The expedition sets out"
 		_:
 			return "Dawn report"
+
+
+func _stamp_soft_note(st: Dictionary, sid: String, kind: String, before_sym: int, after_sym: int, gain: int, need_id: String, need_before: float, need_after: float, deals: int, joined: bool) -> void:
+	var plate := ""
+	match kind:
+		"propaganda":
+			plate = "propaganda"
+		"envoy":
+			plate = "letter"
+		"deal":
+			plate = "toll"
+	last_order_note = {
+		"kind": kind,
+		"station": sid,
+		"community": str(st.get("community", "")),
+		"before_sympathy": before_sym,
+		"after_sympathy": after_sym,
+		"gain": gain,
+		"need_id": need_id,
+		"need_before": need_before,
+		"need_after": need_after,
+		"deals": deals,
+		"joined": joined,
+		"plate": plate,
+	}
+
+
+func _take_soft_note(kind: String, sid: String, row: Dictionary, ok: bool) -> Dictionary:
+	var expect := kind
+	if kind == "trade" and sid != "":
+		expect = "deal"
+	if not ok or str(last_order_note.get("kind", "")) != expect:
+		last_order_note = {}
+		return {}
+	var note: Dictionary = last_order_note.duplicate(true)
+	last_order_note = {}
+	var person_id := str(row.get("person", ""))
+	var name := str(row.get("name", ""))
+	note["name"] = name
+	note["councillor"] = name
+	note["person"] = person_id
+	note["fem"] = _feminine(person_id, name)
+	note["ok"] = true
+	note["title"] = order_report_title(note)
+	note["text"] = "\n".join(order_report_lines(note))
+	return note
+
+
+func order_report_title(row: Dictionary) -> String:
+	var community := str(row.get("community", ""))
+	match str(row.get("kind", "")):
+		"propaganda":
+			return Copy.fill("order.report_propaganda_title", {"community": community})
+		"envoy":
+			return Copy.fill("order.report_envoy_title")
+		"deal":
+			return Copy.fill("order.report_deal_title")
+	return str(row.get("title", Copy.t("Dawn report")))
+
+
+func order_report_lines(row: Dictionary) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	for block in order_report_blocks(row):
+		lines.append(str(block.get("text", "")))
+	return lines
+
+
+func order_report_blocks(row: Dictionary) -> Array:
+	var kind := str(row.get("kind", ""))
+	if kind != "propaganda" and kind != "envoy" and kind != "deal":
+		return []
+	if not row.has("before_sympathy") or not row.has("after_sympathy") or not row.has("gain"):
+		return []
+	var blocks: Array = []
+	var name := Copy.person(str(row.get("name", "")))
+	var community := str(row.get("community", ""))
+	var fem := bool(row.get("fem", false))
+	match kind:
+		"propaganda":
+			blocks.append({"role": "body", "text": Copy.fill("order.report_propaganda_body", {"name": name, "fem": fem})})
+		"envoy":
+			blocks.append({"role": "body", "text": Copy.fill("order.report_envoy_body", {"name": name, "community": community, "fem": fem})})
+		"deal":
+			blocks.append({"role": "body", "text": Copy.fill("order.report_deal_body", {"name": name, "n": int(row.get("deals", 0)), "fem": fem})})
+	var gain := int(row.get("gain", 0))
+	if kind == "propaganda" or kind == "envoy" or gain != 0:
+		blocks.append({
+			"role": "delta",
+			"text": Copy.fill("order.report_sympathy", {
+				"before": int(row.get("before_sympathy", 0)),
+				"after": int(row.get("after_sympathy", 0)),
+				"gain": gain,
+			}),
+		})
+	if kind == "envoy" and str(row.get("need_id", "")) != "":
+		blocks.append({
+			"role": "need",
+			"text": Copy.fill("order.report_need", {
+				"need": Copy.t(str(row.get("need_id", ""))),
+				"old": int(round(float(row.get("need_before", 0.0)) * 100.0)),
+				"new": int(round(float(row.get("need_after", 0.0)) * 100.0)),
+			}),
+		})
+	if kind == "deal" and int(row.get("deals", 0)) >= 1:
+		blocks.append({"role": "passage", "text": Copy.fill("order.report_passage")})
+	if bool(row.get("joined", false)):
+		var join_key := "order.report_join" if kind == "deal" else "order.report_capture"
+		blocks.append({"role": "join", "text": Copy.fill(join_key)})
+	return blocks
+
+
+func _feminine(person_id: String, full_name: String) -> bool:
+	var ids := {
+		"inez": true, "mara": true, "ruth": true, "samira": true, "lila": true,
+		"june": true, "nora": true, "ada": true, "mina": true, "tess": true,
+		"kim": true, "ann": true, "fran": true,
+	}
+	if ids.has(person_id):
+		return true
+	var first := full_name.get_slice(" ", 0)
+	var names := {
+		"Ida": true, "May": true, "Eva": true, "Lois": true, "Cora": true,
+		"Nina": true, "Bea": true, "Rosa": true, "Thea": true, "Pam": true,
+		"Inez": true, "Mara": true, "Ruth": true, "Samira": true, "Lila": true,
+		"June": true, "Nora": true, "Ada": true, "Mina": true, "Tess": true,
+		"Kim": true, "Ann": true, "Fran": true,
+	}
+	return names.has(first)
 
 
 func order_block(kind: String, sid: String = "") -> String:
@@ -4914,6 +5089,13 @@ func _bump_need(st: Dictionary, need_id: String, amount: float) -> void:
 	for need in st.needs:
 		if str(need.id) == need_id:
 			need.fill = clampf(float(need.fill) + amount, 0.0, 1.0)
+
+
+func _need_fill(st: Dictionary, need_id: String) -> float:
+	for need in st.get("needs", []):
+		if str(need.get("id", "")) == need_id:
+			return float(need.get("fill", 0.0))
+	return 0.0
 
 
 func _demand_open(fid: String) -> bool:

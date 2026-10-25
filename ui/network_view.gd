@@ -83,6 +83,7 @@ var _wash_layer: Control
 var _ink_layer: Control
 var _layout := {}
 var _lift := {}
+var _join_left := {}
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -278,10 +279,19 @@ func _motion_off() -> bool:
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	_arm_join_pulses()
 	var busy := false
 	if _hop_left > 0.0:
 		_hop_left = maxf(0.0, _hop_left - delta)
 		busy = true
+	var done: Array = []
+	for sid in _join_left:
+		_join_left[sid] = maxf(0.0, float(_join_left[sid]) - delta)
+		busy = true
+		if float(_join_left[sid]) <= 0.0:
+			done.append(sid)
+	for sid in done:
+		_join_left.erase(sid)
 	if _hover != "" and not _lift.has(_hover):
 		_lift[_hover] = 0.0
 	for sid in _lift.keys():
@@ -547,12 +557,14 @@ func _draw_ink(c: CanvasItem) -> void:
 	c.draw_set_transform_matrix(view * _map_xf)
 	_draw_lines(c, game)
 	_draw_tunnels(c, game)
+	_draw_passage_edges(c, game)
 	_draw_order_trails(c, game)
 	_draw_lamp(c, view)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_layout_pins(game)
 	_draw_leaders(c)
 	_draw_pins(c, game)
+	_draw_deal_pips(c, game)
 	_draw_tags(c, game)
 	_draw_flags(c, game)
 	_draw_squads(c, game)
@@ -790,6 +802,8 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	else:
 		var dst := src.size * (px / src.size.x)
 		c.draw_texture_rect_region(_pins, Rect2(at - _head_anchor * dst - Vector2(0, 2.0 * lift), dst), src)
+	_draw_sympathy_ring(c, game, st, at, r, lift)
+	_draw_leaflet_chip(c, game, st, at, r, lift)
 	if sid == selected:
 		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
 		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
@@ -797,6 +811,125 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 		var warn := ArtPack.icon_texture("warning", 16.0)
 		if warn != null:
 			c.draw_texture_rect(warn, Rect2(at + Vector2(r * 0.6, -r - 14.0), Vector2(16, 16)), false)
+	_draw_join_pulse(c, game, sid, at, r, lift)
+
+
+func _sympathy_band(sympathy: int) -> Color:
+	if sympathy >= 100:
+		var game = _game()
+		if game != null:
+			return _faction_color(game, str(game.player))
+		return Color("ff7a2f")
+	if sympathy >= 70:
+		return Color("e2a63a")
+	if sympathy >= 50:
+		return Color("c4a574")
+	if sympathy >= 20:
+		return Color("8c8170")
+	return Color("6f8494")
+
+
+func _band_key(sympathy: int) -> String:
+	if sympathy >= 100:
+		return "map.relation_band_join"
+	if sympathy >= 70:
+		return "map.relation_band_ready"
+	if sympathy >= 50:
+		return "map.relation_band_warm"
+	if sympathy >= 20:
+		return "map.relation_band_wary"
+	return "map.relation_band_cold"
+
+
+func _draw_sympathy_ring(c: CanvasItem, game, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
+	if str(st.get("owner", "")) == str(game.player):
+		return
+	if not st.has("sympathy"):
+		return
+	var band := _sympathy_band(int(st.sympathy))
+	c.draw_arc(at - Vector2(0, 2.0 * lift), r + 2.5, 0, TAU, 28, Color(band, 0.92), 2.0, true)
+
+
+func _draw_leaflet_chip(c: CanvasItem, game, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
+	var until := int(st.get("leaflet_until", 0))
+	if until <= int(game.week):
+		return
+	var alpha := 0.55 if until - int(game.week) == 1 else 1.0
+	var pos := at + Vector2(r * 0.55, -r * 0.95) - Vector2(0, 2.0 * lift)
+	c.draw_circle(pos, 9.0, Color(TAG_PAPER, alpha))
+	c.draw_arc(pos, 9.0, 0, TAU, 20, Color(Color("e2a63a"), alpha), 1.0, true)
+	var icon := ArtPack.icon_texture("propaganda", 14.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(pos - Vector2(7, 7), Vector2(14, 14)), false, Color(0.35, 0.22, 0.14, 0.95 * alpha))
+
+
+func _draw_join_pulse(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if not _join_left.has(sid):
+		return
+	var left := clampf(float(_join_left[sid]), 0.0, 0.5)
+	var t := 1.0 - left / 0.5
+	var radius := lerpf(r + 4.0, r + 18.0, t)
+	var col := _faction_color(game, str(game.player))
+	col.a = lerpf(0.9, 0.0, t)
+	c.draw_arc(at - Vector2(0, 2.0 * lift), radius, 0, TAU, 28, col, 2.0, true)
+
+
+func _arm_join_pulses() -> void:
+	var game = _game()
+	if game == null:
+		return
+	if host != null and host.get("dim") != null and host.dim.visible:
+		return
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if not bool(st.get("join_pulse", false)):
+			continue
+		st["join_pulse"] = false
+		if _motion_off():
+			continue
+		_join_left[str(sid)] = 0.5
+
+
+func _draw_deal_pips(c: CanvasItem, game) -> void:
+	for sid in _layout:
+		var st: Dictionary = game.stations[sid]
+		var deals := int(st.get("deals", 0))
+		if deals < 1:
+			continue
+		var info: Dictionary = _layout[sid]
+		var at: Vector2 = info.at
+		var r := float(info.r)
+		var filled := clampi(deals, 0, 3)
+		for i in 3:
+			var p := at + Vector2((float(i) - 1.0) * 7.0, r + 8.0)
+			if i < filled:
+				c.draw_circle(p, 2.8, Color("e2a63a"))
+			else:
+				c.draw_arc(p, 2.8, 0, TAU, 16, Color(GRAPHITE, 0.5), 1.0, true)
+
+
+func _draw_passage_edges(c: CanvasItem, game) -> void:
+	var home := str(game.capital_id)
+	if not game.stations.has(home):
+		return
+	var k := 1.0 / _map_scale()
+	var yard := _map_spot(home)
+	var brass := Color("e2a63a")
+	brass.a = 0.85
+	for sid in game.stations:
+		if str(sid) == home:
+			continue
+		var st: Dictionary = game.stations[sid]
+		if not bool(st.get("passage", false)) or _secret(st) or not bool(st.get("known", false)):
+			continue
+		var a := _map_spot(str(sid))
+		var length := a.distance_to(yard)
+		if length < 1.0:
+			continue
+		var t := 0.0
+		while t <= length:
+			c.draw_circle(a.lerp(yard, t / length), 1.8 * k, brass)
+			t += 11.0 * k
 
 
 func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
@@ -1304,7 +1437,7 @@ func _fill_council() -> void:
 			row.add_child(host._portrait_box(str(seat.id), 64))
 		var text := "%s\n%s" % [Copy.t(role.capitalize()), str(person.get("name", ""))]
 		if used != "":
-			text += "\n" + Copy.t("Council order") + ": " + Copy.t(_order_title(used))
+			text += "\n" + Copy.t("Council order") + ": " + Copy.t(_seat_verb(role, used))
 		else:
 			text += "\n" + Copy.t("Open seat")
 		var seat_label := _lab(text, 15, false)
@@ -1343,12 +1476,15 @@ func _fill_sheet_body(sid: String) -> void:
 	_sheet_body.add_child(_lab(str(st.name), 14, false))
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body)
+		_add_deal_pips(st, false, _sheet_body)
+		_add_passage_line(st, _sheet_body)
 	else:
 		if str(st.who) != "":
 			_sheet_body.add_child(_lab(str(st.who), 14, false))
 		if str(st.conflict) != "":
 			_sheet_body.add_child(_lab(str(st.conflict), 14, false))
 		_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Owner"), Copy.t(_owner_name(game, str(st.owner)))], 14, false))
+		_add_relation(game, st, _sheet_body)
 		_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
 		if int(st.unrest) > 0:
 			_sheet_body.add_child(_lab("%s: %s" % [Copy.t("Unrest"), str(int(st.unrest))], 14, false))
@@ -1358,6 +1494,8 @@ func _fill_sheet_body(sid: String) -> void:
 		var trade := _trade_line(st)
 		if trade != "":
 			_sheet_body.add_child(_lab(trade, 14, false))
+		_add_deal_pips(st, not own, _sheet_body)
+		_add_passage_line(st, _sheet_body)
 	_add_actions(sid, own, _sheet_body)
 	var back := Button.new()
 	back.text = Copy.t("Back to the map")
@@ -1459,7 +1597,7 @@ func _issue(kind: String, sid: String) -> void:
 		if host != null and host.has_method("note_spend"):
 			host.note_spend(cost)
 		if host != null and host.has_method("_toast"):
-			host._toast(Copy.t("Order sent. The result comes at next dawn."))
+			host._toast(_order_toast(kind, sid))
 		refresh()
 		if visit != null and visit.visible:
 			_fill_visit(sid)
@@ -1533,7 +1671,7 @@ func _cost_text(cost: Dictionary) -> String:
 	return ", ".join(bits)
 
 
-func _order_title(kind: String) -> String:
+func _order_title(kind: String, sid: String = "") -> String:
 	match kind:
 		"envoy":
 			return "Send envoy"
@@ -1542,11 +1680,55 @@ func _order_title(kind: String) -> String:
 		"move":
 			return "Move squad"
 		"trade":
-			return "Open trade"
+			if sid != "":
+				return "order.strike_deal"
+			return "order.open_trade_faction"
 		"expedition":
 			return "Start expedition"
 		_:
 			return kind.capitalize()
+
+
+func _seat_verb(role: String, kind: String) -> String:
+	var sid := ""
+	var game = _game()
+	if game != null:
+		for row in game.queued_orders:
+			if str(row.get("role", "")) != role:
+				continue
+			var action: Dictionary = row.get("action", {})
+			sid = str(action.get("station", ""))
+			break
+	return _order_title(kind, sid)
+
+
+func _station_label(game, sid: String) -> String:
+	if game == null or not game.stations.has(sid):
+		return sid
+	return Copy.t(str(game.stations[sid].get("name", sid)))
+
+
+func _order_toast(kind: String, sid: String) -> String:
+	var game = _game()
+	var line := ""
+	if game != null:
+		var station := _station_label(game, sid)
+		match kind:
+			"propaganda":
+				line = Copy.fill("order.toast_propaganda", {"station": station, "preview": game.sympathy_preview(sid)})
+			"envoy":
+				var prev: Dictionary = game.envoy_preview(sid)
+				line = Copy.fill("order.toast_envoy", {
+					"station": station,
+					"gain": int(prev.get("gain", 0)),
+					"need": Copy.t(str(prev.get("need_id", ""))),
+				})
+			"trade":
+				if sid != "":
+					line = Copy.fill("order.toast_deal", {"station": station, "n": game.deal_preview(sid)})
+	if line == "":
+		line = Copy.t("Order sent. The result comes at next dawn.")
+	return Copy.clip(line)
 
 
 func _cancel_seat(role: String) -> void:
@@ -1569,12 +1751,98 @@ func _add_needs(st: Dictionary, parent: Node) -> void:
 		parent.add_child(_need_bar(str(need.id), float(need.fill)))
 
 
+func _add_relation(game, st: Dictionary, parent: Node) -> void:
+	if str(st.get("owner", "")) == str(game.player) or not st.has("sympathy"):
+		return
+	var sympathy := clampi(int(st.get("sympathy", 0)), 0, 100)
+	var band := _sympathy_band(sympathy)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var rel := _lab(Copy.t("Relation"), 13, false)
+	rel.add_theme_color_override("font_color", CARD_MUTED if _on_paper else MUTED)
+	head.add_child(rel)
+	var word := _lab("", 14, false)
+	word.text = Copy.t(_band_key(sympathy))
+	word.add_theme_color_override("font_color", band)
+	head.add_child(word)
+	box.add_child(head)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var bar := ProgressBar.new()
+	bar.min_value = 0
+	bar.max_value = 100
+	bar.value = sympathy
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(160, 12)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color("2b2118", 0.28) if _on_paper else Color("f4efe4", 0.22)
+	track.set_corner_radius_all(2)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = band
+	fill.set_corner_radius_all(2)
+	bar.add_theme_stylebox_override("background", track)
+	bar.add_theme_stylebox_override("fill", fill)
+	row.add_child(bar)
+	var num := _lab(str(sympathy), 13, false)
+	num.add_theme_color_override("font_color", CARD_MUTED if _on_paper else MUTED)
+	row.add_child(num)
+	box.add_child(row)
+	var owner := str(st.get("owner", ""))
+	if game.opinions.has(owner) and owner != str(game.player):
+		var opinion := _lab("%s: %d" % [Copy.t(_owner_name(game, owner)), int(game.opinions[owner])], 13, false)
+		box.add_child(opinion)
+	parent.add_child(box)
+
+
+func _add_deal_pips(st: Dictionary, show_empty: bool, parent: Node) -> void:
+	var deals := int(st.get("deals", 0))
+	if deals <= 0 and not show_empty:
+		return
+	var n := clampi(deals, 0, 3)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var label := _lab("", 14, false)
+	label.text = Copy.fill("map.deals_pips", {"n": n})
+	row.add_child(label)
+	var pips := HBoxContainer.new()
+	pips.add_theme_constant_override("separation", 4)
+	pips.alignment = BoxContainer.ALIGNMENT_CENTER
+	for i in 3:
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(8, 8)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var style := StyleBoxFlat.new()
+		style.set_corner_radius_all(4)
+		if i < n:
+			style.bg_color = Color("e2a63a")
+		else:
+			style.bg_color = Color(0, 0, 0, 0)
+			style.border_color = Color(GRAPHITE, 0.5)
+			style.set_border_width_all(1)
+		dot.add_theme_stylebox_override("panel", style)
+		pips.add_child(dot)
+	row.add_child(pips)
+	parent.add_child(row)
+
+
+func _add_passage_line(st: Dictionary, parent: Node) -> void:
+	if not bool(st.get("passage", false)):
+		return
+	var line := _lab("", 15, false)
+	line.text = Copy.t("map.passage_open")
+	line.add_theme_color_override("font_color", Color("e2a63a"))
+	parent.add_child(line)
+
+
 func _trade_line(st: Dictionary) -> String:
 	var goods: PackedStringArray = []
 	for need in st.get("needs", []):
 		goods.append(Copy.t(str(need.id)))
-	if int(st.get("deals", 0)) > 0:
-		goods.append(Copy.t("Deals %d") % int(st.deals))
 	if goods.is_empty():
 		return ""
 	return "%s: %s" % [Copy.t("They trade"), ", ".join(goods)]
@@ -1626,7 +1894,7 @@ func _add_actions(sid: String, own: bool, parent: Node) -> void:
 	_order_button("envoy", "Send envoy", sid, parent)
 	_order_button("propaganda", "Propaganda", sid, parent)
 	_order_button("move", "Move squad", sid, parent)
-	_order_button("trade", "Open trade", sid, parent)
+	_order_button("trade", "order.strike_deal" if sid != "" else "order.open_trade_faction", sid, parent)
 	_order_button("expedition", "Start expedition", sid, parent)
 
 
@@ -1722,10 +1990,10 @@ func _fill_visit(sid: String) -> void:
 	if str(st.who) != "":
 		_visit_body.add_child(_lab(str(st.who), 15, false))
 	_add_needs(st, _visit_body)
-	var relation := int(st.get("sympathy", 0))
-	if game.opinions.has(str(st.owner)):
-		relation = int(game.opinions[str(st.owner)])
-	_visit_body.add_child(_lab("%s: %d    %s: %d" % [Copy.t("Relation"), relation, Copy.t("Loyalty"), int(st.loyalty)], 15, false))
+	_add_relation(game, st, _visit_body)
+	_visit_body.add_child(_lab("%s: %d" % [Copy.t("Loyalty"), int(st.loyalty)], 15, false))
+	_add_deal_pips(st, str(st.owner) != str(game.player), _visit_body)
+	_add_passage_line(st, _visit_body)
 	var trade := _trade_line(st)
 	if trade != "":
 		_visit_body.add_child(_lab(trade, 15, false))

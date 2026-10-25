@@ -113,6 +113,7 @@ var toast_label: Label
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
+var _soft_gap_warned := false
 var picker_busy_open := false
 var news_week := -1
 var net_guide := false
@@ -2488,9 +2489,92 @@ func _show_order_report() -> void:
 	if not _claim(ModalDeck.NARRATIVE, "order", _show_order_report):
 		return
 	var row: Dictionary = game.order_reports[0]
-	_open_card(str(row.get("title", Copy.t("Dawn report"))))
-	_body(str(row.get("text", "")))
+	var kind := str(row.get("kind", ""))
+	var soft := kind == "propaganda" or kind == "envoy" or kind == "deal"
+	var titled := soft and row.has("before_sympathy")
+	var title := game.order_report_title(row) if titled else str(row.get("title", Copy.t("Dawn report")))
+	_open_card(title, true, titled)
+	if soft and not titled:
+		if not _soft_gap_warned:
+			_soft_gap_warned = true
+			push_warning("TODO(Code): soft order report missing before/after")
+		_body(str(row.get("text", "")))
+	elif soft:
+		_paint_order_report(row)
+	else:
+		_body(str(row.get("text", "")))
 	card_body.add_child(_button("Continue", _next_order_report))
+
+
+func _paint_order_report(row: Dictionary) -> void:
+	var blocks: Array = game.order_report_blocks(row)
+	if blocks.is_empty():
+		_body(str(row.get("text", "")))
+		return
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override("separation", 8)
+	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var plate := _order_plate(str(row.get("plate", "")))
+	if plate != null:
+		split.add_child(plate)
+	var lines := VBoxContainer.new()
+	lines.add_theme_constant_override("separation", 12)
+	lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for block in blocks:
+		var role := str(block.get("role", "body"))
+		var lab := _label(str(block.get("text", "")), 18 if role == "delta" else 16, role == "delta", false)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if role == "passage":
+			lab.add_theme_color_override("font_color", Color("e2a63a"))
+		elif role == "join":
+			lab.add_theme_color_override("font_color", Color("ff7a2f"))
+		else:
+			lab.add_theme_color_override("font_color", PAPER_INK)
+		lines.add_child(lab)
+	split.add_child(lines)
+	card_body.add_child(split)
+
+
+func _order_plate(stem: String) -> Control:
+	if stem == "letter" or stem == "toll":
+		if not ArtPack.has_event_art(stem):
+			return null
+		var tex := ArtPack.load_texture("res://assets/events/%s.webp" % stem)
+		if tex == null:
+			return null
+		var banner := TextureRect.new()
+		banner.texture = tex
+		banner.custom_minimum_size = Vector2(120, 72)
+		banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return banner
+	if stem != "propaganda":
+		return null
+	var icon := ArtPack.icon_texture("propaganda", 64.0)
+	if icon == null:
+		return null
+	var plate := Control.new()
+	plate.custom_minimum_size = Vector2(120, 72)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var paper := ColorRect.new()
+	paper.color = Color("efe4c8")
+	paper.set_anchors_preset(Control.PRESET_FULL_RECT)
+	paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_child(paper)
+	var face := TextureRect.new()
+	face.texture = icon
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	face.set_anchors_preset(Control.PRESET_CENTER)
+	face.offset_left = -32.0
+	face.offset_top = -32.0
+	face.offset_right = 32.0
+	face.offset_bottom = 32.0
+	plate.add_child(face)
+	return plate
 
 
 func _next_order_report() -> void:
@@ -3204,14 +3288,14 @@ func _claim(priority: int, token: String, restore: Callable) -> bool:
 	return deck.top_token() == token
 
 
-func _open_card(heading: String, with_close: bool = true) -> void:
+func _open_card(heading: String, with_close: bool = true, raw: bool = false) -> void:
 	_show_ahead(false)
 	on_paper = true
 	_wipe(card_body)
 	card_body.add_theme_constant_override("separation", 6)
 	dim.visible = true
 	var row := HBoxContainer.new()
-	var lab := _label(heading, 28, true)
+	var lab := _label(heading, 28, true, not raw)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(lab)
@@ -3252,9 +3336,9 @@ func _body(text: String) -> void:
 	card_body.add_child(lab)
 
 
-func _label(text: String, size: int, display: bool = false) -> Label:
+func _label(text: String, size: int, display: bool = false, translate: bool = true) -> Label:
 	var lab := Label.new()
-	lab.text = Copy.t(text)
+	lab.text = Copy.t(text) if translate else text
 	lab.add_theme_font_size_override("font_size", size)
 	lab.add_theme_color_override("font_color", PAPER_INK if on_paper else INK)
 	if display and display_font != null:
