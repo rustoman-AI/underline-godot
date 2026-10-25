@@ -1,0 +1,106 @@
+MAP UNIT SET GENERATION REVIEW
+21 OCT FINAL INTEGRATION: expedition_walk_v1 and puff_v1 are accepted and imported (six frames each).
+All seven accepted sheets are now available at runtime. No new art was generated in this pass.
+Expedition tint uses a separate upper-right pennant region per pose and a low-saturation key; mugs stay unchanged.
+Dust is untinted, emitted behind cruising handcars/traders every 0.6 seconds, and disabled with reduced motion.
+Standing squad bays are now local to their own pin and fully on paper, with a 30 px token when the full group cannot fit.
+This supersedes the earlier pending/import status below. See docs/audit/map_units_pilot.md for verification.
+
+CURRENT PASS: expedition_reference_v2 is owner-accepted; see ACCEPTED.txt.
+Generated expedition_walk_v1.png using accepted expedition v2 plus both pilot images.
+The submitted prompt explicitly preserves the accepted pennant colour and requests clear boot/pole margins.
+Generated puff_v1.png using both pilot images. Both sheets remain pending owner review.
+Exact submitted prompts are saved next to the sheets. Art generation stopped after these two candidates.
+Neither sheet has been imported or enabled in the game.
+Future expedition import must tint only the pennant region found near the pole tip with a low-saturation key;
+the warm grey tin mugs must remain unchanged, as specified in the 20 Oct expedition addendum.
+Standing squad placement is now corrected to clear visible bays with upper-right faction-coloured circles.
+
+LATEST PASS: squad_walk_v3 and squad_stand_v1 are now owner-accepted and imported.
+Six walk and four stand frames share a sole anchor and neutral-armband tint. See ACCEPTED.txt.
+expedition_reference_v2.png was generated with the exact EXPEDITION REFERENCE CORRECTION prompt,
+attaching expedition_reference_v1.png and both pilot images. Only attempt 2 was generated in this pass.
+The corrected expedition still remains pending owner review; art generation stopped there.
+These notes supersede the earlier pending squad-loop status and expedition-v1 review status below.
+
+CURRENT GENERATION PASS, after owner accepted squad_reference_v2:
+Generated with the built-in image_gen tool; all candidates remain pending owner review.
+squad_walk_v1, v2 and v3: six frames each. Latest candidate is v3.
+  v1/v2 retain very tight outer margins; v3 improves them to 36 px left and 32 px right.
+  v3 clear margins above spear tips: 238 px; below boots: 199 px (alpha > 60).
+  v3 occupied column spans: 36..366, 396..712, 749..1062, 1100..1421, 1470..1791, 1833..2139.
+  Walk phase readability remains an owner-review item. Three-attempt limit reached; no fourth attempt.
+squad_stand_v1: four standing poses, including lamp lift and shield shift; room above spear and below boots.
+  Alpha > 60 margins: left 22, right 30, top 115, bottom 92 pixels.
+  Occupied column spans: 22..515, 566..1063, 1110..1601, 1652..2141.
+expedition_reference_v1: two scouts with packs, pole/pennant/lamp and pickaxe. Candidate only.
+  Alpha > 60 margins: left 312, right 220, top 53, bottom 55 pixels.
+  Review the pennant colour: it appears cream/warm rather than plain neutral grey.
+Stopped at expedition_reference_v1 as requested. No expedition loop or dust generated.
+
+Attachments for EVERY squad loop attempt:
+  squad_reference_v2.png
+  ../pilot/handcar_reference_v1.png
+  ../pilot/handcar_pump_attempt3.png
+Walk corrections also attached the immediately preceding walk sheet.
+Expedition attached both pilot images plus incoming-art/anim_pilot/reference_body_01.png.
+Exact submitted prompts are saved beside the images. Initial loop prompts use the owner's relaxed
+clearly-empty-gap wording in place of the quarter-width guidance.
+No runtime assets, gameplay code or integration metadata changed in this generation pass.
+This status supersedes earlier notes that squad v2 was still pending or expedition had not started.
+
+LATEST OWNER REVIEW, 20 Oct:
+trader_roll_v1 is ACCEPTED and imported as six frames. See ACCEPTED.txt.
+Tint is limited to the canopy; lower cargo including the milk can stays unchanged.
+squad_reference_v2.png uses the exact SQUAD REFERENCE CORRECTION prompt with v1 and both pilot images.
+Only attempt 2 was generated in this pass. It remains pending owner review; no squad loops generated.
+This status supersedes the earlier trader/squad candidate notes below.
+
+20 Oct owner acceptance supersedes the original rejection notes below:
+handcar_idle_v3 and trader_reference_v3 are ACCEPTED; see ACCEPTED.txt.
+Neutral grey without a colour cast is sufficient; exact hex is not required.
+Clearly empty gaps are sufficient; quarter-width gaps are not an acceptance test.
+handcar_idle_v3 is now imported as four normalized frames and used during station waits.
+trader_roll_v1.png is a new six-frame candidate, pending owner review; not imported.
+squad_reference_v1.png is pending owner review. Its spear tip reaches the top edge;
+review the framing before animation. No squad loop generated.
+Art sequence stopped at the squad reference as requested. Expedition and puff remain queued.
+Both mandatory handcar references were attached to these generations; squad also used bodies 07 and 11.
+
+HISTORICAL GENERATION NOTES (superseded where acceptance above applies):
+2026-10-20. Built-in image_gen tool. No assets integrated into the game.
+
+Every generation attached both mandatory references:
+  ../pilot/handcar_reference_v1.png
+  ../pilot/handcar_pump_attempt3.png
+Idle v1 additionally attached handcar_idle_reference_v1.png.
+Each correction attached the preceding attempt as well as both mandatory references.
+The adjacent *_prompt.txt files contain the actual submitted prompt text.
+The source prompts are docs/briefs/art_map_units_set_prompts.txt at commit 07da815.
+
+HANDCAR IDLE
+handcar_idle_reference_v1.png: visually approved for the idle loop. Same crew, car, cargo and level lever.
+handcar_idle_v1.png: four idle poses, gaps too narrow; rail line missing.
+handcar_idle_v2.png: separate rail segments restored; gaps still narrow.
+handcar_idle_v3.png: best candidate, NOT approved for integration.
+Alpha-column bounds at alpha > 24: 25..485, 581..1039, 1131..1590, 1668..2130.
+Gaps: 95, 91, 77 px. Cars: 461, 459, 460, 463 px.
+Required quarter-width gaps would be at least 116 px. Three-attempt limit reached.
+The loop action is present, but exact static geometry and owner-plate colour are not certified.
+
+TRADER
+trader_reference_v1.png: style and design candidate; canopy warm/shaded, not flat #B5B5B5.
+trader_reference_v2.png: correction still shaded; sample (500,200) RGB 165,162,159.
+trader_reference_v3.png: NOT approved; correction still shaded.
+v3 opaque-interior samples (x,y -> R,G,B,A):
+  500,200 -> 167,167,165,254
+  700,200 -> 166,165,166,254
+  900,200 -> 166,165,165,254
+Required RGB is 181,181,181. The still also needs a final rail-line and margin check.
+Three-attempt limit reached. Trader loop deliberately not generated from a rejected reference.
+
+SQUAD, EXPEDITION, DUST
+Not started. Continue only after resolving the current units, following the requested one-unit-at-a-time order.
+
+The source file says "At most three attempts per image." No fourth attempts were made.
+No candidate is marked accepted in runtime metadata. No gameplay/rendering code changed.

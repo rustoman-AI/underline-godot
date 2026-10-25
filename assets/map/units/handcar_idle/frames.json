@@ -1,0 +1,42 @@
+{
+	"accepted": true,
+	"anchor": [
+		153.0,
+		253.0
+	],
+	"count": 4,
+	"landmarks": [
+		{
+			"base": 255.5,
+			"center": 230.25,
+			"left": 102.5,
+			"rail": 525,
+			"right": 358.0
+		},
+		{
+			"base": 253.0,
+			"center": 230.5,
+			"left": 104.0,
+			"rail": 525,
+			"right": 357.0
+		},
+		{
+			"base": 255.0,
+			"center": 230.0,
+			"left": 102.5,
+			"rail": 525,
+			"right": 357.5
+		},
+		{
+			"base": 255.5,
+			"center": 231.25,
+			"left": 103.5,
+			"rail": 525,
+			"right": 359.0
+		}
+	],
+	"owner_grey": 0.725490212440491,
+	"placeholder": false,
+	"source": "res://incoming-art/map_units/set/handcar_idle_v3.png",
+	"wheelbase": 163.0
+}

@@ -1,0 +1,41 @@
+{
+	"accepted": true,
+	"anchor": [
+		300,
+		560
+	],
+	"body_height": 400,
+	"count": 4,
+	"cycle_distance": 550.552763819096,
+	"landmarks": [
+		{
+			"body_top": 233,
+			"center": 247.0,
+			"sole": 631
+		},
+		{
+			"body_top": 234,
+			"center": 249.0,
+			"sole": 631
+		},
+		{
+			"body_top": 235,
+			"center": 246.0,
+			"sole": 631
+		},
+		{
+			"body_top": 232,
+			"center": 245.0,
+			"sole": 631
+		}
+	],
+	"owner_grey": 0.584313750267029,
+	"placeholder": false,
+	"source": "res://incoming-art/map_units/set/squad_stand_v1.png",
+	"tint_region": [
+		0.0,
+		0.38,
+		1.0,
+		0.6
+	]
+}

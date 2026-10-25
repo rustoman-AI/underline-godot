@@ -1,0 +1,44 @@
+CURSOR: CLARITY PASS AND BUG FIXES FROM THE FIRST OUTSIDE TESTER (build 0.1.0-playtest2 -> 0.1.0-playtest3)
+Source: docs/playtest/feedback_log.md (F1 to F18, 12 October 2026, a first-time player, 15 to 20 minutes). Three real bugs, and a wall of "I do not understand" in the first minutes. This is the ONE active goal until more logs arrive. Local only. No push, nothing uploaded. Do NOT change balance, content wording (lead's text: data/howto.json and data/hints.json are written, do not rewrite), art, or audio files. Do not touch the parked work (build/diff/parked/ difficulty patch, upgrades, tech tree, tile bonuses).
+
+PART 1: BUGS (fix first, each with a regression test or a screenshot test)
+B1 (F15) Double-clicking any active button before it confirms opens an empty panel at the bottom of the room card (a tall empty area under the buttons; see the hydroponics card). Find why a second click opens a second, empty modal or an unfilled section; make a second click on a pending action a no-op. Also fix the empty space at the bottom of room cards.
+B2 (F16) The camera can move outside the map into the dark void, on the station view (bottom, top, sides) and on the network map. Clamp panning to the content bounds plus a small margin, at every zoom level and window size.
+B3 (F17) Zooming out with the wheel re-centres the view even when the player did not ask. Zoom around the cursor position and keep the focus; do not re-centre unless the content would leave the allowed bounds.
+
+PART 2: CLARITY (the main work)
+C1 (F8) End turn: when the turn is ready, subtly highlight End turn (keep the dark state while a choice is waiting). The card that opens next must say what it is in its title line: "Dawn of week N" for the new-week report, or the event's title with a small tag "Event". EN and RU.
+C2 (F7, F11) Buttons say what they do. Under or on every event choice, audience button (Accept, Offer help, Refuse), and order button, show a one-line plain-words effect summary built from the same numbers the game applies (Game.audience_effects() for audiences; the event choice effects for events). Replace unexplained icons on choices with words or word plus icon, for example "Power -2" and "Hope -1, Discontent +2". Keep the cards fitting 1280x720 in EN and RU (longest case: audience of Synod in RU, event with 3 choices).
+C3 (F10) Room card: the pair "Room works / Disabled (saves 2 power)" must read as a switch: show the current state first ("State: Working" / "State: Off, saving 2 power") and one button that says what pressing it will do ("Switch off" / "Switch on"). Also explain "x1.9 from crew skill" in words ("Crew skill bonus: x1.9") and drop the confusing "Each worker: +0 food/week" line when it is zero.
+C4 (F5) A small question-mark badge on each room (station view and the build menu) with a tooltip or a tap card of one line from the room data (what it makes, what it uses, which skill it needs). Text source: add a "what" {en, ru} field per room in data/rooms.json ONLY if missing and take the wording from the table below; do not invent other text.
+   platform: Where people wait and sleep rough. No output. / Платформа: здесь ждут и ночуют без коек. Ничего не производит.
+   quarters: Beds for the station. Crowded beds raise discontent. / Жилые: койки станции. Теснота повышает недовольство.
+   hydroponics: Grows food. Uses power. Skill: Labor. / Гидропоника: даёт еду, тратит энергию. Навык: труд.
+   air_filter: Keeps the air breathable. Wears out. Skill: Tech. / Воздушный фильтр: держит воздух пригодным, изнашивается. Навык: техника.
+   generator: Makes power. Skill: Tech. / Генератор: даёт энергию. Навык: техника.
+   workshop: Makes materials for building and repairs. Skill: Labor. / Мастерская: даёт материалы для стройки и ремонта. Навык: труд.
+   infirmary: Treats the sick. Skill: Care. / Лазарет: лечит больных. Навык: забота.
+   meeting_hall: Calms people and builds hope. Skill: Talk. / Зал собраний: успокаивает людей и поднимает надежду. Навык: речь.
+   radio: Hears the network and the voices in the static. Skill: Tech. / Радио: слушает сеть и голоса в помехах. Навык: техника.
+C5 (F10) When a worker cannot be added to a room, say why on the slot or the button ("No free people", "Room is full", "Room is off") instead of doing nothing.
+C6 (F6) The network station sheet button "Open station" / "Открыть станцию" is unclear. Find what it does. Rename it to say so ("Visit station" / "Посетить станцию") and add a one-line tooltip of what you will see. If it does something else, report and propose a label.
+C7 (F1, F2, F9) How-to card and first-run hints.
+   - data/howto.json now has 7 lines (goal first). Make the card hold 7 lines at 1280x720 and 1024x768 in EN and RU without clipping.
+   - NEW data/hints.json (written by the lead): five one-time hints on weeks 1 to 6 of a new game (dig, build, staff, end turn, network). Implement them as small paper-style callouts next to the named UI element, shown once each, dismissed by click or by performing the action, never blocking input, never shown while a modal is open. A Settings toggle "Hints" (default on) and a "Show hints again" button. Hints must not appear on loaded saves past week 6 and must not appear for the bot or in shot mode unless asked. Persist which hints were seen in the player's settings (not in the game save).
+   - Add the Menu entry "How to play" if missing (it exists), and show the card at the start of the first New game as today.
+
+PART 3: AUDIO MIX (no new audio generation, no file replacement)
+A1 (F3) The UI click sound is annoying. Measure the integrated loudness and length of click, confirm, card, built and the other UI sounds; report in LUFS. Lower the click by 6 dB, keep it under 80 ms, do not play it twice for one action (double fire), and no sound on hover.
+A2 (F4) The hydroponics room loop is annoying. Report its loudness and loop length. Lower it by 8 dB, fade it after about 3 seconds of the panel being open (or make it play once on open), and never stack with other loops. Keep the VO and music untouched.
+Report the before and after numbers. If you change a file instead of a gain, keep the original in an ignored folder as for the VO.
+
+PART 4: CHECKS, SCREENSHOTS, BUILD
+All 8 gates green (bot_run, check_balance, check_audience, check_save, check_network, check_slice, check_portraits, check_playtest). The bot output must stay identical to HEAD line by line (this pass changes UI and mix only). New tests: B1 to B3 regression, hint persistence, End-turn label logic, choice effect summaries equal the applied effects for 5 events and 5 audiences. Screenshots EN and RU at 1280x720 and 1024x768: how-to card, a hint callout, room card (hydroponics with and without workers), event card with effect words, audience card with the three buttons and their effect lines, End turn highlight, network station sheet. Then build version 0.1.0-playtest3 with .tools/export_playtest.ps1, smoke test as before, report size. Do not upload anything.
+
+COMMITS (local): "Fix: double-click empty panel, camera bounds, zoom re-centre" ; "Clarity: effects on buttons, end-turn highlight, room switch and help badges" ; "First-run hints and how-to v2" ; "Audio mix: quieter click and hydroponics loop" ; "Playtest build version 0.1.0-playtest3". Do not commit build/, shots/, incoming-art/.
+
+ADDED 12 OCT (F19, same pass):
+C8 (F19) Overcrowding explained. A tooltip or tap card on the population number and on the top-bar line "Overcrowding +2/wk" / "Теснота +2/нед": "People: N. Beds: M. Not enough beds raises discontent by X a week." (EN and RU, numbers from the game). Do not change the overcrowding rule or numbers. The new mechanic "capacity with debuffs" is parked.
+
+ADDED 12 OCT (F21, same pass):
+C9 (F21) Settings screen has no dimming: the two settings columns lie on top of the live station, the title "Settings" overlaps the top bar, and the player cannot tell they are in a menu. Give Settings (and the main menu panels if they have the same problem) the same dim backdrop and card framing as the other modals: dark overlay over the station, the title inside the card, a Back button inside the card, Esc closes. Keep the layout fitting 1024x768 and 1280x720 in EN and RU (the overnight QA already fixed overflow at 1024).

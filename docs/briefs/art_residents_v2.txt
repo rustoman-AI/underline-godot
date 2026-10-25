@@ -1,0 +1,47 @@
+ART: RESIDENT FIGURES V2 (redrawn one by one)
+Why: the current figures (assets/figures/poses/body_01..12, air_filter_01 and the palettes) are faceless dark silhouettes in tactical gear (combat boots, plate-carrier vests, helmet). They do not look like tired New Yorkers after the Silence, and the "work poses" are the same bodies with props pasted on. Redraw every figure as its own person, in the style of the hub art (assets/hubs/*.webp and incoming-art/hubs/coney.png).
+Do NOT run any pose generator or script that composes poses from other poses. Do NOT look at or reuse incoming-art/poses, poses_fix, poses_rejected or assets/figures/residents. Each figure is its own image. Antigravity does not touch these assets. Nothing is installed into assets/ until the project lead accepts it.
+
+STYLE
+Same world as the hubs: ink outline with ONE consistent line weight, flat or two-tone cel shading, muted palette, light paper grain, human faces drawn simply (no pores, no glossy eyes), tired and practical, nobody smiles, nobody poses for the camera. Clothes are scavenged and mismatched: work jackets, scarves, transit-authority vests, hospital cardigans, knit caps, boots that do not match. NOT military, NOT tactical, no plate carriers, no helmets, no combat gear, no weapons.
+Value rule: the figure must read on a dark station wall at 32 px height. Clothes in MID values, not near-black. Each figure has one clear accent colour block (rust, mustard, teal, olive, brick, faded blue). Face and hands lighter than the clothes.
+Pose and view: flat side or three-quarter view, facing right, full body, both feet visible on one baseline, nothing cropped, no floor, no ground shadow, no background, no frame. Props are held properly by a hand or worn, never floating.
+
+FORMAT
+Transparent PNG, one figure per image, standing height 2,400 px on a 3,000 px tall canvas (feet baseline at y = 2,880, width as needed, up to 1,000 px). The project then reduces them to the game canvas 212x660 (feet baseline y = 636, standing height 540 to 600). Heights vary between people by up to 8%. Never make a lineup or sheet as the deliverable. A review sheet is made separately.
+
+THE TWELVE IDLE RESIDENTS (file names body_01 .. body_12)
+01 woman, 40s, engineer: canvas jacket, tool belt, hair tied back, rolled sleeves. Accent: rust.
+02 big man, 50s, hauler: sleeveless padded vest over a grey thermal shirt, work trousers, thick forearms. Accent: mustard.
+03 old man, 60s, hands in the pockets of a thick quilted parka, knit cap pulled low. Accent: faded blue.
+04 young woman, 20s, courier: peaked cap, messenger bag across the chest, thin and quick. Accent: teal.
+05 stocky man, 40s, mechanic: faded coveralls tied at the waist, big pipe wrench at the hip. Accent: olive.
+06 tall man, mid 40s: long worn overcoat and a scarf, tired eyes, one glove. Accent: brick.
+07 man, 50s, a former transit supervisor: old authority cap with a worn badge, reflective vest over a cardigan. Accent: mustard.
+08 woman, 30s: radio operator, headset around the neck, small satchel, fingerless gloves. Accent: teal.
+09 lanky young man, late teens, hooded sweatshirt under a jacket too big for him, scarf. Accent: rust.
+10 woman, 50s, nurse: hospital cardigan over scrubs, glasses, clipboard under the arm. Accent: faded blue.
+11 broad man, 40s: heavy duffel coat, rubber boots, a flashlight on the belt. Looks like a night watchman, not a soldier. Accent: olive.
+12 woman, 60s: patterned shawl, a cane, an old shopping bag. Accent: brick.
+
+ROOM WORK POSES (file name = room type + number; the game picks them by room)
+workshop_01 welder: welding mask pushed up, torch in hand, sparks drawn as a few flat shapes
+workshop_02 bench worker: hammer, leather apron, leaning to a bench edge
+workshop_03 carrier: heavy metal crate held by the handle
+hydroponics_01 pruning: small shears, bending toward a tray
+hydroponics_02 carrying a seedling tray with green shoots
+hydroponics_03 carrying a jerrycan of nutrient water at the hip
+generator_01 mechanic tightening a coupling with a large wrench
+generator_02 electrician with a multimeter probe
+air_filter_01 technician reading a hand gauge
+air_filter_02 worker with a wrench at a grille bracket
+infirmary_01 medic with a clipboard and a tray of small bottles
+infirmary_02 a convalescent seated on the edge of a bunk holding a tin mug (seated height about 78%)
+radio_01 operator with a headset and a hand on a dial (the set itself is drawn as a small box)
+Work poses must be new people or new clothing (not a copy of an idle figure with a prop).
+
+PROCESS
+1. PILOT (three figures only): body_01, body_02, workshop_01. Deliver to incoming-art/residents_v2/pilot/ with the exact prompts. The project lead reviews at 220 px and 64 px height and against the station wall. Do not continue before acceptance.
+2. After acceptance, batches of six, same folder structure incoming-art/residents_v2/<stem>.png, review after every batch.
+3. Colour variants (slate, ochre, drab, security palettes) are NOT drawn; the project recolours the accepted figures with a deterministic script later.
+4. If the same face or body shows up twice, redo one. The twelve must look like twelve different people.

@@ -1,0 +1,72 @@
+MUSE: RE-RECORD AFTER THE WORDING PASS (EN + RU, 9 FILES)
+The wording pass of 17 Oct fixed lines that read as word-for-word translations. Nine voiced files carry old wording. Re-record exactly these nine files, with the voices that made them, using the new text below. Nothing else. Do not touch any other file, index or pack (the leader pack, story pack, radio, sound set, teaser).
+
+The new text lives in this brief only. data/leader_lines.json and data/vo/*.json keep the old text until your files are installed, so subtitles and audio stay in step. Speak only the text in quotes. No key names, no stage directions.
+
+THE TWO LANGUAGES ARE NOT TRANSLATIONS
+Each line was written natively in its language. Where only one language is listed, the other stays as it is and is not re-recorded. Do not "fix" one language to match the other. If a line sounds unnatural spoken, flag it in the report with a suggestion; do not change the text yourself.
+
+GENERAL DIRECTION
+Match the existing file for the same key: same voice, same model, same settings, same pace and level of tiredness. The new take must sit next to the other lines of that character without anyone noticing a new session. Nobody smiles, no grin, no presenter voice.
+
+THE LINES
+
+A. Leaders (voices from incoming-audio/leaders-vo-01/index_leaders_vo_01.tsv; eleven_v4, stability 0.5, similarity_boost 0.75)
+
+1. lead_depot_band_useful_en.ogg (Bernie Shaw, Matthew Schmitz, Q4oILuo4P8VeXtE6FMLI)
+   EN: "Your crews keep their rail joints tight. I don't forget that. Sit. I'll pour tea."
+   Direction: a gruff compliment, not a warm one. "Sit" is an order.
+
+2. lead_exchange_band_pact_en.ogg (Marcel Toussaint, Adam, mwSotaX4JZvDBLkikIUZ)
+   EN: "For you, I don't write it down. People have died for that kind of compliment. Don't abuse it."
+   Direction: quiet, almost confidential. The middle sentence is a fact, not a threat.
+
+3. lead_exchange_trade_en.ogg (Marcel Toussaint, Adam, mwSotaX4JZvDBLkikIUZ)
+   EN: "Kerosene for bread, bread for plasters. I'll write it on my arm. Debts don't get lost there."
+
+4. lead_exchange_trade_ru.ogg (Marcel Toussaint, Adam, mwSotaX4JZvDBLkikIUZ)
+   RU: "Керосин на хлеб, хлеб на пластыри. Запишу себе на руке. Там долг не потеряется."
+   Direction for 3 and 4: patient, a merchant ticking items off. The last sentence is dry, not a joke.
+
+5. lead_black_flag_accepted_ru.ogg (Niki Ortega, Oraya, nRQT5qZlz63KgulRymWq)
+   RU: "Договорились. Ночью услышишь лампы. Не выходи. Это просто люди идут."
+   Direction: short sentences, each one a beat. Stress: «люди идУт».
+
+6. lead_directorate_band_wary_ru.ogg (Lionel Abelard, Ryan T, KrzS8SPOhDLAQ1kPsDxL)
+   RU: "Вы у нас пока в графе «на рассмотрении». Это лучше, чем у многих."
+   Direction: dry, a clerk reading a register. The quoted words are said flat, without irony.
+
+B. Event, system and radio lines (Russian only; the established announcer)
+The announcer voice ID, model and settings are not recorded in this repository. Recover them from your phase 3 and radio history first, and state them in the report before generating. If you cannot recover them with certainty, STOP and report; do not substitute another voice.
+
+7. event_desertion_resolve_ru.ogg
+   RU: "На поверке две койки пустовали. К утру вернулся один номерок: лежал на воротах, без записки. Кто ушёл, ушёл тихо, а кто его вернул, молчит. Пустая койка так и стоит застеленной. На всякий случай."
+   Note: «номерок», not «жетон». In the game «жетоны» are the money.
+
+8. sys_caravan_arrived_ru.ogg
+   RU: "У ворот станции торговцы: цвета Биржи, настоящий товар, настоящие цены. Бенни Чо уже там, а это значит: цены сговорчивые, а товар, скорее всего, того стоит. Торгуйте честно, Кони-Айленд."
+
+9. radio_news_002_ru.ogg
+   RU: "Хорошие вести со станции: пропавший ящик Вика Эллиса нашёлся за кожухом генератора. Вик сообщает всем: инструменты целы, ящик цел, а извинения принимаются металлоломом. У горы всё по-прежнему."
+   Note for 8 and 9: «станция», not «двор». «Двор» reads as a courtyard or "outdoors".
+
+Pronunciation: «Кони-Айленд» as in the existing files; «Бенни Чо», «Вика Эллиса» as before.
+
+FIRST, BEFORE ANY GENERATION (answer in your report)
+1. Real quota from the ElevenLabs dashboard, with the time of the reading.
+2. The announcer voice_id, model and settings recovered for part B, with where you found them.
+The job is small: about 1,050 characters per take.
+
+GENERATION (go is given for this brief; no casting stage, the voices are fixed)
+All nine files, two takes each, 18 files. Keep a running quota check.
+Stop at once and report if: dashboard quota would fall below 3,000 credits; the announcer for part B cannot be confirmed; any file fails; clipping, truncation, repeated words, or silence over 1 s inside a line; a take runs more than 40% longer or shorter than the file it replaces.
+
+FILES AND NAMES
+The exact file name of the file being replaced plus a take suffix: <name>_take<k>.ogg, k 1-2. Example: lead_exchange_trade_ru_take2.ogg.
+Export as before: mp3_44100_128 to OGG libvorbis -q:a 5. Do not loudness-match; the project normalizes to -23 LUFS on install. Keep the untouched API originals separately.
+
+DELIVERY
+incoming-audio/vo-rewording-01/ with ogg/, originals/ and an index (filename, replaces, character, language, exact text, voice name and ID, model, settings, duration, duration of the old file, date). Technical checks only (decode, duration, clipping, silence, file count). You cannot audition: never claim the delivery or the pronunciation passed. Report actual quota used from the dashboard. Do not install anything into assets/ and do not edit any data file.
+
+AFTER DELIVERY (not Muse)
+The project lead picks one take per file on technical QC, normalizes to -23 LUFS with .tools/normalize_leaders.ps1 and .tools/normalize_vo.ps1, installs over the old files (old ones moved to the _originals_ folders), and updates the text in data/leader_lines.json and data/vo/underline_vo.json in the same change.

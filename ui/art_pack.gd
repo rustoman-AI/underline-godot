@@ -42,8 +42,98 @@ static func load_font(path: String, cyrillic: bool = false) -> Font:
 	return face
 
 
+## Eight reusable mood plates. event_{hash%8} indexes this pool.
+const MOOD_PLATES := ["dark", "quarrel", "hunger", "scrap", "tools", "sleep", "chapel", "labor"]
+
+
 static func has_event_art(event_id: String) -> bool:
+	if event_id == "":
+		return false
 	return textures().has("res://assets/events/%s.webp" % event_id)
+
+
+## Plate, then the event tag's mood, then event_{hash%8} from MOOD_PLATES.
+static func resolve_event_banner(ev: Dictionary) -> String:
+	var plate := str(ev.get("banner", "")).strip_edges()
+	if plate == "":
+		plate = str(ev.get("id", "")).strip_edges()
+	if has_event_art(plate):
+		return plate
+	var mood := mood_for_tag(str(ev.get("tag", "")).strip_edges())
+	if has_event_art(mood):
+		return mood
+	var id := str(ev.get("id", "")).strip_edges()
+	if id == "":
+		id = plate
+	var hashed := event_hash_mood(id)
+	if has_event_art(hashed):
+		return hashed
+	return ""
+
+
+static func mood_for_tag(tag: String) -> String:
+	if tag != "" and MOOD_PLATES.has(tag):
+		return tag
+	return ""
+
+
+static func event_hash_mood(id: String) -> String:
+	var n := absi(id.hash()) % MOOD_PLATES.size()
+	return str(MOOD_PLATES[n])
+
+
+## Authored banner must name a registered plate. A blank banner still
+## passes when the tag mood or event_{hash%8} plate is registered.
+static func banner_faults(rows: Array) -> PackedStringArray:
+	var missing := PackedStringArray()
+	for row in rows:
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var ev: Dictionary = row
+		var id := str(ev.get("id", "")).strip_edges()
+		var label := id if id != "" else "?"
+		var plate := str(ev.get("banner", "")).strip_edges()
+		if plate != "":
+			if not has_event_art(plate):
+				missing.append("%s -> %s" % [label, plate])
+			continue
+		if resolve_event_banner(ev) == "":
+			missing.append(label)
+	return missing
+
+
+static func collect_banner_rows(weighted: Array, check_root: Dictionary) -> Array:
+	var rows: Array = []
+	for ev in weighted:
+		rows.append(ev)
+	var checks = check_root.get("events", [])
+	if checks is Array:
+		for raw in checks:
+			rows.append(raw)
+	for id in crunch_ids():
+		rows.append(crunch_event_art(id))
+	return rows
+
+
+static func crunch_ids() -> PackedStringArray:
+	return PackedStringArray(["pantry", "ducts", "belt", "stacks", "shopbelt", "dynamo"])
+
+
+## Art for the crunch stand-in cards. Not a balance value.
+static func crunch_event_art(id: String) -> Dictionary:
+	match id:
+		"pantry":
+			return {"id": id, "banner": "hunger", "tag": "hunger"}
+		"ducts", "belt":
+			return {"id": id, "banner": "dark", "tag": "dark"}
+		"stacks":
+			return {"id": id, "banner": "rat", "tag": "scrap"}
+		"shopbelt":
+			return {"id": id, "banner": "tools", "tag": "tools"}
+		"dynamo":
+			return {"id": id, "banner": "brownout", "tag": "dark"}
+		_:
+			return {"id": id}
 
 
 static func audit() -> void:
@@ -72,6 +162,25 @@ static func textures() -> Dictionary:
 		"res://assets/cells/cell_construction.webp": preload("res://assets/cells/cell_construction.webp"),
 		"res://assets/backdrop_station.webp": preload("res://assets/backdrop_station.webp"),
 		"res://assets/hubs/hub_coney_island.webp": preload("res://assets/hubs/hub_coney_island.webp"),
+		"res://assets/hubs/archive.webp": preload("res://assets/hubs/archive.webp"),
+		"res://assets/hubs/central.webp": preload("res://assets/hubs/central.webp"),
+		"res://assets/hubs/clocktower.webp": preload("res://assets/hubs/clocktower.webp"),
+		"res://assets/hubs/dockyard.webp": preload("res://assets/hubs/dockyard.webp"),
+		"res://assets/hubs/eastwater.webp": preload("res://assets/hubs/eastwater.webp"),
+		"res://assets/hubs/foundry.webp": preload("res://assets/hubs/foundry.webp"),
+		"res://assets/hubs/garden.webp": preload("res://assets/hubs/garden.webp"),
+		"res://assets/hubs/harbor.webp": preload("res://assets/hubs/harbor.webp"),
+		"res://assets/hubs/library.webp": preload("res://assets/hubs/library.webp"),
+		"res://assets/hubs/market.webp": preload("res://assets/hubs/market.webp"),
+		"res://assets/hubs/mill.webp": preload("res://assets/hubs/mill.webp"),
+		"res://assets/hubs/observatory.webp": preload("res://assets/hubs/observatory.webp"),
+		"res://assets/hubs/oldcommand.webp": preload("res://assets/hubs/oldcommand.webp"),
+		"res://assets/hubs/plaza.webp": preload("res://assets/hubs/plaza.webp"),
+		"res://assets/hubs/quarry.webp": preload("res://assets/hubs/quarry.webp"),
+		"res://assets/hubs/riverside.webp": preload("res://assets/hubs/riverside.webp"),
+		"res://assets/hubs/signal.webp": preload("res://assets/hubs/signal.webp"),
+		"res://assets/hubs/vault.webp": preload("res://assets/hubs/vault.webp"),
+		"res://assets/hubs/westfield.webp": preload("res://assets/hubs/westfield.webp"),
 		"res://assets/figures/fig_standing.webp": preload("res://assets/figures/fig_standing.webp"),
 		"res://assets/figures/fig_walking.webp": preload("res://assets/figures/fig_walking.webp"),
 		"res://assets/figures/fig_working.webp": preload("res://assets/figures/fig_working.webp"),
@@ -94,6 +203,18 @@ static func textures() -> Dictionary:
 		"res://assets/portraits/portrait_14.webp": preload("res://assets/portraits/portrait_14.webp"),
 		"res://assets/portraits/portrait_15.webp": preload("res://assets/portraits/portrait_15.webp"),
 		"res://assets/portraits/portrait_16.webp": preload("res://assets/portraits/portrait_16.webp"),
+		"res://assets/portraits/portrait_17.webp": preload("res://assets/portraits/portrait_17.webp"),
+		"res://assets/portraits/portrait_18.webp": preload("res://assets/portraits/portrait_18.webp"),
+		"res://assets/portraits/portrait_19.webp": preload("res://assets/portraits/portrait_19.webp"),
+		"res://assets/portraits/portrait_20.webp": preload("res://assets/portraits/portrait_20.webp"),
+		"res://assets/portraits/portrait_21.webp": preload("res://assets/portraits/portrait_21.webp"),
+		"res://assets/portraits/portrait_22.webp": preload("res://assets/portraits/portrait_22.webp"),
+		"res://assets/portraits/portrait_23.webp": preload("res://assets/portraits/portrait_23.webp"),
+		"res://assets/portraits/portrait_24.webp": preload("res://assets/portraits/portrait_24.webp"),
+		"res://assets/portraits/portrait_25.webp": preload("res://assets/portraits/portrait_25.webp"),
+		"res://assets/portraits/portrait_26.webp": preload("res://assets/portraits/portrait_26.webp"),
+		"res://assets/portraits/portrait_27.webp": preload("res://assets/portraits/portrait_27.webp"),
+		"res://assets/portraits/portrait_28.webp": preload("res://assets/portraits/portrait_28.webp"),
 		"res://assets/events/brownout.webp": preload("res://assets/events/brownout.webp"),
 		"res://assets/events/cough.webp": preload("res://assets/events/cough.webp"),
 		"res://assets/events/expedition.webp": preload("res://assets/events/expedition.webp"),
@@ -107,6 +228,27 @@ static func textures() -> Dictionary:
 		"res://assets/events/showtime.webp": preload("res://assets/events/showtime.webp"),
 		"res://assets/events/toll.webp": preload("res://assets/events/toll.webp"),
 		"res://assets/events/vote.webp": preload("res://assets/events/vote.webp"),
+		"res://assets/events/chapel.webp": preload("res://assets/events/chapel.webp"),
+		"res://assets/events/dark.webp": preload("res://assets/events/dark.webp"),
+		"res://assets/events/hunger.webp": preload("res://assets/events/hunger.webp"),
+		"res://assets/events/labor.webp": preload("res://assets/events/labor.webp"),
+		"res://assets/events/market_next.webp": preload("res://assets/events/market_next.webp"),
+		"res://assets/events/quarrel.webp": preload("res://assets/events/quarrel.webp"),
+		"res://assets/events/scrap.webp": preload("res://assets/events/scrap.webp"),
+		"res://assets/events/sleep.webp": preload("res://assets/events/sleep.webp"),
+		"res://assets/events/tools.webp": preload("res://assets/events/tools.webp"),
+		"res://assets/events/lamps.webp": preload("res://assets/events/lamps.webp"),
+		"res://assets/events/rumble.webp": preload("res://assets/events/rumble.webp"),
+		"res://assets/events/static.webp": preload("res://assets/events/static.webp"),
+		"res://assets/events/smuggler.webp": preload("res://assets/events/smuggler.webp"),
+		"res://assets/events/market_food.webp": preload("res://assets/events/market_food.webp"),
+		"res://assets/events/desertion.webp": preload("res://assets/events/desertion.webp"),
+		"res://assets/events/clog.webp": preload("res://assets/events/clog.webp"),
+		"res://assets/events/knock.webp": preload("res://assets/events/knock.webp"),
+		"res://assets/events/loan.webp": preload("res://assets/events/loan.webp"),
+		"res://assets/events/diesel.webp": preload("res://assets/events/diesel.webp"),
+		"res://assets/events/armband.webp": preload("res://assets/events/armband.webp"),
+
 	}
 	return _textures
 

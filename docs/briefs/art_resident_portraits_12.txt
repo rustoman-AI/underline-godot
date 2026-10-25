@@ -1,0 +1,23 @@
+ART: TWELVE MORE RESIDENT PORTRAITS (OPTIONAL, pending the project lead's yes)
+Why: after the five Coney cast members were pinned to five existing portraits, 11 faces remain for 20 residents, so nine faces repeat from week one (and the station grows to 60-90 people). Add twelve new ordinary residents. Match the existing resident portraits EXACTLY: look at assets/portraits/portrait_01 .. portrait_16 first. Nothing is installed into assets/ until the project lead accepts it. Antigravity does not touch these assets.
+
+STYLE
+Aged sepia photograph with a worn paper border, a station tunnel behind the person (tiles, pipes, a lamp), facing the camera in a bust, 1:1 square, 1024x1024 source (the game uses 512). Serious or tired. NOBODY SMILES. Ordinary people with real faces, age and wear: no costumes, no props, no masks, no weapons, no stamps or text on the photo. Same sepia tone and grain as portraits 01 to 11 (not the stamped ID-card look of 12 to 16). Natural, unglamorous, believable as New Yorkers after the Silence.
+
+THE TWELVE (a mix so that no two look alike; none may resemble the 16 existing faces)
+17 woman, 62, grey hair under a headscarf, sharp cheekbones
+18 man, 24, thin, short dark hair, scar on the chin
+19 woman, 35, heavy-lidded eyes, tied-back black hair, work apron
+20 man, 71, deeply lined, bald, white stubble
+21 woman, 28, freckles, short curly hair, cardigan
+22 man, 46, broad, flat nose, close-cropped hair, thick neck
+23 man, 33, round glasses, long face, stubble, wool scarf
+24 woman, 52, grey streak in dark hair, tired eyes, quilted jacket
+25 man, 19, soft face, hoodie under a jacket, wary
+26 woman, 44, wide face, dark skin, braids, strong brow
+27 man, 58, receding hair, big moustache, work shirt
+28 woman, 38, pale, narrow face, hair in a bun, collar buttoned to the chin
+Mix of skin tones and ages is intended. No two with the same expression.
+
+DELIVERY
+incoming-art/residents_portraits_v2/portrait_17.png ... portrait_28.png (1024x1024) with the exact prompt next to each file, and a contact sheet of the twelve at 256 and 96 px next to six existing portraits (01, 03, 05, 07, 09, 11) to check that they belong. Do not install into assets/.

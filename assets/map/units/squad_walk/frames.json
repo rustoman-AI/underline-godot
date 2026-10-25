@@ -1,0 +1,51 @@
+{
+	"accepted": true,
+	"anchor": [
+		300,
+		560
+	],
+	"body_height": 400,
+	"count": 6,
+	"cycle_distance": 622.393162393162,
+	"landmarks": [
+		{
+			"body_top": 290,
+			"center": 165.5,
+			"sole": 524
+		},
+		{
+			"body_top": 271,
+			"center": 158.5,
+			"sole": 524
+		},
+		{
+			"body_top": 267,
+			"center": 157.0,
+			"sole": 523
+		},
+		{
+			"body_top": 269,
+			"center": 161.0,
+			"sole": 524
+		},
+		{
+			"body_top": 273,
+			"center": 161.0,
+			"sole": 525
+		},
+		{
+			"body_top": 267,
+			"center": 153.5,
+			"sole": 524
+		}
+	],
+	"owner_grey": 0.61176472902298,
+	"placeholder": false,
+	"source": "res://incoming-art/map_units/set/squad_walk_v3.png",
+	"tint_region": [
+		0.0,
+		0.38,
+		1.0,
+		0.6
+	]
+}

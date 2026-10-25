@@ -1,0 +1,123 @@
+{
+  "merge_strings": [
+    {
+      "id": "join_preview",
+      "en": "Joins {room}: +{bonus} output, {n} fewer worker(s). Shares power, sickness and disasters.",
+      "ru": "Стыкуется с {room}: +{bonus} к выработке, на {n} меньше рабочих. Общие энергия, болезнь и беды."
+    },
+    {
+      "id": "join_preview_hydro",
+      "en": "Joins Hydroponics: +10% food, 1 fewer worker. Shares power, sickness and disasters.",
+      "ru": "Стыкуется с Гидропоникой: +10% еды, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+    },
+    {
+      "id": "block_sign",
+      "en": "{room} ×{n}",
+      "ru": "{room} ×{n}"
+    },
+    {
+      "id": "disaster_red",
+      "en": "A disaster here hits all {n} cells.",
+      "ru": "Беда здесь бьёт по всем {n} клеткам."
+    },
+    {
+      "id": "merge_complete_float",
+      "en": "+{n} from the merge",
+      "ru": "+{n} от объединения"
+    },
+    {
+      "id": "block_card_crew",
+      "en": "Crew {staff}/{staff_max} · output {base} + {merge} merge · power {power} as one",
+      "ru": "Смена {staff}/{staff_max} · выработка {base} + {merge} от блока · энергия {power} как одна"
+    },
+    {
+      "id": "brownout_block",
+      "en": "The whole block goes dark.",
+      "ru": "Темнеет весь блок."
+    },
+    {
+      "id": "cough_block",
+      "en": "The cough is in every cell of this block.",
+      "ru": "Кашель во всех клетках этого блока."
+    }
+  ],
+  "hardship_reasons": [
+    {
+      "id": "thin_food",
+      "en": "Thin food",
+      "ru": "Тонкая еда"
+    },
+    {
+      "id": "food_shortage",
+      "en": "Food shortage",
+      "ru": "Нехватка еды"
+    },
+    {
+      "id": "air_shortage",
+      "en": "Air shortage",
+      "ru": "Нехватка воздуха"
+    },
+    {
+      "id": "dark_rooms",
+      "en": "Dark rooms",
+      "ru": "Тёмные комнаты"
+    },
+    {
+      "id": "sickness_share",
+      "en": "Sickness",
+      "ru": "Болезнь"
+    },
+    {
+      "id": "season_flood",
+      "en": "the flood",
+      "ru": "паводок"
+    },
+    {
+      "id": "season_cold",
+      "en": "the cold",
+      "ru": "холод"
+    },
+    {
+      "id": "season_cough",
+      "en": "the cough",
+      "ru": "кашель"
+    },
+    {
+      "id": "settled",
+      "en": "A settled week",
+      "ru": "Спокойная неделя"
+    }
+  ],
+  "hardship_lines": [
+    {
+      "id": "pushing_two",
+      "en": "{a} and {b} are pushing it.",
+      "ru": "{a} и {b} давят."
+    },
+    {
+      "id": "pushing_one",
+      "en": "{a} is pushing it.",
+      "ru": "{a} давит."
+    },
+    {
+      "id": "pushing_list",
+      "en": "{list} are pushing it.",
+      "ru": "{list} давят."
+    },
+    {
+      "id": "revolt_eta",
+      "en": "Revolt in about %s.",
+      "ru": "Бунт примерно через %s."
+    },
+    {
+      "id": "settled_cool",
+      "en": "A settled week cools the platform.",
+      "ru": "Спокойная неделя остужает платформу."
+    },
+    {
+      "id": "thin_and_cough",
+      "en": "Thin food and the cough are pushing it.",
+      "ru": "Тонкая еда и кашель давят."
+    }
+  ]
+}

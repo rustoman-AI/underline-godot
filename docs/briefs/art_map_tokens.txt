@@ -1,0 +1,61 @@
+SUPERSEDED on 19 Oct by docs/briefs/art_map_units_pilot.txt (pilot first) and art_map_units_set.txt. Kept for history; do not send.
+
+ART: MAP UNITS, ANIMATED (ChatGPT image tool) — version 2, replaces version 1 of 19 Oct
+
+WHERE WE ARE
+The network map shows what moves between stations: handcars carrying loads home along supply lines, trader
+handcars going to stations we have a deal with, rival handcars going to their seats, squads walking from station
+to station, and the expedition party in its tunnel. Today all of them are drawn by code with lines and circles.
+The owner calls that a meme and wants finished, painted art that moves in real frames, like the residents in the
+station (animation sets 1 and 2, incoming-art/anim_set1, incoming-art/anim_set2). This set gives the map that.
+
+LOOK (same for every sheet)
+- Painted miniatures seen from about 30 degrees above (three-quarter top-down), moving to the RIGHT.
+- Ink outline and flat colour with one soft shade, the same hand as the station pins (assets/map/pins.webp) and the
+  hub banners (assets/hubs/*.webp). No photo realism, no 3D render look, no glow.
+- Underground post-collapse New York: scrap wood, riveted iron, patched canvas, rope, gas masks, oil lamps.
+  No flags, no real emblems, no text, no numbers, no guns pointed at the viewer, no gore.
+- OWNER COLOUR: the part that tells whose unit it is is painted PLAIN LIGHT GREY #C8C8C8 and nothing else in the
+  picture uses that grey (the game tints it: Depot rust, Exchange green, Directorate red, Synod blue, Lamplighters
+  amber). Tint parts: the cloth band on a handcar, the trader's canopy, the squad's armbands, the expedition pennant.
+- Attach as reference for every sheet: assets/map/pins.webp, two banners from assets/hubs (riverside.webp,
+  brickworks.webp), and for the people one accepted set 1 sheet (incoming-art/anim_set1/walk_body01_v1.png) so faces
+  and clothes match the station.
+
+THE SHEETS (one image each, in this order)
+1. handcar_pump: a railway handcar on two iron wheels, a plank deck with a grey cloth band (tint part) along the
+   side, a see-saw pump lever on a post in the middle, two crew facing each other pumping it, sacks lashed at the
+   back. 8 frames, one full pump cycle: lever level, front end down, front end lowest, back to level, back end
+   down, back end lowest, rising, level. Wheels turn a quarter turn per two frames (four spokes, so it loops). The
+   crew bend and straighten with their end of the lever. Same handcar size and position in every frame.
+2. handcar_idle: the same handcar standing still at a station, crew resting, one wiping the brow, one checking a
+   sack. 4 frames, slow breathing loop.
+3. trader_car: a bigger handcar with a grey canvas canopy (tint part) over crates and bundles, a hanging lantern
+   that swings, one trader pumping a side lever. 8 frames, one cycle, wheels turning as in sheet 1.
+4. squad_walk: three figures in step on foot (no base): gas masks, padded coats, grey armbands (tint part), one
+   with a lamp held up, one with a long pipe-spear on the shoulder, one with a scrap shield. 8 frames, one full walk
+   cycle (two steps), feet planted cleanly, nobody slides.
+5. squad_stand: the same three standing guard, small shifts of weight, the lamp flame flickering. 4 frames.
+6. expedition_walk: two figures with big packs and coiled rope, the front one with a pole carrying a small grey
+   pennant (tint part) and a lamp, the back one with a pick. 8 frames, one walk cycle, heavier and slower than 4.
+7. puff: a small grey-brown dust puff kicked up by wheels, 6 frames from appearing to gone. Separate, so the game
+   can place it behind any unit.
+
+STRICT LAYOUT
+- Transparent background, real alpha, no white, no checkerboard, no glow, no halo, no drop shadow (the game draws
+  the shadow).
+- One row of equal cells, each 384 wide x 384 tall: 8 frames = 3072 x 384, 4 frames = 1536 x 384, 6 = 2304 x 384.
+- The unit sits centred in every cell; the rails or the soles on one line 48 px above the bottom edge in every
+  frame. Handcars and the trader car fill about 300 px of width; the squad and expedition about 260 px; nothing
+  touches or crosses into the next cell.
+- Must still read when shown 48 px tall: big clear shapes, thick outline, few small details.
+- No ground line, no grid lines, no motion blur, no speed lines, no text.
+
+DELIVERY
+incoming-art/map_units/<sheet name>_v1.png (v2, v3 if retried) and <sheet name>_prompt.txt with the exact prompt,
+plus HANDOFF.txt (preferred version per sheet, frame defects, where the tint grey is). At most three attempts per
+sheet. Do not install anything into assets/.
+
+WHAT HAPPENS AFTER
+Codex (docs/briefs/codex_map_units.txt) cuts the cells, lines up the rails and soles, puts the frames into
+assets/map/units/, and plays them on the map tinted by owner, flipped when moving left, at the fps in its brief.

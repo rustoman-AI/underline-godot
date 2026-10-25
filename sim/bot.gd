@@ -4,16 +4,41 @@ extends RefCounted
 ## Two stewards. Careful keeps a reserve. Expander takes every station and spends the reserve.
 
 var profile := "careful"
+## How the bot answers a leader at the door, separate from how it plays events:
+## "silence" leaves every leader waiting (the old behaviour), "accept_all" takes every deal it can pay for,
+## "refuse_all" turns everyone away, "mixed" accepts the Synod and the Exchange and refuses the others.
+## "helper" offers help whenever it can pay for it and otherwise stays silent, never taking a deal;
+## "helper_mixed" offers help to everyone, and takes the Synod's and the Exchange's deal once it has helped them
+## (or when it cannot pay for the help).
+## A deal the bot cannot pay for is left waiting, which the game counts as silence.
+## "storyteller" answers like "helper", listens to one new resident story a week (as the player does in a
+## dossier), approaches the Floor, the Quarantine and the Observatory as soon as it can, and takes an ending at
+## the final decision. In bunker scenes and in events where some choice brings a fragment, a proof or artifacts
+## it takes the choice bringing the most (fragment, then proof, then artifacts, then a flag), the cheaper one on a tie.
+## "storyteller_climb" is the same but prefers the climb to the door at the final decision.
+var audience_style := "silence"
+const AUDIENCE_STYLES := ["silence", "accept_all", "refuse_all", "mixed", "helper", "helper_mixed", "storyteller",
+	"storyteller_climb"]
+## Off, a storyteller picks only in bunker scenes and only by proof, then flag (the S2 storyteller).
+var prefer_story := true
+## At an event offering endings (st3_decision) the bot holds unless `take_endings` is set or it is a
+## storyteller, so the stewards in bot_run still play to week 40. Taking one, it prefers them in this order.
+var take_endings := false
+const ENDING_ORDER := ["door", "climb", "order", "hold"]
+const CLIMB_ORDER := ["climb", "door", "order", "hold"]
+const MIXED_ACCEPTS := ["synod", "exchange"]
 var _did_aid := false
 var _did_talk := false
 var _did_ration := false
 
 
-func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictionary:
+func play(weeks: int, run_seed: int, profile_name: String = "careful", given: Catalog = null) -> Dictionary:
 	profile = profile_name
-	var catalog := Catalog.new()
-	if not catalog.load_all():
-		return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
+	var catalog := given
+	if catalog == null:
+		catalog = Catalog.new()
+		if not catalog.load_all():
+			return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
 	var game := Game.new()
 	game.setup(catalog, run_seed, weeks)
 	game.audit = profile_name != "follower"
@@ -30,6 +55,10 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful") -> Dictio
 func _act(game: Game) -> void:
 	if game.use_medkits():
 		pass
+	_answer_audience(game)
+	if _teller():
+		_listen(game)
+	_tend_guard(game)
 	if profile == "follower":
 		_follow(game)
 		return
@@ -41,7 +70,11 @@ func _act(game: Game) -> void:
 		var ev: Dictionary = game.pending[0]
 		var best: Dictionary = {}
 		var best_score := -99999
-		if profile == "expander" and _all_checks(ev):
+		if Game.offers_ending(ev):
+			best = _decision_choice(game, ev)
+		elif _story_pick(ev):
+			best = _scene_choice(game, ev)
+		elif profile == "expander" and _all_checks(ev):
 			best = _expander_check_choice(game, ev)
 		else:
 			for choice in ev.choices:
@@ -58,6 +91,8 @@ func _act(game: Game) -> void:
 	var project := _project(game)
 	if not project.is_empty():
 		game.apply(project)
+	if profile == "expander":
+		_appoint_governors(game)
 	game.apply({"kind": "staff"})
 	var spent := 0
 	while spent < game.council.size():
@@ -69,6 +104,158 @@ func _act(game: Game) -> void:
 		spent += 1
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
+
+
+## The expander puts the best matching non-councillor in charge of every settled outpost while influence is at 20
+## or more, when that person adds something (a focus bonus or the Talk loyalty). Careful and follower never do, so
+## they stay the baseline the balance corridors were set on.
+func _appoint_governors(game: Game) -> void:
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if str(st.owner) != game.player or str(sid) == game.capital_id or str(st.get("governor", "")) != "":
+			continue
+		if int(st.held_weeks) < 4 or int(game.stock.influence) < 20:
+			continue
+		for row in game.governor_candidates(str(sid)):
+			if bool(row.council):
+				continue
+			if int(row.bonus) > 0 or int(row.talk) >= int(game.bal.governor.talk_min):
+				game.apply({"kind": "appoint", "station": str(sid), "person": str(row.id)})
+			break
+
+
+## Bots march only on the expedition, so they keep no guard until it is due: they send the start guard back to
+## work and recruit the soldiers the expedition needs once they mean to go.
+func _tend_guard(game: Game) -> void:
+	var tunnel := game._tunnel_by_id("to_ferry")
+	var due: bool = game.expedition.is_empty() and not tunnel.is_empty() and not bool(tunnel.get("dug", false))
+	if profile == "follower":
+		due = false
+	elif profile != "expander":
+		due = due and game.week >= 18 and int(game.stock.food) > 24 and not bool(game.at_war.get("directorate", false))
+	var want := int(game.bal.guard.move_min) if due else 0
+	var guard := 0
+	while game.soldier_count() > want and game.dismiss_block() == "" and guard < 12:
+		guard += 1
+		game.apply({"kind": "dismiss"})
+	while game.soldier_count() < want and game.recruit_block() == "" and guard < 24:
+		guard += 1
+		game.apply({"kind": "recruit"})
+
+
+func _teller() -> bool:
+	return audience_style == "storyteller" or audience_style == "storyteller_climb"
+
+
+func _story_pick(ev: Dictionary) -> bool:
+	if not _teller():
+		return false
+	if ev.has("trigger"):
+		return true
+	if not prefer_story:
+		return false
+	for choice in ev.choices:
+		if _story_value(choice) > 1:
+			return true
+	return false
+
+
+func _decision_choice(game: Game, ev: Dictionary) -> Dictionary:
+	var order: Array = ["hold"]
+	if audience_style == "storyteller_climb":
+		order = CLIMB_ORDER
+	elif take_endings or audience_style == "storyteller":
+		order = ENDING_ORDER
+	for id in order:
+		for choice in ev.choices:
+			if str(choice.id) == id and _open(game, choice):
+				return choice
+	for choice in ev.choices:
+		if str(choice.get("ending", "")) == "" and _open(game, choice):
+			return choice
+	return {}
+
+
+## Fragment 1000, each proof 100, each artifact 10, a flag 1: one fragment outweighs any proofs and so on.
+func _story_value(choice: Dictionary) -> int:
+	var value := 0
+	if str(choice.get("fragment", "")) != "":
+		value += 1000
+	value += maxi(0, int(choice.get("proof", 0))) * 100
+	var found = choice.get("artifacts", {})
+	if found is Dictionary:
+		for key in found:
+			value += maxi(0, int(found[key])) * 10
+	value += maxi(0, int(choice.get("papers", 0))) * 10
+	if str(choice.get("flag", "")) != "":
+		value += 1
+	return value
+
+
+func _cost_of(choice: Dictionary) -> int:
+	var total := 0
+	var cost = choice.get("cost", {})
+	if cost is Dictionary:
+		for key in cost:
+			total += maxi(0, int(cost[key]))
+	return total
+
+
+func _scene_choice(game: Game, ev: Dictionary) -> Dictionary:
+	var best := {}
+	var best_score := -1
+	var best_cost := 0
+	for choice in ev.choices:
+		if not _open(game, choice):
+			continue
+		if not prefer_story:
+			var score := int(choice.get("proof", 0)) * 2 + (1 if str(choice.get("flag", "")) != "" else 0)
+			if score > best_score:
+				best_score = score
+				best = choice
+			continue
+		var value := _story_value(choice)
+		var cost := _cost_of(choice)
+		if value > best_score or (value == best_score and cost < best_cost):
+			best_score = value
+			best_cost = cost
+			best = choice
+	return best
+
+
+func _listen(game: Game) -> void:
+	for person in game.residents:
+		var row: Dictionary = Voice.story(game.cast_id_of(person))
+		var id := str(row.get("id", ""))
+		var mark = game.vo_heard.get(id, null)
+		if id == "" or not Voice.has_audio(row) or (mark is bool and mark):
+			continue
+		game.hear_story(id)
+		return
+
+
+func _open(game: Game, choice: Dictionary) -> bool:
+	return not game.choice_locked(choice) and game.choice_offered(choice) and game.afford_choice(choice)
+
+
+func _answer_audience(game: Game) -> void:
+	if game.audience.is_empty() or audience_style == "silence":
+		return
+	var fid := str(game.audience.get("faction", ""))
+	if audience_style == "helper" or audience_style == "helper_mixed" or _teller():
+		var deal_now := audience_style == "helper_mixed" and MIXED_ACCEPTS.has(fid) \
+			and (str(game.leader_answers.get(fid, {}).get("answer", "")) == "helped" or game.help_reason() != "")
+		if deal_now:
+			if game.audience_reason() == "":
+				game.apply({"kind": "audience", "accept": true})
+		elif game.help_reason() == "":
+			game.apply({"kind": "audience", "help": true})
+		return
+	var accept := audience_style == "accept_all" or (audience_style == "mixed" and MIXED_ACCEPTS.has(fid))
+	if not accept:
+		game.apply({"kind": "audience", "accept": false})
+	elif game.audience_reason() == "":
+		game.apply({"kind": "audience", "accept": true})
 
 
 func _follow(game: Game) -> void:
@@ -86,6 +273,10 @@ func _follow(game: Game) -> void:
 		guard += 1
 		var ev: Dictionary = game.pending[0]
 		var choice := _visible_choice(game, ev, forecasts)
+		if Game.offers_ending(ev):
+			choice = _decision_choice(game, ev)
+		elif _story_pick(ev):
+			choice = _scene_choice(game, ev)
 		if choice.is_empty():
 			break
 		if not game.apply(_event_action(game, ev, choice)):
@@ -131,7 +322,7 @@ func _fill_free(game: Game, type: String, needed: bool) -> void:
 			var best := -1
 			for person in game.residents:
 				var id := str(person.id)
-				if used.has(id) or int(person.sick) > 0 or int(person.absent) > 0:
+				if used.has(id) or not game.can_work(person):
 					continue
 				var v := int(person.skills.get(skill, 0))
 				if v > best:
@@ -216,7 +407,7 @@ func _free_crew(game: Game, need: int) -> void:
 func _cold_soon(game: Game) -> bool:
 	if game._season_is("cold"):
 		return true
-	for season in game.bal.seasons:
+	for season in game.seasons:
 		if str(season.id) != "cold":
 			continue
 		var left := int(season.week) - game.week
@@ -434,6 +625,13 @@ func _project_expander(game: Game) -> Dictionary:
 
 
 func _order(game: Game) -> Dictionary:
+	if _teller():
+		if game.can_approach():
+			return {"kind": "order", "order": "approach"}
+		if game.can_approach_quarantine():
+			return {"kind": "order", "order": "approach_quarantine"}
+		if game.can_approach_observatory():
+			return {"kind": "order", "order": "approach_observatory"}
 	if profile == "expander":
 		return _order_expander(game)
 	for demand in game.demands:
@@ -446,8 +644,12 @@ func _order(game: Game) -> Dictionary:
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
 	if game.owned_count() >= 2:
-		if game.hope < 40:
+		if game.hope < 40 and game.address_reason() == "":
 			return {"kind": "order", "order": "address"}
+		if profile == "careful":
+			var pushed := _careful_assault(game)
+			if not pushed.is_empty():
+				return pushed
 		return {}
 	var border := _best_border(game)
 	if border != "" and int(game.stock.influence) >= int(game.bal.propaganda_influence):
@@ -468,8 +670,12 @@ func _order(game: Game) -> Dictionary:
 		var held: Dictionary = game.stations[sid]
 		if str(held.owner) == game.player and str(sid) != game.capital_id and str(held.focus) == "":
 			return {"kind": "order", "order": "focus", "station": str(sid), "focus": _focus_for(game)}
-	if game.hope < 40:
+	if game.hope < 40 and game.address_reason() == "":
 		return {"kind": "order", "order": "address"}
+	if profile == "careful":
+		var late := _careful_assault(game)
+		if not late.is_empty():
+			return late
 	return {}
 
 
@@ -481,9 +687,13 @@ func _order_expander(game: Game) -> Dictionary:
 			return {"kind": "order", "order": "pay", "demand": str(demand.id)}
 	if game.can_trade():
 		return {"kind": "order", "order": "trade"}
-	if game.hope < 40 and not _did_talk:
+	if game.hope < 40 and not _did_talk and game.address_reason() == "":
 		_did_talk = true
 		return {"kind": "order", "order": "address"}
+	if game.week >= 8:
+		var fight := _expander_fight(game)
+		if not fight.is_empty():
+			return fight
 	if game.owned_count() >= 5:
 		return {}
 	var border := _best_border(game)
@@ -495,12 +705,61 @@ func _order_expander(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "propaganda", "station": border}
 	for sid in game.stations:
 		var held: Dictionary = game.stations[sid]
-		if str(held.owner) == game.player and str(sid) != game.capital_id and str(held.focus) != "influence":
-			return {"kind": "order", "order": "focus", "station": str(sid), "focus": "influence"}
+		if str(held.owner) != game.player or str(sid) == game.capital_id:
+			continue
+		var want := _station_focus(game, str(sid), "influence")
+		if str(held.focus) != want:
+			return {"kind": "order", "order": "focus", "station": str(sid), "focus": want}
 	if game.can_expedition():
 		return {"kind": "order", "order": "expedition"}
 	if game.can_approach():
 		return {"kind": "order", "order": "approach"}
+	return {}
+
+
+func _hostile_hop(game: Game) -> String:
+	var sq: Dictionary = game.squads[game.player]
+	var here := str(sq.station)
+	for n in game._neighbors(here):
+		var sid := str(n)
+		var st: Dictionary = game.stations[sid]
+		var owner := str(st.owner)
+		if owner == game.player or owner == "neutral" or owner == "ruin" or owner == "bunker" or str(st.get("bunker", "")) != "":
+			continue
+		if not bool(st.get("known", false)):
+			continue
+		return sid
+	return ""
+
+
+func _careful_assault(game: Game) -> Dictionary:
+	if game.week < 16 or game.week % 8 != 0:
+		return {}
+	var warring := false
+	for fid in game.at_war:
+		if bool(game.at_war[fid]):
+			warring = true
+	if not warring:
+		return {}
+	var hop := _hostile_hop(game)
+	if hop == "" or int(game.stations[hop].get("low_weeks", 0)) < 2:
+		return {}
+	if game.order_block("assault", hop) != "":
+		return {}
+	return {"kind": "order", "order": "assault", "dest": hop}
+
+
+func _expander_fight(game: Game) -> Dictionary:
+	var hop := _hostile_hop(game)
+	if hop == "":
+		return {}
+	var low := int(game.stations[hop].get("low_weeks", 0)) >= 2
+	if (low or (game.breach_stock() >= 1 and game.week >= 12)) and game.order_block("assault", hop) == "":
+		return {"kind": "order", "order": "assault", "dest": hop}
+	if game.breach_stock() < 1 and game.week >= 12 and game.week % 4 == 0 and not low and game.order_block("breach") == "":
+		return {"kind": "order", "order": "breach"}
+	if game.order_block("raid", hop) == "":
+		return {"kind": "order", "order": "raid", "dest": hop}
 	return {}
 
 
@@ -544,6 +803,14 @@ func _avg_need(st: Dictionary) -> float:
 	for need in needs:
 		sum += float(need.fill)
 	return sum / float(needs.size())
+
+
+## Focus by what a station grows (docs/STATION_GOODS_PLAN.md): a station whose own goods are mostly food stays on
+## food, as a player would; every other station takes the profile's own choice.
+func _station_focus(game: Game, sid: String, otherwise: String) -> String:
+	if int(game.catalog.station_goods(sid).get("food", 0)) >= 5:
+		return "food"
+	return otherwise
 
 
 func _focus_for(game: Game) -> String:

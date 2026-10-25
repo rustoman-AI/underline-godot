@@ -1,0 +1,34 @@
+CURSOR IMPLEMENTATION BRIEF: SAVE HARDENING
+Date: 2026-10-11. Owner: Cursor implementation; review and art remain with the reviewing agent.
+
+Problem and verified evidence
+Game.import_state (sim/game.gd:5949) accepts any Dictionary containing week and overlays only present PERSIST keys on the existing Game. ui/station.gd:6784 loads into the current live Game. Missing legacy fields therefore inherit the current run's state.
+
+Isolated headless reproduction, 2026-10-11:
+.tools/review_save_audience_20261011.gd creates a seed-1 snapshot, removes the six audience/standing fields added with the audience system, and imports into a seed-2 Game holding a Directorate deal, standing 87 and a Black Flag audience. Result:
+SAVE_LEGACY loaded=true inherited=true week=1 deals={ "directorate": 20 } standing_directorate=87 audience={ "faction": "black_flag", "week": 20, "target": "" }
+SAVE_PARTIAL_ACCEPTED true
+This is an in-memory synthetic legacy snapshot, not a recovered historical save. No SaveGame file APIs or actual user saves were used. Godot exited 0; it also emitted an unrelated startup directory warning (Could not create directory: user://C:).
+
+Related code risks to fix
+sim/save_game.gd:34 writes directly into the final slot and returns true without checking the write error. load_latest chooses one newest file and does not attempt the other valid slot after failure. These risks are established by inspection; crash interruption was not reproduced.
+
+Scope
+1. Add an explicit save schema and migration for existing unversioned saves. Missing fields must receive deterministic baseline/migrated defaults, never values from the run being replaced.
+2. Validate required structure, types, identity references and supported schema before mutating the live game. Invalid or unsupported data must fail without changing the running Game.
+3. Stage a validated replacement state, including all four RNG streams, before committing a load. Preserve the intended cross-references between residents/people and room staffing after serialization.
+4. Write a temporary file, check write/close results as supported, and replace the final save only after success. Preserve a recoverable good copy. Continue should try the other slot when the newest is unreadable, reporting success/failure accurately.
+5. Put durable regressions in committed test code, not just .tools. Use isolated test paths/temporary user-data directories. Do not overwrite the user's current autosave/manual slot during tests.
+
+Acceptance criteria
+- The provided missing-field fixture cannot inherit audience_deals, standing, audience or memories from the current run; it loads to documented defaults.
+- A week-only dictionary and malformed/unsupported saves fail without live-state mutation.
+- Save/resume produces the same subsequent actions, random outcomes and terminal state as uninterrupted execution. Exercise pending events, white retries, queued orders, audience state and all four RNG streams.
+- A failed/partial save cannot destroy the last valid slot. Corrupt-newest/valid-older Continue recovers the valid save.
+- Existing bot_run, check_slice and check_network gates remain green; run once after changes and report exact results.
+
+Exclusions and preservation
+No balance, faction identity, art, voice, lore, UI redesign, new gameplay or ending work. Preserve all current uncommitted approved art/lore and other agents' changes. Inspect git diff before editing; never reset/clean/checkout unrelated files. No commit or push unless separately requested. Keep the migration small and explicit; do not refactor the entire 6,000-line simulator for this task.
+
+Probe command (project root)
+& '.tools/godot/Godot_v4.7.2-stable_win64_console.exe' --headless --path . --log-file '.tools/review_save_audience_20261011.log' -s res://.tools/review_save_audience_20261011.gd

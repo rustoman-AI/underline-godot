@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/edges/ao_edge_strip_floor_wall.png" id="1_tex"]
+
+[node name="Decal_AoEdgeStripFloorWall" type="Decal"]
+size = Vector3(4, 0.6, 1)
+texture_albedo = ExtResource("1_tex")
+albedo_mix = 1.0
+upper_fade = 0.1
+lower_fade = 0.1

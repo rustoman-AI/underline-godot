@@ -1,0 +1,21 @@
+CURSOR: NEXT BATCH (do in this order, report after each)
+Local only. No push, no history rewrite. Balance, map, save format, deal numbers: unchanged unless a step says so.
+
+STEP 1: gate fixes (approved)
+Apply the two check_slice fixes you found: ignore check-only events (weight 0) in the "at least a third of events have a follow-up" count; use the same maxi(8, income) x span formula as 59b5180 in the crisis-demand check. Run check_slice. If anything else fails, report it, do not widen the fix.
+
+STEP 2: leaders v2
+Follow docs/briefs/cursor_leaders_v2.txt. Decisions already made:
+- The fifth faction is "The Lamplighters" / "Фонарщики" (id stays black_flag). Switch every player-visible "Black Flag"/"Чёрный флаг".
+- leader_id values change to berni_shaw, lionel_abelard, dorothy_chen, marcel_toussaint, niki_ortega (names and ids exactly as in data/leader_lines.json; that file is the only source of truth, ignore any older name you may have seen). Grep first; if anything persisted keys on the old ids, keep a legacy alias and report it.
+- Fill factions.json leader and leader_title from leader_lines.json as well (they are TODO_REWRITE now).
+- Also update docs/GDD.md line 148 and the faction table, data/station_communities.json and data/ru.json (old leader names, "Союз Депо", "Чёрный флаг").
+- Rewrite old assets/factions/ paths in docs/overnight.md to incoming-art/rejected/.
+
+STEP 3: radio loudness (decision: target -23 LUFS)
+Run .tools/normalize_vo.ps1 on assets/audio/vo/radio_* from their untouched originals (backup in _originals_radio/, ignored by git and Godot). Target -23 LUFS integrated, true peak <= -2.5 dBTP. Do the same for incoming-audio/radio-pilot-04/ogg into incoming-audio/radio-pilot-04/normalized/, NOT installed in the game until the project lead has listened. Update the "radio keeps its delivered mix" line in assets/audio/vo/INDEX.md. Measure min/median/max; spread must be <= 1 dB. Report a before/after table.
+
+STEP 4: commits, by topic, local, no push
+Use your 11 split patches. One commit per topic, in this order: worker tint (01); saves (02); audience scheduling and checks (03); opening line mechanism (04); faction art and text rejection (05, git add the moved files first); labels (06); VO index and credits (09); docs and briefs (10, 11); leaders v2 (after step 2); gate fixes (step 1); radio loudness (step 3). Commit messages end with the attribution line from the session.
+DO NOT commit: assets/hubs/*, incoming-art/hubs, hub panorama ratio patch (07) until the emblem-free hubs are accepted; assets/figures/residents and anything under incoming-art/poses*; incoming-audio/; shots/. Patch 08 goes in with leaders v2. Do not add .uid for tools/*.gd.
+After the commits: git status, and the list of what stayed uncommitted and why.

@@ -1,0 +1,20 @@
+MUSE: MUSIC FOR UNDERLINE. STATUS: RESEARCH AND ONE SAMPLE ROUND are GO (owner, 14 Oct 2026). Anything beyond the sample budget needs the owner's word "go". Voice-over and the new sound effects are not touched.
+Why: the game has sound effects and room beds but no soundtrack. The owner got the ElevenLabs "ElevenMusic" mail and wants to know if music can be made through the same API, like the voices and the effects.
+
+STEP 1: RESEARCH (no credits)
+ - Does the ElevenLabs API offer music generation (Eleven Music / "compose") on our plan? Endpoint, max length per track, output format, price in credits per minute, whether instrumental-only can be forced, whether loops or seamless ends are possible.
+ - The licence for use inside a commercial game sold on Steam (and itch.io), quote the exact terms and the date you read them; training-data and clearance claims; whether we must credit; whether the output can be reused in trailers.
+ - If it does not fit (API missing, licence unclear), say so and offer the second best option from docs/audit/sound/research.md (library tracks with CC0 or paid game licence), not Suno unless its commercial terms are quoted and fit.
+
+STEP 2: STYLE (what the music is for)
+Dark, quiet, human. Think of the feel of This War of Mine and Frostpunk, not of an action game: sparse piano or felt piano, low strings, a distant brass note, tape hiss, a slow pulse; long notes, silence between phrases. NO heroic melody, NO drums that drive, NO choir, NO vocals or words, NO electronic arpeggios, nothing that sounds like a known song. It must sit under the voice-over and under the sound effects: instrumental, narrow dynamic range, no sudden loud entrances.
+
+STEP 3: SAMPLE ROUND (at most 10 percent of the credits used for the sound overhaul; report credits per track)
+Make 5 tracks, each 60 to 90 seconds, loop-friendly (start and end on a soft sustained note so a crossfade hides the seam; if the API cannot guarantee that, report it and provide a 5 second tail to crossfade):
+ M1 menu_theme: sombre and a little hopeful, the station waking up.
+ M2 station_calm: day to day work, steady, barely there.
+ M3 station_tension: low hope or rising discontent, uneasy, slow pulse.
+ M4 station_crisis: flood, cough, revolt; dense low drones, no melody.
+ M5 ending_quiet: a short (30 to 40 s) resolving piece for the endings screen.
+Normalise to -20 LUFS integrated (music sits 3 LU above the effects beds and well under the voice), peak under -1 dBTP, ogg. Put files in assets/audio/music_new/ (nothing replaced) with a one-line description, prompt, credits and licence note each. Report: the research result, the five tracks, credits spent.
+The lead checks by measurement (loudness, clipping, length, loop seam), the owner listens. Integration (a music player with crossfades by game state) is a later Cursor task and only after the owner says the tracks are good.
