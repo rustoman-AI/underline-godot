@@ -1275,16 +1275,25 @@ func forecasts() -> Array:
 		var name := Copy.res(key)
 		var when := "is gone" if left <= 0 else "runs out in %s" % _week_span(left)
 		var shown := left
+		# The meals count measures stores against the whole week's eating, the HUD shows the net after the harvest.
+		# While the harvest keeps the net slow, say the meals count is what is left if it fails.
+		var harvest := output_of("food") > 0
+		if thin and harvest and left <= horizon:
+			thin = false
 		if thin:
 			var meals := maxi(0, int(floor(food_buffer_weeks())))
 			when = "is down to %s of meals" % Words.count(meals, "week")
+			if harvest:
+				when = "stores hold %s of meals if the harvest fails" % Words.count(meals, "week")
+				if meals == 0:
+					when = "stores are empty, only the harvest feeds the station"
 			if left > horizon:
 				shown = horizon
 		if (key == "food" or key == "air") and _weeks_until_empty("power") <= horizon:
 			hint = _supply_hint("generator")
 		var stock_text := "%s %s. %s" % [name, when, str(hint.text)]
 		if Copy.ru():
-			stock_text = "%s %s" % [_ru_stock_when(key, left, thin, maxi(0, int(floor(food_buffer_weeks()))) if thin else left), str(hint.text)]
+			stock_text = "%s %s" % [_ru_stock_when(key, left, thin, maxi(0, int(floor(food_buffer_weeks()))) if thin else left, harvest), str(hint.text)]
 		rows.append({
 			"key": key,
 			"weeks": shown,
@@ -1400,8 +1409,12 @@ func _flood_eta() -> int:
 	return 99
 
 
-func _ru_stock_when(key: String, left: int, thin: bool, meals: int) -> String:
+func _ru_stock_when(key: String, left: int, thin: bool, meals: int, harvest := false) -> String:
 	if key == "food" and thin:
+		if harvest and meals == 0:
+			return "Запасов еды нет, станцию кормит только урожай."
+		if harvest:
+			return "Если урожай подведёт, запасов еды хватит на %s." % Words.count(meals, "week")
 		return "Еды осталось на %s." % Words.count(meals, "week")
 	if left <= 0:
 		match key:
