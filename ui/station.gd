@@ -3451,6 +3451,9 @@ func _drag_card(person_id: String) -> Control:
 func _show_build(level: int, cell: int) -> void:
 	if not _claim(ModalDeck.AMBIENT, "build", _show_build.bind(level, cell)):
 		return
+	if yard != null:
+		yard.place_lock = false
+		yard.clear_place()
 	_open_card("Build here")
 	_body(Copy.t("Level %d, cell %d. An open floor.") % [level + 1, cell + 1])
 	var banner := _build_banner()
@@ -3469,10 +3472,16 @@ func _confirm_build(type: String, level: int, cell: int) -> void:
 	var info := game.build_preview(type, level, cell)
 	var lines: PackedStringArray = [
 		"%s, %s, %s." % [Words.count(int(info.materials), "material"), Words.count(int(info.turns), "week"), Words.count(int(info.workers), "worker")],
-		Copy.t("Power use once it is running: %d.") % int(info.power),
 	]
+	var join: Dictionary = game.merge_preview(type, level, cell)
+	if bool(join.get("joins", false)) and str(join.get("bonus_line", "")) != "":
+		lines.append(str(join.bonus_line))
+	lines.append(Copy.t("Power use once it is running: %d.") % int(info.power))
 	if str(info.reason) != "":
 		lines.append(str(info.reason))
+	if yard != null:
+		yard.place_lock = true
+		yard.show_place(type, level, cell)
 	_confirm(Copy.t("Build %s?") % Copy.t(str(info.name)), lines, bool(info.ok), {
 		"kind": "build", "type": type, "level": level, "cell": cell,
 	})
@@ -3485,7 +3494,11 @@ func _show_room(uid: String) -> void:
 	if not _claim(ModalDeck.AMBIENT, "room", _show_room.bind(uid)):
 		return
 	var room = game._room(uid)
-	_open_card(room_title(room))
+	var blocked := int(detail.get("block_width", 1)) >= 2
+	var title := room_title(room)
+	if blocked:
+		title = Copy.t("merge.sign") % [Copy.t(str(game.catalog.rooms[room.type].name)), int(detail.block_width)]
+	_open_card(title)
 	room_open = str(detail.type)
 	_sync_room_sound()
 	var title_row := card_body.get_child(0) as HBoxContainer
@@ -3505,7 +3518,27 @@ func _show_room(uid: String) -> void:
 			title_row.move_child(badge, 2)
 			card_body.add_child(line)
 	help_unfold = false
+	if blocked:
+		var cells: Array = detail.get("cells", [])
+		if cells.size() >= 2:
+			var sub := _label(Copy.t("merge.cells") % [int(detail.level) + 1, int(cells[0]) + 1, int(cells[cells.size() - 1]) + 1], 14)
+			sub.add_theme_color_override("font_color", PAPER_MUTED)
+			sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			card_body.add_child(sub)
 	_room_header(detail)
+	if blocked:
+		var warn := _label(str(detail.get("disaster_note", "")), 17)
+		warn.add_theme_color_override("font_color", Color("8a2f22"))
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		warn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(warn)
+		var shares := _label(Copy.t("merge.shares"), 16)
+		shares.add_theme_color_override("font_color", PAPER_MUTED)
+		shares.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		shares.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(shares)
+	_apply_block_glow(detail)
 	if notice != "":
 		_body(notice)
 		notice = ""
@@ -3534,15 +3567,57 @@ func _room_icon(type: String, px: int) -> Glyph:
 	return icon
 
 
+func _apply_block_glow(detail: Dictionary) -> void:
+	if yard == null:
+		return
+	if int(detail.get("block_width", 1)) < 2:
+		if yard.block_glow:
+			_clear_block_glow()
+		return
+	var glow := {}
+	for uid in game.merge_group_of(str(detail.uid)):
+		glow[str(uid)] = true
+	yard.glow = glow
+	yard.block_glow = true
+	yard.queue_redraw()
+
+
+func _clear_block_glow() -> void:
+	if yard == null or not yard.block_glow:
+		return
+	yard.block_glow = false
+	yard.glow = {}
+	if source_pinned and source_key != "" and game != null:
+		var info: Dictionary = Brief.source(game, source_key)
+		for uid in info.get("rooms", []):
+			yard.glow[str(uid)] = true
+	yard.queue_redraw()
+
+
 func _room_header(detail: Dictionary) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var blocked := int(detail.get("block_width", 1)) >= 2
 	var outputs: Array = detail.outputs
-	if outputs.is_empty():
-		var defin: Dictionary = game.catalog.rooms[str(detail.type)]
-		var makes := _makes_line(str(detail.type), defin)
-		row.add_child(makes)
+	var block_outputs: Array = detail.get("block_outputs", [])
+	if blocked and not block_outputs.is_empty():
+		for out in block_outputs:
+			row.add_child(_mini_glyph(str(out.key), 20))
+			var total := 0 if bool(detail.offline) else int(out.total)
+			var bonus := 0 if bool(detail.offline) else int(out.bonus)
+			row.add_child(_label(Copy.t("merge.output") % [Copy.res(str(out.key)), total, bonus], 18, true))
+	elif outputs.is_empty():
+		if blocked and str(detail.type) == "quarters":
+			var beds_defin: Dictionary = game.catalog.rooms[str(detail.type)]
+			var beds := int(beds_defin.get("housing", 0)) * int(detail.block_width) + int(detail.get("merge_bonus", 0))
+			if bool(detail.offline):
+				beds = 0
+			row.add_child(_mini_glyph("people", 20))
+			row.add_child(_label(Copy.t("Housing %d") % beds, 18, true))
+		else:
+			var defin: Dictionary = game.catalog.rooms[str(detail.type)]
+			row.add_child(_makes_line(str(detail.type), defin))
 	var uid := str(detail.uid)
 	_sync_numbers()
 	for out in outputs:
@@ -3550,13 +3625,17 @@ func _room_header(detail: Dictionary) -> void:
 		var lab := _label(Copy.t("%s %+d/wk") % [Copy.res(str(out.key)), _room_amount(uid, str(out.key))], 18, true)
 		row.add_child(lab)
 	var draw := int(detail.power)
+	if blocked:
+		draw = int(detail.get("block_power", draw))
 	if draw > 0:
 		if game._season_is("cold") or game.crunch_power:
 			draw *= 2
 		row.add_child(_dot())
 		row.add_child(_mini_glyph("power", 20))
 		var power_text := Copy.t("Power −%d/wk") % draw
-		if bool(detail.offline) or dark_now.has(uid):
+		if blocked:
+			power_text = Copy.t("merge.power") % draw
+		if (bool(detail.offline) or dark_now.has(uid)) and not blocked:
 			power_text = Copy.t("Power 0/wk")
 		row.add_child(_label(power_text, 18, true))
 	card_body.add_child(row)
@@ -3574,6 +3653,12 @@ func _room_header(detail: Dictionary) -> void:
 
 
 func _seat_row(uid: String, detail: Dictionary) -> void:
+	if int(detail.get("block_width", 1)) >= 2:
+		var crew := _label(Copy.t("merge.crew") % [int(detail.get("block_staff", detail.staff.size())), int(detail.get("block_staff_max", detail.staff_max))], 16)
+		crew.add_theme_color_override("font_color", PAPER_MUTED)
+		crew.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		crew.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(crew)
 	var free := _free_picks(uid)
 	var full: bool = detail.staff.size() >= int(detail.staff_max)
 	var room = game._room(uid)
@@ -6168,6 +6253,9 @@ func _choice_bits(choice: Dictionary) -> String:
 func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dictionary, verb: String = "Confirm", reason: String = "") -> void:
 	if not _claim(ModalDeck.AMBIENT, "confirm", _confirm.bind(heading, lines, ok, action, verb, reason)):
 		return
+	if str(action.get("kind", "")) == "build" and yard != null:
+		yard.place_lock = true
+		yard.show_place(str(action.get("type", "")), int(action.get("level", -1)), int(action.get("cell", -1)))
 	_open_card(heading)
 	var shown := lines
 	var why := reason
@@ -6310,6 +6398,10 @@ func _help_badge(type: String, line: Label) -> Button:
 
 
 func _close_card() -> void:
+	if yard != null:
+		yard.place_lock = false
+		yard.clear_place()
+	_clear_block_glow()
 	if Voice.now_kind == "leader":
 		Voice.stop()
 	var token := deck.top_token()
@@ -6648,8 +6740,20 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 		lock.size_flags_horizontal = Control.SIZE_SHRINK_END
 		lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		text.add_child(lock)
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	row.add_child(text)
 	panel.add_child(row)
+	if yard != null:
+		panel.mouse_entered.connect(func() -> void:
+			if yard.place_lock:
+				return
+			yard.show_place(type, level, cell)
+		)
+		panel.mouse_exited.connect(func() -> void:
+			if yard.place_lock:
+				return
+			yard.clear_place()
+		)
 	return panel
 
 
@@ -10557,6 +10661,14 @@ class Yard extends Control:
 	var help_hits: Array = []
 	var art_aspect := 1.6
 	var hover := Vector2i(-1, -1)
+	var place_type := ""
+	var place_level := -1
+	var place_cell := -1
+	var place_lock := false
+	var block_glow := false
+	var dust: Array = []
+	var seam_seen := {}
+	var seam_init := false
 	var drag_id := ""
 	var drop_cell := Vector2i(-1, -1)
 	var drag_lock := false
@@ -11117,10 +11229,13 @@ class Yard extends Control:
 		for level in 3:
 			for cell in 6:
 				_draw_cell(_rect(geo, level, cell), level, cell)
+		_draw_merge_ghost(geo)
 		_draw_structure(geo)
 		_draw_pops(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
+		_draw_merge_tag(geo)
+		_draw_seam_dust()
 		_draw_hover_label(geo)
 
 	## How far a rib reaches into a cell from each side (half its width), so room notes and badges sit clear of it.
@@ -11932,6 +12047,7 @@ class Yard extends Control:
 					continue
 				_draw_sign(screen, room, font)
 				_draw_badge_screen(screen, room, font)
+		_draw_merge_brackets(geo)
 
 	func _draw_job_plate(geo: Dictionary, level: int, cell: int, font: Font) -> void:
 		var job := _job_span(level, cell)
@@ -11970,9 +12086,179 @@ class Yard extends Control:
 	func _room_glyph(room_type: String) -> String:
 		return room_type
 
+	func show_place(type: String, level: int, cell: int) -> void:
+		place_type = type
+		place_level = level
+		place_cell = cell
+		queue_redraw()
+
+	func clear_place() -> void:
+		if place_type == "":
+			return
+		place_type = ""
+		place_level = -1
+		place_cell = -1
+		queue_redraw()
+
+	func _screen_of(geo: Dictionary, level: int, cell: int) -> Rect2:
+		var world := _rect(geo, level, cell)
+		return Rect2(pan + world.position * zoom, world.size * zoom)
+
+	func _place_info() -> Dictionary:
+		if place_type == "" or station == null or station.game == null:
+			return {}
+		return station.game.merge_preview(place_type, place_level, place_cell)
+
+	func _draw_merge_ghost(geo: Dictionary) -> void:
+		var info := _place_info()
+		if not bool(info.get("joins", false)):
+			return
+		for c in info.get("cells", []):
+			if int(c) == place_cell:
+				continue
+			draw_rect(_rect(geo, place_level, int(c)), Color("e2a63a", 0.10))
+		var rect := _rect(geo, place_level, place_cell)
+		var tex: Texture2D = _ghost(place_type, art.get(place_type, null))
+		if tex != null:
+			draw_texture_rect(tex, _fit_rect(tex, rect), false, Color(1, 1, 1, 0.55))
+		else:
+			draw_rect(rect, Color("e2a63a", 0.18))
+
+	func _draw_merge_tag(geo: Dictionary) -> void:
+		var info := _place_info()
+		if not bool(info.get("joins", false)):
+			return
+		var cells: Array = info.get("cells", [])
+		if cells.is_empty():
+			return
+		var union := _screen_of(geo, place_level, int(cells[0]))
+		for c in cells:
+			union = union.merge(_screen_of(geo, place_level, int(c)))
+		draw_rect(union, Color("e2a63a", 0.95), false, 2.5)
+		draw_rect(union.grow(-2.5), Color("efe6d2", 0.35), false, 1.0)
+		var full := str(info.get("bonus_line", ""))
+		if full == "":
+			return
+		var share := str(info.get("share_line", ""))
+		var head := full
+		if share != "" and full.ends_with(share):
+			head = full.substr(0, full.length() - share.length()).strip_edges()
+		var font: Font = ThemeDB.fallback_font
+		if station.body_font != null:
+			font = station.body_font
+		var font_size := 14
+		var head_w := font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var share_w := 0.0
+		if share != "":
+			share_w = font.get_string_size(share, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var inner := minf(344.0, maxf(8.0, maxf(head_w, share_w)))
+		var line_h := font.get_height(font_size)
+		var split := head_w <= inner and share != ""
+		var lines := 2 if split or head_w > inner else 1
+		var plate := Rect2(0, 0, inner + 16.0, line_h * float(lines) + 12.0)
+		plate.position = Vector2(union.get_center().x - plate.size.x * 0.5, union.position.y - plate.size.y - 6.0)
+		plate.position.x = clampf(plate.position.x, 8.0, maxf(8.0, size.x - plate.size.x - 8.0))
+		if plate.position.y < 4.0:
+			plate.position.y = union.end.y + 6.0
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.10, 0.08, 0.06, 0.90)
+		style.border_color = Color("b89a6a")
+		style.set_border_width_all(1)
+		style.set_corner_radius_all(2)
+		style.draw(self, plate)
+		var text_pos := plate.position + Vector2(8.0, 6.0 + font.get_ascent(font_size))
+		if split:
+			draw_string(font, text_pos, head, HORIZONTAL_ALIGNMENT_LEFT, inner, font_size, Color("f4efe4"))
+			draw_string(font, text_pos + Vector2(0, line_h), share, HORIZONTAL_ALIGNMENT_LEFT, inner, font_size, Color("d9cbb4"))
+		else:
+			draw_multiline_string(font, text_pos, full, HORIZONTAL_ALIGNMENT_LEFT, inner, font_size, 2, Color("f4efe4"))
+
+	func _draw_merge_brackets(geo: Dictionary) -> void:
+		var live := {}
+		var seen := {}
+		for level in 3:
+			for cell in 6:
+				var spot: Dictionary = station.game.cells["%d:%d" % [level, cell]]
+				var uid := str(spot.get("room", ""))
+				if uid == "" or seen.has(uid):
+					continue
+				var ids: Array = station.game.merge_group_of(uid)
+				if ids.size() < 2:
+					continue
+				var prev_cell := -99
+				var prev_level := -99
+				for id in ids:
+					seen[str(id)] = true
+					var room = station.game._room(str(id))
+					if room == null:
+						continue
+					var c := int(room.cell)
+					var lv := int(room.level)
+					if prev_level == lv and c == prev_cell + 1:
+						live["%d:%d" % [lv, prev_cell]] = _draw_bracket(geo, lv, prev_cell)
+					prev_cell = c
+					prev_level = lv
+		_sync_seams(live)
+
+	func _draw_bracket(geo: Dictionary, level: int, left_cell: int) -> Vector2:
+		var screen := _screen_of(geo, level, left_cell)
+		var x := screen.end.x
+		var y0 := screen.position.y + screen.size.y * 0.22
+		var y1 := screen.position.y + screen.size.y * 0.78
+		_stroke_bracket(x, y0, y1, Color("efe6d2", 0.55), 5.0)
+		_stroke_bracket(x, y0, y1, Color("e2a63a", 0.92), 2.5)
+		return Vector2(x, (y0 + y1) * 0.5)
+
+	func _stroke_bracket(x: float, y0: float, y1: float, color: Color, width: float) -> void:
+		draw_line(Vector2(x, y0), Vector2(x, y1), color, width)
+		draw_line(Vector2(x - 10.0, y0), Vector2(x + 10.0, y0), color, width)
+		draw_line(Vector2(x - 10.0, y1), Vector2(x + 10.0, y1), color, width)
+
+	func _sync_seams(live: Dictionary) -> void:
+		if seam_init and station != null and not station._motion_off():
+			for key in live:
+				if not seam_seen.has(key):
+					_spawn_dust(live[key])
+		seam_seen = live
+		seam_init = true
+
+	func _spawn_dust(at: Vector2) -> void:
+		var now := Time.get_ticks_msec()
+		for i in 8:
+			dust.append({
+				"x": at.x + (float(i) - 3.5) * 4.0,
+				"y": at.y,
+				"vx": (float(i) - 3.5) * 22.0,
+				"vy": -36.0 - float(i % 4) * 18.0,
+				"born": now,
+				"w": 3.0 + float(i % 3),
+				"h": 2.0 + float((i + 1) % 3),
+			})
+
+	func _draw_seam_dust() -> void:
+		if dust.is_empty():
+			return
+		var now := Time.get_ticks_msec()
+		var keep: Array = []
+		for p in dust:
+			var age := float(now - int(p.born)) / 1000.0
+			if age < 0.0 or age > 0.35:
+				continue
+			keep.append(p)
+			var x := float(p.x) + float(p.vx) * age
+			var y := float(p.y) + float(p.vy) * age
+			draw_rect(Rect2(x, y, float(p.w), float(p.h)), Color(0.78, 0.66, 0.42, (1.0 - age / 0.35) * 0.65))
+		dust = keep
+
 	func _draw_sign(screen: Rect2, room: Dictionary, font: Font) -> void:
+		var ids: Array = station.game.merge_group_of(str(room.uid))
+		var width := maxi(ids.size(), 1)
+		if width >= 2 and str(ids[0]) != str(room.uid):
+			return
 		var defin: Dictionary = station.game.catalog.rooms[str(room.type)]
 		var room_name := Copy.t(str(defin.name))
+		if width >= 2:
+			room_name = Copy.t("merge.sign") % [room_name, width]
 		var font_size := 13
 		var text_w := font.get_string_size(room_name, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		var steps: Array = defin.get("upgrades", [])
@@ -12032,6 +12318,9 @@ class Yard extends Control:
 		return station.room_what(str(mark.type))
 
 	func _draw_badge_screen(screen: Rect2, room: Dictionary, font: Font) -> void:
+		var ids: Array = station.game.merge_group_of(str(room.uid))
+		if ids.size() >= 2 and str(ids[0]) != str(room.uid):
+			return
 		var detail: Dictionary = station.game.room_detail(str(room.uid))
 		var outputs: Array = detail.get("outputs", [])
 		if outputs.is_empty():
@@ -12040,7 +12329,10 @@ class Yard extends Control:
 		var dimmed: bool = bool(room.get("browned", false)) or bool(room.get("offline", false)) or station.dark_now.has(str(room.uid))
 		if station.power_loss.has(str(room.uid)):
 			dimmed = true
-		if int(defin.get("staff_min", 0)) > 0 and room.staff.size() < int(defin.staff_min):
+		if ids.size() >= 2:
+			if int(detail.get("crew_need", 0)) > 0 and int(detail.get("block_staff", 0)) < int(detail.crew_need):
+				dimmed = true
+		elif int(defin.get("staff_min", 0)) > 0 and room.staff.size() < int(defin.staff_min):
 			dimmed = true
 		var ink := Color(0.96, 0.93, 0.86, 0.38 if dimmed else 0.96)
 		var width := 8.0

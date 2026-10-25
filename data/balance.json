@@ -127,5 +127,10 @@
     {"week": 30, "id": "cough", "weeks": 3}
   ],
   "player_squad": {"size": 8, "gear": 1.1, "name": "Platform guard"},
-  "guard": {"start": 3, "max": 12, "recruit_materials": 0, "move_min": 3, "food_per_two": 1, "provoke_weeks": 4, "sortie_chance": 0.5}
+  "guard": {"start": 3, "max": 12, "recruit_materials": 0, "move_min": 3, "food_per_two": 1, "provoke_weeks": 4, "sortie_chance": 0.5},
+  "merge_bonus": 0.1,
+  "merge_max": 3,
+  "merge_housing": 2,
+  "merge_crew_saving": 1,
+  "bot_merge": 1
 }

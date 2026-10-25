@@ -542,6 +542,15 @@ func housing() -> int:
 		if room.offline:
 			continue
 		n += room_housing(room)
+	for b in _merge_groups():
+		if str(b[0].type) != "quarters":
+			continue
+		var live := true
+		for r in b:
+			if bool(r.offline):
+				live = false
+		if live:
+			n += int(bal.get("merge_housing", 2)) * (b.size() - 1)
 	return n
 
 
@@ -1108,6 +1117,7 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 	var mult := 1.0
 	if _law_on("double_shifts"):
 		mult = float(catalog.laws.double_shifts.prod_mult)
+	var made := {}
 	for room in rooms:
 		if room.offline or _flood_silences(room) or int(room.get("disabled", 0)) > 0:
 			continue
@@ -1151,6 +1161,19 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 			elif not (drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 				n += crew_extra(skills, room, n)
 			out[key] = int(out[key]) + n
+			made[str(room.uid) + "|" + str(key)] = n
+	var mb := float(bal.get("merge_bonus", 0.0))
+	if mb > 0.0:
+		for b in _merge_groups():
+			if b.size() < 2:
+				continue
+			for key in catalog.rooms[str(b[0].type)].base:
+				if not out.has(key):
+					continue
+				var sum := 0
+				for r in b:
+					sum += int(made.get(str(r.uid) + "|" + str(key), 0))
+				out[key] = int(out[key]) + int(round(float(sum) * mb * float(b.size() - 1)))
 	if quarantine:
 		for key in ["food", "air", "power", "materials", "influence"]:
 			out[key] = int(round(float(out[key]) * 0.75))
@@ -1229,6 +1252,15 @@ func _output_factor(room: Dictionary, defin: Dictionary) -> float:
 	var listed := int(room.get("staff", []).size())
 	var have := _able_count(room)
 	var need := int(defin.get("staff_min", 0))
+	var grp := _merge_group_of(room)
+	if grp.size() > 1:
+		listed = 0
+		have = 0
+		for r in grp:
+			listed += int(r.get("staff", []).size())
+			have += _able_count(r)
+		need = need * grp.size() - int(bal.get("merge_crew_saving", 1)) * (grp.size() - 1)
+		need = maxi(0, need)
 	if str(room.type) == "generator":
 		if have <= 0:
 			return 0.0
@@ -1267,19 +1299,29 @@ func _brownout_ids() -> Array:
 		pool -= room_power(room) * mult
 	if pool < 0:
 		pool = 0
+	var decided := {}
 	for uid in power_order:
 		var room = _room(str(uid))
 		if room == null:
 			continue
+		if decided.has(str(uid)):
+			continue
 		if str(room.type) == "generator" or bool(room.offline) or _flood_silences(room):
 			continue
-		var draw := room_power(room) * mult
+		var grp := _merge_group_of(room)
+		var draw := 0
+		for r in grp:
+			decided[str(r.uid)] = true
+			if bool(r.offline) or _flood_silences(r) or str(r.type) == "generator":
+				continue
+			draw += room_power(r) * mult
 		if draw <= 0:
 			continue
 		if pool >= draw:
 			pool -= draw
 		else:
-			dark.append(str(room.uid))
+			for r in grp:
+				dark.append(str(r.uid))
 	return dark
 
 
@@ -2368,7 +2410,9 @@ func _apply_build(type: String, level: int = -1, cell: int = -1) -> bool:
 			return false
 		spot = cells[key]
 	else:
-		spot = _first_build_cell()
+		spot = _merge_build_cell(type)
+		if spot.is_empty():
+			spot = _first_build_cell()
 	if spot.is_empty():
 		return false
 	var workers := _pull_workers(int(bal.build_workers), "labor")
@@ -2526,7 +2570,8 @@ func _apply_upgrade(uid: String) -> bool:
 		return false
 	var room = _room(uid)
 	stock.materials = int(stock.materials) - int(info.materials)
-	room.upgrade = int(room.upgrade) + 1
+	for r in _merge_group_of(room):
+		r.upgrade = int(r.upgrade) + 1
 	decisions += 1
 	_log("UPGRADE %s to %s" % [catalog.rooms[room.type].name, str(info.name)])
 	return true
@@ -2671,31 +2716,48 @@ func room_detail(uid: String) -> Dictionary:
 			"skill": value,
 			"traits": Copy.trait_list(person.traits),
 		})
-	var outputs: Array = []
-	var base: Dictionary = defin.base
-	for key in base:
-		var amount := float(base[key]) * output_scale(int(room.upgrade))
-		var factor := _output_factor(room, defin)
-		var n := 0
-		if factor > 0.0:
-			n = Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
-			n = int(round(float(n) * factor))
-		if bool(defin.get("decays", false)):
-			n = int(round(float(n) * float(room.efficiency)))
-		if belt_down and str(room.type) == "hydroponics" and str(key) == "food":
-			n = int(n / 2.0)
-		if workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
-			n = 0
-		elif gen_down and str(room.type) == "generator" and str(key) == "power":
-			n = int(n / 2.0)
-			n += crew_extra(skills, room, n)
-		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
-			n += crew_extra(skills, room, n)
-		outputs.append({"key": str(key), "amount": n, "base": amount})
+	var outputs := _room_output_rows(room)
 	var extra := 0.0
 	for value in skills:
 		if float(value) > 1.0:
 			extra += float(value) - 1.0
+	var group: Array = _merge_group_of(room)
+	var width := group.size()
+	var cell_list: Array = []
+	var block_staff := 0
+	var block_power := 0
+	var block_staff_max := 0
+	for r in group:
+		cell_list.append(int(r.cell))
+		block_staff += int(r.staff.size())
+		block_staff_max += int(catalog.rooms[str(r.type)].get("staff_max", 0))
+		if not bool(r.get("switched_off", false)):
+			block_power += room_power(r)
+	var crew_need := int(defin.get("staff_min", 0))
+	if width > 1:
+		crew_need = crew_need * width - int(bal.get("merge_crew_saving", 1)) * (width - 1)
+		crew_need = maxi(0, crew_need)
+	var block_outputs: Array = []
+	var bonus_n := 0
+	if width > 1 and str(room.type) == "quarters":
+		bonus_n = int(bal.get("merge_housing", 2)) * (width - 1)
+	elif width > 1:
+		var seen := {}
+		for r in group:
+			for row in _room_output_rows(r):
+				var key := str(row.key)
+				if not seen.has(key):
+					seen[key] = 0
+				seen[key] = int(seen[key]) + int(row.amount)
+		for key in seen:
+			var base_sum := int(seen[key])
+			var bonus := _merge_key_bonus(base_sum, width)
+			if bonus_n == 0:
+				bonus_n = bonus
+			block_outputs.append({"key": key, "base": base_sum, "bonus": bonus, "total": base_sum + bonus})
+	var note := ""
+	if width >= 2:
+		note = Copy.t("merge.disaster") % width
 	return {
 		"uid": uid,
 		"type": str(room.type),
@@ -2711,6 +2773,15 @@ func room_detail(uid: String) -> Dictionary:
 		"offline": bool(room.offline),
 		"skill_extra": extra,
 		"multiplier": minf(float(bal.output_cap), 1.0 + float(bal.skill_coef) * extra),
+		"block_width": width,
+		"merge_bonus": bonus_n,
+		"crew_need": crew_need,
+		"cells": cell_list,
+		"disaster_note": note,
+		"block_power": block_power,
+		"block_outputs": block_outputs,
+		"block_staff": block_staff,
+		"block_staff_max": block_staff_max,
 	}
 
 
@@ -3002,6 +3073,8 @@ func _apply_flood_if_needed() -> void:
 			if room != null:
 				room.offline = true
 				names.append(Copy.t(str(catalog.rooms[room.type].name)))
+	for extra in _flood_merge_blocks():
+		names.append(str(extra))
 	if _any_trait("Claustrophobic"):
 		_add_hope(-2, "trait")
 	if names.is_empty():
@@ -5158,6 +5231,14 @@ func _spread_cough() -> void:
 				sick_cells[_ck(int(room.level), int(room.cell))] = true
 	if sick_cells.is_empty():
 		return
+	for b in _merge_groups():
+		var hit := false
+		for r in b:
+			if sick_cells.has(_ck(int(r.level), int(r.cell))):
+				hit = true
+		if hit:
+			for r in b:
+				sick_cells[_ck(int(r.level), int(r.cell))] = true
 	for room in rooms:
 		var key := _ck(int(room.level), int(room.cell))
 		var near := sick_cells.has(key)
@@ -6353,7 +6434,8 @@ func _apply_red_failure(failure: Dictionary) -> void:
 	if mold > 0:
 		for room in rooms:
 			if str(room.type) == "hydroponics":
-				room.mold = mold
+				for r in _merge_group_of(room):
+					r.mold = mold
 				break
 
 
@@ -6629,7 +6711,8 @@ func _disable_room(type: String, weeks: int) -> void:
 		if shrugs_down(room):
 			_log("ARMOURED %s keeps working" % type, true)
 			return
-		room.disabled = maxi(int(room.get("disabled", 0)), weeks)
+		for r in _merge_group_of(room):
+			r.disabled = maxi(int(r.get("disabled", 0)), weeks)
 		_log("DISABLED %s %d" % [type, int(room.disabled)], true)
 		return
 
@@ -9326,3 +9409,229 @@ func _squad_names(limit: int) -> Array:
 		if out.size() >= limit:
 			break
 	return out
+
+
+# --- room merging (same type, same upgrade, 2–3 wide) ---
+const MERGE_TYPES := ["hydroponics", "air_filter", "generator", "workshop", "quarters"]
+
+
+func _merge_enabled() -> bool:
+	return float(bal.get("merge_bonus", 0.0)) > 0.0 or int(bal.get("merge_on", 0)) != 0
+
+
+func _merge_short(type: String) -> String:
+	if type == "hydroponics":
+		return "hydro"
+	if type == "air_filter":
+		return "filter"
+	return type
+
+
+func _merge_runs(level: int, ghost) -> Array:
+	var out: Array = []
+	var cap := int(bal.get("merge_max", 3))
+	var span := int(catalog.grid.get("cells", 6))
+	var run: Array = []
+	for cell in span + 1:
+		var room = null
+		if ghost != null and int(ghost.level) == level and int(ghost.cell) == cell:
+			room = ghost
+		else:
+			var key := _ck(level, cell)
+			if cells.has(key) and str(cells[key].get("room", "")) != "":
+				room = _room(str(cells[key].room))
+		var same := room != null and MERGE_TYPES.has(str(room.type)) and not run.is_empty() and str(run[0].type) == str(room.type) and int(run[0].upgrade) == int(room.upgrade) and run.size() < cap
+		if same:
+			run.append(room)
+			continue
+		if run.size() > 1:
+			out.append(run)
+		run = []
+		if room != null and MERGE_TYPES.has(str(room.type)):
+			run = [room]
+	if run.size() > 1:
+		out.append(run)
+	return out
+
+
+func _merge_groups() -> Array:
+	var out: Array = []
+	if not _merge_enabled():
+		return out
+	for level in int(catalog.grid.get("levels", 3)):
+		for run in _merge_runs(level, null):
+			out.append(run)
+	return out
+
+
+func _merge_group_of(room: Dictionary) -> Array:
+	if room.is_empty():
+		return []
+	for b in _merge_groups():
+		for r in b:
+			if str(r.uid) == str(room.uid):
+				return b
+	return [room]
+
+
+func merge_group_of(uid: String) -> Array:
+	var room = _room(uid)
+	if room == null:
+		return []
+	var grp := _merge_group_of(room)
+	if grp.size() < 2:
+		return [uid]
+	var out: Array = []
+	for r in grp:
+		out.append(str(r.uid))
+	return out
+
+
+func _merge_tag_line(type: String, width: int) -> String:
+	var key := "merge.tag_%s_%d" % [_merge_short(type), width]
+	var line := Copy.t(key)
+	if line != key:
+		return line
+	var bonus_key := "merge.bonus_food"
+	if type == "air_filter":
+		bonus_key = "merge.bonus_air"
+	elif type == "generator":
+		bonus_key = "merge.bonus_power"
+	elif type == "workshop":
+		bonus_key = "merge.bonus_materials"
+	elif type == "quarters":
+		bonus_key = "merge.bonus_housing"
+	var name := Copy.t(str(catalog.rooms[type].name))
+	return "%s. %s" % [Copy.t("merge.joins") % [name, Copy.t(bonus_key)], Copy.t("merge.shares")]
+
+
+func merge_preview(type: String, level: int, cell: int) -> Dictionary:
+	var info := {
+		"joins": false,
+		"partner_uid": "",
+		"partner_name": "",
+		"width": 1,
+		"bonus_line": "",
+		"share_line": "",
+		"cells": [cell],
+	}
+	if not MERGE_TYPES.has(type) or not _merge_enabled():
+		return info
+	var key := _ck(level, cell)
+	if not cells.has(key) or not _cell_buildable(cells[key]):
+		return info
+	var ghost := {
+		"uid": "__ghost__",
+		"type": type,
+		"upgrade": 0,
+		"level": level,
+		"cell": cell,
+		"staff": [],
+	}
+	var found: Array = []
+	for run in _merge_runs(level, ghost):
+		for r in run:
+			if str(r.uid) == "__ghost__":
+				found = run
+	if found.size() < 2:
+		return info
+	info.joins = true
+	info.width = found.size()
+	var cells_out: Array = []
+	var partner = null
+	for r in found:
+		cells_out.append(int(r.cell))
+		if str(r.uid) == "__ghost__":
+			continue
+		if partner == null or absi(int(r.cell) - cell) < absi(int(partner.cell) - cell):
+			partner = r
+	info.cells = cells_out
+	if partner != null:
+		info.partner_uid = str(partner.uid)
+		info.partner_name = str(catalog.rooms[str(partner.type)].name)
+	info.bonus_line = _merge_tag_line(type, found.size())
+	info.share_line = Copy.t("merge.shares")
+	return info
+
+
+func _merge_build_cell(type: String) -> Dictionary:
+	if int(bal.get("bot_merge", 0)) == 0 or not MERGE_TYPES.has(type):
+		return {}
+	var best := {}
+	for key in cells:
+		var cell: Dictionary = cells[key]
+		if not _cell_buildable(cell):
+			continue
+		for d in [-1, 1]:
+			var nk := _ck(int(cell.level), int(cell.cell) + d)
+			if not cells.has(nk) or str(cells[nk].room) == "":
+				continue
+			var other = _room(str(cells[nk].room))
+			if other != null and str(other.type) == type and int(other.upgrade) == 0 and _merge_group_of(other).size() < int(bal.get("merge_max", 3)):
+				if best.is_empty() or int(cell.level) < int(best.level):
+					best = cell
+	return best
+
+
+func _merge_key_bonus(sum: int, width: int) -> int:
+	var mb := float(bal.get("merge_bonus", 0.0))
+	if mb <= 0.0 or width < 2:
+		return 0
+	return int(round(float(sum) * mb * float(width - 1)))
+
+
+func _room_output_rows(room: Dictionary) -> Array:
+	var defin: Dictionary = catalog.rooms[room.type]
+	var skill := str(defin.get("skill", ""))
+	var skills: Array = []
+	for id in room.staff:
+		var person: Dictionary = people[str(id)]
+		var value := 0 if skill == "" else int(person.skills.get(skill, 1))
+		if int(person.sick) > 0 or int(person.absent) > 0:
+			value = 0
+		skills.append(value)
+	var outputs: Array = []
+	var base: Dictionary = defin.base
+	for key in base:
+		var amount := float(base[key]) * output_scale(int(room.upgrade))
+		var factor := _output_factor(room, defin)
+		var n := 0
+		if factor > 0.0:
+			n = Formulas.room_output(amount, skills, float(bal.skill_coef), float(bal.output_cap))
+			n = int(round(float(n) * factor))
+		if bool(defin.get("decays", false)):
+			n = int(round(float(n) * float(room.efficiency)))
+		if belt_down and str(room.type) == "hydroponics" and str(key) == "food":
+			n = int(n / 2.0)
+		if workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
+			n = 0
+		elif gen_down and str(room.type) == "generator" and str(key) == "power":
+			n = int(n / 2.0)
+			n += crew_extra(skills, room, n)
+		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
+			n += crew_extra(skills, room, n)
+		outputs.append({"key": str(key), "amount": n, "base": amount})
+	return outputs
+
+
+func _flood_merge_blocks() -> PackedStringArray:
+	var names := PackedStringArray()
+	for b in _merge_groups():
+		var hit := false
+		for r in b:
+			var key := _ck(int(r.level), int(r.cell))
+			if cells.has(key) and bool(cells[key].get("flooded", false)):
+				hit = true
+		if not hit:
+			continue
+		for r in b:
+			var key := _ck(int(r.level), int(r.cell))
+			if not cells.has(key):
+				continue
+			var cell: Dictionary = cells[key]
+			var was: bool = bool(cell.flooded)
+			cell.flooded = true
+			r.offline = true
+			if not was:
+				names.append(Copy.t(str(catalog.rooms[str(r.type)].name)))
+	return names
