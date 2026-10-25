@@ -3,6 +3,7 @@
   "events": [
     {
       "id": "st1_first_paper",
+      "banner": "letter",
       "title": "The first paper",
       "major": false,
       "weight": 5,
@@ -42,6 +43,7 @@
     },
     {
       "id": "st1_counting",
+      "banner": "static",
       "title": "Someone is counting",
       "major": false,
       "weight": 5,
@@ -82,6 +84,7 @@
     },
     {
       "id": "st1_names",
+      "banner": "vote",
       "title": "Those who went up",
       "major": false,
       "weight": 5,
@@ -116,6 +119,7 @@
     },
     {
       "id": "st1_floor_rumor",
+      "banner": "headphones",
       "title": "A meeting that never ended",
       "major": false,
       "weight": 7,
@@ -150,6 +154,7 @@
     },
     {
       "id": "st1_story_night",
+      "banner": "chapel",
       "title": "Story night",
       "major": false,
       "weight": 5,
@@ -186,6 +191,7 @@
     },
     {
       "id": "st1_child",
+      "banner": "sleep",
       "title": "A child's question",
       "major": false,
       "weight": 5,
@@ -222,6 +228,7 @@
     },
     {
       "id": "st2_depot_honest",
+      "banner": "letter",
       "title": "The scrap Bernie kept",
       "needs": {
         "week": [
@@ -261,6 +268,7 @@
     },
     {
       "id": "st2_depot_dirty",
+      "banner": "dark",
       "title": "What you remember of the copy",
       "needs": {
         "week": [
@@ -291,6 +299,7 @@
     },
     {
       "id": "st2_dir_honest",
+      "banner": "toll",
       "title": "The page with his name",
       "needs": {
         "week": [
@@ -331,6 +340,7 @@
     },
     {
       "id": "st2_dir_dirty",
+      "banner": "toll",
       "title": "A page left behind",
       "needs": {
         "week": [
@@ -366,6 +376,7 @@
     },
     {
       "id": "st2_synod_honest",
+      "banner": "static",
       "title": "The end of the recording",
       "needs": {
         "week": [
@@ -406,6 +417,7 @@
     },
     {
       "id": "st2_synod_dirty",
+      "banner": "chapel",
       "title": "The woman who listened",
       "needs": {
         "week": [
@@ -440,6 +452,7 @@
     },
     {
       "id": "st2_exchange_honest",
+      "banner": "loan",
       "title": "A packet at a fair price",
       "needs": {
         "week": [
@@ -490,6 +503,7 @@
     },
     {
       "id": "st2_exchange_dirty",
+      "banner": "loan",
       "title": "A folded packet in your books",
       "needs": {
         "week": [
@@ -525,6 +539,7 @@
     },
     {
       "id": "st2_lamp_honest",
+      "banner": "flood",
       "title": "A door at the end of the water",
       "needs": {
         "week": [
@@ -570,6 +585,7 @@
     },
     {
       "id": "st2_lamp_dirty",
+      "banner": "knock",
       "title": "The chalk on the wall",
       "needs": {
         "week": [
@@ -605,6 +621,7 @@
     },
     {
       "id": "st3_floor",
+      "banner": "vote",
       "title": "The meeting that never ended",
       "trigger": {
         "order": "approach_floor"
@@ -667,6 +684,7 @@
     },
     {
       "id": "st3_quarantine",
+      "banner": "expedition",
       "title": "The door that no one opens",
       "trigger": {
         "order": "approach_quarantine",
@@ -727,6 +745,7 @@
     },
     {
       "id": "st3_observatory",
+      "banner": "static",
       "title": "The count",
       "trigger": {
         "order": "approach_observatory",
@@ -777,6 +796,7 @@
     },
     {
       "id": "st3_decision",
+      "banner": "headphones",
       "title": "The end of the line",
       "needs": {
         "week": [
@@ -837,6 +857,7 @@
     },
     {
       "id": "st1_dosimeter",
+      "banner": "flood",
       "title": "The dosimeter in the mud",
       "requires": "digging",
       "needs": {
@@ -876,6 +897,7 @@
     },
     {
       "id": "st1_substation",
+      "banner": "dark",
       "title": "The dead substation",
       "needs": {
         "week": [
@@ -915,6 +937,7 @@
     },
     {
       "id": "st2_scrap_iron",
+      "banner": "scrap",
       "title": "A peddler with a sled",
       "needs": {
         "week": [

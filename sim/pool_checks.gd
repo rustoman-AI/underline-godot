@@ -5,7 +5,7 @@ extends RefCounted
 ## and bot_run.gd both cover it. The card fit at 1280x720 is shot by .tools/pool_shots.gd.
 
 const POOL_FILE := "events_pool.json"
-const EVENT_KEYS := ["id", "title", "major", "min_week", "max_week", "weight", "cooldown", "text", "choices", "who",
+const EVENT_KEYS := ["id", "banner", "title", "major", "min_week", "max_week", "weight", "cooldown", "text", "choices", "who",
 	"ru_own"]
 const CHOICE_KEYS := ["id", "label", "hope", "discontent", "food", "tokens", "materials", "cost", "artifacts",
 	"standing", "ru_own"]

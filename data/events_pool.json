@@ -3,6 +3,7 @@
   "events": [
     {
       "id": "inez_count",
+      "banner": "toll",
       "title": "Inez talks the count down",
       "major": false,
       "min_week": 6,
@@ -40,6 +41,7 @@
     },
     {
       "id": "leo_torch",
+      "banner": "lamps",
       "title": "A boy with a torch",
       "major": false,
       "min_week": 10,
@@ -73,6 +75,7 @@
     },
     {
       "id": "fran_crate",
+      "banner": "smuggler",
       "title": "The woman who sells without stamps",
       "major": false,
       "min_week": 8,
@@ -111,6 +114,7 @@
     },
     {
       "id": "birth",
+      "banner": "sleep",
       "title": "The first child since the Silence",
       "major": false,
       "min_week": 8,
@@ -141,6 +145,7 @@
     },
     {
       "id": "graves",
+      "banner": "dark",
       "title": "Where the dead go",
       "major": false,
       "min_week": 10,
@@ -178,6 +183,7 @@
     },
     {
       "id": "ration_card",
+      "banner": "hunger",
       "title": "Two cards for one name",
       "major": false,
       "min_week": 6,
@@ -208,6 +214,7 @@
     },
     {
       "id": "wet_boots",
+      "banner": "flood",
       "title": "Wet boots",
       "major": false,
       "min_week": 10,
@@ -240,6 +247,7 @@
     },
     {
       "id": "quiet_letter",
+      "banner": "letter",
       "title": "A letter from a quiet station",
       "major": false,
       "min_week": 6,
@@ -273,6 +281,7 @@
     },
     {
       "id": "old_diary",
+      "banner": "letter",
       "title": "A diary behind the tiles",
       "major": false,
       "min_week": 8,
@@ -308,6 +317,7 @@
     },
     {
       "id": "coney_errand",
+      "banner": "showtime",
       "title": "The Wheel wants a record",
       "major": false,
       "min_week": 8,
@@ -339,6 +349,7 @@
     },
     {
       "id": "maggie_salt",
+      "banner": "market_food",
       "title": "Salt by the share",
       "major": false,
       "min_week": 6,
@@ -371,6 +382,7 @@
     },
     {
       "id": "bait_throw",
+      "banner": "rat",
       "title": "He never misses",
       "major": false,
       "min_week": 8,
@@ -403,6 +415,7 @@
     },
     {
       "id": "barnum_cabinet",
+      "banner": "showtime",
       "title": "The curiosity cabinet",
       "major": false,
       "min_week": 10,
@@ -433,6 +446,7 @@
     },
     {
       "id": "sylvia_tide",
+      "banner": "chapel",
       "title": "The Tide at the grate",
       "major": false,
       "min_week": 8,

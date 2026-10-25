@@ -5185,37 +5185,37 @@ func _crunch_table() -> Dictionary:
 	var shop_pain := 8 if int(stock.materials) < 12 else 3
 	var gen_pain := 12 if int(stock.power) < _power_need() else 4
 	var pantry := {
-		"id": "pantry", "short": "the pantry", "title": "The pantry comes up short",
+		"id": "pantry", "banner": "hunger", "short": "the pantry", "title": "The pantry comes up short",
 		"text": "This week's meals outrun the stores. Materials can close it. Leaving it spends what you saved.",
 		"pay": "Spend %s to close the gap", "suffer": "Let the stores run down",
 		"pain": food_gap, "hit": {"food": -food_gap},
 	}
 	var ducts := {
-		"id": "ducts", "short": "the ducts", "title": "Ice in the ducts",
+		"id": "ducts", "banner": "clog", "short": "the ducts", "title": "Ice in the ducts",
 		"text": "Meltwater has frozen in the vent runs. Clear it, or the yard draws twice the power tonight.",
 		"pay": "Spend %s to clear the ducts", "suffer": "Leave the ice",
 		"pain": power_pain, "hit": {"discontent": 4, "power_double": true},
 	}
 	var belt := {
-		"id": "belt", "short": "the belt", "title": "The grow lamps snap",
+		"id": "belt", "banner": "lamps", "short": "the belt", "title": "The grow lamps snap",
 		"text": "A belt on the hydroponic lamps snaps. Replace it, or the beds give half a crop this week.",
 		"pay": "Spend %s on a new belt", "suffer": "Let the beds run at half",
 		"pain": belt_pain, "hit": {"hope": -2, "discontent": 2, "hydro_down": true},
 	}
 	var stacks := {
-		"id": "stacks", "short": "the stacks", "title": "The charcoal beds pack solid",
+		"id": "stacks", "banner": "clog", "short": "the stacks", "title": "The charcoal beds pack solid",
 		"text": "The air filters are caked. Materials can clear them. Leaving them spends the air you saved.",
 		"pay": "Spend %s to clear the stacks", "suffer": "Let the air run down",
 		"pain": air_gap, "hit": {"air": -air_gap},
 	}
 	var shop := {
-		"id": "shopbelt", "short": "the workshop", "title": "A belt in the workshop slips",
+		"id": "shopbelt", "banner": "tools", "short": "the workshop", "title": "A belt in the workshop slips",
 		"text": "The workshop belt is off its wheel. Fix it, or the shop makes nothing this week.",
 		"pay": "Spend %s to seat the belt", "suffer": "Let the shop sit idle",
 		"pain": shop_pain, "hit": {"shop_down": true, "discontent": 2},
 	}
 	var dynamo := {
-		"id": "dynamo", "short": "the dynamo", "title": "The dynamo runs hot",
+		"id": "dynamo", "banner": "diesel", "short": "the dynamo", "title": "The dynamo runs hot",
 		"text": "The generator bearing is dry. Grease it, or the dynamo makes half power tonight.",
 		"pay": "Spend %s to grease the bearing", "suffer": "Let the dynamo limp",
 		"pain": gen_pain, "hit": {"gen_down": true, "hope": -1},
@@ -5231,6 +5231,7 @@ func _crunch_event(leg: Dictionary) -> Dictionary:
 		suffer[key] = hit[key]
 	return {
 		"id": str(leg.id),
+		"banner": str(leg.get("banner", "")),
 		"title": str(leg.title),
 		"major": true,
 		"crunch": true,

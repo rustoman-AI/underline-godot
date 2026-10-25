@@ -3,6 +3,7 @@
   "events": [
     {
       "id": "lc_depot_accepted",
+      "banner": "letter",
       "title": "Ash in the stove",
       "major": false,
       "weight": 6,
@@ -45,6 +46,7 @@
     },
     {
       "id": "lc_depot_refused",
+      "banner": "dark",
       "title": "No parts from the Depot",
       "major": false,
       "weight": 6,
@@ -86,6 +88,7 @@
     },
     {
       "id": "lc_directorate_accepted",
+      "banner": "desertion",
       "title": "The bunk that stayed made",
       "major": false,
       "weight": 6,
@@ -123,6 +126,7 @@
     },
     {
       "id": "lc_directorate_refused",
+      "banner": "toll",
       "title": "The clerk with the tape",
       "major": false,
       "weight": 6,
@@ -163,6 +167,7 @@
     },
     {
       "id": "lc_synod_accepted",
+      "banner": "chapel",
       "title": "Someone wants to listen",
       "major": false,
       "weight": 6,
@@ -202,6 +207,7 @@
     },
     {
       "id": "lc_synod_refused",
+      "banner": "hunger",
       "title": "Empty seats at supper",
       "major": false,
       "weight": 6,
@@ -237,6 +243,7 @@
     },
     {
       "id": "lc_exchange_accepted",
+      "banner": "market_food",
       "title": "The price list",
       "major": false,
       "weight": 6,
@@ -277,6 +284,7 @@
     },
     {
       "id": "lc_exchange_refused",
+      "banner": "loan",
       "title": "A two-month-old debt for a loaf",
       "major": false,
       "weight": 6,
@@ -320,6 +328,7 @@
     },
     {
       "id": "lc_lamp_accepted",
+      "banner": "letter",
       "title": "Lamps at night",
       "major": false,
       "weight": 6,
@@ -361,6 +370,7 @@
     },
     {
       "id": "lc_lamp_refused",
+      "banner": "dark",
       "title": "The tunnel without a lamp",
       "major": false,
       "weight": 6,
@@ -404,6 +414,7 @@
     },
     {
       "id": "lc2_depot_accepted",
+      "banner": "letter",
       "title": "The second page",
       "major": false,
       "weight": 6,
@@ -449,6 +460,7 @@
     },
     {
       "id": "lc2_depot_refused",
+      "banner": "smuggler",
       "title": "The Depot stops the night carts",
       "major": false,
       "weight": 6,
@@ -494,6 +506,7 @@
     },
     {
       "id": "lc2_directorate_accepted",
+      "banner": "toll",
       "title": "Room for one more line",
       "major": false,
       "weight": 6,
@@ -539,6 +552,7 @@
     },
     {
       "id": "lc2_directorate_refused",
+      "banner": "toll",
       "title": "A toll at the junction",
       "major": false,
       "weight": 6,
@@ -584,6 +598,7 @@
     },
     {
       "id": "lc2_synod_accepted",
+      "banner": "preacher",
       "title": "The grate is welded",
       "major": false,
       "weight": 6,
@@ -629,6 +644,7 @@
     },
     {
       "id": "lc2_synod_refused",
+      "banner": "hunger",
       "title": "The list of the hungry",
       "major": false,
       "weight": 6,
@@ -673,6 +689,7 @@
     },
     {
       "id": "lc2_exchange_accepted",
+      "banner": "market_food",
       "title": "Your books, for sale",
       "major": false,
       "weight": 6,
@@ -718,6 +735,7 @@
     },
     {
       "id": "lc2_exchange_refused",
+      "banner": "market_food",
       "title": "Bread at the other price",
       "major": false,
       "weight": 6,
@@ -763,6 +781,7 @@
     },
     {
       "id": "lc2_lamp_accepted",
+      "banner": "loan",
       "title": "The toll becomes a debt",
       "major": false,
       "weight": 6,
@@ -805,6 +824,7 @@
     },
     {
       "id": "lc2_lamp_refused",
+      "banner": "refugees",
       "title": "Lamps going past",
       "major": false,
       "weight": 6,

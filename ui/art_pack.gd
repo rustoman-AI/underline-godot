@@ -46,6 +46,55 @@ static func has_event_art(event_id: String) -> bool:
 	return textures().has("res://assets/events/%s.webp" % event_id)
 
 
+## P21 mood plates (docs: MAP_FEEDBACK_SPEC DEC-F1). An event whose banner is a mood shows assets/events/<mood>.webp
+## once Art drops it in; until then it borrows the painted plate named here.
+const MOOD_STAND_IN := {
+	"dark": "brownout",
+	"quarrel": "quarrel",
+	"hunger": "market_food",
+	"scrap": "diesel",
+	"tools": "showtime",
+	"sleep": "cough",
+	"chapel": "preacher",
+	"labor": "moles",
+}
+
+
+static func _event_plate_ready(stem: String) -> bool:
+	return has_event_art(stem) or ResourceLoader.exists("res://assets/events/%s.webp" % stem)
+
+
+## The plate stem a dawn card shows for this event: its own banner or id, a mood plate, the mood's stand-in, or a mood
+## picked from the id so no card comes up without a picture.
+static func event_banner_stem(ev: Dictionary) -> String:
+	var id := str(ev.get("id", ""))
+	var want := str(ev.get("banner", ""))
+	if want == "":
+		want = id
+	if want != "" and _event_plate_ready(want):
+		return want
+	if not MOOD_STAND_IN.has(want):
+		var moods: Array = MOOD_STAND_IN.keys()
+		want = str(moods[absi(id.hash()) % moods.size()])
+	var stand_in := str(MOOD_STAND_IN[want])
+	return stand_in if _event_plate_ready(stand_in) else ""
+
+
+## What is wrong with an event's banner for the P21 gate: "" when its banner or id names a plate or a mood and the
+## plate it ends up on loads. The id-hash fallback keeps players safe but does not pass the gate.
+static func event_banner_problem(ev: Dictionary) -> String:
+	var id := str(ev.get("id", ""))
+	var want := str(ev.get("banner", ""))
+	if want == "":
+		want = id
+	if not _event_plate_ready(want) and not MOOD_STAND_IN.has(want):
+		return "%s: banner '%s' is neither a plate nor a mood" % [id, want]
+	var stem := event_banner_stem(ev)
+	if stem == "" or load_texture("res://assets/events/%s.webp" % stem) == null:
+		return "%s: plate '%s' does not load" % [id, stem]
+	return ""
+
+
 static func audit() -> void:
 	for path in textures().keys():
 		load_texture(str(path))
