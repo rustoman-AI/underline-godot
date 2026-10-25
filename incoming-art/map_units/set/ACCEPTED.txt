@@ -1,0 +1,42 @@
+OWNER-SIDE ACCEPTANCE (lead review, 20 Oct)
+handcar_idle_v3.png: ACCEPTED. Gaps 77..95 px are ample (the cutter split 16..20 px gaps in the pilot); the
+  quarter-width gap rule is guidance for generation, not an acceptance test. Same crew, car and level lever; brow
+  wipe in frames 2 and 3.
+trader_reference_v3.png: ACCEPTED. Canopy is neutral grey (R, G, B within 2, value about 166) and nearly flat; the
+  tint keys on neutral grey near the sheet's own value, so exact #B5B5B5 is not required. Note for the tint: the
+  silver milk can on the deck is also neutral grey; limit the tint on trader sheets to the canopy region.
+Next: trader_roll (attach trader_reference_v3.png), then squad, expedition, puff, using the updated prompt file.
+
+20 Oct, second round:
+trader_roll_v1.png: ACCEPTED. Six frames, pump down, lowest, up, highest read clearly; car, canopy and cargo hold;
+  lantern swings; gaps narrow but clearly empty.
+squad_reference_v1.png: NOT YET. Style, faces, gear and stride are right. Two fixes: the armbands are warm
+  beige-grey (about 155,140,130), they must be neutral grey with no warm cast; the spear tip touches the top edge.
+  Use the squad correction prompt (attempt 2).
+
+20 Oct, third round:
+trader_roll_v1.png: imported by Codex (eb2aeea, e97f9e9), canopy-only tint checked in Depot and Exchange colours.
+squad_reference_v2.png: ACCEPTED. Armbands neutral (about 155,151,152); trousers and shield stripe stay warm, so
+  the tint cannot catch them; spear has room above. Boots touch the bottom edge: the loops must leave space below.
+Next: 3b SQUAD WALK and 3c SQUAD STAND with squad_reference_v2.png attached, then 4a EXPEDITION REFERENCE, 5 PUFF.
+
+20 Oct, fourth round:
+squad_walk_v3.png: ACCEPTED. 6 frames found by gaps (37-366, 397-712, 749-1062, 1100-1421, 1470-1791,
+  1833-2139); legs alternate, lamp and spear hold.
+squad_stand_v1.png: ACCEPTED. 4 frames (23-515, 566-1063, 1110-1601, 1652-2141); lamp lift and weight shift.
+expedition_reference_v1.png: NOT YET. Design, faces and gear are right. The pennant is warm cream (about
+  199,177,152); it must be neutral grey. The tin mugs measure warm (about 110,100,88), so after the fix the
+  pennant is the only neutral grey on the sheet. Use the expedition correction prompt (attempt 2).
+
+20 Oct, fifth round:
+squad_walk_v3 / squad_stand_v1: imported by Codex (934ca3c, f4a56d7). Placement fix needed (see codex_map_units.txt).
+expedition_reference_v2.png: ACCEPTED. The pennant stays slightly warm (about 148,137,123) and the tin mugs are a
+  similar grey, so the tint on expedition sheets is limited to the pennant region (top right of each frame) instead
+  of keyed on neutral grey. Next: 4b EXPEDITION WALK (attach expedition_reference_v2.png), then 5 PUFF.
+
+21 Oct, final round:
+expedition_walk_v1.png: ACCEPTED. 6 frames (15-366, 397-732, 761-1071, 1091-1444, 1461-1791, 1809-2150), legs
+  alternate, pennant keeps the reference colour (region tint).
+puff_v1.png: ACCEPTED. 6 frames (94-176, 466-605, 789-1031, 1224-1424, 1633-1796, 2004-2098), transparent, one
+  baseline.
+The painted set is complete: handcar pump and idle, trader roll, squad walk and stand, expedition walk, puff.

@@ -1,0 +1,21 @@
+ART: FIVE FACTION SYMBOLS (V4)
+Leader portraits are DECIDED: the dark set incoming-art/factions_dark/*.png (serious, no smiles). Do not redraw or retouch those faces. This job is the five faction symbols only. Read docs/LEADERS.md for the five factions.
+
+Rejected, do not look at, copy or "improve": incoming-art/rejected/, incoming-art/factions_v3, incoming-art/faction_identities, incoming-art/factions (sepia set). Antigravity does not touch these assets. The project lead reviews before anything is installed.
+
+STYLE
+One flat, readable shape plus one accent colour, no text, no gradients, hand-cut and slightly worn, in the same world as assets/hubs/*.webp and the dark portraits (muted, lamp-lit). Readable at 24 px. 1254x1254 transparent PNG.
+
+SYMBOLS
+- Depot (rust orange): a track switch lever forming a "Y" fork, seen from above.
+- Iron Directorate (brass on dark slate, NOT red): a punched ticket stub with a clock-hand notch.
+- Synod of the Tunnel (washed blue): a small lit lamp under a horseshoe tunnel arch. No cross, no ring halo.
+- Free Exchange (verdigris and brass): five tally strokes with a diagonal cut, a tiny balance scale as a secondary mark.
+- Lamplighters (soot grey and amber): a lantern hanging on a hook, light swaying. NOT a flag or banner.
+For reference only, the earlier dark-set symbols (wheel, gauge, flame ring, scales, pennant) are acceptable as generic placeholders but too anonymous; do better. The Lamplighters must not be a flag.
+
+FORBIDDEN
+Red field with a white disc, red-white-black triad, hooked or rotated cross arms, runes, eagles, lightning bolts, "black sun", SS forms, skulls, anything resembling a real political badge.
+
+DELIVERY
+incoming-art/symbols_v4/<faction>_symbol.png with the exact prompt next to each file, plus a contact sheet: five symbols at 24 px, 64 px and 256 px on the card background colour, and next to the faction colour plate. Do not install into assets/. When these are accepted, the second job is docs/briefs/art_hubs_no_emblems.txt.

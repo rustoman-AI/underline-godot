@@ -1,0 +1,17 @@
+SUPERSEDED: do not draw new cast portraits. The project lead keeps the existing resident portraits; see data/cast_portraits.json.
+
+ART: FIVE PORTRAITS FOR THE CONEY CAST
+Why: in every game the five residents chris, mina, kim, drew, ann are renamed to Old Man Coney, Salty Maggie, Bait, Barnum and Sylvia the Mermaid (_apply_coney_cast), but they keep a random portrait chosen by hash from assets/portraits/portrait_01..16. Bait shows a woman, Sylvia shows an old man, Old Man Coney shows an old woman. Draw one portrait for each cast member. Antigravity does not touch these assets. Nothing is installed into assets/ until the project lead accepts it.
+
+STYLE (match the existing resident portraits, look at assets/portraits/portrait_03.webp and a few others)
+Aged sepia photograph with a worn paper border, a station tunnel behind the person (tiles, pipes, a lamp), the person facing the camera in a bust, 1:1 square, 1024x1024 source (the game uses 512). Serious or tired. NOBODY SMILES. Real human faces with age and wear, not caricature; the costume is the character. No text, no logos, no real people. Same sepia tone and grain across the five so they sit together in the People list.
+
+THE FIVE (look text comes from data/characters_coney.json, use it exactly)
+1. old_man_coney, Old Man Coney, Keeper of the Rusted Rides. Frail but wiry old man. He wears a balding plush tiger head from an old amusement ride in place of a helmet, a cigarette poking out of the tiger's mouth, torn pea coat. His weathered face is visible under the tiger's chin. Gone strange from years alone by the ocean.
+2. salty_maggie, Salty Maggie, Queen of the Salt Pans. Heavyset woman of about fifty, skin crusted with salt, an apron cut from a subway car floor mat, a huge ladle always in hand. Hard and cynical.
+3. bait, Bait, Harpooner of the Dead Pier. Thin man, ONE-EYED, tattooed with gulls and anchors, his left arm below the elbow is a homemade spring harpoon. Speaks in a whisper, keeps checking the tension of a line.
+4. barnum, Barnum, Keeper of the Curiosity Cabinet. Small and stooped man in a yellowed lab coat over a wool sweater. Thick taped-up glasses make his eyes enormous. Former taxidermist or maybe museum thief. A glass jar on a shelf behind him is fine; no gore.
+5. sylvia, Sylvia the Mermaid, Voice of the Surf. Young woman wrapped in torn fishing nets and plastic seaweed, face painted blue, a pre-war megaphone on a rope round her neck. Preacher of the Great Tide. Not smiling: a calm, certain face.
+
+DELIVERY
+incoming-art/cast_portraits/<cast_id>.png (1024x1024) with the exact prompt next to each file, and a contact sheet of the five at 512 and 96 px next to three existing portraits (portrait_03, portrait_07, portrait_11) so we can check they belong together. Do not install into assets/.

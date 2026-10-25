@@ -214,7 +214,15 @@ static func _meter(game, key: String, info: Dictionary) -> Dictionary:
 			delta += int(defin.hope_week)
 		if key == "discontent" and defin.has("discontent_week"):
 			delta += int(defin.discontent_week)
+	var ids: Array = game.hardships()
+	var strain: Dictionary = game.tension_push(ids, int(game.hope))
+	delta += int(strain.hope) if key == "hope" else int(strain.dis) + int(strain.despair)
 	info.headline = Copy.t("%s: %d (%+d / week)") % [Copy.res(key), have, delta]
+	var rows: Array = []
+	for id in ids:
+		var text := Copy.t(game.hardship_name(str(id)))
+		rows.append(text.substr(0, 1).to_upper() + text.substr(1))
+	info.hardships = rows
 	if key == "hope":
 		info.made = Copy.t("Made by: the weekly slide (%+d), plus laws and choices.") % int(game.bal.get("hope_drift", 0))
 		info.used = Copy.t("Used by: shortages, a hard week, and some laws")
@@ -233,7 +241,10 @@ static func _used(game, key: String) -> String:
 		"power":
 			return Copy.t("Used by: the rooms (%d / week)") % game._weekly_draw("power")
 		"materials":
-			var up: int = int(game.bal.filter_upkeep) * int(game.room_count("air_filter"))
+			var up := 0
+			for room in game.rooms:
+				if str(room.type) == "air_filter":
+					up += int(game.filter_upkeep(room))
 			return Copy.t("Used by: building, upgrades, filter upkeep (%d / week)") % up
 		"tokens":
 			return Copy.t("Used by: trade and gifts")
@@ -275,7 +286,8 @@ static func _rated(game, defin: Dictionary, key: String, skill: int, count: int)
 	if factor <= 0.0:
 		return 0
 	var n := Formulas.room_output(amount, skills, float(game.bal.skill_coef), float(game.bal.output_cap))
-	return int(round(float(n) * factor))
+	n = int(round(float(n) * factor))
+	return n + int(game.crew_extra(skills, fake, n))
 
 
 static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: String) -> int:
@@ -293,7 +305,7 @@ static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: 
 	if not base.has(key):
 		return 0
 	var fake := {"type": str(room.type), "staff": ids}
-	var amount := float(base[key]) * (1.0 + 0.25 * float(room.upgrade))
+	var amount := float(base[key]) * float(game.output_scale(int(room.upgrade)))
 	var factor: float = game._output_factor(fake, defin)
 	var n := 0
 	if factor > 0.0:
@@ -303,10 +315,12 @@ static func _amount(game, room: Dictionary, defin: Dictionary, ids: Array, key: 
 		n = int(round(float(n) * float(room.get("efficiency", 1.0))))
 	if game.belt_down and str(room.type) == "hydroponics" and key == "food":
 		n = int(n / 2.0)
-	if game.workshop_down and str(room.type) == "workshop" and key == "materials":
+	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		n = 0
-	if game.gen_down and str(room.type) == "generator" and key == "power":
-		n = int(n / 2.0)
+	else:
+		if game.gen_down and str(room.type) == "generator" and key == "power":
+			n = int(n / 2.0)
+		n += int(game.crew_extra(skills, room, n))
 	return n
 
 
@@ -322,7 +336,7 @@ static func _live(game, room: Dictionary, defin: Dictionary, upgrade: int, key: 
 	var base: Dictionary = defin.get("base", {})
 	if not base.has(key):
 		return 0
-	var amount := float(base[key]) * (1.0 + 0.25 * float(upgrade))
+	var amount := float(base[key]) * float(game.output_scale(int(upgrade)))
 	var factor: float = game._output_factor(room, defin)
 	var n := 0
 	if factor > 0.0:
@@ -332,10 +346,12 @@ static func _live(game, room: Dictionary, defin: Dictionary, upgrade: int, key: 
 		n = int(round(float(n) * float(room.efficiency)))
 	if game.belt_down and str(room.type) == "hydroponics" and key == "food":
 		n = int(n / 2.0)
-	if game.workshop_down and str(room.type) == "workshop" and key == "materials":
+	if game.workshop_down and str(room.type) == "workshop" and key == "materials" and not game.shrugs_down(room):
 		n = 0
-	if game.gen_down and str(room.type) == "generator" and key == "power":
-		n = int(n / 2.0)
+	else:
+		if game.gen_down and str(room.type) == "generator" and key == "power":
+			n = int(n / 2.0)
+		n += int(game.crew_extra(skills, room, n))
 	return n
 
 

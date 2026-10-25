@@ -1,0 +1,17 @@
+CURSOR: MUSIC PLAYER (build 0.1.0-playtest8 -> 0.1.0-playtest9). STATUS: GO (owner approved the five tracks, 14 Oct 2026). Local only. No push, nothing uploaded. Do NOT change balance, the sim, voice-over, sound effects or room loops. Bot output must stay identical to HEAD.
+
+Files (already in the repo, commit f156391): assets/audio/music_new/ M1_menu_theme, M2_station_calm, M3_station_tension, M4_station_crisis, M5_ending_quiet. Each 75 s (M5 35 s), -20 LUFS, start and end on one soft sustained note; the API has no true loop, so every transition and every loop needs a crossfade. Licence note: ElevenLabs Music, paid plan, no attribution required; still add a line to the credits (the same place as the sound effects line).
+
+K1 Music player: one autoload or node with two AudioStreamPlayers on a Music bus (create the bus if missing, under Master, above nothing else; the Settings already has a Music slider, use it). Crossfade 4 s between tracks, 6 s to fade out. Looping: when a track nears its end (last 6 s), start the same track again from its beginning on the second player with a 6 s crossfade (so the soft held note overlaps itself). Never two tracks louder than one: equal power fade.
+K2 Which track plays (read the game state, never change it):
+ - main menu and hub: M1.
+ - station day to day: M2 when hope >= 50 and discontent < 50 and no crisis.
+ - M3 when hope < 50 or discontent >= 60 or the revolt warning is on or hope warning weeks are active. Hysteresis of 3 points and a minimum of 40 s on a track so it does not flip back and forth.
+ - M4 when a crisis is on: flood this week, the Cough with a quarantine call, or revolt warning at the edge. Same hysteresis.
+ - endings screen: M5 once, then fade out.
+ - network map: keep whatever the station state says; do not restart on every view change.
+ - during a leader audience or a story scene with voice-over: duck the music 6 dB while the voice plays, return in 1.5 s (the VO and effects must stay clear).
+K3 Settings: the Music slider already exists; verify it controls the music bus; "Reduced sound" must lower the music by 6 dB. Music off option in Settings (default on) and remember it with the other settings. No music in the headless bot or shot mode unless asked.
+K4 Files: move the five files into assets/audio/music/ with the same names, keep the originals out of the pack twice; headless import; check the playtest export includes them (about 5.4 MB more).
+K5 Credits: one line in CREDITS.md and the in-game credits (EN and RU), same style as the ElevenLabs sound effects line.
+CHECKS: all 8 gates green, bot identical to HEAD. A test for the state to track mapping (menu, calm, tension, crisis, endings), the hysteresis and the minimum time, the duck, and that every music file the code references exists. Measure the played level with .tools/audio_measure_dir.gd: music under voice-over and not louder than effects beds by more than 3 LU; report the numbers. Commit: "Music: state-driven player with crossfades". Do not build.

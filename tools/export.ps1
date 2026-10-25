@@ -42,7 +42,7 @@ $archive = [IO.Compression.ZipFile]::Open($zip, "Create")
 try {
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $exe, "Underline.exe", $level)
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $outDir "lang.txt"), "lang.txt", $level)
-    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $root $playtest), "PLAYTEST.md", $level)
+    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $root "docs\playtest\old\$playtest"), "PLAYTEST.md", $level)
     [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $root "CREDITS.md"), "CREDITS.md", $level)
 }
 finally {

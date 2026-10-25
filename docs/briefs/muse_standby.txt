@@ -1,0 +1,9 @@
+MUSE: STANDBY, NO GENERATION, NO CREDITS
+Any generation (TTS, voice design, cloning, regeneration) is forbidden until the project lead writes "go" in chat.
+
+1. Quota. Open usage in the ElevenLabs dashboard and report real consumption with the time of the reading: before radio_pilot_04, now, and characters per request. The API counter did not move on 1,083 characters and also moved +198 outside any reported run; it is not a ledger. If the dashboard lags, say so. Do not write "no quota concern".
+2. Was the radio pilot (radio_pilot_04) authorised? One line: yes/no and on what basis.
+3. The exact model_id sent to the API (you wrote "eleven_v4"; check the request log) and the exact settings.
+4. radio_pilot_04: delete nothing, redo nothing, install nothing. Loudness is fixed locally by LUFS, not by you.
+5. Leader casting. Later, after the leader text is in the game. Only catalogue previews, no generation. Dossiers: docs/LEADERS.md, lines: data/leader_lines.json. Three candidates each for Bernie Shaw (m, 58), Lionel Abelard (m, 58), Dorothy Chen (f, 55), Marcel Toussaint (m, 48), Niki "Lamp" Ortega (f, 35): voice_id, preview link, "multilingual?" and a note on how it fits age and manner.
+Answer 1, 2, 3 now. 5 waits for "go".

@@ -1,0 +1,35 @@
+MUSE: LEADER VOICES (GO GIVEN BY THE PROJECT LEAD)
+This replaces muse_standby.txt. Generation is now allowed, but only the lines below, in the order below, with the stop rules below. Do not touch any existing file, index or package (112-file pack, radio pilot 04). No additional radio, no system regeneration, no automatic expansion.
+
+SOURCE OF TEXT
+data/leader_lines.json, exact text, speak only the text of each "en" / "ru" field. No names of keys, no stage directions. Each language is a separate recording. 5 leaders x 11 lines x 2 languages = 110 files, about 9,200 characters in total.
+Lines per leader: first_contact, bands.hostile, bands.cold, bands.wary, bands.useful, bands.pact, territory, trade, pitch, accepted, declined.
+
+FIRST, BEFORE ANY GENERATION (answer in your report)
+1. Real quota from the ElevenLabs dashboard with the time of the reading (the API counter is not a ledger).
+2. Exact model_id and settings you will use.
+
+CAST (pick from the library, one voice per leader, same voice for EN and RU, multilingual required)
+- depot, Bernie Shaw, man, 58: gravel, loud and blunt, a bit hoarse from the yard. Slightly clipped phrases. Never warm.
+- directorate, Lionel Abelard, man, 58: dry, precise, quiet, even pace, polite as armor. No warmth, no menace, no accent flourish.
+- synod, Dorothy Chen, woman, 55: soft and slow, low volume, calm, attentive. Not a preacher, not saintly, no sing-song.
+- exchange, Marcel Toussaint, man, 48: warm low baritone, patient, hospitable, relentless. Warm does not mean smiling.
+- black_flag (Lamplighters), Niki Ortega, woman, 35: quiet, low, steady, counts words. Not a whisper, not a growl.
+General direction for all five: tired, serious, guarded. NO smiling voice, no grin, no theatrical drama, no villain voice, no cheerful presenter. Natural Russian, clearly articulated, no heavy accent in either language. Five clearly different voices. Do not reuse the cast of the existing 25-character pack or the Daniel announcer.
+
+STAGE 1: CASTING SAMPLES (about 500 characters)
+For each leader, one short Russian sample (the first ~100 characters of their pitch line) with the chosen voice. Report voice name, voice_id, a one-line note per sample. Send the five clips (or one ZIP) and STOP. The project lead listens (five short clips) and answers "go" or swaps names. Do nothing else until then.
+
+STAGE 2: AFTER "go" ON THE CASTING (generate in this order, keep a running quota check)
+A. core: first_contact, pitch, accepted, declined, for all 5 leaders, EN + RU (about 4,300 characters, 40 files).
+B. bands: hostile, cold, wary, useful, pact (50 files).
+C. territory and trade (20 files).
+Stop immediately and report if: remaining dashboard quota would fall below 3,000 credits; any file fails; a result sounds clearly wrong to your checks (clipping, truncation, repeated words, silence over 1 s).
+
+FILES AND NAMES
+lead_<faction_id>_<key>_<lang>.ogg
+faction_id in {depot, directorate, synod, exchange, black_flag}; key in {first_contact, band_hostile, band_cold, band_wary, band_useful, band_pact, territory, trade, pitch, accepted, declined}; lang in {en, ru}. Example: lead_synod_pitch_ru.ogg.
+Export the same as accepted radio: mp3_44100_128 to OGG libvorbis -q:a 5. Do NOT loudness-match anything; deliver as generated (the project normalizes everything to -23 LUFS later). Keep untouched API originals separately.
+
+DELIVERY
+underline_leaders_vo_01.zip with ogg/, originals/, and a separate batch index (filename, faction, key, language, exact script, voice name and ID, model, settings, duration, status, generation date). Stage 1 is one zip of five samples. Technical checks only (decode, duration, clipping, silence, file count); never claim pronunciation or emotional delivery passed, since you cannot audition. Report actual quota used from the dashboard.

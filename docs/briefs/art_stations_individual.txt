@@ -1,0 +1,158 @@
+ART: STATION PICTURES, ONE PLACE EACH (Antigravity)
+
+CONTEXT
+Underline is a Godot game about a post-war New York subway. Every station on the network map has a picture at the top of its station sheet. Five pictures are accepted and stay as they are:
+- southdepot (Coney Island, the player's capital): assets/hubs/hub_coney_island.webp
+- northgate (Grand Central, Iron Directorate): assets/hubs/northgate.webp
+- trampark (Wall St, Free Exchange): assets/hubs/trampark.webp
+- chapel (Cathedral Pkwy, Synod of the Tunnel): assets/hubs/chapel.webp
+- brickworks (Atlantic Av, the Lamplighters): assets/hubs/brickworks.webp
+
+The other twenty stations show temporary pictures from incoming-art/stations/style_v2/. The drawing in them is right. The problem: they are all the same picture. Every one has the same tiled wall on the left, the same riveted column, the same tunnel mouth on the right and the same rails curving into it, with one prop swapped in the middle (a pig, an anvil, a radio). On the map you cannot tell one station from another. They are also the wrong size (1280x720).
+
+TASK
+Draw twenty new pictures, one per station below. Each has to be a different PLACE, not the same platform with a different object. Someone who has seen all twenty should be able to name the station from the picture alone.
+
+STYLE (locked, do not change)
+Open these before drawing and match them:
+- incoming-art/hubs/style_v2/brickworks.png (the closest match: this is the target drawing)
+- incoming-art/hubs/coney.png
+- assets/hubs/northgate.webp, assets/hubs/trampark.webp, assets/hubs/chapel.webp
+The look: one consistent ink outline weight, flat cel colour with at most one shadow tone per surface, muted blue-grey and ochre base, very light paper grain. Large calm planes of wall, floor and ceiling. Not a render: no micro-detail everywhere, no bloom, no glow haze, no lens flare, no glossy wet floors, no mirror reflections, no rows of lamps.
+
+RULES FOR EVERY PICTURE
+1. One main subject, readable in one second, off-centre. Everything else is quieter and simpler.
+2. At most five people. Small, tired, practical, dressed for their community (see "who" below). No smiles, nobody looks at the viewer, no posing. Background people are plain silhouettes. Do not reuse the same coat, cap or face across pictures: the earlier batch repeated the same brown coat everywhere.
+3. At most two visible lamps, one dominant. Each station has its own dominant light colour (given below), so the twenty read differently at thumbnail size.
+4. No text, letters, numbers, signs with glyphs, flags, insignia, emblems or logos anywhere. Chalkboards and paper carry drawings or grey scribble lines, never readable writing.
+5. Composition is the station's own. The left-tiled-wall + centre-column + right-tunnel-mouth + curving-rails layout belongs to the Lamplighters (brickworks) only. Do not use it. At most four of the twenty may show a tunnel mouth at all, and only where the table below asks for one.
+6. Vary the camera between pictures: eye level, low looking up, high looking down, side-on, looking down a narrow corridor. The table gives one for each.
+7. The game crops the picture to a band around 55% of its height, so keep the main subject between 25% and 80% of the height and away from the outer 10% on each side.
+
+ROOM PICTURES AS PROP REFERENCES
+Some stations do the same work as rooms already drawn for the player's own station. Use these only as references for how the equipment looks (the same game world), not for composition or framing:
+- assets/rooms/room_hydroponics.webp: grow racks and violet grow light (riverside)
+- assets/rooms/room_air_filter.webp: filter units and fans (eastwater)
+- assets/rooms/room_radio.webp: radio sets (signal)
+- assets/rooms/room_generator.webp: boilers and generator plant (foundry)
+- assets/rooms/room_infirmary.webp: infirmary cots and screens (vault)
+- assets/rooms/room_workshop.webp: benches and tools (library, harbor)
+- assets/rooms/room_meeting_hall.webp: benches and a hall (plaza, stadium)
+The room upgrades in assets/rooms/upgrades/ may also be used the same way.
+
+THE TWENTY STATIONS
+Format: file id · station · community · who they are · PLACE (what makes it this station) · MAIN SUBJECT · camera · dominant light.
+The "who" and "art" lines come from data/station_communities_en.json; read that file too.
+
+1. foundry · Penn Station · Children of the Machine · transhumanists at the old boilers who sew iron into their bodies.
+   PLACE: a hall of huge old boilers, with a round iron gallery (an arena ring) running above.
+   SUBJECT: one person with an iron brace stitched along the forearm, turning a big valve wheel on a boiler.
+   Camera: low, looking up at the ring. Light: orange from one open firebox door. No tunnel.
+
+2. plaza · Union Sq · Communards · shared stores, everything split evenly, a meeting every evening.
+   PLACE: a long communal table down the platform, plain red cloths with no writing hung from the ceiling beams, the toppled bronze head of a horse from the square's statue standing on the floor at one side.
+   SUBJECT: one person ladling equal portions into a row of identical bowls; three or four others seated, waiting.
+   Camera: eye level, the table running diagonally away. Light: one warm bulb over the table.
+
+3. central · Times Sq · Free City · performers, gamblers and spies.
+   PLACE: dead screens on the walls (dark empty rectangles), a wide staircase used as a stage.
+   SUBJECT: one performer mid-gesture on the stairs; three audience silhouettes from behind; a card table at the edge.
+   Camera: from the audience, slightly low. Light: one magenta neon tube with no letters, plus a candle on the card table.
+
+4. market · Spring St · Keepers of the Spring · water carriers who own the only clean water.
+   PLACE: cast-iron shop fronts with columns and arched windows, rebuilt into a water counter.
+   SUBJECT: a ladle pouring from a barrel into a customer's jug across the counter; one guard by a locked tap.
+   Camera: side-on to the counter. Light: pale cool cyan lamp over the barrels.
+
+5. riverside · Botanic Garden · Sisters of the Garden · a women's commune of agronomists with a seed bank.
+   PLACE: a greenhouse built on the platform from salvaged glass panes and wooden frames, beds inside.
+   SUBJECT: a woman holding a seed jar up to the light at a shelf of jars tied with plain cloth tags.
+   Camera: from outside the glass looking in. Light: violet grow lamp (see room_hydroponics).
+
+6. westfield · Aqueduct · The Closed Line · a militia that lets no strangers in.
+   PLACE: a barricade across the platform made from racetrack bleacher planks and seat rows; the trackbed beside it is flooded.
+   SUBJECT: one sentry behind the barricade with a rifle resting on a plank, facing away from us toward the tunnel side; a second shape on a stool.
+   Camera: from the stranger's side, low, behind the barricade's shadow. Light: one cold white work lamp clamped to the barricade.
+
+7. library · Jay St · The Scholars · professors and engineers who mend clocks, argue about the sky and teach the children.
+   PLACE: brick vaults of a lecture room; a big chalkboard with orbits, circles and gear drawings (no writing, no numbers).
+   SUBJECT: a teacher at the board, two children on crates, a half-mended clock open on the desk.
+   Camera: from the back of the class. Light: one green-shaded desk lamp.
+
+8. observatory · High St · Riverfolk · fishermen and boatmen at the shaft to the river, water smugglers.
+   PLACE: the stone arches of the Brooklyn Bridge piers below ground; the track runs into still black water (tunnel mouth allowed here).
+   SUBJECT: one flat boat tied to a rail, a boatman coiling rope, a hand pump on the edge.
+   Camera: down at water level. Light: one lantern on the boat's bow.
+
+9. eastwater · Bowling Green · The Breathers · filter keepers who sell air by the ticket.
+   PLACE: the old iron park railing and the colonnade of the customs house, with a huge fan set into the wall behind them.
+   SUBJECT: a customer at a ticket window breathing from a hose held out by a keeper in a filter mask.
+   Camera: eye level through the railing. Light: cold white light behind the slow fan blades, throwing flat stripes on the floor (no glow).
+
+10. garden · Flushing · Slowwalkers · mushroom growers in a dead-end tunnel; they sleep more and breathe less.
+    PLACE: a dead-end tunnel (tunnel end allowed, but it is a blank wall, not a mouth) with low wooden mushroom trays; through a broken grating in the ceiling the steel lattice of the elevated line is just visible.
+    SUBJECT: one grower asleep on a cot between the trays.
+    Camera: high, looking down the trays. Light: one dim amber bulb near the floor.
+
+11. stadium · Astor Pl · Free Word · liberals and students: a newspaper, a debating club, a jury court.
+    PLACE: a brownstone college doorway and arches; a hand printing press.
+    SUBJECT: a student pulling the press lever, a printed sheet with grey lines only (no glyphs) hanging to dry; two people arguing at the edge.
+    Camera: eye level, the press in the foreground third. Light: one bare bulb.
+
+12. harbor · Delancey St · The Guild · thieves and middlemen; a market with no questions and no receipts.
+    PLACE: iron fire escapes taken off the tenements and bolted up inside as a stacked stall; steel bridge girders overhead.
+    SUBJECT: one middleman under a tarp handing a wrapped parcel to a buyer who is half in shadow.
+    Camera: looking up from below the stacked stalls. Light: one shaded lamp hidden under the tarp, low.
+
+13. dockyard · Chambers St · Last Precinct · cops and federal agents by the old courthouses who hold back disorder for a fee.
+    PLACE: a stone colonnade (courthouse columns) along the platform; a holding cage.
+    SUBJECT: one officer at a single desk at a checkpoint between two columns, a ledger and a lamp; someone waiting in the cage.
+    Camera: straight down the colonnade, symmetry broken by the desk on one side. Light: white desk lamp.
+
+14. quarry · Fulton St · Diggers · copper miners in a dead substation who know every passage.
+    PLACE: a timbered drift dug into the station wall, propped with old ship-mast timbers; copper cable spools.
+    SUBJECT: one miner climbing out of the drift with a head lamp, dragging a coil of stripped copper.
+    Camera: low, facing the drift. Light: the head lamp's narrow beam (no bloom).
+
+15. mill · Greenpoint · Swineherds · quiet workers, pigs knee-deep in water, smoked meat, no politics.
+    PLACE: brick warehouse arches with water on the floor; a smoke shed of corrugated metal.
+    SUBJECT: two or three pigs wading, one herder with a stick, smoke from the shed roof.
+    Camera: side-on across the water. Light: red-orange from the smoke shed's open door.
+
+16. clocktower · Canal St · The Hoarders · they drag home anything left lying about; cramped, rats, but rich.
+    PLACE: a narrow passage between walls of junk up to the ceiling (big simple shapes: drawers, wheels, fans, a bathtub, not tiny clutter).
+    SUBJECT: one hoarder pulling a loaded handcart through the passage; one rat on a shelf.
+    Camera: looking down the narrow corridor. Light: one lamp hanging deep in the passage.
+
+17. archive · City Hall · The Floor bunker · officials who still hold planning meetings and write a quarterly budget.
+    PLACE: the closed 1904 station: tiled vaults, dark glass skylights, an unlit brass chandelier.
+    SUBJECT: three officials in old suits at one conference table, papers in neat stacks; a hermetic door ajar at the side.
+    Camera: high, from the balcony. Light: one candle lamp on the table.
+
+18. vault · South Ferry · The Quarantine bunker · a garrison that waited for a war and now guards an emptiness.
+    PLACE: the old loop platform curving away, an airlock of plastic sheeting and a steel frame.
+    SUBJECT: one guard in a gas mask sitting at the inner airlock door; a small dusty souvenir Statue of Liberty on the guard's crate.
+    Camera: eye level, the curve of the loop behind. Light: one short violet tube over the airlock.
+
+19. signal · Myrtle–Willoughby · Signal Post · hermit radio amateurs.
+    PLACE: a wall of radio sets and valves; a mast welded from rails going up a shaft in the ceiling.
+    SUBJECT: one hermit with headphones at a bench, one hand on a dial.
+    Camera: side-on, the mast rising out of frame. Light: the small orange glow of the valves, one bench lamp.
+
+20. oldcommand · Court St · The Observatory bunker · scientists who warned and were not heard.
+    PLACE: a closed platform with old subway cars of different eras parked side by side (a wooden early car, a mid-century car).
+    SUBJECT: one scientist reading a paper trace from a seismograph drum on a table between the cars.
+    Camera: from inside the doorway of the old car. Light: one inspection lamp inside a car window.
+
+DELIVERY
+- Size 1931x814 (aspect 2.372:1), opaque, same as assets/hubs/brickworks.webp.
+- incoming-art/stations/style_v3/<id>.png and <id>.webp, file ids as numbered above (foundry.png, plaza.png ...).
+- incoming-art/stations/style_v3/<id>_prompt.txt with the exact prompt used for each.
+- incoming-art/stations/style_v3/contact_sheet.png: all twenty plus the five accepted pictures, small, in a 5x5 grid with the id under each. This is how sameness is checked: if two thumbnails look like the same place, redo one.
+- incoming-art/stations/style_v3/technical_check.json: id, size, png/webp match.
+- Do not install into assets/. Do not touch code or data. The project lead reviews first.
+
+ORDER OF WORK
+1. Pilot: draw four very different ones first: garden, eastwater, dockyard, archive. Put them in style_v3 with a contact sheet next to brickworks.png and coney.png, then stop and wait for "go".
+2. After "go": the other sixteen, then the 25-picture contact sheet.
+If a station cannot be drawn without breaking a rule (a crowd, text, a second tunnel mouth), say which and propose another subject for it instead of drawing around the rule.

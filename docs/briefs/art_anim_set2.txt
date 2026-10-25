@@ -1,0 +1,61 @@
+ART: ANIMATION SET 2, DIGGING AND BUILDING (ChatGPT image tool)
+
+WHERE WE ARE
+Set 1 (walk, stand, work for four residents) is accepted and in the game. The dig crew and the build crew still
+use one still picture rocked back and forth, which the owner finds weird. This set replaces them with real frames.
+Match set 1 exactly: same four people, same look, scale, side view, ink line and flat colour.
+Attach for every sheet: the accepted set 1 sheet of the same person (incoming-art/anim_set1/work_<body>_*.png,
+the version in the game) and their reference (incoming-art/anim_pilot/reference_<body>.png).
+
+THE FOUR RESIDENTS (unchanged from set 1)
+- body03: slim older man, dark knitted beanie, navy quilted coat, rust shirt, grey-brown patched trousers, brown boots.
+- body01: woman, dark ponytail, rust-orange work jacket, tool belt, grey patched trousers, brown boots.
+- body07: heavy older man, grey beard, navy cap, yellow high-visibility vest, grey cardigan, navy trousers, black boots.
+- body11: tall broad man, olive parka with toggles, cream jumper, brown patched trousers, tall rubber boots.
+Clothes, colours and patches stay exactly the same in every frame. Both boots the same colour in every frame.
+
+THE SHEETS (eight, one image each, in this order)
+1. dig_body03   2. dig_body01   3. dig_body07   4. dig_body11
+5. build_body03 6. build_body01 7. build_body07 8. build_body11
+
+DIG (6 frames): digging into a rock face just outside the frame on the right, with a pickaxe. Side view facing
+right, feet apart and planted, they do not move. One loop of a heavy swing:
+  1 pick raised high behind the head, body leaning back a little
+  2 pick coming over the shoulder, body starting forward
+  3 strike: pick head forward at chest to waist height, body bent forward, arms extended
+  4 follow through: pick head lower, weight on the front foot
+  5 pulling the pick back out, body straightening
+  6 lifting again, pick at shoulder height (leads back into frame 1)
+The pickaxe is the same tool in every frame and for every person: a dark wooden handle about as long as the
+person's arm, a grey iron double head. Same size and colours in every frame; it never bends or changes length.
+No rock, no chips, no dust drawn: the game adds those.
+
+BUILD (6 frames): building a wooden frame just outside the frame on the right, with a claw hammer. Side view facing
+right, feet planted. Left hand holds a nail or steadies a plank at chest height (the plank is not drawn, the hand is
+open against it); right hand swings the hammer:
+  1 hammer raised to head height, elbow up
+  2 hammer coming down
+  3 strike: hammer at chest height in front, at the left hand
+  4 small bounce back after the strike
+  5 hammer lifting again
+  6 hammer near head height (leads back into frame 1)
+The hammer is the same tool in every frame and for every person: short wooden handle, dark iron head. It never
+changes size.
+
+STRICT LAYOUT (wider cells than set 1 because of the tool)
+- Transparent background, real alpha, no white, no checkerboard, no glow, no halo.
+- One row of 6 equal cells, each 384 wide x 512 tall: canvas 2304 x 512.
+- The person stands in the left part of each cell (body centre about 150 px from the cell's left edge) so the tool
+  swing fits inside the cell on the right. Nothing touches or crosses into the next cell: leave clear space.
+- Soles on one line in every cell, 24 px above the bottom edge. Same scale as set 1: the top of the head about
+  40 px below the cell top when standing upright.
+- No ground line, no shadow, no blur, no speed lines, no numbers, no grid lines, no text.
+
+DELIVERY
+incoming-art/anim_set2/<sheet name>_v1.png (v2, v3 if retried) and <sheet name>_prompt.txt with the exact prompt,
+plus a HANDOFF.txt like set 1 (preferred version per sheet, known frame defects). At most three attempts per sheet.
+Do not install anything into assets/.
+
+WHAT THE LEAD DOES AFTER
+Cuts the cells, lines the feet up, clears scraps, plays dig and build at 6 fps on the dig and build sites in a real
+room, with the game's own chips and dust on each strike, and sends the owner a clip.

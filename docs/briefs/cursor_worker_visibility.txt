@@ -1,0 +1,30 @@
+CURSOR TASK: station worker visibility comparison
+
+Goal
+Make existing residents readable inside station rooms while preserving the dark underground atmosphere. This is a bounded rendering adjustment, not an asset regeneration or gameplay task. The accepted five leader portraits and five faction badges must remain byte-identical.
+
+Evidence
+- shots/iter3/ru/figures_station_zoom.png: workers become near-black silhouettes, obscuring clothing and palette differences.
+- assets/figures/poses/body_01.webp contains useful jacket and equipment detail before rendering.
+- ui/station.gd, _paint_sprite around line 8631: dark source textures receive another dark brown multiplicative tint (red roughly 0.43-0.53, green 0.24-0.30, blue 0.10-0.12).
+- docs/overnight.md sections 2 and 6 explain accepted bodies and rejected work-pose sources. Only the air filter has a dedicated accepted work pose. Existing working, kneeling and sitting fallbacks remain intentional.
+
+Implementation scope
+1. Inspect current working-tree changes before editing; preserve all unrelated work.
+2. Capture a reproducible baseline with the same seed, residents, room assignments, camera and resolution used for all comparisons.
+3. Adjust only the resident rendering tint/contrast in _paint_sprite. Compare baseline with two restrained alternatives; choose one that exposes some jacket and tool detail while remaining darker than room lamps and UI. Do not brighten the whole station.
+4. Preserve resident-to-body/palette hashes, population, facing, positions, sizes, floor contact, room assignments and all UI/gameplay behavior. Do not modify sprite pixels, generate poses, run palette/generation scripts or adopt incoming art.
+5. Keep the final code change small. Do not introduce a settings panel or rendering subsystem for this comparison.
+
+Acceptance and handoff
+- Provide labeled baseline/alternative screenshots at 1280x720 and one larger supported resolution, with matched full station views and crops of hydroponics, workshop, air filter and quarters.
+- Judge normal room scale as well as zoomed crops: jackets and body contours should remain distinguishable, sprites must not glow or lose the dark mood, and alpha edges must not develop bright fringes.
+- Review the generic working/sitting fallbacks too; these differ from the twelve body sprites and may react differently to tint.
+- Run the existing bot and appropriate screenshot checks after the selected change; report missing-art and parse/runtime errors. Reuse existing tools where possible. Do not run overlapping visible Godot windows.
+- Report changed files, exact visual choice and any limitations. Do not push. Hand the comparison to the review/art owner before broader visual work.
+
+SEPARATE FOLLOW-UP: export packaging isolation
+Do not expand the visibility implementation to include this task. After that review, inspect export_presets.cfg (all_resources; currently empty exclusions) and untracked assets/figures/residents/. The latter holds source/contact sheets and rejected-looking prop overlays but is not used by the active pose loader. Isolate review-only material from export without deleting originals or accidentally excluding accepted runtime figures. Preserve incoming-art/.gdignore. Acceptance: inspect a built package/resource list to show review sheets and rejected sources are absent while all accepted poses, palettes, faction art, room art and UI icons remain loadable. Keep this as a separate change.
+
+BACKLOG ONLY: station visits and identity reuse
+ui/network_view.gd _fill_visit uses _hub_tex and a generic station-ID-hashed resident portrait. Most station visits currently show cropped room art; only Coney Island has installed hub artwork. Future work should share station-art resolution between visit and thumbnail, review existing incoming-art/hubs candidates, and label local representatives or use faction badges where no named representative exists. Do not silently replace every local representative with the faction leader. Do not include this in the visibility task.

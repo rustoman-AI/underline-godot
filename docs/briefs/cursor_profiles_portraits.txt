@@ -1,0 +1,32 @@
+CURSOR: RESIDENT PROFILES, SEX-AWARE PORTRAITS, DOSSIER FIELDS (fixes found by a playtester)
+Playtester feedback (Night Moon): (1) a character shown as a man speaks with a woman's voice (really: the portrait is chosen by hash with no regard to sex, so Tess Nguyen shows a man's face while her voice is a woman's); (2) some dossiers show a profession and some do not; (3) some dossiers have Nostalgia, Pride and so on and some do not. This brief fixes 1 and 2 and the empty Before the Silence and Keepsake fields. The Lore tabs (3) for the other twenty come later from the project lead. Local only. No push. Base balance unchanged. Text is the lead's; do not edit wording.
+
+0. INSTALL THE TWELVE NEW PORTRAITS (accepted by the project lead; the pins below use them)
+incoming-art/residents_portraits_v2/portrait_17.png .. portrait_28.png (1024) -> assets/portraits/portrait_17.webp .. portrait_28.webp at 512x512, same WebP and import settings as portrait_01..16 (keep the PNG sources). Make sure portrait loading in ui/station.gd takes all 28 (no hard-coded 16).
+
+1. DATA: data/resident_profiles.json (new, lead's text)
+- residents.<id>: sex (m or f), portrait (a file stem like portrait_01; absent for kim, chris, mina, drew, ann), title {en, ru} (profession before the Silence), before {en, ru}, keepsake {en, ru}.
+- cast: sex of the five Coney cast. portrait_sex: sex of each of the 28 portraits. generated_names: sex of the first names in data/names.json. Pins of the Coney cast stay in data/cast_portraits.json.
+- Load it with the catalog. Validate: every resident in data/residents.json has a profile; pinned portraits exist and have the same sex as the resident; no portrait is pinned twice (also across cast_portraits.json); every text field has en and ru; no em dash.
+
+2. SEX ON PEOPLE
+Every person gets sex: the 25 core residents from the profile; the five renamed cast members get the cast sex (Bait is m even though the slot kim is f); generated people (refugees, births) get it from the first name via generated_names, deterministic per id. Persisted in the save (follow the schema rules; migration: derive from the profile and names for old saves; unknown names get sex by a stable hash).
+
+3. PORTRAIT CHOICE (replace the hash-only choice in game.portrait_name / ui _portrait_for)
+- Pinned residents (profile portrait or cast pin) always get that portrait.
+- Everyone else gets a portrait of the SAME SEX, deterministic by id, taken first from the portraits not pinned to anybody, then (only if those run out) from any portrait of that sex. A person keeps the same face for the whole game and across load.
+- Never give a man a woman's portrait or the reverse: add a test over many generated people and 6 bot seeds. Report how many non-core people can share a face and when.
+- Keep sim/check_portraits.gd (update its expectations for 28 portraits and sex).
+
+4. DOSSIER AND ROWS
+- Show title (profession) under the name wherever the dossier header or the person card shows one: for the Coney cast it already comes from characters_coney.json (keep that), for everyone else from profile.title in the game language. Add the profession to the People list row if there is room, otherwise only in the card and dossier.
+- In the dossier, Before the Silence shows profile.before and Keepsake shows profile.keepsake (for the Coney cast keep their own dossier data; if they have none, show nothing for those two sections and no "Not recorded yet").
+- Do not show a section that has no text (no "Пока не записано" lines for sections that will never be filled). Album, Memory and Events stay as they are (they fill during play).
+- The Nostalgia / Regret / Pride / Other / Anecdote tabs: show only the tabs that exist for that person (today only the five cast members have them). No empty tabs.
+
+5. CHECKS
+bot_run, check_balance, check_audience, check_save, check_network, check_slice, check_portraits, check_playtest. New: sex consistency (portrait sex equals person sex for 6 seeds x 40 weeks), save round trip with sex, profile validation. Screenshots EN and RU 1280x720: dossiers of Tess Nguyen, Leo Marsh, Bait, Hal Denny, Inez Calder (profession visible, correct faces); the People panel at week 1 and week 25.
+
+6. COMMITS (local): "Twelve more resident portraits", "Resident profiles: sex-aware portraits, professions, before and keepsake in the dossier".
+
+7. AFTER THIS: rebuild the playtest zip as version 0.1.0-playtest2 (same script, .tools/export_playtest.ps1; bump the version in data/build_info.json generation) and report size and the smoke test results. Do not upload anything.

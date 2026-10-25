@@ -1,0 +1,12 @@
+CURSOR: MAP SIZE (build 0.1.0-playtest4 -> 0.1.0-playtest5). STATUS: GO (owner, 12 Oct 2026). Active package.
+Source: feedback_log F22 and the Ruslan note: "the map should be bigger", and a Taiga card "increase the scale of the station map, make it wider". Two testers. Local only. No push, nothing uploaded. Do NOT change balance, the map data (stations, lines, positions), art, audio, or any text in data/howto.json and data/hints.json.
+
+Goal: the metro map (network view, ui/network_view.gd) fills the window and is easy to read at the first look, on 1280x720 and 1024x768 and at full screen 1920x1080.
+
+M1 Opening size: the map opens at a zoom where the whole network uses at least 90 percent of the free area (width and height, whichever limits), not the current smaller fit. Cut the margin around the content box and any side or top panel that wastes width. Report the fill ratio before and after (map box width / area width) at the three window sizes.
+M2 Wider: if the side sheet or header takes more than about 22 percent of the width, make it narrower or let the map run under a translucent edge, so the map is wider. The station sheet must still fit in EN and RU.
+M3 Zoom range: keep the minimum zoom at the new fit (the player must never see the void, the B2 clamp stays) and raise the maximum so that one station name and its neighbours fill about a third of the window. The wheel keeps zooming around the cursor (B3). Add "+" and "-" and "Fit" buttons if there are none, so a touchpad user is not stuck.
+M4 Labels: station names stay readable at the opening zoom (at least 14 px on 1280x720). Do not move stations; if names collide, shorten the label drawing only, and report cases.
+M5 Station view (the cross-section): check the same fill. If the station art leaves wide empty bands at 1920x1080 or 1280x720, raise the default zoom within the B2 bounds. Report numbers; change only if the fill is under 85 percent.
+
+CHECKS: all 8 gates green; bot output identical to HEAD line by line (UI only); extend sim/check_clarity.gd (or check_network.gd) with: fill ratio at three sizes, the clamp still holds at min and max zoom, wheel zoom keeps the point under the cursor. Screenshots EN and RU at 1280x720, 1024x768, 1920x1080: network map open, zoomed in on a station, station sheet open, station view. Commit: "Map size: network map fills the window". Do not build; the lead builds playtest5.

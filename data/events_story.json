@@ -1,0 +1,1067 @@
+{
+  "_note": "Story events, act I (docs/STORY.md), written by the project lead. Same schema as data/events_leaders.json. Needs keys used here: week, no_flag. Effects used here: artifacts, flag (see docs/briefs/cursor_story_engine.txt). 'ru' maps each English string to its Russian text. Numbers are first-pass.",
+  "events": [
+    {
+      "id": "st1_first_paper",
+      "title": "The first paper",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          3,
+          14
+        ]
+      },
+      "text": "Scavengers bring a damp folder up from the ruins. Inside is a memo from three months before the Silence, headed \"reserve procurement\". The amounts are far too large for a station this size. Someone was stocking up in advance.",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read it aloud on the platform (Papers +1)",
+          "hope": -1,
+          "discontent": 0,
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "keep",
+          "label": "File it quietly in the workshop (Papers +1)",
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "burn",
+          "label": "Burn it in the stove",
+          "hope": -1,
+          "food": 0,
+          "discontent": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_counting",
+      "title": "Someone is counting",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          4,
+          20
+        ],
+        "no_flag": "counting_heard"
+      },
+      "text": "At night the old pipe along the platform taps. Always the same: forty-one taps, a pause, forty-one again. The engineer says it is only the metal cooling. The old man in quarters says metal cannot count.",
+      "choices": [
+        {
+          "id": "listen",
+          "label": "Stay up and listen",
+          "hope": 1,
+          "flag": "counting_heard"
+        },
+        {
+          "id": "trace",
+          "label": "Send someone to follow the pipe (Iron +1)",
+          "cost": {
+            "materials": 3
+          },
+          "flag": "counting_heard",
+          "artifacts": {
+            "iron": 1
+          }
+        },
+        {
+          "id": "forbid",
+          "label": "Tell people it is only the metal",
+          "discontent": 0,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_names",
+      "title": "Those who went up",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          8,
+          26
+        ]
+      },
+      "text": "A woman from the hydroponics crew has a list of the people who went up on the first day. Eleven names. She asks for someone to read it out on the platform, in front of everyone, just once.",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read the names aloud",
+          "hope": -1,
+          "discontent": -2
+        },
+        {
+          "id": "private",
+          "label": "Let her read them to herself",
+          "discontent": 0,
+          "hope": -1
+        },
+        {
+          "id": "no",
+          "label": "Say now is not the time",
+          "discontent": 1,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_floor_rumor",
+      "title": "A meeting that never ended",
+      "major": false,
+      "weight": 7,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          6,
+          24
+        ],
+        "no_flag": "floor_rumor"
+      },
+      "text": "A courier from the north swears the lights are still on in City Hall. The people inside argue over the minutes day and night, and nobody has ever seen the door open. They call themselves the Floor.",
+      "choices": [
+        {
+          "id": "send",
+          "label": "Pay a scout to go and look (Papers +1)",
+          "cost": {
+            "tokens": 4
+          },
+          "flag": "floor_rumor",
+          "artifacts": {
+            "papers": 1
+          }
+        },
+        {
+          "id": "ignore",
+          "label": "Write it off as a tall tale",
+          "hope": 0,
+          "flag": "floor_rumor"
+        }
+      ]
+    },
+    {
+      "id": "st1_story_night",
+      "title": "Story night",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          4,
+          22
+        ]
+      },
+      "text": "After the shift, a resident asks to tell what happened to them on the first day. Not for anyone in particular. Just so it is said once, out loud, here.",
+      "choices": [
+        {
+          "id": "listen",
+          "label": "Gather the platform and listen (Words +1)",
+          "hope": 1,
+          "discontent": 0,
+          "artifacts": {
+            "words": 1
+          }
+        },
+        {
+          "id": "short",
+          "label": "Give them five minutes",
+          "hope": 1
+        },
+        {
+          "id": "skip",
+          "label": "Ask them to wait until the work is done",
+          "discontent": 0,
+          "hope": -1
+        }
+      ]
+    },
+    {
+      "id": "st1_child",
+      "title": "A child's question",
+      "major": false,
+      "weight": 5,
+      "cooldown": 99,
+      "needs": {
+        "week": [
+          7,
+          26
+        ]
+      },
+      "text": "At the water point, a nine-year-old girl asks you whether the surface will come back. She asks it the way she would ask for a cup. The adults pretend not to listen.",
+      "choices": [
+        {
+          "id": "truth",
+          "label": "Tell her you do not know",
+          "hope": -2,
+          "discontent": -1
+        },
+        {
+          "id": "lie",
+          "label": "Tell her yes, soon",
+          "hope": 1,
+          "discontent": 0
+        },
+        {
+          "id": "dorothy",
+          "label": "Tell her the Synod has a quiet room for questions like that",
+          "hope": 0,
+          "standing": {
+            "synod": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "st2_depot_honest",
+      "title": "The scrap Bernie kept",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "standing_min": {
+          "depot": 15
+        },
+        "no_flag": "buried_papers",
+        "no_fragment": "depot_order"
+      },
+      "text": "Bernie Shaw asks you into the stove room and shuts the door. From his boot he takes a burnt corner of paper, all that is left of the order the Depot burned at Stillwell. \"Only the first line survived,\" he says. \"Lock the gates. Let no one into the tunnel.\" He does not look up.",
+      "choices": [
+        {
+          "id": "take",
+          "label": "Take the scrap and ask his price (truth fragment)",
+          "fragment": "depot_order",
+          "how": "honest",
+          "hope": -1,
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Tell him to keep it",
+          "hope": 1,
+          "standing": {
+            "depot": 2
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_depot_dirty",
+      "title": "What you remember of the copy",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "flag": "buried_papers",
+        "no_fragment": "depot_order"
+      },
+      "text": "The copy is ashes, but you read it before it burned. At night the first line comes back on its own: lock the gates, let no one into the tunnel. There is no paper left to show anyone. Only your memory.",
+      "choices": [
+        {
+          "id": "write",
+          "label": "Write down what you remember (truth fragment)",
+          "fragment": "depot_order",
+          "how": "dirty",
+          "hope": -2
+        },
+        {
+          "id": "let",
+          "label": "Let it fade",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_dir_honest",
+      "title": "The page with his name",
+      "needs": {
+        "week": [
+          16,
+          38
+        ],
+        "standing_min": {
+          "directorate": 30
+        },
+        "no_flag": "collaborator",
+        "no_fragment": "directorate_ledger"
+      },
+      "text": "Lionel Abelard slides a ledger across the table, open at one page. Rations for four thousand, dated three months before the Silence. The signature at the bottom is his. \"I would like someone to read it,\" he says, \"who is not me.\"",
+      "choices": [
+        {
+          "id": "read",
+          "label": "Read it to the end (truth fragment)",
+          "fragment": "directorate_ledger",
+          "how": "honest",
+          "hope": -1,
+          "discontent": 0,
+          "standing": {
+            "directorate": 10
+          }
+        },
+        {
+          "id": "close",
+          "label": "Close the ledger unread",
+          "standing": {
+            "directorate": -5
+          },
+          "hope": 1
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_dir_dirty",
+      "title": "A page left behind",
+      "needs": {
+        "week": [
+          16,
+          38
+        ],
+        "flag": "collaborator",
+        "no_fragment": "directorate_ledger"
+      },
+      "text": "The Directorate clerk has gone, but one page is still lying on your table. Rations for four thousand. A date three months before the Silence. A signature you know. He did not forget it. Clerks do not forget pages.",
+      "choices": [
+        {
+          "id": "copy",
+          "label": "Copy the figures before anyone comes back (truth fragment)",
+          "fragment": "directorate_ledger",
+          "how": "dirty",
+          "standing": {
+            "directorate": -5
+          }
+        },
+        {
+          "id": "return",
+          "label": "Return the page unread",
+          "standing": {
+            "directorate": 5
+          },
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_synod_honest",
+      "title": "The end of the recording",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "standing_min": {
+          "synod": 30
+        },
+        "no_flag": "stayed_down",
+        "no_fragment": "synod_recording"
+      },
+      "text": "In the quiet room, with the door closed and the lamp turned low, Dorothy Chen plays you the recording. Wind, only wind. Then, at the very end, a click, steady and evenly spaced. She switches it off. \"Someone is counting,\" she says. \"I did not want to be the one who said so.\"",
+      "choices": [
+        {
+          "id": "listen",
+          "label": "Ask to hear it again (truth fragment)",
+          "fragment": "synod_recording",
+          "how": "honest",
+          "hope": 1,
+          "discontent": 0,
+          "standing": {
+            "synod": 5
+          }
+        },
+        {
+          "id": "destroy",
+          "label": "Ask her to destroy it",
+          "hope": -1,
+          "standing": {
+            "synod": 3
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_synod_dirty",
+      "title": "The woman who listened",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "flag": "stayed_down",
+        "no_fragment": "synod_recording"
+      },
+      "text": "The woman from hydroponics who asked to listen at the grate comes back to the platform and sits down. \"There is wind,\" she says. \"And at the end, a click. Regular. Like someone counting.\" She says it only once, to you.",
+      "choices": [
+        {
+          "id": "write",
+          "label": "Write down exactly what she says (truth fragment)",
+          "fragment": "synod_recording",
+          "how": "dirty",
+          "hope": -1
+        },
+        {
+          "id": "hush",
+          "label": "Tell her not to repeat it",
+          "discontent": 0,
+          "hope": 0,
+          "standing": {
+            "synod": 3
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_exchange_honest",
+      "title": "A packet at a fair price",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "standing_min": {
+          "exchange": 15
+        },
+        "no_flag": "open_books",
+        "no_fragment": "exchange_papers"
+      },
+      "text": "Marcel Toussaint sets a sealed packet on the table between you. \"Bought it from the Floor,\" he says. \"Bought it again from the Directorate. A fair price both times. I would like a third party to hold it while I decide who gets to pay for it.\"",
+      "choices": [
+        {
+          "id": "buy",
+          "label": "Buy the packet (truth fragment)",
+          "cost": {
+            "tokens": 20
+          },
+          "fragment": "exchange_papers",
+          "how": "honest",
+          "standing": {
+            "exchange": 5
+          }
+        },
+        {
+          "id": "haggle",
+          "label": "Haggle him down and take only a transcript (truth fragment)",
+          "cost": {
+            "tokens": 10
+          },
+          "fragment": "exchange_papers",
+          "how": "dirty",
+          "standing": {
+            "exchange": -3
+          }
+        },
+        {
+          "id": "no",
+          "label": "Decline",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_exchange_dirty",
+      "title": "A folded packet in your books",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "flag": "open_books",
+        "no_fragment": "exchange_papers"
+      },
+      "text": "Marcel returns your books in a neat stack. Between two pages is a sealed packet that is not yours. The note says: bought twice, a gift, for later. He has read everything you know. Now you know what he knows.",
+      "choices": [
+        {
+          "id": "keep",
+          "label": "Keep the packet (truth fragment)",
+          "fragment": "exchange_papers",
+          "how": "dirty",
+          "standing": {
+            "exchange": 3
+          }
+        },
+        {
+          "id": "return",
+          "label": "Give it back and ask what he wants",
+          "standing": {
+            "exchange": -5
+          },
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_lamp_honest",
+      "title": "A door at the end of the water",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "standing_min": {
+          "black_flag": 10
+        },
+        "no_flag": "lantern_toll",
+        "no_fragment": "quarantine_path"
+      },
+      "text": "Niki Ortega leads you into the flooded tunnel with a single lamp. She counts her steps out loud, and you count with her. Where the water ends there is a steel door, still wet. She knocks twice. Nobody answers.",
+      "choices": [
+        {
+          "id": "follow",
+          "label": "Go all the way with her and mark the route (truth fragment, Iron +1)",
+          "cost": {
+            "food": 4
+          },
+          "fragment": "quarantine_path",
+          "how": "honest",
+          "artifacts": {
+            "iron": 1
+          },
+          "hope": -1,
+          "standing": {
+            "black_flag": 5
+          }
+        },
+        {
+          "id": "turn",
+          "label": "Turn back before the door",
+          "hope": 0,
+          "standing": {
+            "black_flag": 2
+          }
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_lamp_dirty",
+      "title": "The chalk on the wall",
+      "needs": {
+        "week": [
+          14,
+          38
+        ],
+        "flag": "lantern_toll",
+        "no_fragment": "quarantine_path"
+      },
+      "text": "Where the Lamplighters led a family through your station, someone has left chalk marks on the tunnel wall: a line, a knot of water, a door. They did not mean for you to read them. They did not hide them either.",
+      "choices": [
+        {
+          "id": "sketch",
+          "label": "Copy the marks (truth fragment)",
+          "fragment": "quarantine_path",
+          "how": "dirty",
+          "standing": {
+            "black_flag": -3
+          }
+        },
+        {
+          "id": "wipe",
+          "label": "Rub them out",
+          "standing": {
+            "black_flag": 3
+          },
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_floor",
+      "title": "The meeting that never ended",
+      "trigger": {
+        "order": "approach_floor"
+      },
+      "text": "The door of City Hall is open. Inside, forty people sit around a long table and nobody looks up. Helena Brook checks the quorum and asks who speaks for Coney Island. Then she asks what you have come to change in the minutes.",
+      "choices": [
+        {
+          "id": "publish",
+          "label": "Have the minutes read out to every station (proof)",
+          "proof": 1,
+          "flag": "floor_published",
+          "hope": -3,
+          "discontent": 3,
+          "standing": {
+            "depot": 10,
+            "directorate": -15
+          }
+        },
+        {
+          "id": "deal",
+          "label": "Keep quiet in exchange for a place on their list",
+          "requires": {
+            "no_flag": "floor_published"
+          },
+          "flag": "floor_deal",
+          "tokens": 20,
+          "hope": -1,
+          "standing": {
+            "directorate": 10,
+            "depot": -15
+          }
+        },
+        {
+          "id": "hand",
+          "label": "Hand the Floor over to the Directorate",
+          "requires": {
+            "standing_min": {
+              "directorate": 15
+            },
+            "no_flag": "floor_published"
+          },
+          "flag": "floor_to_directorate",
+          "discontent": -2,
+          "hope": -2,
+          "standing": {
+            "directorate": 30,
+            "depot": -25,
+            "synod": -10
+          }
+        },
+        {
+          "id": "leave",
+          "label": "Leave without a word",
+          "hope": 0
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_quarantine",
+      "title": "The door that no one opens",
+      "trigger": {
+        "order": "approach_quarantine",
+        "needs": {
+          "fragment": "quarantine_path",
+          "artifacts_min": {
+            "iron": 1
+          }
+        }
+      },
+      "text": "On this side the steel door is dry. Captain Ray Dawson answers through a slot. His orders are not to open, and there is no one left who can cancel them. Behind him his soldiers stand at attention in a corridor with nothing to guard.",
+      "choices": [
+        {
+          "id": "order",
+          "label": "Show him the order the Depot burned (proof, they come out)",
+          "requires": {
+            "fragment": "depot_order"
+          },
+          "flag": "quarantine_open",
+          "proof": 1,
+          "people": 4,
+          "hope": 3,
+          "discontent": -2,
+          "standing": {
+            "depot": 5
+          }
+        },
+        {
+          "id": "force",
+          "label": "Break the door open with iron tools",
+          "requires": {
+            "artifacts_min": {
+              "iron": 3
+            }
+          },
+          "flag": "quarantine_forced",
+          "cost": {
+            "materials": 8
+          },
+          "people": -2,
+          "hope": -2,
+          "discontent": 2,
+          "tokens": 12
+        },
+        {
+          "id": "leave",
+          "label": "Leave them behind their door",
+          "flag": "quarantine_left",
+          "hope": 0,
+          "standing": {
+            "black_flag": 5
+          }
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_observatory",
+      "title": "The count",
+      "trigger": {
+        "order": "approach_observatory",
+        "needs": {
+          "artifacts_min": {
+            "words": 2
+          },
+          "fragment": "synod_recording"
+        }
+      },
+      "text": "Dr. Theodor Reed has not slept with the lights off for forty weeks. He shows you his log: a click every few seconds, in groups of forty-one. By his count the surface will be safe to walk on in week forty-one. He has kept count since the first day. All he asks is whether anyone is listening.",
+      "choices": [
+        {
+          "id": "testimony",
+          "label": "Give him your people's testimonies (Words -2, proof)",
+          "cost": {
+            "words": 2
+          },
+          "flag": "observatory_trusted",
+          "proof": 1,
+          "hope": 6,
+          "standing": {
+            "synod": 10
+          }
+        },
+        {
+          "id": "shelter",
+          "label": "Offer your station as a shelter for his people",
+          "flag": "observatory_sheltered",
+          "people": 6,
+          "discontent": 2,
+          "hope": 2
+        },
+        {
+          "id": "instruments",
+          "label": "Take his instruments (Iron +3)",
+          "flag": "observatory_stripped",
+          "artifacts": {
+            "iron": 3
+          },
+          "materials": 5,
+          "hope": -2
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st3_decision",
+      "title": "The end of the line",
+      "needs": {
+        "week": [
+          34,
+          38
+        ]
+      },
+      "forced": true,
+      "text": "The pipe taps forty-one. Your people no longer ask what is up there. They ask when. What you have found is enough for one decision, and that decision ends the story. The leaders are waiting on the platform, and nobody will speak first.",
+      "choices": [
+        {
+          "id": "door",
+          "label": "Open the door: send everything down every wire (ending)",
+          "requires": {
+            "proofs_min": 3,
+            "flag": "floor_published"
+          },
+          "ending": "open_door"
+        },
+        {
+          "id": "climb",
+          "label": "Prepare the climb for week forty-one (ending)",
+          "requires": {
+            "hope_min": 50,
+            "any_flag": [
+              "observatory_trusted",
+              "observatory_sheltered"
+            ]
+          },
+          "ending": "exodus"
+        },
+        {
+          "id": "order",
+          "label": "Close the ledger: the Directorate keeps the lists, the rest stays hidden (ending)",
+          "requires": {
+            "any_of": [
+              {
+                "flag": "floor_to_directorate"
+              },
+              {
+                "standing_min": {
+                  "directorate": 50
+                }
+              }
+            ]
+          },
+          "ending": "order"
+        },
+        {
+          "id": "hold",
+          "label": "Hold on one more week",
+          "hope": 0
+        }
+      ],
+      "major": true,
+      "weight": 8,
+      "cooldown": 99
+    },
+    {
+      "id": "st1_dosimeter",
+      "title": "The dosimeter in the mud",
+      "requires": "digging",
+      "needs": {
+        "week": [
+          6,
+          34
+        ]
+      },
+      "text": "The dig crew breaks into a flooded service room. On a rack above the waterline hang eleven dosimeters, every needle stuck on the same number. Someone left them here in a hurry. Or hung them up like that on purpose.",
+      "choices": [
+        {
+          "id": "carry",
+          "label": "Carry them out and clean them (Iron +2)",
+          "cost": {
+            "materials": 2
+          },
+          "artifacts": {
+            "iron": 2
+          },
+          "hope": 0
+        },
+        {
+          "id": "sell",
+          "label": "Sell the lot to the Exchange",
+          "tokens": 8,
+          "hope": 0
+        },
+        {
+          "id": "leave",
+          "label": "Leave them hanging where they are",
+          "hope": 1
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st1_substation",
+      "title": "The dead substation",
+      "needs": {
+        "week": [
+          10,
+          28
+        ]
+      },
+      "text": "A scout reports a substation two stops north, its doors rusted open. Relays, copper bus bars, and one cabinet still sealed. It is also exactly the kind of place where scouts go missing.",
+      "choices": [
+        {
+          "id": "strip",
+          "label": "Send a crew to strip it (Iron +2)",
+          "cost": {
+            "materials": 3
+          },
+          "artifacts": {
+            "iron": 2
+          },
+          "hope": -1
+        },
+        {
+          "id": "scout",
+          "label": "Send one scout to look and come back (Iron +1)",
+          "artifacts": {
+            "iron": 1
+          }
+        },
+        {
+          "id": "no",
+          "label": "Mark it on the map and stay away",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    },
+    {
+      "id": "st2_scrap_iron",
+      "title": "A peddler with a sled",
+      "needs": {
+        "week": [
+          12,
+          32
+        ]
+      },
+      "text": "A peddler drags a sled of pipe sections and old instrument casings through your tunnel. He will not say where he got them. The price is fixed, he says, no matter who you are.",
+      "choices": [
+        {
+          "id": "buy",
+          "label": "Buy all of it (Iron +2)",
+          "cost": {
+            "tokens": 5
+          },
+          "artifacts": {
+            "iron": 2
+          }
+        },
+        {
+          "id": "half",
+          "label": "Buy half (Iron +1)",
+          "cost": {
+            "tokens": 3
+          },
+          "artifacts": {
+            "iron": 1
+          }
+        },
+        {
+          "id": "pass",
+          "label": "Let him pass",
+          "hope": 0
+        }
+      ],
+      "major": false,
+      "weight": 6,
+      "cooldown": 99
+    }
+  ],
+  "ru": {
+    "The first paper": "Первая бумага",
+    "Scavengers bring a damp folder up from the ruins. Inside is a memo from three months before the Silence, headed \"reserve procurement\". The amounts are far too large for a station this size. Someone was stocking up in advance.": "Сборщики приносят из развалин отсыревшую папку. В ней служебная записка за три месяца до Тишины с заголовком «Резервные закупки». Объёмы слишком велики для станции такого размера. Кто-то заранее делал запасы.",
+    "Read it aloud on the platform (Papers +1)": "Прочесть вслух на платформе (бумаги +1)",
+    "File it quietly in the workshop (Papers +1)": "Тихо подшить к бумагам в мастерской (бумаги +1)",
+    "Burn it in the stove": "Сжечь в печке",
+    "Someone is counting": "Кто-то ведёт счёт",
+    "At night the old pipe along the platform taps. Always the same: forty-one taps, a pause, forty-one again. The engineer says it is only the metal cooling. The old man in quarters says metal cannot count.": "По ночам старая труба вдоль платформы стучит. Всегда одинаково: сорок один удар, пауза, снова сорок один. Механик говорит, что это остывает металл. Старик из жилых отсеков отвечает, что металл считать не умеет.",
+    "Stay up and listen": "Не спать и слушать",
+    "Send someone to follow the pipe (Iron +1)": "Послать кого-нибудь пройти вдоль трубы (железо +1)",
+    "Tell people it is only the metal": "Сказать людям, что это просто металл",
+    "Those who went up": "Те, кто поднялся",
+    "A woman from the hydroponics crew has a list of the people who went up on the first day. Eleven names. She asks for someone to read it out on the platform, in front of everyone, just once.": "У женщины из гидропоники есть список тех, кто поднялся наверх в первый день. Одиннадцать имён. Она просит прочесть его на платформе при всех, всего один раз.",
+    "Read the names aloud": "Прочесть имена вслух",
+    "Let her read them to herself": "Пусть прочтёт их про себя",
+    "Say now is not the time": "Сказать, что сейчас не время",
+    "A meeting that never ended": "Бесконечное заседание",
+    "A courier from the north swears the lights are still on in City Hall. The people inside argue over the minutes day and night, and nobody has ever seen the door open. They call themselves the Floor.": "Курьер с севера клянётся, что в Сити-холле до сих пор горит свет. Люди внутри днём и ночью спорят над протоколами, и никто ни разу не видел, чтобы дверь открывалась. Сами себя они зовут Этажом.",
+    "Pay a scout to go and look (Papers +1)": "Заплатить разведчику, чтобы сходил посмотреть (бумаги +1)",
+    "Write it off as a tall tale": "Отмахнуться: байки",
+    "Story night": "Вечер историй",
+    "After the shift, a resident asks to tell what happened to them on the first day. Not for anyone in particular. Just so it is said once, out loud, here.": "После смены один из жителей просит дать ему рассказать, что с ним случилось в первый день. Не кому-то конкретно. Просто чтобы это один раз прозвучало вслух, здесь.",
+    "Gather the platform and listen (Words +1)": "Собрать всех на платформе и выслушать (слова +1)",
+    "Give them five minutes": "Дать пять минут",
+    "Ask them to wait until the work is done": "Попросить подождать до конца работы",
+    "A child's question": "Вопрос ребёнка",
+    "At the water point, a nine-year-old girl asks you whether the surface will come back. She asks it the way she would ask for a cup. The adults pretend not to listen.": "У раздачи воды девятилетняя девочка спрашивает тебя, когда снова можно будет наверх. Спрашивает так же просто, как просят кружку. Взрослые делают вид, что не слушают.",
+    "Tell her you do not know": "Сказать, что не знаешь",
+    "Tell her yes, soon": "Сказать: да, скоро",
+    "Tell her the Synod has a quiet room for questions like that": "Сказать, что у Синода есть тихая комната для таких вопросов",
+    "The scrap Bernie kept": "Обрывок, который сберёг Берни",
+    "What you remember of the copy": "Что ты помнишь о копии",
+    "The copy is ashes, but you read it before it burned. At night the first line comes back on its own: lock the gates, let no one into the tunnel. There is no paper left to show anyone. Only your memory.": "Копия сгорела, но первую строку ты помнишь. По ночам она всплывает сама: закрыть решётки, никого не пускать в тоннель. Показать некому и нечего. Помнишь только ты.",
+    "Write down what you remember (truth fragment)": "Записать, что помнишь (осколок правды)",
+    "Let it fade": "Пусть забудется",
+    "The page with his name": "Страница с его именем",
+    "Lionel Abelard slides a ledger across the table, open at one page. Rations for four thousand, dated three months before the Silence. The signature at the bottom is his. \"I would like someone to read it,\" he says, \"who is not me.\"": "Лайонел Абелард подвигает к тебе через стол ведомость, открытую на нужной странице. Пайки на четыре тысячи человек, за три месяца до Тишины. Внизу его подпись. Он говорит: «Я хотел бы, чтобы это прочёл кто-нибудь, кроме меня».",
+    "Read it to the end (truth fragment)": "Дочитать до конца (осколок правды)",
+    "Close the ledger unread": "Закрыть ведомость, не читая",
+    "A page left behind": "Забытая страница",
+    "The Directorate clerk has gone, but one page is still lying on your table. Rations for four thousand. A date three months before the Silence. A signature you know. He did not forget it. Clerks do not forget pages.": "Служащий Дирекции ушёл, а на твоём столе осталась одна страница. Пайки на четыре тысячи. Дата за три месяца до Тишины. Знакомая подпись. Он её не забыл. Служащие страниц не забывают.",
+    "Copy the figures before anyone comes back (truth fragment)": "Переписать цифры, пока никто не вернулся (осколок правды)",
+    "Return the page unread": "Вернуть страницу, не читая",
+    "The end of the recording": "Конец записи",
+    "In the quiet room, with the door closed and the lamp turned low, Dorothy Chen plays you the recording. Wind, only wind. Then, at the very end, a click, steady and evenly spaced. She switches it off. \"Someone is counting,\" she says. \"I did not want to be the one who said so.\"": "В тихой комнате, за закрытой дверью, при прикрученной лампе Дороти Чен включает тебе запись. Ветер, только ветер. А в самом конце щелчки, ровные, через равные промежутки. Она выключает запись и говорит: «Кто-то ведёт счёт. Я не хотела быть той, кто скажет это первой».",
+    "Ask to hear it again (truth fragment)": "Попросить включить ещё раз (осколок правды)",
+    "Ask her to destroy it": "Попросить уничтожить запись",
+    "The woman who listened": "Женщина, которая слушала",
+    "The woman from hydroponics who asked to listen at the grate comes back to the platform and sits down. \"There is wind,\" she says. \"And at the end, a click. Regular. Like someone counting.\" She says it only once, to you.": "Женщина из гидропоники, которая просилась послушать у решётки, возвращается на платформу и садится. Она говорит: «Там ветер. А в конце щелчок. Ровный. Как будто кто-то ведёт счёт». Она говорит это только один раз, только тебе.",
+    "Write down exactly what she says (truth fragment)": "Записать её слова в точности (осколок правды)",
+    "Tell her not to repeat it": "Попросить никому не повторять",
+    "A packet at a fair price": "Пакет по честной цене",
+    "Marcel Toussaint sets a sealed packet on the table between you. \"Bought it from the Floor,\" he says. \"Bought it again from the Directorate. A fair price both times. I would like a third party to hold it while I decide who gets to pay for it.\"": "Марсель Туссен кладёт на стол между вами запечатанный пакет и говорит: «Купил у Этажа. Потом ещё раз у Дирекции. Оба раза по честной цене. Пусть пока полежит у третьей стороны, а я решу, кому его продать».",
+    "Buy the packet (truth fragment)": "Купить пакет (осколок правды)",
+    "Haggle him down and take only a transcript (truth fragment)": "Сбить цену и взять только расшифровку (осколок правды)",
+    "Decline": "Отказаться",
+    "A folded packet in your books": "Сложенный пакет в твоих тетрадях",
+    "Marcel returns your books in a neat stack. Between two pages is a sealed packet that is not yours. The note says: bought twice, a gift, for later. He has read everything you know. Now you know what he knows.": "Марсель возвращает твои тетради аккуратной стопкой. Между страницами лежит чужой запечатанный пакет. В записке: «Куплено дважды. Подарок. На потом». Он прочёл всё, что знаешь ты. Теперь ты знаешь то, что знает он.",
+    "Keep the packet (truth fragment)": "Оставить пакет себе (осколок правды)",
+    "Give it back and ask what he wants": "Вернуть и спросить, чего он хочет",
+    "A door at the end of the water": "Дверь в конце воды",
+    "Niki Ortega leads you into the flooded tunnel with a single lamp. She counts her steps out loud, and you count with her. Where the water ends there is a steel door, still wet. She knocks twice. Nobody answers.": "Ники Ортега ведёт тебя в затопленный тоннель с одной лампой. Она считает шаги вслух, и ты считаешь вместе с ней. Там, где кончается вода, стоит стальная дверь, ещё мокрая. Ники стучит дважды. Никто не отвечает.",
+    "Go all the way with her and mark the route (truth fragment, Iron +1)": "Пройти с ней до конца и отметить путь (осколок правды, железо +1)",
+    "Turn back before the door": "Повернуть назад, не дойдя до двери",
+    "The chalk on the wall": "Мел на стене",
+    "Where the Lamplighters led a family through your station, someone has left chalk marks on the tunnel wall: a line, a knot of water, a door. They did not mean for you to read them. They did not hide them either.": "Там, где Фонарщики провели через твою станцию семью, на стене тоннеля остались знаки мелом: линия, узел воды, дверь. Читать их тебе не предполагалось. Но и прятать их никто не стал.",
+    "Copy the marks (truth fragment)": "Перерисовать знаки (осколок правды)",
+    "Rub them out": "Стереть их",
+    "The meeting that never ended": "Бесконечное заседание",
+    "The door of City Hall is open. Inside, forty people sit around a long table and nobody looks up. Helena Brook checks the quorum and asks who speaks for Coney Island. Then she asks what you have come to change in the minutes.": "Дверь Сити-холла открыта. Внутри за длинным столом сидят сорок человек, и никто не поднимает глаз. Хелена Брук проверяет кворум и спрашивает, кто говорит от имени Кони-Айленда. Потом спрашивает, что ты пришёл исправить в протоколе.",
+    "Have the minutes read out to every station (proof)": "Добиться, чтобы протокол зачитали для всех станций (доказательство)",
+    "Keep quiet in exchange for a place on their list": "Молчать в обмен на место в их списке",
+    "Hand the Floor over to the Directorate": "Отдать Этаж Дирекции",
+    "Leave without a word": "Уйти молча",
+    "The door that no one opens": "Дверь, которую никто не открывает",
+    "On this side the steel door is dry. Captain Ray Dawson answers through a slot. His orders are not to open, and there is no one left who can cancel them. Behind him his soldiers stand at attention in a corridor with nothing to guard.": "С этой стороны стальная дверь сухая. Капитан Рэй Доусон отвечает через щель. У него приказ не открывать, а отменить приказ некому. За его спиной солдаты стоят навытяжку в коридоре, где нечего охранять.",
+    "Show him the order the Depot burned (proof, they come out)": "Предъявить приказ, сожжённый Депо (доказательство, они выйдут)",
+    "Break the door open with iron tools": "Взломать дверь железом",
+    "Leave them behind their door": "Оставить их за дверью",
+    "The count": "Счёт",
+    "Dr. Theodor Reed has not slept with the lights off for forty weeks. He shows you his log: a click every few seconds, in groups of forty-one. By his count the surface will be safe to walk on in week forty-one. He has kept count since the first day. All he asks is whether anyone is listening.": "Доктор Теодор Рид сорок недель не гасит свет, когда спит. Он показывает свой журнал: щелчок каждые несколько секунд, группами по сорок один. По его счёту на поверхность можно будет выйти на сорок первой неделе. Он ведёт счёт с первого дня. И спрашивает только об одном: слушает ли его кто-нибудь.",
+    "Give him your people's testimonies (Words -2, proof)": "Отдать ему свидетельства твоих людей (слова -2, доказательство)",
+    "Offer your station as a shelter for his people": "Предложить его людям убежище на твоей станции",
+    "Take his instruments (Iron +3)": "Забрать его приборы (железо +3)",
+    "The end of the line": "Конец линии",
+    "The pipe taps forty-one. Your people no longer ask what is up there. They ask when. What you have found is enough for one decision, and that decision ends the story. The leaders are waiting on the platform, and nobody will speak first.": "Труба отстукивает сорок один. Люди уже не спрашивают, что там наверху. Они спрашивают, когда. Того, что ты знаешь, хватит на одно решение, и оно определит, чем всё кончится. Лидеры ждут на платформе, и никто не хочет говорить первым.",
+    "Open the door: send everything down every wire (ending)": "Открыть дверь: передать всё по всем проводам (финал)",
+    "Prepare the climb for week forty-one (ending)": "Готовить подъём к сорок первой неделе (финал)",
+    "Close the ledger: the Directorate keeps the lists, the rest stays hidden (ending)": "Закрыть ведомость: списки у Дирекции, остальное под спудом (финал)",
+    "Hold on one more week": "Продержаться ещё неделю",
+    "Bernie Shaw asks you into the stove room and shuts the door. From his boot he takes a burnt corner of paper, all that is left of the order the Depot burned at Stillwell. \"Only the first line survived,\" he says. \"Lock the gates. Let no one into the tunnel.\" He does not look up.": "Берни Шоу зовёт тебя в печную и закрывает дверь. Из сапога он достаёт обгоревший уголок бумаги: всё, что осталось от приказа, сожжённого Депо на Стиллвелле. Он говорит: «Уцелела только первая строка. Закрыть решётки. Никого не пускать в тоннель». Глаз он не поднимает.",
+    "Take the scrap and ask his price (truth fragment)": "Взять обрывок и спросить, чего он хочет взамен (осколок правды)",
+    "Tell him to keep it": "Сказать, чтобы оставил себе",
+    "The dosimeter in the mud": "Дозиметр в грязи",
+    "The dig crew breaks into a flooded service room. On a rack above the waterline hang eleven dosimeters, every needle stuck on the same number. Someone left them here in a hurry. Or hung them up like that on purpose.": "Копатели пробились в затопленную служебную комнату. На стойке над водой висят одиннадцать дозиметров, все стрелки замерли на одной цифре. Их бросили здесь в спешке. Или нарочно развесили так.",
+    "Carry them out and clean them (Iron +2)": "Вынести и отчистить (железо +2)",
+    "Sell the lot to the Exchange": "Продать всё Бирже",
+    "Leave them hanging where they are": "Оставить висеть как есть",
+    "The dead substation": "Мёртвая подстанция",
+    "A scout reports a substation two stops north, its doors rusted open. Relays, copper bus bars, and one cabinet still sealed. It is also exactly the kind of place where scouts go missing.": "Разведчик докладывает о подстанции в двух перегонах к северу. Двери проржавели и не закрываются. Внутри реле, медные шины и один ещё запечатанный шкаф. Как раз в таких местах разведчики и пропадают.",
+    "Send a crew to strip it (Iron +2)": "Отправить бригаду разобрать её (железо +2)",
+    "Send one scout to look and come back (Iron +1)": "Послать одного разведчика: посмотреть и вернуться (железо +1)",
+    "Mark it on the map and stay away": "Отметить на карте и не соваться",
+    "A peddler with a sled": "Торговец с санками",
+    "A peddler drags a sled of pipe sections and old instrument casings through your tunnel. He will not say where he got them. The price is fixed, he says, no matter who you are.": "Через твой тоннель торговец тащит санки с обрезками труб и старыми корпусами приборов. Откуда они, не говорит. Цена твёрдая, говорит он, кто бы ты ни был.",
+    "Buy all of it (Iron +2)": "Купить всё (железо +2)",
+    "Buy half (Iron +1)": "Купить половину (железо +1)",
+    "Let him pass": "Пропустить"
+  }
+}

@@ -1,0 +1,365 @@
+{
+  "_note": "Source of truth for leader names and dialogue (v2, written by the project lead). Faction ids stay as they are (black_flag is an internal id; display name is Lamplighters / Фонарщики). Lines are dialogue only: they promise nothing. Terms and numbers come from Game.audience_effects(). Band keys match opinion_bands in faction_leaders.json.",
+  "factions": {
+    "depot": {
+      "name": {
+        "en": "The Depot",
+        "ru": "Депо"
+      },
+      "leader_id": "berni_shaw",
+      "leader": {
+        "en": "Bernie Shaw",
+        "ru": "Берни Шоу"
+      },
+      "title": {
+        "en": "Head Switchman",
+        "ru": "Старший стрелочник"
+      },
+      "voice_note": "58, grizzled beard under a flat cap, half-deaf from the yard, speaks too loud, calls people by their job, never says please",
+      "first_contact": {
+        "en": "Every switch from Stillwell to Twenty-fifth is mine. You're standing on my line. While it holds, we talk.",
+        "ru": "Все стрелки от Стиллвелла до Двадцать пятой мои. Ты стоишь на моей линии. Пока она держит, мы разговариваем."
+      },
+      "bands": {
+        "hostile": {
+          "en": "You sat on my line and never carried a tie. The next switch won't throw your way.",
+          "ru": "Ты сел на мою ветку и ни одной шпалы не принёс. Следующая стрелка уйдёт не в твою сторону."
+        },
+        "cold": {
+          "en": "I see little work from you and plenty of talk. I'm on shift.",
+          "ru": "Работы от тебя вижу мало, слов много. У меня смена."
+        },
+        "wary": {
+          "en": "Your lights are on. That's something. Keep it short.",
+          "ru": "Свет у тебя горит. Это уже что-то. Говори коротко."
+        },
+        "useful": {
+          "en": "Your crews keep their rail joints tight. I don't forget that. Sit. I'll pour tea.",
+          "ru": "Твои люди держат стыки. Я это помню. Садись, налью чаю."
+        },
+        "pact": {
+          "en": "I'd walk a tunnel with you without a lamp. Don't tell anyone I said so.",
+          "ru": "С тобой я бы вошёл в перегон без фонаря. Не говори никому, что я это сказал."
+        }
+      },
+      "territory": {
+        "en": "Those are my switches. Want to cross them, ask. Nobody asks, I throw them to a dead end.",
+        "ru": "Это мои стрелки. Хочешь проехать, спроси. Не спросил, переведу в тупик."
+      },
+      "trade": {
+        "en": "Bread and kerosene from you, metal and repairs from me. We count in shifts, not words.",
+        "ru": "Хлеб и керосин от тебя, металл и ремонт от меня. Считаем по сменам, а не по словам."
+      },
+      "pitch": {
+        "en": "One of your papers is a copy of the order we burned at Stillwell. The original went into the stove so my crew wouldn't tear itself apart. Burn the copy too. I'm not asking you to forget. I'm asking you not to print it. My workshop will give yours a step up.",
+        "ru": "Одна из твоих бумаг: копия приказа, который мы сожгли на Стиллвелле. Оригинал ушёл в печь, чтобы моя бригада не перегрызла сама себя. Сожги и копию. Я не прошу забыть. Я прошу не печатать. Моя мастерская подтянет твою на ступень."
+      },
+      "accepted": {
+        "en": "Stove's hot. You saw nothing, I asked for nothing.",
+        "ru": "Печка горячая. Ты ничего не видел, я ничего не просил."
+      },
+      "declined": {
+        "en": "Your call. Don't complain when the signature comes up.",
+        "ru": "Твоё дело. Только не жалуйся, когда подпись всплывёт."
+      },
+      "help": {
+        "offer": {
+          "en": "Bring parts for the yard",
+          "ru": "Принести детали для депо"
+        },
+        "reply": {
+          "en": "Put it on the bench. I don't write it down. I remember.",
+          "ru": "Положи на верстак. Записывать не буду. Запомню."
+        }
+      }
+    },
+    "directorate": {
+      "name": {
+        "en": "Iron Directorate",
+        "ru": "Железная Дирекция"
+      },
+      "leader_id": "lionel_abelard",
+      "leader": {
+        "en": "Lionel Abelard",
+        "ru": "Лайонел Абелард"
+      },
+      "title": {
+        "en": "Comptroller",
+        "ru": "Главный контролёр"
+      },
+      "voice_note": "58, gaunt and pale, never raises his voice, writes while he talks, speaks in ledger terms, politeness as armor",
+      "first_contact": {
+        "en": "Your station is carried on our books. That is not a threat. That is accounting.",
+        "ru": "Ваша станция числится у нас в ведомости. Это не угроза. Это бухгалтерия."
+      },
+      "bands": {
+        "hostile": {
+          "en": "You are no longer a line in our ledger. You are a line in another column.",
+          "ru": "Вы больше не строка в нашей ведомости. Вы строка в другой графе."
+        },
+        "cold": {
+          "en": "Your numbers don't reconcile. I'll note it politely. Once.",
+          "ru": "Ваши цифры не сходятся. Я отмечу это вежливо. Один раз."
+        },
+        "wary": {
+          "en": "You are listed as pending. That is better than most.",
+          "ru": "Вы у нас пока в графе «на рассмотрении». Это лучше, чем у многих."
+        },
+        "useful": {
+          "en": "Your reports arrive on time. That's rare. Please, sit.",
+          "ru": "Ваши отчёты приходят вовремя. Это редкость. Прошу, садитесь."
+        },
+        "pact": {
+          "en": "A line in reserve has been found for you. Don't thank me. It's also arithmetic.",
+          "ru": "Для вас нашлась строка в резерве. Не благодарите. Это тоже арифметика."
+        }
+      },
+      "territory": {
+        "en": "These runs are on our timetable. Cross them without clearance and you go on my timetable. You will not enjoy it.",
+        "ru": "Эти перегоны стоят в нашем расписании. Пройдёте без допуска, и встанете в моё расписание. Вам не понравится."
+      },
+      "trade": {
+        "en": "Filters and order for grain and quiet. I will draw it up on two pages.",
+        "ru": "Фильтры и порядок за зерно и тишину. Я оформлю на двух страницах."
+      },
+      "pitch": {
+        "en": "I need one line. Someone from your roll, not your council, not someone who will be looked for. The name is already chosen from your own figures. In return: a curfew, and a step up for your air filter. You will breathe easier. Not calmer.",
+        "ru": "Мне нужна одна строка. Человек из вашего списка, не из совета, не тот, кого станут искать. Имя уже выбрано по вашим же данным. Взамен комендантский час и ступень вашему воздушному фильтру. Дышать станет легче. Спокойнее нет."
+      },
+      "accepted": {
+        "en": "Thank you. Sign here. Nothing needs to be said.",
+        "ru": "Благодарю. Подпишите здесь. Говорить ничего не нужно."
+      },
+      "declined": {
+        "en": "Refusal noted. I can strike it from the ledger next quarter.",
+        "ru": "Отказ внесён. Вычеркнуть его я смогу в следующем квартале."
+      },
+      "help": {
+        "offer": {
+          "en": "Hand over a clean report",
+          "ru": "Передать чистый отчёт"
+        },
+        "reply": {
+          "en": "Received. It will be filed as reliable. That is rarer than you think.",
+          "ru": "Принято. Будет подшито как надёжное. Это встречается реже, чем вы думаете."
+        }
+      }
+    },
+    "synod": {
+      "name": {
+        "en": "Synod of the Tunnel",
+        "ru": "Синод тоннеля"
+      },
+      "leader_id": "dorothy_chen",
+      "leader": {
+        "en": "Dorothy Chen",
+        "ru": "Дороти Чен"
+      },
+      "title": {
+        "en": "Keeper of the Quiet Room",
+        "ru": "Хранительница тихой комнаты"
+      },
+      "voice_note": "55, soft and slow, speaks at your eye level, names everyone, uses silence on purpose, always washing her hands",
+      "first_contact": {
+        "en": "Don't stand, your hands are shaking. Drink some water. Then I'll tell you why I came.",
+        "ru": "Не вставайте, у вас дрожат руки. Выпейте воды. Потом я скажу, зачем пришла."
+      },
+      "bands": {
+        "hostile": {
+          "en": "You shut the door on my sick. I'm not angry. I wrote down the names.",
+          "ru": "Вы закрыли дверь перед моими больными. Я не злюсь. Я записала имена."
+        },
+        "cold": {
+          "en": "Your people have stopped coming to listen. That is their right. I'm only sorry.",
+          "ru": "Ваши люди перестали приходить слушать. Это их право. Мне просто жаль."
+        },
+        "wary": {
+          "en": "You may be silent here. I'll be nearby if you want to talk.",
+          "ru": "Здесь можно молчать. Я буду рядом, если захотите говорить."
+        },
+        "useful": {
+          "en": "Your bread reached the quiet room. People remember. Thank you.",
+          "ru": "Ваш хлеб дошёл до тихой комнаты. Люди помнят. Спасибо."
+        },
+        "pact": {
+          "en": "My room is open to you. No knock. Even at night.",
+          "ru": "Моя комната для вас открыта. Без стука. Даже ночью."
+        }
+      },
+      "territory": {
+        "en": "Our sick are down here. Pass through if you must. Quietly. Dim your lamps.",
+        "ru": "Здесь лежат наши больные. Проходите, если нужно. Тихо. Приглушите лампы."
+      },
+      "trade": {
+        "en": "Medicine and bandages for bread and candles. No interest. I only write it down.",
+        "ru": "Лекарства и бинты за хлеб и свечи. Без процента. Я только записываю."
+      },
+      "pitch": {
+        "en": "Your people ask what is up there. Tell them there is nothing worth climbing for. It is almost true. I have heard the recording of the wind. There are no voices in it. Don't promise them the sky. Fear is kinder than hope right now. Say it, and your people will breathe out.",
+        "ru": "Ваши люди спрашивают, что там, наверху. Скажите им: ничего, ради чего стоило бы подниматься. Это почти правда. Я слышала запись ветра. В ней нет голосов. Не обещайте им небо. Сейчас страх милосерднее надежды. Скажите это, и ваши люди выдохнут."
+      },
+      "accepted": {
+        "en": "Peace. They will sleep tonight without fear. I know what it costs.",
+        "ru": "Мир вам. Сегодня они уснут без страха. Я знаю, чего это стоит."
+      },
+      "declined": {
+        "en": "Then let them ask for themselves. Only don't promise what you don't have.",
+        "ru": "Тогда пусть спрашивают сами. Только не обещайте того, чего у вас нет."
+      },
+      "help": {
+        "offer": {
+          "en": "Bring bread for the quiet room",
+          "ru": "Принести хлеб для тихой комнаты"
+        },
+        "reply": {
+          "en": "Thank you. I will not say whose it was. Someone ate it. That is enough.",
+          "ru": "Спасибо. Я не скажу, чей он был. Его съели. Этого достаточно."
+        }
+      }
+    },
+    "exchange": {
+      "name": {
+        "en": "Free Exchange",
+        "ru": "Свободная Биржа"
+      },
+      "leader_id": "marcel_toussaint",
+      "leader": {
+        "en": "Marcel Toussaint",
+        "ru": "Марсель Туссен"
+      },
+      "title": {
+        "en": "Speaker of the Rate",
+        "ru": "Председатель Расчётного совета"
+      },
+      "voice_note": "48, warm and relentless, feeds you first, writes debts on his own forearm in marker, laughs at himself and never at the debtor",
+      "first_contact": {
+        "en": "Eat first. Nobody bargains well hungry, and I don't like being overpaid.",
+        "ru": "Сначала ешь. Голодный торгуется плохо, а я не люблю, когда мне переплачивают."
+      },
+      "bands": {
+        "hostile": {
+          "en": "You went around my scales. Fine. The scales will come to you. They always do.",
+          "ru": "Ты пошёл в обход моих весов. Ладно. Весы придут к тебе сами. Они всегда приходят."
+        },
+        "cold": {
+          "en": "You're in the red column. Not the end of the world. Just interest.",
+          "ru": "Ты у меня в красной графе. Это не конец света. Это просто процент."
+        },
+        "wary": {
+          "en": "I wrote you down in pencil. Pencil erases. Be useful.",
+          "ru": "Я записал тебя карандашом. Карандаш стирается. Будь полезен."
+        },
+        "useful": {
+          "en": "You're easy to deal with. You pay on time and you don't lie about taste. Sit.",
+          "ru": "С тобой удобно. Платишь вовремя и не врёшь про вкус. Садись."
+        },
+        "pact": {
+          "en": "For you, I don't write it down. People have died for that kind of compliment. Don't abuse it.",
+          "ru": "Для тебя без записи. Из-за такого комплимента у нас убивали. Не злоупотребляй."
+        }
+      },
+      "territory": {
+        "en": "You're in my markets without a tag. A tag costs food. Come buy one while I'm kind.",
+        "ru": "Ты на моих рынках без бирки. Бирка стоит еды. Подойди и купи, пока я добрый."
+      },
+      "trade": {
+        "en": "Kerosene for bread, bread for plasters. I'll write it on my arm. Debts don't get lost there.",
+        "ru": "Керосин на хлеб, хлеб на пластыри. Запишу себе на руке. Там долг не потеряется."
+      },
+      "pitch": {
+        "en": "Forty sacks of grain today, from my own store. In return, your books. Who eats how much, what's hidden where, what you've found. I read them and give them back. I won't sell them to the Directorate. I won't promise I won't sell them to anyone.",
+        "ru": "Сорок мешков зерна сегодня, из моего склада. Взамен твои тетради. Кто сколько ест, что где припрятано, что вы нашли. Я прочту и верну. Дирекции не продам. Что не продам никому, не обещаю."
+      },
+      "accepted": {
+        "en": "Good. The sacks are at your gate. Don't count them in front of me. It hurts my feelings.",
+        "ru": "Хорошо. Мешки у ваших ворот. Не считай их при мне, я обижаюсь."
+      },
+      "declined": {
+        "en": "Suit yourself. The store isn't going anywhere. Neither is the price.",
+        "ru": "Как знаешь. Склад никуда не денется. Цена тоже."
+      },
+      "help": {
+        "offer": {
+          "en": "Settle an old tab",
+          "ru": "Закрыть старый долг"
+        },
+        "reply": {
+          "en": "Good. One number fewer on my arm.",
+          "ru": "Хорошо. Одним числом на руке меньше."
+        }
+      }
+    },
+    "black_flag": {
+      "name": {
+        "en": "The Lamplighters",
+        "ru": "Фонарщики"
+      },
+      "leader_id": "niki_ortega",
+      "leader": {
+        "en": "Niki Ortega, \"Lamp\"",
+        "ru": "Ники Ортега, «Лампа»"
+      },
+      "title": {
+        "en": "Head of Lamps",
+        "ru": "Старший по фонарям"
+      },
+      "voice_note": "35, quiet, counts steps out loud, never sits with her back to the door, speaks of the dead in the first person plural",
+      "first_contact": {
+        "en": "If you can see me, you already have a light. The question is whose.",
+        "ru": "Если ты меня видишь, свет у тебя уже есть. Вопрос в том, чей."
+      },
+      "bands": {
+        "hostile": {
+          "en": "You didn't pay and you went around. Where you walk, the lamps won't light. That's not a threat. That's the route.",
+          "ru": "Ты не заплатил и обошёл. Там, где ты идёшь, лампы не зажгутся. Это не угроза. Это маршрут."
+        },
+        "cold": {
+          "en": "People don't want to travel with you. I didn't talk them out of it. They counted.",
+          "ru": "Люди не хотят идти с тобой. Я их не отговаривала. Они сами посчитали."
+        },
+        "wary": {
+          "en": "I'll come if you need me. But you pay first. I'm tired of counting the dead.",
+          "ru": "Приду, если понадоблюсь. Но платишь вперёд. Я устала считать мёртвых."
+        },
+        "useful": {
+          "en": "Your station knows: whoever walks with a lamp isn't alone. I value that.",
+          "ru": "Твоя станция знает: кто идёт с лампой, тот не один. Я это ценю."
+        },
+        "pact": {
+          "en": "For you, a path without a toll. Once. Don't tell anyone where it is.",
+          "ru": "Для тебя тропа без платы. Один раз. Не говори никому, где она."
+        }
+      },
+      "territory": {
+        "en": "You're standing on my path. The light here is mine. Step back and nobody will notice.",
+        "ru": "Ты стоишь на моей тропе. Свет здесь мой. Шагни назад, и никто не заметит."
+      },
+      "trade": {
+        "en": "Tunnel maps for food. I don't haggle. There's a line behind you.",
+        "ru": "Карты тоннелей за еду. Я не торгуюсь. За тобой очередь."
+      },
+      "pitch": {
+        "en": "The tunnels are bad this season. I can lead your people through them, but my path isn't free. Put some food on my stone. I won't leave anyone in the dark. The ones who can't pay I lead too. Slower.",
+        "ru": "Тоннели в этот сезон плохие. Я могу провести твоих людей, но моя тропа не бесплатна. Положи немного еды на мой камень. Я никого не оставлю в темноте. Тех, кто не может заплатить, я тоже поведу. Медленнее."
+      },
+      "accepted": {
+        "en": "Done. At night you'll hear the lamps. Don't go out. It's only people walking.",
+        "ru": "Договорились. Ночью услышишь лампы. Не выходи. Это просто люди идут."
+      },
+      "declined": {
+        "en": "Then they walk without light. I'll remember you chose that.",
+        "ru": "Тогда они пойдут без света. Я запомню, что ты это выбрал."
+      },
+      "help": {
+        "offer": {
+          "en": "Leave water and bread at the stone",
+          "ru": "Оставить воду и хлеб на камне"
+        },
+        "reply": {
+          "en": "Someone will drink it tonight. They will not know your name. I will.",
+          "ru": "Сегодня ночью кто-то это выпьет. Он не узнает твоего имени. Я узнаю."
+        }
+      }
+    }
+  }
+}

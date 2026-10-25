@@ -9,12 +9,16 @@ static var keys := {}
 static var ready := false
 
 const NOUNS := {
+	"smaller matter": ["дело помельче", "дела помельче", "дел помельче"],
 	"week": ["неделю", "недели", "недель"],
 	"material": ["материал", "материала", "материалов"],
 	"person": ["человек", "человека", "человек"],
 	"people": ["человек", "человека", "человек"],
-	"worker": ["рабочий", "рабочих", "рабочих"],
+	"worker": ["работник", "работника", "работников"],
+	"soldier": ["боец", "бойца", "бойцов"],
 	"crew": ["бригада", "бригады", "бригад"],
+	"story": ["историю", "истории", "историй"],
+	"bed": ["койка", "койки", "коек"],
 }
 const STOCK := {
 	"power": ["энергия", "энергии", "энергий"],
@@ -172,30 +176,95 @@ static func trait_list(names: Array) -> String:
 
 
 static func gloss(line: String) -> String:
-	if not ru() or line == "":
+	if line == "":
 		return line
+	var rival := _rival_line(line) if ru() else ""
+	if rival != "":
+		return rival
+	## Log tags as the player reads them: [tag, Russian, English].
 	var tags := [
-		["No warning from ", "Нет вести от "],
-		["ULTIMATUM ", "Ультиматум. "],
-		["PRESSURE ", "Давление. "],
-		["SEASON ", "Сезон. "],
-		["SHORT ", "Нехватка. "],
-		["AGENT ", ""],
-		["FIND ", "Находка. "],
-		["JOIN ", "К вам. "],
-		["BATTLE ", "Бой. "],
-		["WARN ", "Тревога. "],
-		["DEFECT ", "Уход. "],
-		["REVOLT ", "Бунт. "],
-		["DEAL ", "Сделка. "],
-		["PREACH ", "Проповедь. "],
-		["ROT ", ""],
+		["No warning from ", "Нет вести от ", "No warning from "],
+		["ULTIMATUM ", "Ультиматум. ", "Ultimatum. "],
+		["PRESSURE ", "Давление. ", "Pressure. "],
+		["SEASON ", "Сезон. ", "Season. "],
+		["SHORT ", "Нехватка. ", "Shortage. "],
+		["AGENT ", "", ""],
+		["FIND ", "Находка. ", "Find. "],
+		["JOIN ", "Пополнение. ", "Joined. "],
+		["LOST ", "Потеря. ", "Lost. "],
+		["SICK ", "Болезнь. ", "Sickness. "],
+		["BACK ", "Возвращение. ", "Back. "],
+		["BATTLE ", "Бой. ", "Battle. "],
+		["WARN ", "Тревога. ", "Warning. "],
+		["DEFECT ", "Уход. ", "Defection. "],
+		["REVOLT ", "Бунт. ", "Revolt. "],
+		["DEAL ", "Сделка. ", "Deal. "],
+		["PREACH ", "Проповедь. ", "Sermon. "],
+		["TRUTH ", "Правда. ", "Truth. "],
+		["TESTIMONY ", "Свидетельство. ", "Testimony. "],
+		["ROT ", "", ""],
 	]
 	for pair in tags:
 		var prefix := str(pair[0])
 		if line.begins_with(prefix):
-			return str(pair[1]) + line.substr(prefix.length())
+			var rest := line.substr(prefix.length())
+			if not ru() and rest != "" and str(pair[2]).ends_with(". "):
+				rest = rest.substr(0, 1).to_upper() + rest.substr(1)
+			return str(pair[1] if ru() else pair[2]) + rest
 	return t(line)
+
+
+## Rival log lines as Game._log writes them in English; ru.json keys them by the template. Most specific first.
+const RIVAL_LINES := [
+	"BATTLE %s takes %s", "BATTLE %s is thrown back from %s", "DEFECT %s leaves for %s",
+	"REVOLT %s throws the garrison out", "PREACH The Synod speaks at %s", "DEAL %s asks to join", "DEAL %s (%d)",
+	"%s takes %s",
+]
+static var _rival_forms: Array = []
+
+
+## A rival log line in Russian with its station, commander and faction names translated, or "" when the line
+## is not one of RIVAL_LINES or a name in it has no Russian.
+static func _rival_line(line: String) -> String:
+	if _rival_forms.is_empty():
+		var spec := RegEx.create_from_string("%[sd]")
+		for template in RIVAL_LINES:
+			var pattern := "^"
+			var kinds: Array = []
+			var at := 0
+			for hit in spec.search_all(template):
+				pattern += _escape(template.substr(at, hit.get_start() - at))
+				pattern += "(.+?)" if hit.get_string() == "%s" else "(-?\\d+)"
+				kinds.append(hit.get_string())
+				at = hit.get_end()
+			pattern += _escape(template.substr(at)) + "$"
+			_rival_forms.append([template, RegEx.create_from_string(pattern), kinds])
+	for form in _rival_forms:
+		if not map.has(form[0]):
+			continue
+		var found: RegExMatch = form[1].search(line)
+		if found == null:
+			continue
+		var args: Array = []
+		for i in form[2].size():
+			var value := found.get_string(i + 1)
+			if form[2][i] == "%d":
+				args.append(int(value))
+			elif map.has(value):
+				args.append(str(map[value]))
+			else:
+				args = []
+				break
+		if args.size() == form[2].size():
+			return str(map[form[0]]) % args
+	return ""
+
+
+static func _escape(text: String) -> String:
+	var out := ""
+	for ch in text:
+		out += "\\" + ch if "\\^$.|?*+()[]{}".contains(ch) else ch
+	return out
 
 
 static func plural(n: int, forms: Array) -> String:
@@ -227,6 +296,8 @@ static func _detect() -> String:
 		picked = _file_lang(ProjectSettings.globalize_path("res://data/lang.txt"))
 	if picked == "ru" or picked == "en":
 		return picked
+	if OS.get_locale_language() == "ru":
+		return "ru"
 	return "en"
 
 
@@ -272,4 +343,10 @@ static func _load() -> bool:
 		push_error("Underline: bad data/ru.json")
 		return false
 	map = data
+	for file in ["events_pool.json", "events_leaders.json", "events_story.json"]:
+		var extra = JSON.parse_string(FileAccess.get_file_as_string("res://data/" + file))
+		if extra is Dictionary and extra.get("ru", null) is Dictionary:
+			for en in extra.ru:
+				if not map.has(en):
+					map[en] = extra.ru[en]
 	return true

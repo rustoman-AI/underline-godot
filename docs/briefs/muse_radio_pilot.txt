@@ -1,0 +1,40 @@
+MUSE / ELEVENLABS: CABLE RADIO PILOT
+Status: scripts and performance direction reviewed; ready for Muse after recovering the existing announcer configuration. No audio was generated while preparing this brief.
+
+Scope: four existing manifest rows, eight new OGG files (EN + RU). The project already contains 112 active VO files covering 56 bilingual lines. Do not regenerate, normalize, rename or overwrite those files.
+
+Recover the established EN/RU announcer voice IDs, ElevenLabs model and generation settings from Muse's existing project history first. Those IDs are not recorded in this repository. Reuse the established voices and export pipeline; do not guess replacements or create new voices. If the configuration is unavailable, return that dependency before spending generation credits.
+
+Performance: exhausted, disciplined civic broadcaster. Measured urgency, human concern, restrained breathing; no cheerfulness, announcer grin, theatrical shouting or horror-trailer growl. Each line serves people trying to survive. Keep English and Russian equally intelligible and natural. Compare with existing radio_news_001 through radio_news_010 recordings; preserve the recognizable announcer. Review the purple health bulletin as fictional worldbuilding, not a new gameplay instruction or mechanic.
+
+Use exact script text below, copied from data/vo/cable_radio.json. Do not speak IDs, labels, stage directions or filenames. Each language is a separate recording. If a script needs correction, propose it before recording so subtitles and audio remain identical.
+
+Delivery: eight individually named OGG files at the paths below, plus untouched generation masters and a compact provenance manifest outside assets/audio/vo. Record line ID, language, source text, actual voice ID, model, settings, generation date, duration and export processing. Do not include credentials. Preserve raw masters; do not run a project-wide processing pass. Match the existing radio mix using the established pipeline. The log records existing radio around -21.7 LUFS median, -22.3 to -20.7 range; these are reference measurements, not permission to alter existing radio.
+
+Review gate: audition all eight against the existing announcer before installation or expanding the batch. Check pronunciation (Stillwell, Culver, Bay Parkway), missing or extra words, silence, intelligibility, clipping and subtitle agreement. Existing code will find these paths automatically; no new trigger is needed. A reviewer should verify in-game EN/RU radio playback and text fallback. Remaining twelve unvoiced radio scripts stay outside this pilot and need tone review before commissioning.
+
+EXACT PILOT SCRIPTS
+
+ID: radio_flood_watch
+EN file: res://assets/audio/vo/radio_flood_watch_en.ogg
+EN: Cable news, Stillwell relay. Water is up two rungs on the Culver ladder. Keep your pumps greased and your boots on.
+RU file: res://assets/audio/vo/radio_flood_watch_ru.ogg
+RU: Кабельные новости, ретранслятор Стилуэлл. На лестнице у Калвер вода поднялась на две ступеньки. Смажьте насосы и не снимайте сапог.
+
+ID: radio_red_scarf
+EN file: res://assets/audio/vo/radio_red_scarf_en.ogg
+EN: The Bay Parkway families ask after a boy of ten in a red scarf, last seen walking north with a lantern. If he reaches you, send word down the wire.
+RU file: res://assets/audio/vo/radio_red_scarf_ru.ogg
+RU: Семьи с Бэй-Парквей спрашивают о мальчике десяти лет в красном шарфе. Последний раз его видели идущим на север с фонарём. Если он дойдёт до вас, передайте по проводу.
+
+ID: radio_purple_notice
+EN file: res://assets/audio/vo/radio_purple_notice_en.ogg
+EN: Health notice. Purple on the walls means vinegar, not prayer. Purple in the bread means burn it. Purple in your lungs means come to the infirmary early.
+RU file: res://assets/audio/vo/radio_purple_notice_ru.ogg
+RU: Санитарное объявление. Фиолетовое на стенах лечится уксусом, а не молитвой. Фиолетовое в хлебе значит сжечь. Фиолетовое в лёгких значит прийти в лазарет пораньше.
+
+ID: radio_knock_twice
+EN file: res://assets/audio/vo/radio_knock_twice_en.ogg
+EN: Neutral stations remind all travelers: knock twice, show your hands, say your name. In that order.
+RU file: res://assets/audio/vo/radio_knock_twice_ru.ogg
+RU: Нейтральные станции напоминают путникам: постучите дважды, покажите руки, назовите себя. Именно в таком порядке.

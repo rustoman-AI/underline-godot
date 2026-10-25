@@ -1,0 +1,30 @@
+CURSOR IMPLEMENTATION BRIEF: AUDIENCE FAIRNESS AND REGRESSION GATES
+Date: 2026-10-11. Owner: Cursor implementation; review and art remain with the reviewing agent.
+
+Problem and verified evidence
+sim/game.gd:5772-5799 selects the eligible leader with the earliest original audience_due timestamp. Hostile and pact leaders bypass cooldown. Refusal updates audience_last but leaves audience_due unchanged (sim/game.gd:5826). An unaccepted oldest hostile leader can monopolize the audience slot every dawn and prevent the other leaders from appearing.
+
+Isolated headless reproduction, 2026-10-11:
+.tools/review_save_audience_20261011.gd sets all five leaders due at weeks 2/6/7/10/20, Exchange standing to -60 (hostile), and calls audience dawn for weeks 21-28, leaving each visit unanswered. Actual result:
+AUDIENCE_HOSTILE_OLDEST 21:exchange 22:exchange 23:exchange 24:exchange 25:exchange 26:exchange 27:exchange 28:exchange
+AUDIENCE_PENDING { "exchange": 2, "depot": 6, "directorate": 7, "synod": 10, "black_flag": 20 }
+This is a controlled synthetic scheduler state, not a claim that all normal runs naturally reach it. Exit 0; startup directory warning user://C: also appeared. No user save writes, production edits or art changes occurred.
+
+Scope
+1. Make scheduling fair among waiting eligible leaders while retaining at most one audience per dawn, the normal six-week cooldown, and hostile/pact eligibility semantics. A returning eligible leader must not indefinitely outrank never-seen waiting leaders. Use a documented last-service/requeue policy, with deterministic tie breaking.
+2. Preserve silence-as-refusal, explicit refusal, one-time completed deals and Halloran target validation.
+3. Add committed regressions for all five deal previews versus actual results. Existing .tools/audience_check.gd and audience_probe.gd provide useful starting evidence; avoid making the production gate depend on untracked .tools scripts.
+4. Add an explicit committed audience test command to the verification workflow or invoke its checks from an existing gate. Do not silently expand the balance bot into unrelated UI screenshot work.
+
+Acceptance criteria
+- Controlled fixture above cannot yield Exchange eight times while four other eligible leaders wait; each continuously eligible leader must appear within five audience selections when no new leaders arrive.
+- Test hostile and pact repeaters, ordinary cooldown, a completed deal, explicit refusal and unanswered/silent refusal. Preserve one-per-dawn and deterministic sequence.
+- Each of the five accepted deals changes exactly the consequences previewed, including clamps, standing, selected resident removal, already-active curfew, missing/max-tier rooms, missing Papers, and Bird's unaffordable toll handling. Avoid assuming every branch is covered by the current happy-path probe.
+- Save/reload during a waiting audience and following refusal preserves the scheduling policy (coordinate with save-hardening work).
+- Existing bot_run, check_slice and check_network remain green. Verify gameplay consequences in tests, then reviewer checks EN/RU cards visually if UI changes are required.
+
+Explicit design boundary
+Audience standing and map opinions currently are separate systems (sim/catalog.gd:8; sim/game.gd:5864; ui/network_view.gd:1727). Do not merge them or rebalance war/relations in this task. Report confusing UI terminology separately. Do not implement historical promised rewards: borrowed squad, recurring caravan discounts, medic, surface route or bunker ending.
+
+Exclusions and preservation
+Preserve all approved uncommitted faction art/lore, leaders, faction names, symbols and other agents' work. No regeneration, broad refactor, new VO or lore changes. Inspect local diff; never reset/clean/checkout unrelated work. No commit/push unless separately requested.

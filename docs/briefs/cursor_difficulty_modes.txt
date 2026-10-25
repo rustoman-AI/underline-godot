@@ -1,0 +1,22 @@
+CURSOR: DIFFICULTY MODES (EA plan E4, first part). Do after the QA pass or in parallel only if it does not touch the same files.
+Goal: replay value without touching the base game. Normal must stay byte-identical to HEAD. Local only. No push.
+
+1. THREE LEVELS (written by the project lead)
+- Normal ("Steady"): current balance, nothing changes.
+- Hard ("Hard Winter"): food_per x1.15, filter_decay x1.25, shortage_hope x1.25, power_shortage_discontent x1.25, starting stocks x0.90.
+- Brutal ("The Long Dark"): food_per x1.30, filter_decay x1.50, shortage_hope x1.50, power_shortage_discontent x1.50, starting stocks x0.80, season severity one tier up (flood, cold and cough each hit one step harder if the data has tiers; if it does not, make their duration +1 week).
+Multipliers apply to a copy of the balance table at game start and are stored in the save (field difficulty: "normal" | "hard" | "brutal"; follow the save-hardening rules, schema bump, default "normal" for old saves).
+
+2. UI
+New game screen: a difficulty selector with one line each (EN and RU, text below). The chosen level is shown in the epilogue stats and written into the playtest log (session_start.difficulty). The selector is not shown in the middle of a game.
+EN: Steady, "The Silence as it was. Recommended for the first run." / Hard Winter, "Less food, tired filters, shorter patience." / The Long Dark, "Every week costs more. You will lose people."
+RU: Ровно, «Тишина такой, какой она была. Для первого прогона.» / Суровая зима, «Меньше еды, уставшие фильтры, меньше терпения.» / Долгая тьма, «Каждая неделя дороже. Ты будешь терять людей.»
+Names: Steady / Ровно, Hard Winter / Суровая зима, The Long Dark / Долгая тьма.
+
+3. TARGETS (measure with the bots, tune only the multipliers above within plus or minus 0.10)
+Careful bot, 30 seeds: Normal as today. Hard: reaches week 40 in 40 to 70 percent of seeds. Brutal: reaches week 40 in 10 to 35 percent. Expander and follower: report only. If the corridor cannot be reached inside the allowed tuning, report the numbers and do not commit.
+
+4. TESTS AND GATES
+Normal output identical to HEAD (compare the full bot_run output line by line and the content audit numbers). check_balance applies to Normal only; add a check for Hard and Brutal that the game runs to an ending without errors in 30 seeds and the corridor targets above. Save round trip for the three levels. Screenshots EN and RU 1280x720 of the new game screen and the epilogue stats line.
+
+5. COMMIT: "Difficulty modes: Steady, Hard Winter, The Long Dark".

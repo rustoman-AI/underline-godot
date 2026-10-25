@@ -1,0 +1,23 @@
+ART: HUBS, STYLE PASS (less "AI", same places)
+Context: the four faction hubs (northgate, chapel, trampark, brickworks) have the right places and the right moods, and the emblem-free versions in incoming-art/hubs/no_emblems_v1 are technically accepted. The project lead's verdict: the art is liked but looks too AI-made. Do not install no_emblems_v1; redo the four hubs in the style below, still emblem-free.
+
+WHY THEY LOOK AI-MADE
+Every square inch has the same level of micro-detail. Dozens of near-identical figures. A lantern glow on everything. Soft bloom, glossy wet floor reflections. Perfectly symmetric halls. No empty space for the eye, no single subject. It reads as a render, not a drawing. Also, it does not match Coney (incoming-art/hubs/coney.png): flat cel colour, one clear line weight, simple shapes, a few warm light sources, large calm planes.
+
+TARGET
+Match the Coney hub: ink outlines with one consistent weight, flat or two-tone shading, muted palette, paper grain, light only from two or three clear sources (one dominant). Wide panorama, same aspect ratio as now.
+
+RULES
+1. One subject per hub, readable in one second (north: the information booth and the closed gate; chapel: the kitchen line under the chained exit; trampark: the weighing table and the stack of sacks; brickworks: the guide with a lantern at a tunnel mouth). Everything else is quieter and simpler.
+2. At most 7 readable figures per hub. Background people are silhouettes or shapes, not faces. No repeated figure, no crowd wall.
+3. At most 3 visible lamps per hub, each doing a job. No lantern strings, no bloom, no lens glow.
+4. Large calm areas: wall, floor, ceiling shapes left plain with just texture and a stain or two. Detail is spent on 3 to 5 story props (a ration card, a hand-painted queue sign without letters, a mended coat, a child's boot).
+5. Break the symmetry. Off-centre the subject, crop a figure at the frame edge, let one thing be wrong or unfinished.
+6. Hands and faces simple but human: no perfect pores or glossy eyes. Tired, practical, not posing. No one smiles. No staring at the viewer.
+7. Floors: matte stone, a puddle at most. No mirror reflections.
+8. Still emblem-free: banners and patches are plain cloth. Directorate cloth is dark slate or green, no red field, no white disc. Lamplighters: no flags at all.
+9. No text, letters, signs with glyphs, numbers.
+
+DELIVERY
+incoming-art/hubs/style_v2/<hub>.png and .webp (same size and aspect as assets/hubs/<hub>.webp), exact prompt next to each, and one contact sheet of the four next to coney.png at the same size. Do not install into assets/. The project lead reviews against Coney.
+If a hub cannot be done without a crowd, say so and propose the composition instead.

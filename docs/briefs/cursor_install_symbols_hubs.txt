@@ -1,0 +1,23 @@
+CURSOR: INSTALL FIVE SYMBOLS AND FOUR HUBS (art accepted by the project lead)
+Local only. No push. Balance, map, save format unchanged.
+
+1. SYMBOLS (all five accepted)
+Source files, 1254x1254 transparent PNG:
+- depot:       incoming-art/symbols_v4/depot_symbol_v3.png
+- directorate: incoming-art/symbols_v4/directorate_symbol_v3.png
+- synod:       incoming-art/symbols_v4/synod_symbol.png
+- exchange:    incoming-art/symbols_v4/exchange_symbol.png
+- black_flag (Lamplighters): incoming-art/symbols_v4/black_flag_symbol.png
+Install into assets/factions/<faction_id>_symbol.png (keep originals), same import settings as the other art, and set "symbol" in data/faction_leaders.json to the res:// path. Display them wherever a symbol slot already exists (audience card title mark, map/station panel if present). Keep the colour plate fallback if a file is missing. Check each symbol at 24 px on the card background (#241C14) and on the faction colour plate.
+
+2. HUBS (aspect ratio about 2.37:1, 1931x814)
+- chapel, trampark, brickworks: install incoming-art/hubs/style_v2/<id>.webp as assets/hubs/<id>.webp (replace the earlier AI-heavy versions; keep those out of git).
+- northgate: install incoming-art/hubs/style_v2/northgate_v2.webp as assets/hubs/northgate.webp (accepted final; no interim version is needed).
+- The panorama-ratio change in ui/network_view.gd (visit panel shows the full hub without a 220 px crop) was held back earlier; commit it with this step.
+- Coney and the other existing hubs stay untouched.
+
+3. CHECKS
+bot_run, check_audience, check_save, check_network, check_slice. Screenshots EN and RU: the audience card for all five leaders with symbols, and the visit screen for the four hubs at 1280x720 (full panorama visible, text not clipped).
+
+4. COMMITS (two, local)
+"Faction symbols installed" and "Faction hubs: style v2". Do not commit incoming-art/ sources.
