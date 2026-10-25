@@ -114,8 +114,10 @@ func _catalog() -> void:
 		var map_id := str(MAP_CHOICE[id])
 		if not bool(_choice(ev, map_id).get("map", false)):
 			bad.append(id + " map option")
-		if str(ev.get("banner", "")) == "" or str(ev.get("tag", "")) == "":
+		if str(ev.get("banner", "")) != id or str(ev.get("tag", "")) == "":
 			bad.append(id + " banner")
+		if ArtPack.resolve_event_banner(ev) != id or ArtPack.resolve_event_banner(ev) == "cough":
+			bad.append(id + " plate")
 	var portions := _row("two_portions")
 	var breathers := _row("breathers_price")
 	var listing := _row("the_list")
@@ -127,6 +129,9 @@ func _catalog() -> void:
 		bad.append("cough trigger")
 	if not _text(portions).contains("Dead Pier") or not _text(breathers).contains("Bowling Green") or not _text(listing).contains("Flushing"):
 		bad.append("copy")
+	var frame := ArtPack.dilemma_frame()
+	if frame == null or frame.get_width() <= 0:
+		bad.append("frame")
 	_expect(bad.is_empty(), "Three dilemmas, weight 0, trigger, free choice, map option", ", ".join(bad))
 
 
