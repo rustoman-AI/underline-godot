@@ -5,6 +5,8 @@ const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
 const HOPE_ZERO_WEEKS := 3
+const PUSH_BLOCKED := ["infirmary", "radio", "quarters"]
+const PUSH_WINDOW := 4
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -354,6 +356,8 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_burn()
 		"rally":
 			ok = _apply_rally()
+		"push":
+			ok = _apply_push(str(action.get("room", "")))
 		"repeal":
 			ok = _apply_repeal(str(action.get("law", "")))
 		"power":
@@ -401,6 +405,11 @@ func _journal_context(kind: String, action: Dictionary) -> Dictionary:
 			return {"order": str(action.get("order", "")), "station": str(action.get("station", action.get("dest", "")))}
 		"pump", "quarantine", "burn", "rally":
 			return {"done": true}
+		"push":
+			var pushed = _room(str(action.get("room", "")))
+			if pushed == null:
+				return {}
+			return {"type": str(pushed.type)}
 	return {}
 
 
@@ -996,6 +1005,7 @@ func _night() -> void:
 			room.mold = int(room.mold) - 1
 		if int(room.get("disabled", 0)) > 0:
 			room.disabled = int(room.disabled) - 1
+	_resolve_pushes()
 	if _law_on("engineers_charter"):
 		stock.power = int(stock.power) + int(catalog.laws.engineers_charter.get("power", 0))
 	_apply_weekly_laws()
@@ -1183,6 +1193,7 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 				n = 0
 			elif not (drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 				n += crew_extra(skills, room, n)
+			n = scale_push(n, room)
 			out[key] = int(out[key]) + n
 			made[str(room.uid) + "|" + str(key)] = n
 	var mb := float(bal.get("merge_bonus", 0.0))
@@ -1220,6 +1231,230 @@ func radio_grant() -> int:
 			continue
 		n += 2
 	return n
+
+
+## --- push a room (one night, one room) ---
+
+## A room with its own output. Infirmary, radio and quarters never push.
+func room_pushable(room) -> bool:
+	if not (room is Dictionary):
+		return false
+	var type := str(room.get("type", ""))
+	if type in PUSH_BLOCKED or not catalog.rooms.has(type):
+		return false
+	var base: Dictionary = catalog.rooms[type].get("base", {})
+	for key in base:
+		if float(base[key]) > 0.0:
+			return true
+	return false
+
+
+func room_pushed(room) -> bool:
+	if not (room is Dictionary):
+		return false
+	for at in room.get("push_weeks", []):
+		if int(at) == week:
+			return true
+	return false
+
+
+## Pushes of this room in the previous 4 weeks. The push being rolled is not one of them.
+func _push_priors(room) -> int:
+	var seen := {}
+	var n := 0
+	for at in room.get("push_weeks", []):
+		var w := int(at)
+		if w < week - PUSH_WINDOW or w >= week or seen.has(w):
+			continue
+		seen[w] = true
+		n += 1
+	return n
+
+
+## A staffer still in the room with care or fight at 4 or more halves the incident chance.
+func _push_covered(room) -> bool:
+	for id in room.get("staff", []):
+		if not people.has(str(id)):
+			continue
+		var person: Dictionary = people[str(id)]
+		if int(person.get("absent", 0)) > 0:
+			continue
+		var skills: Dictionary = person.get("skills", {})
+		if int(skills.get("care", 0)) >= 4 or int(skills.get("fight", 0)) >= 4:
+			return true
+	return false
+
+
+func _push_chance(room) -> float:
+	var p := float(bal.get("push_risk", 0.15)) + float(bal.get("push_stack", 0.10)) * float(_push_priors(room))
+	p = minf(p, float(bal.get("push_cap", 0.55)))
+	if _push_covered(room):
+		p *= 0.5
+	return p
+
+
+## The percent the preview shows and the percent _push_hits rolls against.
+func _push_pct(room) -> int:
+	return int(round(_push_chance(room) * 100.0))
+
+
+func push_preview(uid: String) -> Dictionary:
+	var room = _room(uid)
+	var out := {
+		"ok": false,
+		"pct": 0,
+		"chance": 0.0,
+		"reason": Copy.t("push.disabled_room"),
+		"uid": uid,
+	}
+	if not room_pushable(room):
+		return out
+	var chance := _push_chance(room)
+	out.chance = chance
+	out.pct = _push_pct(room)
+	if room_pushed(room):
+		out.reason = Copy.t("push.disabled_used")
+		return out
+	out.ok = true
+	out.reason = ""
+	return out
+
+
+func _apply_push(uid: String) -> bool:
+	if not bool(push_preview(uid).get("ok", false)):
+		return false
+	var room = _room(uid)
+	var weeks: Array = []
+	var raw = room.get("push_weeks", [])
+	if raw is Array:
+		weeks = raw.duplicate()
+	weeks.append(week)
+	room["push_weeks"] = weeks
+	decisions += 1
+	_log("ORDER push %s" % str(room.type))
+	return true
+
+
+## Double a pushed room's finished output. 1 when it was not pushed this week.
+func scale_push(n: int, room) -> int:
+	if not room_pushed(room):
+		return n
+	return int(round(float(n) * float(bal.get("push_mult", 2.0))))
+
+
+## The staffed room that makes `key`, or "" when none can be pushed tonight.
+func push_target(key: String) -> String:
+	var best := ""
+	var best_n := 0
+	for room in rooms:
+		if not room_pushable(room) or not bool(push_preview(str(room.uid)).get("ok", false)):
+			continue
+		if bool(room.get("offline", false)) or int(room.get("disabled", 0)) > 0:
+			continue
+		var defin: Dictionary = catalog.rooms[room.type]
+		if int(defin.get("base", {}).get(key, 0)) <= 0:
+			continue
+		if int(defin.get("staff_min", 0)) > 0 and _able_count(room) <= 0:
+			continue
+		var n := int(defin.base[key]) * maxi(1, _able_count(room))
+		if n <= best_n:
+			continue
+		best_n = n
+		best = str(room.uid)
+	return best
+
+
+func _push_hits(room) -> bool:
+	return rng.randi_range(0, 99) < _push_pct(room)
+
+
+func _resolve_pushes() -> void:
+	for room in rooms:
+		if not room_pushed(room) or int(room.get("push_rolled", 0)) == week:
+			continue
+		room["push_rolled"] = week
+		if not _push_hits(room):
+			continue
+		_push_incident(room)
+
+
+func _push_incident(room) -> void:
+	var type := str(room.type)
+	match type:
+		"hydroponics":
+			stock.food = maxi(0, int(stock.food) - 4)
+		"air_filter":
+			room.disabled = maxi(int(room.get("disabled", 0)), 1)
+			_push_injure(room)
+		"generator":
+			stock.power = maxi(0, int(stock.power) - 8)
+			_push_injure(room)
+		"workshop":
+			_push_injure(room)
+		"meeting_hall":
+			_add_discontent(4, "push")
+		_:
+			pass
+	room["push_tint_until"] = week + 1
+	_push_note(_push_incident_key(type))
+
+
+func _push_incident_key(type: String) -> String:
+	Copy.boot()
+	var key := "push.incident." + type
+	if Copy.keys.has(key):
+		return key
+	return "push.incident.generic"
+
+
+func _push_pack(key: String) -> Dictionary:
+	Copy.boot()
+	var row: Dictionary = Copy.keys.get(key, {})
+	var en: String = str(row.get("en", ""))
+	var ru: String = str(row.get("ru", en))
+	return {"en": en, "ru": ru}
+
+
+func _push_note(key: String) -> void:
+	var pack := _push_pack(key)
+	_note("PUSH " + pack.en, "PUSH " + pack.ru)
+
+
+func _push_injure(room) -> void:
+	var id := _push_victim(room)
+	if id == "" or not people.has(id):
+		return
+	var person: Dictionary = people[id]
+	person.absent = maxi(int(person.get("absent", 0)), 2)
+	_life_note(person, "injured", {})
+	_log("INJURED 1", true)
+	var pack := _push_pack("push.incident_known")
+	var name_en := str(person.get("name", ""))
+	var name_ru := str(person.get("name_ru", ""))
+	if name_ru == "":
+		name_ru = name_en
+	var suffix := "а" if str(person.get("sex", "m")) == "f" else ""
+	var en := str(pack.en).replace("{name}", name_en).replace("{a}", "")
+	var ru := str(pack.ru).replace("{name}", name_ru).replace("{a}", suffix)
+	_note("PUSH " + en, "PUSH " + ru)
+
+
+func _push_victim(room) -> String:
+	var ids: Array = []
+	for id in room.get("staff", []):
+		ids.append(str(id))
+	for person in residents:
+		var id := str(person.id)
+		if not ids.has(id):
+			ids.append(id)
+	for id in ids:
+		if not people.has(str(id)):
+			continue
+		var person: Dictionary = people[str(id)]
+		if _is_child(person) or int(person.get("absent", 0)) > 0:
+			continue
+		return str(id)
+	return ""
 
 
 ## People on the roster who can actually work. Sick and absent stay listed, but they do not count.
@@ -7984,7 +8219,7 @@ func _place_room(type: String, level: int, cell: int) -> void:
 	var room := {
 		"uid": uid, "type": type, "level": level, "cell": cell,
 		"upgrade": 0, "efficiency": 1.0, "staff": [], "offline": false, "browned": false, "disabled": 0,
-		"switched_off": false,
+		"switched_off": false, "push_weeks": [], "push_tint_until": 0,
 	}
 	rooms.append(room)
 	cells[_ck(level, cell)].room = uid
@@ -10640,6 +10875,7 @@ func _room_output_rows(room: Dictionary) -> Array:
 			n += crew_extra(skills, room, n)
 		elif not (workshop_down and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 			n += crew_extra(skills, room, n)
+		n = scale_push(n, room)
 		outputs.append({"key": str(key), "amount": n, "base": amount})
 	return outputs
 

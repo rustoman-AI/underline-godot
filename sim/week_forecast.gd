@@ -79,6 +79,10 @@ static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {
 		out.zero = "mold"
 		return out
 	n += int(game.crew_extra(skills, room, n))
+	if game.room_pushed(room):
+		var push_mult := float(game.bal.get("push_mult", 2.0))
+		n = int(round(float(n) * push_mult))
+		out.steps.append(["push", push_mult])
 	out.amount = n
 	return out
 

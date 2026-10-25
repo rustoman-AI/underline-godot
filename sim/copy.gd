@@ -215,6 +215,7 @@ static func gloss(line: String) -> String:
 		["TRUTH ", "Правда. ", "Truth. "],
 		["TESTIMONY ", "Свидетельство. ", "Testimony. "],
 		["ROT ", "", ""],
+		["PUSH ", "", ""],
 	]
 	for pair in tags:
 		var prefix := str(pair[0])

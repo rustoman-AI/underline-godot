@@ -296,6 +296,28 @@ func _follow(game: Game) -> void:
 			_do_row(game, build)
 	_top_up_air(game)
 	_follow_network(game)
+	_maybe_push(game)
+
+
+## One producing room, on a real countdown (not a thin-meals note the harvest still covers).
+func _maybe_push(game: Game) -> void:
+	if profile != "follower":
+		return
+	var horizon := int(game.bal.get("forecast_weeks", 2))
+	var best_key := ""
+	var best_left := 99
+	for key in ["food", "air", "power", "materials"]:
+		var left := game._weeks_until_empty(key)
+		if left > horizon or left >= best_left:
+			continue
+		best_left = left
+		best_key = key
+	if best_key == "":
+		return
+	var uid := game.push_target(best_key)
+	if uid == "":
+		return
+	game.apply({"kind": "push", "room": uid})
 
 
 func _top_up_air(game: Game) -> void:
