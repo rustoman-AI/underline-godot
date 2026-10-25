@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Salvage board: blueprints, the twelve nodes, strip, the dormant junk hook, save schema 12,
-## desk empty states, and the careful loss band (15–35% of seeds 1–30).
+## desk empty states, and the careful loss band (15–35% of seeds 1–60, 40 weeks).
 ##   godot --headless --path . -s res://sim/check_salvage.gd
 
 const Desk = preload("res://ui/station.gd")
@@ -434,11 +434,12 @@ func _staff() -> void:
 
 func _careful_band() -> void:
 	var lost := 0
-	for run_seed in range(1, 31):
+	for run_seed in range(1, 61):
 		var row: Dictionary = Bot.new().play(40, run_seed, "careful", catalog)
 		if str(row.get("over", "")) != "time":
 			lost += 1
 			print("  careful seed %d over %s week %s" % [run_seed, row.get("over", ""), row.get("week", "")])
-	var pct := 100.0 * float(lost) / 30.0
-	print("careful loss %d of 30 (%.1f%%)" % [lost, pct])
-	_expect(lost >= 5 and lost <= 10, "Careful loss stays 15–35%", "%d of 30 (%.1f%%)" % [lost, pct])
+	var pct := 100.0 * float(lost) / 60.0
+	print("careful loss %d of 60 (%.1f%%)" % [lost, pct])
+	# 15% of 60 is 9, 35% is 21.
+	_expect(lost >= 9 and lost <= 21, "Careful loss stays 15–35%", "%d of 60 (%.1f%%)" % [lost, pct])
