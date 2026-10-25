@@ -248,7 +248,40 @@ static func textures() -> Dictionary:
 		"res://assets/events/loan.webp": preload("res://assets/events/loan.webp"),
 		"res://assets/events/diesel.webp": preload("res://assets/events/diesel.webp"),
 		"res://assets/events/armband.webp": preload("res://assets/events/armband.webp"),
-
+		"res://assets/events/desertion_next.webp": preload("res://assets/events/desertion_next.webp"),
+		"res://assets/events/lamps_next.webp": preload("res://assets/events/lamps_next.webp"),
+		"res://assets/events/preacher_next.webp": preload("res://assets/events/preacher_next.webp"),
+		"res://assets/events/refugees_next.webp": preload("res://assets/events/refugees_next.webp"),
+		"res://assets/events/rumble_next.webp": preload("res://assets/events/rumble_next.webp"),
+		"res://assets/events/smuggler_next.webp": preload("res://assets/events/smuggler_next.webp"),
+		"res://assets/icons/map/rumor.png": preload("res://assets/icons/map/rumor.png"),
+		"res://assets/icons/map/rumor_24.png": preload("res://assets/icons/map/rumor_24.png"),
+		"res://assets/icons/map/gift.png": preload("res://assets/icons/map/gift.png"),
+		"res://assets/icons/map/gift_24.png": preload("res://assets/icons/map/gift_24.png"),
+		"res://assets/icons/map/aid.png": preload("res://assets/icons/map/aid.png"),
+		"res://assets/icons/map/aid_24.png": preload("res://assets/icons/map/aid_24.png"),
+		"res://assets/icons/map/pay.png": preload("res://assets/icons/map/pay.png"),
+		"res://assets/icons/map/pay_24.png": preload("res://assets/icons/map/pay_24.png"),
+		"res://assets/icons/status/rumor.png": preload("res://assets/icons/status/rumor.png"),
+		"res://assets/icons/status/rumor_24.png": preload("res://assets/icons/status/rumor_24.png"),
+		"res://assets/icons/status/gift.png": preload("res://assets/icons/status/gift.png"),
+		"res://assets/icons/status/gift_24.png": preload("res://assets/icons/status/gift_24.png"),
+		"res://assets/icons/status/aid.png": preload("res://assets/icons/status/aid.png"),
+		"res://assets/icons/status/aid_24.png": preload("res://assets/icons/status/aid_24.png"),
+		"res://assets/icons/status/pay.png": preload("res://assets/icons/status/pay.png"),
+		"res://assets/icons/status/pay_24.png": preload("res://assets/icons/status/pay_24.png"),
+		"res://assets/map/chips/intent_bought.webp": preload("res://assets/map/chips/intent_bought.webp"),
+		"res://assets/map/chips/intent_bought_tint.webp": preload("res://assets/map/chips/intent_bought_tint.webp"),
+		"res://assets/map/chips/intent_marched.webp": preload("res://assets/map/chips/intent_marched.webp"),
+		"res://assets/map/chips/intent_marched_tint.webp": preload("res://assets/map/chips/intent_marched_tint.webp"),
+		"res://assets/map/chips/intent_held.webp": preload("res://assets/map/chips/intent_held.webp"),
+		"res://assets/map/chips/intent_held_tint.webp": preload("res://assets/map/chips/intent_held_tint.webp"),
+		## Spare: no preach verb in the sim. Registered so the plate is in the export.
+		"res://assets/map/chips/intent_preached.webp": preload("res://assets/map/chips/intent_preached.webp"),
+		"res://assets/map/chips/intent_preached_tint.webp": preload("res://assets/map/chips/intent_preached_tint.webp"),
+		"res://assets/map/stamps/stamp_gift.webp": preload("res://assets/map/stamps/stamp_gift.webp"),
+		"res://assets/map/stamps/stamp_aid.webp": preload("res://assets/map/stamps/stamp_aid.webp"),
+		"res://assets/map/stamps/stamp_pay.webp": preload("res://assets/map/stamps/stamp_pay.webp"),
 	}
 	return _textures
 
@@ -258,6 +291,22 @@ static func adopt_icons() -> void:
 	if DirAccess.open(src) == null:
 		return
 	_copy_tree(src, "res://assets/icons")
+
+
+## Rival result chip. `tinted` is the white plate meant to take a faction colour.
+## intent_preached is registered and loadable; nothing in the sim asks for it.
+static func map_chip(name: String, tinted: bool = false) -> Texture2D:
+	if name == "":
+		return null
+	var path := "res://assets/map/chips/%s%s.webp" % [name, "_tint" if tinted else ""]
+	return load_texture(path)
+
+
+## Pin stamp for a queued or just-resolved Gift, Aid or Pay.
+static func map_stamp(kind: String) -> Texture2D:
+	if kind != "gift" and kind != "aid" and kind != "pay":
+		return null
+	return load_texture("res://assets/map/stamps/stamp_%s.webp" % kind)
 
 
 static func icon_texture(kind: String, px: float = 64.0) -> Texture2D:

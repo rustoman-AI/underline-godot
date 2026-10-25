@@ -5340,7 +5340,7 @@ func _order_art(row: Dictionary) -> Control:
 		rim.position = Vector2(10, 82)
 		frame.add_child(rim)
 	var kind := str(row.get("kind", ""))
-	var icon := ArtPack.icon_texture(str({"move": "squad", "expedition": "squad", "aid": "food", "address": "hope"}.get(kind, kind)), 32.0)
+	var icon := ArtPack.icon_texture(str({"move": "squad", "expedition": "squad", "address": "hope"}.get(kind, kind)), 32.0)
 	if icon != null:
 		var disc := PanelContainer.new()
 		var paper := StyleBoxFlat.new()
