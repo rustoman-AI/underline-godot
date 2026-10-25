@@ -1,0 +1,53 @@
+CURSOR: UPGRADES YOU CAN SEE (build 0.1.0-playtest5 -> 0.1.0-playtest6). STATUS: PART A is GO (owner, 12 Oct 2026). PART B is a proposal and waits for the owner's yes.
+Source: the owner's own playtest: "rooms look the same after an upgrade, people should feel satisfaction from upgrading; two rooms of the same type should show upgraded versus not upgraded at a glance". Local only. No push, nothing uploaded. NO NEW ART FILES (code and existing sprites only). Do not change balance, room numbers, costs or the map in PART A. Do not touch data/howto.json or data/hints.json.
+
+How upgrades work now (sim/game.gd 2109-2164, 995, 2305): instant, costs upgrade_materials (6 to 10), room.upgrade goes up by 1, output per tier x(1 + 0.25 * tier). Nothing changes on screen except a small number.
+
+PART A: SHOW IT (UI only)
+U1 Yard view: an upgraded room is visibly different from the same room not upgraded. Without new art, use layered effects on the existing room image: a warmer lamp glow and slight brightness lift per tier, a brass plate on the room sign with the tier as a Roman numeral (I, II), and a thin brass frame on the room card. Tier 0 stays as it is today. Two hydroponics rooms, one upgraded, must be told apart at 1280x720 from one screenshot.
+U2 Room card: show the change as before and after: "Tier II: Dynamo. Power +16 -> +20 a week." and the upgrade's name in plain words (what it is: a rooms.json "what" style line if missing: write only from the table in the lead's text below). Under the upgrade button: what you get ("+25% output") and the exact numbers the game will apply.
+U3 Moment of reward: when an upgrade is bought, play a short confirm (existing "built" or "confirm" cue, no new audio), a brief brass flash on the room, a one-line toast "Generator upgraded: Dynamo (+4 power a week)", and a line in the journal.
+U4 Build menu and room list: if two rooms of one type exist, the card header says "Hydroponics, tier II" vs "Hydroponics".
+Upgrade names to explain (EN / RU, lead's text, use as is):
+ bunks: "Bunks: more beds in the same space." / "Нары: больше коек на том же месте."
+ family: "Family corners: calmer people, a little more hope." / "Семейные углы: люди спокойнее, чуть больше надежды."
+ grow_lamps: "Grow lamps: more food from the same beds." / "Лампы для грядок: больше еды с тех же грядок."
+ mushroom_beds: "Mushroom beds: food that needs little light." / "Грибные грядки: еда, которой почти не нужен свет."
+ charcoal: "Charcoal filters: cleaner air." / "Угольные фильтры: чище воздух."
+ pressure_seals: "Pressure seals: fewer leaks." / "Герметизация: меньше утечек."
+ dynamo: "Dynamo: more power from the same crew." / "Динамо: больше энергии от той же бригады."
+ substation: "Substation: steadier power." / "Подстанция: ровнее энергия."
+ drill_heads: "Drill heads: digging goes faster." / "Буровые головки: копать быстрее."
+ armor: "Armour plates: the workshop survives raids." / "Бронелисты: мастерская переживёт налёт."
+ quarantine_ward: "Quarantine ward: the sick are kept apart." / "Карантинная палата: больных держат отдельно."
+ loudspeakers: "Loudspeakers: the hall reaches the whole platform." / "Громкоговорители: зал слышит вся платформа."
+ antenna: "Antenna: the radio hears farther." / "Антенна: радио слышит дальше."
+Check each line against what the upgrade really does in the sim and REPORT any line that is wrong; do not change the sim to fit the text.
+
+PART A CHECKS: all 8 gates green; bot output identical to HEAD line by line (UI only, no numbers change). Test: tier shows on the sign and the card for tiers 0, 1, 2; the before/after numbers equal the applied change after buying. Screenshots EN and RU at 1280x720 and 1024x768: two same rooms (one upgraded), room card before and after, the toast. Commit: "Upgrades you can see: tier plate, glow, before and after". Do not build.
+
+PART B (PROPOSAL, DO NOT START without the owner's yes; it changes balance and needs the 30-seed gates rerun with a documented decision)
+B1 One upgrade per station per week (a player was able to buy two in one week).
+B2 Upgrade cost x1.5 (rounded): quarters 9, workshop 9, hydroponics 12, air filter 12, generator 15, infirmary 12, meeting hall 12, radio 12.
+B3 Optionally the upgrade takes a week of crew work like a build, and the room runs at the old tier meanwhile.
+Report with PART B: the bot's upgrade counts per run before and after, and the gates.
+
+PART A RESULT (12 Oct): done, commit c6b7fd7, accepted by the lead after screenshots. Tier number = number of upgrades bought (Dynamo is Tier I, Substation Tier II); the example "Tier II: Dynamo" in this brief was wrong, Cursor's numbering stays.
+
+PART C (FOUND BY CURSOR, PROPOSAL, needs the owner's yes; it is a balance change)
+Today every upgrade only gives +25% of the room's base output. So the following upgrades DO NOTHING real: bunks, family (quarters have no output), quarantine_ward (infirmary), antenna (radio); and drill_heads, armor, mushroom_beds, pressure_seals, substation, loudspeakers only give +25% while their names promise more. The player pays 6 to 10 materials for a plate. That breaks the owner's goal (satisfaction from upgrading).
+Proposal, using ONLY mechanics the game already has, small numbers:
+ bunks: +2 beds. family: +2 beds and housing comfort (no new rule). quarantine_ward: the Cough costs fewer crew-weeks (use the existing quarantine numbers). antenna: the radio hears one more station tier (use the existing radio reach).
+ Others keep +25% and the text says exactly that ("+25% materials"); remove promises the sim does not keep (raid armour, faster digging, steadier power, less light).
+Cursor: first list for all 13 upgrades the REAL effect today and the nearest existing mechanic for each dead one; propose exact numbers; run the 30-seed gates and write a decision in docs/audit/balance_gate_decisions.md. Do not apply without the owner's yes.
+
+OWNER DECISION 12 Oct 2026 (replaces PART B items B1 to B3; the one-per-week limit and the one-week work time are NOT approved): the FIRST upgrade of a room costs what it costs today; each further upgrade of the same room costs more.
+PART B2 (GO): upgrade cost by tier = upgrade_materials for tier 1, x1.5 rounded up for tier 2 (quarters 9, workshop 9, hydroponics 12, air filter 12, generator 15, infirmary 12, meeting hall 12, radio 12; rooms with one upgrade only never pay more). Put the multiplier in data (rooms.json or balance json: "upgrade_step_cost": [1.0, 1.5]) not in code. The card and button show the real price for the next tier. Everything else stays.
+This is a balance change approved by the owner. Rerun all 8 gates and the 30-seed balance; the bot buys upgrades, so expect small changes: report bot upgrade counts and the survival and ending numbers before and after, and write the decision in docs/audit/balance_gate_decisions.md. If a gate fails, do not tune numbers more than 3 iterations: report. Commit: "Upgrades: second tier costs more". Do not build.
+PART C (dead upgrades) still waits for the owner's yes.
+
+OWNER DECISION 12 Oct 2026 (second): "upgrades must obviously improve things, in gameplay and visually." PART C is GO. Order of work: B2 first (own commit), then C (own commit).
+PART C execution: every one of the 13 upgrades must have a real, visible effect in the sim that matches its name, using only existing mechanics, small numbers; the +25% output tier effect may stay for production rooms. For each dead or partial upgrade (bunks, family, quarantine_ward, antenna, mushroom_beds, pressure_seals, substation, drill_heads, armor, loudspeakers) implement the nearest existing mechanic from the proposal in PART C above, or the closest honest one, and make the card text say exactly what it does with the real numbers. Remove any text the sim does not keep. Run the 30-seed gates; up to 3 tuning iterations inside the new numbers only; if a gate still fails, stop and report without committing. Write the decision and numbers in docs/audit/balance_gate_decisions.md. Commit: "Upgrades: every upgrade does something". Do not build.
+VISUAL: the lead is ordering drawn upgrade art (docs/briefs/art_room_upgrades.txt). Do not wire images until the lead delivers them in assets/rooms/upgrades/. When they arrive: each room shows the image of its highest bought tier (room_<id>_t<N>) instead of the base image; keep the brass plate; keep a fallback to the layered effect if a file is missing.
+
+ART DELIVERED 12 Oct 2026: 13 images accepted by the lead, installed as PNG (not webp) in assets/rooms/upgrades/room_<id>_t<N>.png, 512x320, N = number of upgrades bought (t1 first upgrade, t2 second). Rooms with one upgrade have only t1. Wire them now: a room shows the image of its highest bought tier instead of the base image; keep the brass plate; fall back to the base image or the layered effect if a file is missing. Run the headless import so .import files exist; check that the playtest export includes assets/rooms/upgrades/ (the exclude list must not drop it) and that export size grows by about 3.5 MB only.

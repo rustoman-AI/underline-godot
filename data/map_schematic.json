@@ -1,0 +1,135 @@
+{
+  "_note": "Schematic layout of the station network: positions in schematic px, only for the Network view (the real-map layout stays in map_pins.json). Spread so the lines and the transfer stations read at a glance. Display only: nothing in the sim reads this file.",
+  "size": [
+    1960,
+    1100
+  ],
+  "boroughs": [
+    {
+      "en": "MANHATTAN",
+      "ru": "МАНХЭТТЕН",
+      "at": [
+        -3,
+        260
+      ]
+    },
+    {
+      "en": "BROOKLYN",
+      "ru": "БРУКЛИН",
+      "at": [
+        1241,
+        1010
+      ]
+    },
+    {
+      "en": "QUEENS",
+      "ru": "КВИНС",
+      "at": [
+        1776,
+        170
+      ]
+    }
+  ],
+  "stations": {
+    "chapel": [
+      390,
+      150
+    ],
+    "central": [
+      390,
+      310
+    ],
+    "northgate": [
+      808,
+      250
+    ],
+    "foundry": [
+      170,
+      440
+    ],
+    "plaza": [
+      390,
+      543
+    ],
+    "stadium": [
+      684,
+      554
+    ],
+    "market": [
+      701,
+      689
+    ],
+    "clocktower": [
+      390,
+      700
+    ],
+    "dockyard": [
+      390,
+      857
+    ],
+    "trampark": [
+      249,
+      970
+    ],
+    "eastwater": [
+      613,
+      970
+    ],
+    "quarry": [
+      755,
+      846
+    ],
+    "harbor": [
+      968,
+      700
+    ],
+    "observatory": [
+      968,
+      801
+    ],
+    "library": [
+      1152,
+      902
+    ],
+    "brickworks": [
+      1330,
+      857
+    ],
+    "riverside": [
+      1490,
+      778
+    ],
+    "southdepot": [
+      1707,
+      950
+    ],
+    "mill": [
+      1264,
+      480
+    ],
+    "garden": [
+      1776,
+      310
+    ],
+    "westfield": [
+      1697,
+      633
+    ],
+    "archive": [
+      154,
+      823
+    ],
+    "vault": [
+      914,
+      1010
+    ],
+    "oldcommand": [
+      1129,
+      990
+    ],
+    "signal": [
+      1392,
+      633
+    ]
+  }
+}

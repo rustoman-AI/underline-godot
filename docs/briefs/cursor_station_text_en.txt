@@ -1,0 +1,10 @@
+CURSOR: ENGLISH STATION TEXT AND UPDATED RU STATION TEXT
+Local only. No push. Text belongs to the project lead; do not edit wording.
+
+Done by the lead (uncommitted): data/station_communities.json (RU) has corrected hub art lines, "Синод тоннеля" capitalisation, the Directorate wording, and "Закрытая Линия" instead of the old nationalist militia. New file data/station_communities_en.json holds English community, who, conflict and art for all 25 stations (same ids). Also .tools/build_station_en.js, the one-off script that produced it.
+
+Do:
+1. Where station_communities.json is loaded into game.stations, also load station_communities_en.json. When the game language is not Russian, use the English community / who / conflict / art for display: _station_name() in ui/station.gd, and the station sheet, visit screen quote and description, and map labels in ui/network_view.gd. Russian keeps using the Russian fields. If an English field is missing, fall back to the Russian one and print a warning in the check (not at runtime for players).
+2. Add a check: every station id in the RU file has all four EN fields, none empty, no Cyrillic in the EN file, no em dash in either file.
+3. Screenshots, EN and RU at 1280x720: the visit screen for northgate, chapel, trampark, brickworks, plus the station sheet of two more stations (for example central and southdepot). EN must show no Russian text.
+4. Checks: bot_run, check_audience, check_save, check_network, check_slice. Commit locally: "Station text: English layer, hub art lines" (include data/station_communities.json, data/station_communities_en.json, code, .tools/build_station_en.js). No push.

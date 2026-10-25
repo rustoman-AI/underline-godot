@@ -1,0 +1,11 @@
+Draw an animation sheet of the attached three guards marching: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, clothes, gear and size as the attached squad reference. All three are in step in every frame.
+
+Frame 1: right heels touch the ground in front, left legs behind (contact).
+Frame 2: weight down on the right legs, bodies lowest (down).
+Frame 3: left legs pass the right, bodies upright (passing).
+Frame 4: left heels touch the ground in front, right legs behind (contact, mirror of frame 1).
+Frame 5: weight down on the left legs (down).
+Frame 6: right legs pass the left (passing).
+Arms swing against the legs. The lamp, the spear and the shield keep their size and shape; the grey armbands stay exactly the same grey. The soles touching the ground sit on the same line in every frame, with clear empty space below the boots and above the spear tip.
+
+Leave a wide empty transparent gap between neighbouring frames, clearly empty between frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.

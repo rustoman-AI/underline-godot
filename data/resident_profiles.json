@@ -1,0 +1,469 @@
+{
+  "_note": "Resident profiles by the project lead. residents.<id>: sex (m or f), portrait pin (existing portrait file stem; kim, chris, mina, drew, ann have none because the Coney cast renames them and data/cast_portraits.json pins their portraits; outside a Coney game they take a portrait of their sex from the pool), title (profession before the Silence), before (one sentence), keepsake (one object). cast: sex of the Coney cast. portrait_sex: sex of each portrait. generated_names: sex of the first names in data/names.json. Dossier shows title under the name, and Before the Silence, Keepsake from these fields.",
+  "residents": {
+    "jonah": {
+      "sex": "m",
+      "title": {
+        "en": "Reserve sergeant",
+        "ru": "Сержант запаса"
+      },
+      "before": {
+        "en": "Lived on the fifth floor in Brooklyn under the elevated. Led a squad of six onto the bridge the night the lights went out.",
+        "ru": "Жил на пятом этаже в Бруклине под эстакадой. В ночь, когда погас свет, повёл отряд из шести человек на мост."
+      },
+      "keepsake": {
+        "en": "Six dog tags on a bootlace",
+        "ru": "Шесть жетонов на шнурке от ботинка"
+      },
+      "portrait": "portrait_01"
+    },
+    "inez": {
+      "sex": "f",
+      "title": {
+        "en": "Court interpreter",
+        "ru": "Судебная переводчица"
+      },
+      "before": {
+        "en": "Grew up with her mother's kitchen radio on from breakfast to midnight. Had the papers and the truck to get her mother out of the city.",
+        "ru": "Выросла под кухонное радио матери с завтрака до полуночи. У неё были бумаги и грузовик, чтобы вывезти мать из города."
+      },
+      "keepsake": {
+        "en": "Her mother's kitchen radio, silent",
+        "ru": "Кухонное радио матери, молчащее"
+      },
+      "portrait": "portrait_02"
+    },
+    "mara": {
+      "sex": "f",
+      "title": {
+        "en": "Express motorman",
+        "ru": "Машинистка экспресса"
+      },
+      "before": {
+        "en": "Drove the express out of Stillwell at dawn. Planned to retire with Reyes to a little house past the fence.",
+        "ru": "Водила экспресс из Стиллвелла на рассвете. Мечтала вместе с Рейесом уйти на покой в домик за оградой."
+      },
+      "keepsake": {
+        "en": "A packet of tomato seeds she and Reyes never planted",
+        "ru": "Пакетик семян томатов, которые они с Рейесом так и не посадили"
+      },
+      "portrait": "portrait_13"
+    },
+    "ruth": {
+      "sex": "f",
+      "title": {
+        "en": "Night nurse",
+        "ru": "Ночная медсестра"
+      },
+      "before": {
+        "en": "Worked hospital nights until one minute asleep on watch cost her a patient. Has not slept properly since.",
+        "ru": "Работала в больнице по ночам, пока минута сна на дежурстве не стоила ей пациентки. С тех пор толком не спит."
+      },
+      "keepsake": {
+        "en": "A half-finished scarf and two needles",
+        "ru": "Недовязанный шарф и две спицы"
+      },
+      "portrait": "portrait_24"
+    },
+    "benny": {
+      "sex": "m",
+      "title": {
+        "en": "Bodega owner",
+        "ru": "Хозяин бодеги"
+      },
+      "before": {
+        "en": "Ran a bodega on Neptune Avenue. Knew everyone's brand of cigarettes and everyone's business.",
+        "ru": "Держал бодегу на Нептьюн-авеню. Знал, кто какие курит сигареты и кто чем живёт."
+      },
+      "keepsake": {
+        "en": "The bell from his shop door",
+        "ru": "Колокольчик с двери его лавки"
+      },
+      "portrait": "portrait_27"
+    },
+    "ellis": {
+      "sex": "m",
+      "title": {
+        "en": "Chapel sexton",
+        "ru": "Церковный служитель"
+      },
+      "before": {
+        "en": "Rang the Sunday bells and kept the chapel keys. Locked the doors when the panic came.",
+        "ru": "Звонил в воскресные колокола и хранил ключи от часовни. Запер двери, когда началась паника."
+      },
+      "keepsake": {
+        "en": "The chapel key",
+        "ru": "Ключ от часовни"
+      },
+      "portrait": "portrait_03"
+    },
+    "samira": {
+      "sex": "f",
+      "title": {
+        "en": "Machinist's daughter, welder",
+        "ru": "Дочь механика, сварщица"
+      },
+      "before": {
+        "en": "Built a small two-stroke engine with her father in his workshop. They never finished it.",
+        "ru": "Вместе с отцом собирала в его мастерской маленький двухтактный двигатель. Они так его и не закончили."
+      },
+      "keepsake": {
+        "en": "A brass piston from the unfinished engine",
+        "ru": "Латунный поршень от недоделанного двигателя"
+      },
+      "portrait": "portrait_19"
+    },
+    "owen": {
+      "sex": "m",
+      "title": {
+        "en": "Quartermaster, retired",
+        "ru": "Интендант в отставке"
+      },
+      "before": {
+        "en": "Marched in the parades. Counts the bowls now, twice each, since the winter he shorted a child.",
+        "ru": "Ходил на парады. Теперь считает миски, каждую дважды, с той зимы, когда обделил ребёнка."
+      },
+      "keepsake": {
+        "en": "A pair of drumsticks",
+        "ru": "Пара барабанных палочек"
+      },
+      "portrait": "portrait_20"
+    },
+    "lila": {
+      "sex": "f",
+      "title": {
+        "en": "Roofer",
+        "ru": "Кровельщица"
+      },
+      "before": {
+        "en": "Spent her days on tar-paper rooftops above the city. Froze on a stairwell last year when her sister called her name.",
+        "ru": "Дни проводила на толевых крышах над городом. В прошлом году застыла на лестнице, когда сестра звала её по имени."
+      },
+      "keepsake": {
+        "en": "A square of warm tar paper",
+        "ru": "Квадрат нагретого рубероида"
+      },
+      "portrait": "portrait_06"
+    },
+    "pete": {
+      "sex": "m",
+      "title": {
+        "en": "Handyman",
+        "ru": "Мастер на все руки"
+      },
+      "before": {
+        "en": "Promised his mother every Sunday to fix her leaking roof. Still owes her the shingles.",
+        "ru": "Каждое воскресенье обещал матери починить протекающую крышу. Всё ещё должен ей черепицу."
+      },
+      "keepsake": {
+        "en": "One roofing shingle",
+        "ru": "Одна кровельная плитка"
+      },
+      "portrait": "portrait_11"
+    },
+    "june": {
+      "sex": "f",
+      "title": {
+        "en": "Night radio operator",
+        "ru": "Оператор ночного радио"
+      },
+      "before": {
+        "en": "Fell asleep to late-night radio every night. Did not call her brother back the night before the Silence.",
+        "ru": "Каждую ночь засыпала под ночное радио. Не перезвонила брату накануне Тишины."
+      },
+      "keepsake": {
+        "en": "A dead phone with her brother's number",
+        "ru": "Мёртвый телефон с номером брата"
+      },
+      "portrait": "portrait_21"
+    },
+    "hal": {
+      "sex": "m",
+      "title": {
+        "en": "Night bus driver",
+        "ru": "Водитель ночного автобуса"
+      },
+      "before": {
+        "en": "Drove the Q35 airport run from one to five in the morning. Promised his wife he would switch to days in the spring.",
+        "ru": "Водил Q35 до аэропорта с часу до пяти утра. Обещал жене перейти на дневные смены весной."
+      },
+      "keepsake": {
+        "en": "A transfer ticket from the Q35",
+        "ru": "Пересадочный талон с Q35"
+      },
+      "portrait": "portrait_23"
+    },
+    "nora": {
+      "sex": "f",
+      "title": {
+        "en": "Ferry deckhand",
+        "ru": "Матрос на пароме"
+      },
+      "before": {
+        "en": "Her father was a fisherman who taught her to read the water. She stood at the ferry rail and breathed the sea.",
+        "ru": "Отец был рыбаком и учил её читать воду. Она стояла у поручня парома и дышала морем."
+      },
+      "keepsake": {
+        "en": "Her father's tide table",
+        "ru": "Таблица приливов её отца"
+      },
+      "portrait": "portrait_28"
+    },
+    "vic": {
+      "sex": "m",
+      "title": {
+        "en": "Scrap hunter",
+        "ru": "Сборщик лома"
+      },
+      "before": {
+        "en": "Spent Sundays in the Flatlands junkyard with his father, who always knew what a thing used to be.",
+        "ru": "Воскресенья проводил на свалке во Флэтлендсе с отцом, который всегда знал, чем вещь была раньше."
+      },
+      "keepsake": {
+        "en": "A scrap of wood burned with the letters VIC",
+        "ru": "Обломок доски с выжженными буквами VIC"
+      },
+      "portrait": "portrait_16"
+    },
+    "ada": {
+      "sex": "f",
+      "title": {
+        "en": "Office clerk",
+        "ru": "Конторская служащая"
+      },
+      "before": {
+        "en": "Lived alone behind a locked door with her name on a brass plate. Now sleeps among forty bunks.",
+        "ru": "Жила одна за запертой дверью с латунной табличкой. Теперь спит среди сорока коек."
+      },
+      "keepsake": {
+        "en": "A brass nameplate",
+        "ru": "Латунная табличка с именем"
+      },
+      "portrait": "portrait_10"
+    },
+    "rob": {
+      "sex": "m",
+      "title": {
+        "en": "Assembly line worker",
+        "ru": "Рабочий сборочной линии"
+      },
+      "before": {
+        "en": "Worked third shift at the plant. Missed the first three days of his daughter's life for overtime.",
+        "ru": "Работал в третью смену на заводе. Из-за сверхурочных пропустил первые три дня жизни дочери."
+      },
+      "keepsake": {
+        "en": "The plant's shift whistle",
+        "ru": "Заводской свисток смены"
+      },
+      "portrait": "portrait_22"
+    },
+    "tess": {
+      "sex": "f",
+      "title": {
+        "en": "Parish choir alto",
+        "ru": "Альт приходского хора"
+      },
+      "before": {
+        "en": "Sang in a twenty-voice parish choir with folding chairs and an untuned piano. Froze when the panic hit the platform.",
+        "ru": "Пела в приходском хоре на двадцать голосов: складные стулья и расстроенное пианино. Застыла, когда на платформе началась паника."
+      },
+      "keepsake": {
+        "en": "A hymnbook with a taped spine",
+        "ru": "Сборник гимнов с подклеенным корешком"
+      },
+      "portrait": "portrait_17"
+    },
+    "paul": {
+      "sex": "m",
+      "title": {
+        "en": "Subway motorman",
+        "ru": "Машинист метро"
+      },
+      "before": {
+        "en": "Drove the Brighton line for years. On the night of the derailment he was two minutes behind schedule.",
+        "ru": "Много лет водил линию Брайтон. В ночь схода с рельсов он опаздывал на две минуты."
+      },
+      "keepsake": {
+        "en": "A watch stopped at the minute of the derailment",
+        "ru": "Часы, остановившиеся в минуту схода с рельсов"
+      },
+      "portrait": "portrait_14"
+    },
+    "leo": {
+      "sex": "m",
+      "title": {
+        "en": "Schoolboy, welder's apprentice",
+        "ru": "Школьник, подмастерье сварщика"
+      },
+      "before": {
+        "en": "Was thirteen when the Silence came. Learned to weld by watching Samira for a month.",
+        "ru": "Ему было тринадцать, когда пришла Тишина. Научился варить, месяц наблюдая за Самирой."
+      },
+      "keepsake": {
+        "en": "A stub of chalk",
+        "ru": "Огрызок мела"
+      },
+      "portrait": "portrait_25"
+    },
+    "fran": {
+      "sex": "f",
+      "title": {
+        "en": "Dockside messenger",
+        "ru": "Посыльная в порту"
+      },
+      "before": {
+        "en": "Ran messages for longshoremen from the age of twelve. Never caught, not once.",
+        "ru": "С двенадцати лет бегала посыльной у грузчиков. Её ни разу не поймали."
+      },
+      "keepsake": {
+        "en": "A wrapper from the longshoremen's candy",
+        "ru": "Фантик от конфет грузчиков"
+      },
+      "portrait": "portrait_26"
+    },
+    "kim": {
+      "sex": "f",
+      "title": {
+        "en": "Waterworks technician",
+        "ru": "Техник водопровода"
+      },
+      "before": {
+        "en": "Learned every valve and pipe of the cistern for her brother, who did not wait to see if she would.",
+        "ru": "Выучила каждый вентиль и трубу цистерны ради брата, который не дождался, выучит ли она."
+      },
+      "keepsake": {
+        "en": "A brass valve key",
+        "ru": "Латунный ключ от вентиля"
+      }
+    },
+    "chris": {
+      "sex": "m",
+      "title": {
+        "en": "Drill sergeant",
+        "ru": "Сержант-инструктор"
+      },
+      "before": {
+        "en": "Ran the morning inspections for two years. Still checks the bunks at dawn.",
+        "ru": "Два года проводил утренние проверки. До сих пор обходит койки на рассвете."
+      },
+      "keepsake": {
+        "en": "A bugle mouthpiece",
+        "ru": "Мундштук горна"
+      }
+    },
+    "mina": {
+      "sex": "f",
+      "title": {
+        "en": "Rooftop gardener",
+        "ru": "Садовница с крыши"
+      },
+      "before": {
+        "en": "Grew tomatoes on her grandmother's garden plot. Ate the last apple that was meant for seed.",
+        "ru": "Растила помидоры на бабушкином огороде. Съела последнее яблоко, предназначенное для семян."
+      },
+      "keepsake": {
+        "en": "A tin can with the first bean",
+        "ru": "Консервная банка с первой фасолью"
+      }
+    },
+    "drew": {
+      "sex": "m",
+      "title": {
+        "en": "Bike courier",
+        "ru": "Велокурьер"
+      },
+      "before": {
+        "en": "Played streetball on 18th. Told his girl he would be back before dark, and was three stations away.",
+        "ru": "Играл в стритбол на 18-й. Сказал своей девушке, что вернётся до темноты, и оказался в трёх станциях от дома."
+      },
+      "keepsake": {
+        "en": "A pair of worn running shoes",
+        "ru": "Пара сношенных кроссовок"
+      }
+    },
+    "ann": {
+      "sex": "f",
+      "title": {
+        "en": "Market stall keeper",
+        "ru": "Торговка на рынке"
+      },
+      "before": {
+        "en": "Worked her brother Benny's stall on Saturdays. Gave her seat on the last truck to an old woman.",
+        "ru": "По субботам работала за прилавком у брата Бенни. Отдала своё место в последнем грузовике старой женщине."
+      },
+      "keepsake": {
+        "en": "A paper bag of dried orange peel",
+        "ru": "Бумажный пакет с сушёными корками апельсина"
+      }
+    }
+  },
+  "cast": {
+    "old_man_coney": {
+      "sex": "m"
+    },
+    "salty_maggie": {
+      "sex": "f"
+    },
+    "bait": {
+      "sex": "m"
+    },
+    "barnum": {
+      "sex": "m"
+    },
+    "sylvia": {
+      "sex": "f"
+    }
+  },
+  "portrait_sex": {
+    "portrait_01": "m",
+    "portrait_02": "f",
+    "portrait_03": "m",
+    "portrait_04": "f",
+    "portrait_05": "m",
+    "portrait_06": "f",
+    "portrait_07": "m",
+    "portrait_08": "f",
+    "portrait_09": "m",
+    "portrait_10": "f",
+    "portrait_11": "m",
+    "portrait_12": "m",
+    "portrait_13": "f",
+    "portrait_14": "m",
+    "portrait_15": "m",
+    "portrait_16": "m",
+    "portrait_17": "f",
+    "portrait_18": "m",
+    "portrait_19": "f",
+    "portrait_20": "m",
+    "portrait_21": "f",
+    "portrait_22": "m",
+    "portrait_23": "m",
+    "portrait_24": "f",
+    "portrait_25": "m",
+    "portrait_26": "f",
+    "portrait_27": "m",
+    "portrait_28": "f"
+  },
+  "generated_names": {
+    "Ned": "m",
+    "Ida": "f",
+    "Seth": "m",
+    "May": "f",
+    "Carl": "m",
+    "Eva": "f",
+    "Hugh": "m",
+    "Lois": "f",
+    "Walt": "m",
+    "Cora": "f",
+    "Fred": "m",
+    "Nina": "f",
+    "Otto": "m",
+    "Bea": "f",
+    "Gil": "m",
+    "Rosa": "f",
+    "Hank": "m",
+    "Thea": "f",
+    "Joel": "m",
+    "Pam": "f"
+  }
+}

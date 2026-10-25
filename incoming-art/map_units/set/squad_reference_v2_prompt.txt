@@ -1,0 +1,5 @@
+Keep this picture exactly as it is: the same three guards, faces, clothes, gear, poses, style and size. Change only
+two things. First, repaint the three armbands in one plain neutral light grey with no warm, beige or blue cast,
+like a grey card, the same grey on all three. Second, make the canvas taller and move everything down so the
+spear tip and every other part stay well inside the image with clear empty space above. Transparent background
+with real alpha, no glow, no halo, no ground, no shadow, no text.

@@ -1,0 +1,9 @@
+Draw an animation sheet of the attached three guards standing guard: 4 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, clothes, gear and size as the attached squad reference. Feet planted on the same line in every frame, with clear empty space below the boots and above the spear tip.
+
+Frame 1: standing at rest, lamp held at chest height, spear upright on the ground, shield at the side.
+Frame 2: the front guard lifts the lamp a little higher; the others shift their weight to one leg.
+Frame 3: the lamp back at chest height; the woman lifts the shield slightly.
+Frame 4: the same as frame 1.
+The lamp flame changes shape a little in each frame. Nothing else changes.
+
+Leave a wide empty transparent gap between neighbouring frames, clearly empty between frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no grid lines, no numbers, no text.

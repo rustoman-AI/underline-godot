@@ -40,33 +40,28 @@ static func sympathy_gain(base: float, player_lean: String, station_lean: String
 	return int(round(base * lean_mult(player_lean, station_lean) * need_factor(avg_fill)))
 
 
-## First 4 weeks the capital pays upkeep. After that the outpost ships surplus, minus 1 per tunnel segment.
-static func outpost_flow(age: int, hops: int, focus: String) -> Dictionary:
+## First 4 weeks the capital pays upkeep. After that the outpost ships its own goods (base, the station's table in
+## data; the old flat 5 food, 3 materials, 2 tokens when none is given) plus its focus, minus 1 of each per tunnel
+## segment. A governor adds bonus to the focus good after the distance penalty, and may shorten settling in.
+const FLAT_BASE := {"food": 5, "materials": 3, "tokens": 2}
+const FOCUS_ADD := {"food": {"food": 2}, "defense": {"materials": 2}, "influence": {"influence": 6}, "air": {"air": 2}}
+
+
+static func outpost_flow(age: int, hops: int, focus: String, bonus: int = 0, settle: int = 4, base: Dictionary = {}) -> Dictionary:
 	var flow := {"food": 0, "materials": 0, "tokens": 0, "influence": 0, "air": 0, "upkeep_materials": 0}
 	if hops < 1 or hops >= 900 or age <= 0:
 		return flow
-	if age <= 4:
+	if age <= settle:
 		flow.upkeep_materials = 1
 		return flow
-	var food := 5
-	var materials := 3
-	var tokens := 2
-	var influence := 0
-	var air := 0
-	match focus:
-		"food":
-			food = 7
-		"defense":
-			materials = 5
-		"influence":
-			influence = 6
-		"air":
-			air = 2
-	flow.food = maxi(0, food - hops)
-	flow.materials = maxi(0, materials - hops)
-	flow.tokens = maxi(0, tokens - hops)
-	flow.influence = maxi(0, influence - hops)
-	flow.air = maxi(0, air - hops)
+	var own: Dictionary = base if not base.is_empty() else FLAT_BASE
+	var add: Dictionary = FOCUS_ADD.get(focus, {})
+	for key in ["food", "materials", "tokens", "influence", "air"]:
+		var amount := int(own.get(key, 0)) + int(add.get(key, 0))
+		flow[key] = maxi(0, amount - hops)
+	if bonus > 0:
+		var good: String = {"food": "food", "air": "air", "defense": "materials", "influence": "influence"}.get(focus, "food")
+		flow[good] = int(flow[good]) + bonus
 	return flow
 
 
@@ -103,6 +98,10 @@ static func self_check() -> PackedStringArray:
 	var ripe: Dictionary = outpost_flow(5, 2, "food")
 	if int(ripe.food) != 5 or int(ripe.upkeep_materials) != 0:
 		errs.append("surplus %s" % ripe)
+	# Own goods: copper mine 1/6/3 at 2 hops on fortify ships 0 food, 6 materials, 1 token.
+	var mine: Dictionary = outpost_flow(6, 2, "defense", 0, 4, {"food": 1, "materials": 6, "tokens": 3})
+	if int(mine.food) != 0 or int(mine.materials) != 6 or int(mine.tokens) != 1:
+		errs.append("own goods %s" % mine)
 	var cut: Dictionary = outpost_flow(8, 999, "food")
 	if int(cut.food) != 0 or int(cut.upkeep_materials) != 0:
 		errs.append("cut %s" % cut)

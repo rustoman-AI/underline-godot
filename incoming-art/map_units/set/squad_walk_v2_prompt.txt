@@ -1,0 +1,14 @@
+Keep frame 1 exactly as it is in the attached sheet. Redraw the other frames so they match frame 1 exactly in the people, their clothes, the gear, the vehicle, the size and the ground or rail height, and follow the frame list from the first prompt exactly. Keep the wide empty gaps between frames and the transparent background.
+
+Draw an animation sheet of the attached three guards marching: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, clothes, gear and size as the attached squad reference. All three are in step in every frame.
+
+Frame 1: right heels touch the ground in front, left legs behind (contact).
+Frame 2: weight down on the right legs, bodies lowest (down).
+Frame 3: left legs pass the right, bodies upright (passing).
+Frame 4: left heels touch the ground in front, right legs behind (contact, mirror of frame 1).
+Frame 5: weight down on the left legs (down).
+Frame 6: right legs pass the left (passing).
+Arms swing against the legs. The lamp, the spear and the shield keep their size and shape; the grey armbands stay exactly the same grey. The soles touching the ground sit on the same line in every frame, with clear empty space below the boots and above the spear tip.
+
+Leave a wide empty transparent gap between neighbouring frames, clearly empty between frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+Specific corrections: keep the frame-1 character designs, but extend the canvas margins so ALL boots, lamps, shields and spear tips are complete and inside the canvas, with empty transparent space on all four sides. SIX DISTINCT walk phases, not six repeats of one stride: contact / down / passing / opposite contact / opposite down / opposite passing. Frame 3 and 6 must visibly have the swinging leg beneath the body passing the planted leg; frame 4 must have the opposite leg in front from frame 1. Match all three guards in step. Keep all three armbands neutral grey with no warm cast. Image 1 is the accepted squad reference; images 2 and 3 are pilot style references; image 4 is the previous sheet to correct.

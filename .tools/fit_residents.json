@@ -1,0 +1,15 @@
+{
+	"nominal_src": 2400,
+	"nominal_px": 570,
+	"tint_mix": 0.5,
+	"accepted": [
+		"body_01", "body_02", "workshop_01",
+		"body_03", "body_04", "body_05", "body_06", "body_07", "body_08",
+		"body_09", "body_10", "body_11", "body_12", "workshop_02", "workshop_03",
+		"air_filter_01", "generator_01", "generator_02", "hydroponics_01", "hydroponics_02", "hydroponics_03",
+		"air_filter_02", "infirmary_01", "infirmary_02", "radio_01"
+	],
+	"stems": {
+		"infirmary_02": {"seated": true, "standing_ratio": 1.0}
+	}
+}
