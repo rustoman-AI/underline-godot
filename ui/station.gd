@@ -32,6 +32,7 @@ const ROOM_COLOR := {
 	"infirmary": Color("a85a62"),
 	"meeting_hall": Color("7a6496"),
 	"radio": Color("3f74a0"),
+	"listening_post": Color("2f8f62"),
 }
 const URGENT_WEEKS := 2
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
@@ -158,6 +159,8 @@ var drawer_open := false
 var tray: HBoxContainer
 var people_button: Button
 var on_paper := false
+## Labels go through Copy.t. Shot tools can turn this off to keep source strings.
+var translate := true
 var turn_clear := false
 var card_fit_queued := false
 var card_fit_tries := 0
@@ -214,6 +217,7 @@ var guide_step := -1
 var guide_skips := 0
 var toast_label: Label
 var toast_fade: Tween
+var blown_flash: TextureRect
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
@@ -2803,6 +2807,8 @@ func room_title(room) -> String:
 ## "Mushroom beds: Food +75%, power use 2 -> 1." Built from the tier output bonus and balance.json upgrade_fx,
 ## so the card says exactly what the sim does.
 func _upgrade_what(id: String) -> String:
+	if id == "pipe_taps" or id == "dead_drop":
+		return "listening.upgrade.%s" % id
 	var type := ""
 	for key in game.catalog.rooms:
 		if game.catalog.rooms[key].get("upgrades", []).has(id):
@@ -3531,6 +3537,10 @@ func _show_room(uid: String) -> void:
 			sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			card_body.add_child(sub)
 	_room_header(detail)
+	if str(detail.type) == "listening_post":
+		_listening_card(uid)
+	elif str(detail.type) == "radio" and game.listening_active():
+		_body("listening.radio_helper")
 	if blocked:
 		var warn := _label(str(detail.get("disaster_note", "")), 17)
 		warn.add_theme_color_override("font_color", Color("8a2f22"))
@@ -3561,6 +3571,38 @@ func _show_room(uid: String) -> void:
 		card_body.add_child(_button("Laws", _show_laws))
 	_room_push(uid)
 	_room_switch(uid)
+
+
+func _listening_card(uid: String) -> void:
+	_body(game.listening_card_key())
+	var idle := game.listening_idle_line()
+	if idle != "":
+		_body_ready(idle)
+	for sid in game.listening_probe_targets():
+		var place := game.station_text(str(sid), "community")
+		var probe := _button("listening.probe", _queue_listening.bind(uid, "probe", str(sid), ""))
+		probe.text = "%s · %s · %d%%" % [Copy.t("listening.probe"), place, game.listening_blown_pct("probe")]
+		var why := game.order_block("probe", str(sid))
+		probe.disabled = why != ""
+		probe.tooltip_text = why if why != "" else Copy.t("listening.probe_tip")
+		card_body.add_child(probe)
+	for fid in game.listening_tap_targets():
+		var tap := _button("listening.tap", _queue_listening.bind(uid, "tap", "", str(fid)))
+		tap.text = "%s · %s · %d%%" % [Copy.t("listening.tap"), Copy.t(game._fname(str(fid))), game.listening_blown_pct("tap")]
+		var why := game.order_block("tap", str(fid))
+		tap.disabled = why != ""
+		tap.tooltip_text = why if why != "" else Copy.t("listening.tap_tip")
+		card_body.add_child(tap)
+
+
+func _queue_listening(uid: String, kind: String, sid: String, fid: String) -> void:
+	var action := {"order": kind}
+	if kind == "probe":
+		action["station"] = sid
+	else:
+		action["faction"] = fid
+	if game.queue_order(action):
+		_show_room(uid)
 
 
 func _room_icon(type: String, px: int) -> Glyph:
@@ -4117,6 +4159,13 @@ func _law_blurb(defin: Dictionary) -> String:
 	return " ".join(bits)
 
 
+func _blown_toast(text: String) -> bool:
+	if text == Copy.t("listening.blown_dawn"):
+		return true
+	var stem := Copy.t("listening.blown").split("{station}")[0]
+	return stem != "" and text.begins_with(stem)
+
+
 func _toast(text: String, hold: float = 1.8) -> void:
 	if toast_label == null:
 		toast_label = _label("", 16, true)
@@ -4125,19 +4174,55 @@ func _toast(text: String, hold: float = 1.8) -> void:
 		toast_label.add_theme_constant_override("outline_size", 6)
 		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		add_child(toast_label)
+	var blown := _blown_toast(text)
+	if blown:
+		_arm_blown_flash()
+	elif blown_flash != null:
+		blown_flash.visible = false
 	toast_label.text = text
-	toast_label.position = Vector2(16.0, (hud.size.y if hud != null else 72.0) + 8.0)
+	var icon_w := 36.0 if blown else 0.0
+	toast_label.position = Vector2(16.0 + icon_w, (hud.size.y if hud != null else 72.0) + 8.0)
 	toast_label.visible = true
 	toast_label.modulate.a = 1.0
+	if blown_flash != null and blown:
+		blown_flash.position = Vector2(8.0, toast_label.position.y - 18.0)
+		blown_flash.modulate.a = 1.0
+		blown_flash.visible = true
 	if toast_fade != null and toast_fade.is_valid():
 		toast_fade.kill()
 	toast_fade = create_tween()
 	var fade := toast_fade
 	fade.tween_interval(hold)
 	fade.tween_property(toast_label, "modulate:a", 0.0, 0.35)
+	if blown_flash != null and blown:
+		fade.parallel().tween_property(blown_flash, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
 		if toast_label != null:
-			toast_label.visible = false)
+			toast_label.visible = false
+		if blown_flash != null:
+			blown_flash.visible = false)
+
+
+func _arm_blown_flash() -> void:
+	if blown_flash != null:
+		return
+	blown_flash = TextureRect.new()
+	blown_flash.texture = ArtPack.load_texture("res://assets/overlays/blown_flash.webp")
+	blown_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	blown_flash.z_index = 31
+	blown_flash.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	blown_flash.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	blown_flash.custom_minimum_size = Vector2(64, 64)
+	blown_flash.size = Vector2(64, 64)
+	var mark := TextureRect.new()
+	mark.texture = ArtPack.icon_texture("blown", 32.0)
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mark.position = Vector2(16, 16)
+	mark.size = Vector2(32, 32)
+	blown_flash.add_child(mark)
+	add_child(blown_flash)
 
 
 ## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.
@@ -7053,6 +7138,12 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 		text.add_child(line)
 	text.add_child(_makes_line(type, defin))
 	text.add_child(_cost_line(info, defin, building))
+	if type == "listening_post" and str(info.get("reason", "")) != "":
+		var why := _label("", 14)
+		why.text = str(info.reason)
+		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.add_child(why)
 	if not enabled:
 		var lock := Glyph.new()
 		lock.kind = "lock"
@@ -7147,6 +7238,9 @@ func _makes_line(type: String, defin: Dictionary) -> HBoxContainer:
 		glyph = "influence"
 	elif type == "radio":
 		words = Copy.t("2 tokens a week. Reveals intents.")
+	elif type == "listening_post":
+		words = "listening.desc"
+		glyph = "listen"
 	elif type == "infirmary":
 		words = Copy.t("Clears sickness")
 		glyph = "quarantine"
@@ -10892,6 +10986,7 @@ class Yard extends Control:
 		"meeting_hall": "res://assets/rooms/room_meeting_hall.webp",
 		"platform": "res://assets/rooms/room_platform.webp",
 		"radio": "res://assets/rooms/room_radio.webp",
+		"listening_post": "res://assets/rooms/room_listening_post.webp",
 	}
 	const TIER_ART := "res://assets/rooms/upgrades/room_%s_t%d.png"
 	const POSE_ART := {
@@ -10911,6 +11006,7 @@ class Yard extends Control:
 		"workshop": Color(0.95, 0.55, 0.22, 0.16),
 		"meeting_hall": Color(0.72, 0.58, 0.95, 0.16),
 		"radio": Color(0.55, 0.78, 1.0, 0.18),
+		"listening_post": Color(0.35, 0.95, 0.55, 0.22),
 		"platform": Color(1.0, 0.72, 0.40, 0.14),
 	}
 	# Backdrop image: tunnel rail, and how much of each side is the mouth.
@@ -10929,6 +11025,7 @@ class Yard extends Control:
 	var poses := {}
 	var figure_scale_px := 660.0
 	var lamp_glow: Texture2D
+	var probe_wash: Texture2D
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
 	## Room separation, kept light (Underline_Props_Pack_Light): one slim steel column on every line between cells,
@@ -11103,6 +11200,10 @@ class Yard extends Control:
 				continue
 			art_aspect = float(tex.get_width()) / float(tex.get_height())
 			art[type] = tex
+		var alt := ArtPack.load_texture("res://assets/rooms/room_listening_post_alt.webp")
+		if alt != null:
+			art["listening_post_alt"] = alt
+		probe_wash = ArtPack.load_texture("res://assets/overlays/room_probe.webp")
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
 		sep_pillar = ArtPack.load_texture("res://assets/separators/sep_slim_steel_column.webp")
 		edge_beam = ArtPack.load_texture("res://assets/edges/edge_ceiling_beam_albedo.png")
@@ -11708,8 +11809,12 @@ class Yard extends Control:
 			draw_rect(rect, Color(0.08, 0.07, 0.06))
 			var tier_tex: Texture2D = tier_art(room_type, int(room.upgrade)) if room != null else null
 			var texture = tier_tex if tier_tex != null else art.get(room_type, null)
+			if room_type == "listening_post" and tier_tex == null:
+				texture = _listening_plate()
 			if texture != null:
 				_blit_room(texture, rect)
+			if room_type == "listening_post" and station.game.listening_probe_live() and probe_wash != null:
+				draw_texture_rect(probe_wash, _art_rect(room_type, rect), false)
 			_draw_props(rect, room_type)
 			var salt := level * 6 + cell
 			var weak: bool = room != null and (bool(room.get("browned", false)) or station.dark_now.has(str(room.uid)) or station.power_loss.has(str(room.uid)))
@@ -11883,6 +11988,8 @@ class Yard extends Control:
 				return "Plat"
 			"radio":
 				return "Radio"
+			"listening_post":
+				return "Listen"
 			_:
 				return full
 
@@ -12333,6 +12440,18 @@ class Yard extends Control:
 			tier_cache[path] = tex if tex != null else false
 		var found = tier_cache[path]
 		return found if found is Texture2D else null
+
+	func _listening_plate() -> Texture2D:
+		var base: Texture2D = art.get("listening_post", null)
+		if station == null or station.game == null:
+			return base
+		if station.game.listening_probe_live():
+			return base
+		if station.game.listening_active() and int(station.game.week) % 2 == 1:
+			var alt: Texture2D = art.get("listening_post_alt", null)
+			if alt != null:
+				return alt
+		return base
 
 	func _art_rect(room_type: String, rect: Rect2) -> Rect2:
 		var texture: Texture2D = art.get(room_type, null)

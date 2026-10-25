@@ -169,6 +169,8 @@ var creed := ""
 var notices: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
 var perk_float_due := {}
+## Dawn-card line for a Listening Post order. Not saved.
+var listening_line := ""
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -934,6 +936,11 @@ func build_possible(type: String) -> bool:
 	if defin.is_empty() or not bool(defin.get("buildable", false)):
 		return false
 	if not build.is_empty():
+		return false
+	var cap := int(defin.get("max", 0))
+	if cap > 0 and room_count(type) >= cap:
+		return false
+	if type == "listening_post" and listening_build_block() != "":
 		return false
 	if int(stock.materials) < int(defin.materials):
 		return false
@@ -2806,6 +2813,15 @@ func build_preview(type: String, level: int, cell: int) -> Dictionary:
 		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(int(defin.materials), "material"), Words.count(int(stock.materials), "material")])
 	if _free_count() < int(bal.build_workers):
 		reasons.append(Copy.t("Needs %s free. %s are free.") % [Words.count(int(bal.build_workers), "person", "people"), Words.count(_free_count(), "person", "people")])
+	if type == "listening_post":
+		var radio := listening_build_block()
+		if radio != "":
+			reasons.append(radio)
+	var cap := int(defin.get("max", 0))
+	if cap > 0 and room_count(type) >= cap:
+		info.reason = " ".join(reasons)
+		info.ok = false
+		return info
 	info.reason = " ".join(reasons)
 	info.ok = reasons.is_empty()
 	return info
@@ -2923,6 +2939,8 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 	people[person_id]["seat_weeks"] = 0
 	decisions += 1
 	_log("ASSIGN %s to %s" % [people[person_id].name, catalog.rooms[room.type].name])
+	if str(room.type) == "listening_post":
+		notices.append(listening_assign_line(person_id))
 	return true
 
 
@@ -3121,6 +3139,9 @@ func buildable_types() -> Array:
 	for type in catalog.rooms.keys():
 		var defin: Dictionary = catalog.rooms[type]
 		if bool(defin.get("buildable", false)):
+			var cap := int(defin.get("max", 0))
+			if cap > 0 and room_count(str(type)) >= cap:
+				continue
 			rows.append(type)
 	return rows
 
@@ -3455,7 +3476,13 @@ func _apply_order(action: Dictionary) -> bool:
 			ok = _order_approach_quarantine()
 		"address":
 			ok = _order_address()
+		"probe":
+			ok = _order_probe(str(action.get("station", action.get("dest", ""))))
+		"tap":
+			ok = _order_tap(str(action.get("faction", "")))
 	if ok:
+		if order == "probe" or order == "tap":
+			flags["listening_order_week"] = week
 		orders_left -= 1
 		decisions += 1
 		_take_seat(order)
@@ -3613,6 +3640,10 @@ func order_cost(kind: String, _sid: String = "") -> Dictionary:
 			return {"food": int(bal.get("raid_pack_food", 2))}
 		"breach":
 			return {"materials": int(bal.get("breach_materials", 6))}
+		"probe":
+			return {"tokens": int(bal.get("probe_tokens", 3))}
+		"tap":
+			return {"food": 2}
 		_:
 			return {}
 	return {}
@@ -3633,6 +3664,8 @@ func move_food(dest: String) -> int:
 func queue_order(action: Dictionary) -> bool:
 	var kind := str(action.get("order", ""))
 	var sid := str(action.get("station", action.get("dest", "")))
+	if kind == "tap":
+		sid = str(action.get("faction", sid))
 	if order_block(kind, sid) != "":
 		return false
 	var who := order_councillor()
@@ -3649,6 +3682,14 @@ func queue_order(action: Dictionary) -> bool:
 	var prev_address := address_week
 	if kind == "address":
 		address_week = week
+	if kind == "probe" or kind == "tap":
+		flags["listening_order_week"] = week
+		if kind == "probe":
+			flags["listening_probe_sid"] = str(action.get("station", action.get("dest", "")))
+			var place := station_text(str(flags["listening_probe_sid"]), "community")
+			notices.append(Copy.fill("listening.toast_probe_queued", {"station": place}))
+		else:
+			notices.append(Copy.fill("listening.toast_tap_queued", {"faction": Copy.t(_fname(str(action.get("faction", ""))))}))
 	var target := sid
 	if kind == "expedition" and stations.has("vault"):
 		target = "vault"
@@ -3681,6 +3722,10 @@ func cancel_queued(role: String) -> bool:
 		orders_left += 1
 		if str(row.get("kind", "")) == "address":
 			address_week = int(row.get("prev_address", -99))
+		if str(row.get("kind", "")) == "probe" or str(row.get("kind", "")) == "tap":
+			if int(flags.get("listening_order_week", -1)) == week:
+				flags.erase("listening_order_week")
+			flags.erase("listening_probe_sid")
 		queued_orders.remove_at(i)
 		_journal("cancel", {"order": str(row.get("kind", "")), "station": str(row.get("target", ""))})
 		return true
@@ -3740,7 +3785,13 @@ func _resolve_queued() -> void:
 				ok = _order_approach_quarantine()
 			"address":
 				ok = _order_address(true)
+			"probe":
+				ok = _order_probe(str(action.get("station", action.get("dest", ""))))
+			"tap":
+				ok = _order_tap(str(action.get("faction", "")))
 		var place := sid
+		if kind == "tap":
+			place = Copy.t(_fname(str(action.get("faction", ""))))
 		var dest_id := str(action.get("dest", ""))
 		if dest_id == "":
 			dest_id = sid
@@ -3858,6 +3909,9 @@ func _order_result_text(kind: String, action: Dictionary, who: String, place: St
 				bits.append(Copy.t("The squad is held up on the way."))
 		"expedition":
 			bits.append(Copy.t("The squad is away for %s.") % Words.count(3, "week"))
+		"probe", "tap":
+			if listening_line != "":
+				bits.append(listening_line)
 	var gained := _gained_since(before)
 	if gained != "":
 		bits.append(gained)
@@ -3921,6 +3975,10 @@ func _order_title(kind: String) -> String:
 			return "Approach the Observatory"
 		"approach_quarantine":
 			return "Approach the Quarantine"
+		"probe":
+			return "listening.probe"
+		"tap":
+			return "listening.tap"
 		_:
 			return "Dawn report"
 
@@ -4101,6 +4159,10 @@ func order_block(kind: String, sid: String = "") -> String:
 			return _gift_block(sid)
 		"pay":
 			return _pay_block(sid)
+		"probe":
+			return _probe_block(sid)
+		"tap":
+			return _tap_block(sid)
 		_:
 			return Copy.t("No such order.")
 	return ""
@@ -4193,6 +4255,10 @@ func order_risk(kind: String, sid: String = "") -> String:
 			return Copy.t("No risk. The meeting comes at the next dawn.")
 		"gift", "aid", "pay":
 			return order_toast(kind, _soft_action(kind, sid))
+		"probe":
+			return Copy.t("listening.probe_tip")
+		"tap":
+			return Copy.t("listening.tap_tip")
 	return ""
 
 
@@ -4837,8 +4903,7 @@ func _plan_intents() -> Array:
 		if _faction_dead(fid):
 			continue
 		var intent := _plan_one(fid)
-		var hide: bool = str(intent.kind) != "demand_posted" and not _has_radio() and net_rng.randf() < 0.25
-		intent.hidden = hide
+		intent.hidden = _intent_hidden(str(intent.kind))
 		out.append(intent)
 	return out
 
@@ -5203,6 +5268,7 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		sq.station = nxt
 		stations[nxt].known = true
 		if player_move:
+			_clear_wired(nxt)
 			_log("ORDER move to %s" % stations[nxt].name)
 		return true
 	if owner == "bunker":
@@ -5377,6 +5443,8 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	st.loyalty = 20 if force else 72
 	st.unrest = net_rng.randi_range(4, 6)
 	st.known = true
+	if fid == player:
+		_clear_wired(sid)
 	st.held_weeks = 0
 	st.low_weeks = 0
 	st.erase("pressure_by")
@@ -6236,7 +6304,7 @@ func _priority_types() -> Array:
 		list.append("hydroponics")
 	if int(stock.air) < air_need() * 4:
 		list.append("air_filter")
-	list.append_array(["hydroponics", "air_filter", "generator", "workshop", "meeting_hall", "infirmary", "radio"])
+	list.append_array(["hydroponics", "air_filter", "generator", "workshop", "meeting_hall", "infirmary", "radio", "listening_post"])
 	var seen := {}
 	var out: Array = []
 	for type in list:
@@ -8915,6 +8983,326 @@ func _has_radio() -> bool:
 	return false
 
 
+func _radio_ready() -> bool:
+	for room in rooms:
+		if str(room.type) != "radio":
+			continue
+		if bool(room.offline) or int(room.get("disabled", 0)) > 0 or bool(room.get("switched_off", false)):
+			continue
+		if room.staff.size() >= 1:
+			return true
+	return false
+
+
+func listening_build_block() -> String:
+	if not _radio_ready():
+		return Copy.t("listening.need_radio")
+	return ""
+
+
+func _listening_room():
+	for room in rooms:
+		if str(room.type) == "listening_post":
+			return room
+	return null
+
+
+func listening_active() -> bool:
+	var room = _listening_room()
+	if room == null:
+		return false
+	if bool(room.offline) or int(room.get("disabled", 0)) > 0 or bool(room.get("browned", false)) or bool(room.get("switched_off", false)):
+		return false
+	return room.staff.size() >= int(catalog.rooms["listening_post"].get("staff_min", 1))
+
+
+func listening_probe_live() -> bool:
+	return str(flags.get("listening_probe_sid", "")) != ""
+
+
+func listening_card_key() -> String:
+	var room = _listening_room()
+	if room == null:
+		return "listening.offline"
+	if bool(room.offline) or int(room.get("disabled", 0)) > 0 or bool(room.get("switched_off", false)) or bool(room.get("browned", false)):
+		return "listening.offline"
+	if room.staff.size() < int(catalog.rooms["listening_post"].get("staff_min", 1)):
+		return "listening.unstaffed"
+	return "listening.listen_status"
+
+
+func room_can_push(type: String) -> bool:
+	var defin: Dictionary = catalog.rooms.get(type, {})
+	return bool(defin.get("push", true))
+
+
+func rumor_truth() -> float:
+	if listening_active():
+		return 0.95
+	if _has_radio():
+		return 0.90
+	return 0.0
+
+
+func listening_blown_cut() -> float:
+	var room = _listening_room()
+	if room == null:
+		return 0.0
+	var tier := int(room.get("upgrade", 0))
+	if tier >= 2:
+		return 0.10
+	if tier >= 1:
+		return 0.05
+	return 0.0
+
+
+func listening_blown_chance(kind: String) -> float:
+	var key := "probe_blown" if kind == "probe" else "tap_blown"
+	var base := 0.15 if kind == "probe" else 0.25
+	return maxf(0.0, float(bal.get(key, base)) - listening_blown_cut())
+
+
+func listening_blown_pct(kind: String) -> int:
+	return int(round(listening_blown_chance(kind) * 100.0))
+
+
+func _intent_hidden(kind: String) -> bool:
+	if kind == "demand_posted":
+		return false
+	if listening_active() or _has_radio():
+		return false
+	return net_rng.randf() < 0.25
+
+
+func listening_probe_targets() -> Array:
+	var out: Array = []
+	for sid in stations:
+		var st: Dictionary = stations[sid]
+		if not bool(st.get("known", false)):
+			continue
+		if str(st.owner) == player or str(st.owner) == "bunker" or str(st.get("bunker", "")) != "":
+			continue
+		out.append(str(sid))
+	return out
+
+
+func listening_tap_targets() -> Array:
+	var out: Array = []
+	for fid in opinions:
+		if bool(at_war.get(str(fid), false)):
+			continue
+		out.append(str(fid))
+	return out
+
+
+func listening_idle_line() -> String:
+	if not listening_active():
+		return ""
+	if int(flags.get("listening_order_week", -1)) == week:
+		return ""
+	var room = _listening_room()
+	if room != null:
+		for pid in room.staff:
+			var who := _listening_who_line(str(pid))
+			if who != "":
+				return who
+	return Copy.t("staff.listening.idle_%d" % (1 + (week % 2)))
+
+
+func listening_assign_line(person_id: String) -> String:
+	var who := _listening_who_line(person_id)
+	if who != "":
+		return who
+	var n := 1 + absi(person_id.hash()) % 6
+	return Copy.t("staff.listening.assign_%d" % n)
+
+
+func _listening_who_line(person_id: String) -> String:
+	var first := str(people.get(person_id, {}).get("name", "")).get_slice(" ", 0)
+	if first == "":
+		return ""
+	var key := "staff.listening.who.%s" % first
+	var line := Copy.t(key)
+	return "" if line == key else line
+
+
+func _listening_room_block() -> String:
+	return "" if listening_card_key() == "listening.listen_status" else Copy.t(listening_card_key())
+
+
+func _listening_busy() -> String:
+	if int(flags.get("listening_order_week", -1)) == week:
+		return Copy.t("One order a week.")
+	return ""
+
+
+func _probe_block(sid: String) -> String:
+	var room := _listening_room_block()
+	if room != "":
+		return room
+	var busy := _listening_busy()
+	if busy != "":
+		return busy
+	if not stations.has(sid):
+		return Copy.t("That station is out of reach.")
+	var st: Dictionary = stations[sid]
+	if not bool(st.get("known", false)) or str(st.owner) == player or str(st.owner) == "bunker" or str(st.get("bunker", "")) != "":
+		return Copy.t("That station is out of reach.")
+	var need := int(bal.get("probe_tokens", 3))
+	if int(stock.tokens) < need:
+		return Copy.t("Needs %s, the yard has %s.") % [Words.count(need, "token"), Words.count(int(stock.tokens), "token")]
+	return ""
+
+
+func _tap_block(fid: String) -> String:
+	var room := _listening_room_block()
+	if room != "":
+		return room
+	var busy := _listening_busy()
+	if busy != "":
+		return busy
+	if not opinions.has(fid) or bool(at_war.get(fid, false)):
+		return Copy.t("That station is out of reach.")
+	if int(stock.food) < 2:
+		return Copy.t("Needs %s, the yard has %s.") % [Words.count(2, "food"), Words.count(int(stock.food), "food")]
+	return ""
+
+
+func _order_probe(sid: String) -> bool:
+	listening_line = ""
+	flags.erase("listening_probe_sid")
+	if not listening_active() or not stations.has(sid):
+		return false
+	var st: Dictionary = stations[sid]
+	if not bool(st.get("known", false)) or str(st.owner) == player or str(st.owner) == "bunker" or str(st.get("bunker", "")) != "":
+		return false
+	var cost := int(bal.get("probe_tokens", 3))
+	if int(stock.tokens) < cost:
+		return false
+	stock.tokens = int(stock.tokens) - cost
+	var place := station_text(sid, "community")
+	if place == "":
+		place = str(st.get("name", sid))
+	if net_rng.randf() < listening_blown_chance("probe"):
+		_listening_blown(str(st.owner), place)
+		return true
+	st.intel = clampi(maxi(int(st.get("intel", 0)), 2), 0, 3)
+	st.wired_until = int(week) + 2
+	var faction := Copy.t(_fname(str(st.owner))) if catalog.factions.has(str(st.owner)) else Copy.t("Neutral")
+	var line := Copy.fill("listening.probe_reveal", {
+		"faction": faction,
+		"station": place,
+		"opinion": _signed_int(int(opinions.get(str(st.owner), 0))),
+	})
+	listening_line = line
+	notices.append(line)
+	_log("ORDER probe %s intel %d" % [str(st.name), int(st.intel)])
+	return true
+
+
+func _order_tap(fid: String) -> bool:
+	listening_line = ""
+	if not listening_active() or not opinions.has(fid) or bool(at_war.get(fid, false)):
+		return false
+	if int(stock.food) < 2:
+		return false
+	stock.food = int(stock.food) - 2
+	var place := _listening_place(fid)
+	if net_rng.randf() < listening_blown_chance("tap"):
+		_listening_blown(fid, place)
+		return true
+	_add_opinion(fid, -4, "listening")
+	var good := listening_flow_good(fid)
+	var line := ""
+	if good != "":
+		stock[good] = int(stock.get(good, 0)) + 1
+		line = Copy.fill("listening.tap_skim", {"good": Copy.res(good)})
+	else:
+		line = Copy.fill("listening.tap_plan", {"plan": listening_plan_phrase(fid)})
+	listening_line = line
+	notices.append(line)
+	_log("ORDER tap %s" % fid)
+	return true
+
+
+func _listening_blown(fid: String, place: String) -> void:
+	_add_hope(-1, "listening")
+	if opinions.has(fid):
+		_add_opinion(fid, int(bal.get("blown_opinion", -12)), "listening")
+	_add_discontent(2, "listening")
+	_note_moment("listening_blown", {"station": place}, 2)
+	_disable_room("listening_post", 1)
+	var blown := Copy.fill("listening.blown", {"station": place})
+	var dawn := Copy.t("listening.blown_dawn")
+	listening_line = "%s %s" % [blown, dawn]
+	notices.append(blown)
+	notices.append(dawn)
+	_log(blown, true)
+
+
+func _listening_place(fid: String) -> String:
+	var cap := str(catalog.factions.get(fid, {}).get("capital", ""))
+	if stations.has(cap):
+		var place := station_text(cap, "community")
+		if place != "":
+			return place
+	return Copy.t(_fname(fid))
+
+
+func listening_flow_good(fid: String) -> String:
+	var cap := str(catalog.factions.get(fid, {}).get("capital", ""))
+	for sid in stations:
+		if str(sid) == cap:
+			continue
+		var st: Dictionary = stations[sid]
+		if str(st.owner) != fid:
+			continue
+		var goods: Dictionary = catalog.station_goods(str(sid))
+		for key in ["food", "materials", "tokens", "influence", "air"]:
+			if int(goods.get(key, 0)) > 0:
+				return str(key)
+	return ""
+
+
+func listening_plan_phrase(fid: String) -> String:
+	var ru := Copy.ru()
+	if _demand_open(fid):
+		return "оплата жетонами" if ru else "pay tokens"
+	for intent in telegraphed:
+		if str(intent.get("faction", "")) != fid or bool(intent.get("hidden", false)):
+			continue
+		if str(intent.get("kind", "")) != "buy":
+			continue
+		var place := ""
+		var sid := str(intent.get("station", ""))
+		if stations.has(sid):
+			place = station_text(sid, "community")
+		if place != "":
+			return ("подарок жетонами на %s" % place) if ru else ("gift tokens to %s" % place)
+		return "подарок жетонами" if ru else "gift tokens"
+	var need := "food"
+	var cap := str(catalog.factions.get(fid, {}).get("capital", ""))
+	if stations.has(cap):
+		var lowest := _lowest_need(stations[cap])
+		if lowest in ["food", "materials", "air", "medicine"]:
+			need = lowest
+	if ru:
+		var ru_need := {"food": "едой", "materials": "материалами", "air": "воздухом", "medicine": "лекарствами"}
+		return "помощь %s" % str(ru_need.get(need, "едой"))
+	return "aid %s" % need
+
+
+func _signed_int(n: int) -> String:
+	if n > 0:
+		return "+%d" % n
+	return str(n)
+
+
+func _clear_wired(sid: String) -> void:
+	if stations.has(sid):
+		stations[sid].erase("wired_until")
+
+
 func _heal_squads() -> void:
 	for fid in squads:
 		var sq: Dictionary = squads[fid]
@@ -9403,6 +9791,7 @@ func _init_map() -> void:
 			"deals": 0,
 			"passage": false,
 			"known": false,
+			"intel": 0,
 			"held_weeks": 0,
 			"low_weeks": 0,
 			"rival_symp": {"exchange": 0, "directorate": 0, "synod": 0},
@@ -10542,6 +10931,8 @@ func chronicle_line(moment: Dictionary) -> String:
 	fields["week"] = int(moment.get("week", week))
 	var combat_key := ""
 	match kind:
+		"listening_blown":
+			return Copy.fill("listening.blown", {"station": str(fields.get("station", ""))})
 		"station_taken_force":
 			combat_key = "combat.chronicle.station_taken_force"
 		"unbidden":
@@ -11533,6 +11924,8 @@ func _raid_gate(dest: String) -> String:
 		return Copy.t("order.no_tunnel")
 	if not bool(st.get("known", false)):
 		return Copy.t("order.raid_intel")
+	if int(st.get("intel", 0)) < 2:
+		return Copy.t("listening.need_intel")
 	if _effective_size(sq) < 4.0:
 		return Copy.t("order.raid_size")
 	if int(stock.food) < int(bal.get("raid_pack_food", 2)):

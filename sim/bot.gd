@@ -639,6 +639,10 @@ func _project_expander(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "meeting_hall"}
 	if game.output_of("food") < game.food_need() and game.build_possible("hydroponics"):
 		return {"kind": "build", "type": "hydroponics"}
+	if game.week >= 12 and int(game.stock.materials) >= 20 and game.room_count("radio") == 0 and game.build_possible("radio"):
+		return {"kind": "build", "type": "radio"}
+	if game.week >= 14 and int(game.stock.materials) >= 22 and game._has_radio() and game.room_count("listening_post") == 0 and game.build_possible("listening_post"):
+		return {"kind": "build", "type": "listening_post"}
 	if game.dig_possible(false):
 		return {"kind": "dig", "space": false}
 	if game.dig_possible(true):
@@ -672,6 +676,9 @@ func _order(game: Game) -> Dictionary:
 			var pushed := _careful_assault(game)
 			if not pushed.is_empty():
 				return pushed
+			var early_tap := _careful_tap(game)
+			if not early_tap.is_empty():
+				return early_tap
 		return {}
 	var border := _best_border(game)
 	if border != "" and int(game.stock.influence) >= int(game.bal.propaganda_influence):
@@ -698,6 +705,9 @@ func _order(game: Game) -> Dictionary:
 		var late := _careful_assault(game)
 		if not late.is_empty():
 			return late
+		var tapped := _careful_tap(game)
+		if not tapped.is_empty():
+			return tapped
 	return {}
 
 
@@ -754,6 +764,17 @@ func _hostile_hop(game: Game) -> String:
 	return ""
 
 
+func _careful_tap(game: Game) -> Dictionary:
+	if game.room_count("listening_post") < 1 or game.week % 20 != 0 or game.food_buffer_weeks() < 4.0:
+		return {}
+	for fid in game.opinions:
+		if bool(game.at_war.get(str(fid), false)):
+			continue
+		if game.order_block("tap", str(fid)) == "":
+			return {"kind": "order", "order": "tap", "faction": str(fid)}
+	return {}
+
+
 func _careful_assault(game: Game) -> Dictionary:
 	if game.week < 16 or game.week % 8 != 0:
 		return {}
@@ -780,6 +801,8 @@ func _expander_fight(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "assault", "dest": hop}
 	if game.breach_stock() < 1 and game.week >= 12 and game.week % 4 == 0 and not low and game.order_block("breach") == "":
 		return {"kind": "order", "order": "breach"}
+	if int(game.stations[hop].get("intel", 0)) < 2 and game.order_block("probe", hop) == "":
+		return {"kind": "order", "order": "probe", "station": hop}
 	if game.order_block("raid", hop) == "":
 		return {"kind": "order", "order": "raid", "dest": hop}
 	return {}

@@ -294,6 +294,36 @@ static func textures() -> Dictionary:
 		"res://assets/events/breathers_price.webp": preload("res://assets/events/breathers_price.webp"),
 		"res://assets/events/the_list.webp": preload("res://assets/events/the_list.webp"),
 		"res://assets/overlays/dilemma_frame.webp": preload("res://assets/overlays/dilemma_frame.webp"),
+		"res://assets/events/knock_next.webp": preload("res://assets/events/knock_next.webp"),
+		"res://assets/events/knock_last.webp": preload("res://assets/events/knock_last.webp"),
+		"res://assets/events/loan_next.webp": preload("res://assets/events/loan_next.webp"),
+		"res://assets/events/toll_next.webp": preload("res://assets/events/toll_next.webp"),
+		"res://assets/events/toll_last.webp": preload("res://assets/events/toll_last.webp"),
+		"res://assets/events/stores_turn.webp": preload("res://assets/events/stores_turn.webp"),
+		"res://assets/events/ration_coat.webp": preload("res://assets/events/ration_coat.webp"),
+		"res://assets/rooms/room_listening_post.webp": preload("res://assets/rooms/room_listening_post.webp"),
+		"res://assets/rooms/room_listening_post_alt.webp": preload("res://assets/rooms/room_listening_post_alt.webp"),
+		"res://assets/overlays/room_probe.webp": preload("res://assets/overlays/room_probe.webp"),
+		"res://assets/map/chips/wired.webp": preload("res://assets/map/chips/wired.webp"),
+		"res://assets/map/chips/wired_tint.webp": preload("res://assets/map/chips/wired_tint.webp"),
+		"res://assets/map/chips/probing.webp": preload("res://assets/map/chips/probing.webp"),
+		"res://assets/map/chips/probing_tint.webp": preload("res://assets/map/chips/probing_tint.webp"),
+		"res://assets/icons/rooms/listening_post.png": preload("res://assets/icons/rooms/listening_post.png"),
+		"res://assets/icons/status/listen.png": preload("res://assets/icons/status/listen.png"),
+		"res://assets/icons/status/listen_24.png": preload("res://assets/icons/status/listen_24.png"),
+		"res://assets/icons/status/probe.png": preload("res://assets/icons/status/probe.png"),
+		"res://assets/icons/status/probe_24.png": preload("res://assets/icons/status/probe_24.png"),
+		"res://assets/icons/status/tap.png": preload("res://assets/icons/status/tap.png"),
+		"res://assets/icons/status/tap_24.png": preload("res://assets/icons/status/tap_24.png"),
+		"res://assets/icons/status/probing.png": preload("res://assets/icons/status/probing.png"),
+		"res://assets/icons/status/probing_24.png": preload("res://assets/icons/status/probing_24.png"),
+		"res://assets/icons/ui/probing.png": preload("res://assets/icons/ui/probing.png"),
+		"res://assets/icons/ui/probing_24.png": preload("res://assets/icons/ui/probing_24.png"),
+		"res://assets/icons/status/blown.png": preload("res://assets/icons/status/blown.png"),
+		"res://assets/icons/status/blown_24.png": preload("res://assets/icons/status/blown_24.png"),
+		"res://assets/icons/map/blown.png": preload("res://assets/icons/map/blown.png"),
+		"res://assets/icons/map/blown_24.png": preload("res://assets/icons/map/blown_24.png"),
+		"res://assets/overlays/blown_flash.webp": preload("res://assets/overlays/blown_flash.webp"),
 	}
 	return _textures
 
@@ -363,12 +393,14 @@ static func _icon_names(kind: String) -> PackedStringArray:
 			return PackedStringArray(["dig", "workshop"])
 		"hold":
 			return PackedStringArray(["warning", "hold"])
+		"wired", "wired_tint", "probing", "probing_tint":
+			return PackedStringArray([kind])
 		_:
 			return PackedStringArray([kind])
 
 
 static func _load_icon(name: String) -> Texture2D:
-	var folders := ["", "resources/", "actions/", "rooms/", "status/", "map/", "factions/"]
+	var folders := ["", "resources/", "actions/", "rooms/", "status/", "ui/", "map/", "factions/"]
 	for folder in folders:
 		for ext in ["webp", "png"]:
 			var path := "res://assets/icons/%s%s.%s" % [folder, name, ext]
