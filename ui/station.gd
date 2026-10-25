@@ -6705,7 +6705,7 @@ func _body_ready(text: String) -> void:
 	card_body.add_child(lab)
 
 
-func _label(text: String, size: int, display: bool = false) -> Label:
+func _label(text: String, size: int, display: bool = false, translate: bool = true) -> Label:
 	var lab := Label.new()
 	lab.text = Copy.t(text) if translate else text
 	lab.add_theme_font_size_override("font_size", size)

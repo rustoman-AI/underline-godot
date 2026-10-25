@@ -10421,7 +10421,7 @@ func _step_party_home(sq: Dictionary) -> void:
 
 
 func _note_fought(person: Dictionary, place: String) -> void:
-	if typeof(person.get("story_events", [])) != TYPE_ARRAY:
+	if not person.has("story_events") or typeof(person.story_events) != TYPE_ARRAY:
 		person.story_events = []
 	person.story_events.append({
 		"pool": "fought",
