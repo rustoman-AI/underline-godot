@@ -15,6 +15,7 @@ func _init() -> void:
 	_mechanics(catalog, bad)
 	_art(bad)
 	_no_event_intel(catalog, bad)
+	_sx5(bad)
 	if not bad.is_empty():
 		for line in bad:
 			print("FAIL " + line)
@@ -230,6 +231,31 @@ func _art(bad: PackedStringArray) -> void:
 		bad.append("room_offline wash size")
 	if twin == null or twin.get_width() != 256 or twin.get_height() != 160:
 		bad.append("room_offline_256 wash size")
+
+
+func _sx5(bad: PackedStringArray) -> void:
+	var keys := [
+		"station.status_running", "station.status_understaffed", "station.status_need",
+		"station.status_power", "station.status_offline", "station.status_switched",
+		"station.tip_understaffed", "station.tip_switched", "station.tip_building",
+		"station.tip_damaged", "station.toast_switch_off", "station.toast_switch_on",
+		"station.toast_demolish", "assign.toast_on", "assign.toast_off", "assign.tip_skill",
+		"assign.tip_empty", "assign.tip_empty_any", "skill.labor", "skill.tech", "skill.care", "skill.talk",
+	]
+	Copy.set_lang("en")
+	for key in keys:
+		if Copy.t(key) == key:
+			bad.append("sx5 en missing " + key)
+	if Copy.fill("assign.toast_on", {"name": "Fran", "room": "Listen"}).find("→") < 0:
+		bad.append("sx5 assign arrow")
+	Copy.set_lang("ru")
+	for key in keys:
+		var line := Copy.t(key)
+		if line == "" or line == key:
+			bad.append("sx5 ru missing " + key)
+	if not Copy.fill("station.status_need", {"n": 2}).contains("2"):
+		bad.append("sx5 need fill")
+	Copy.set_lang("en")
 
 
 func _no_event_intel(catalog: Catalog, bad: PackedStringArray) -> void:

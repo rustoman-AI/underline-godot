@@ -3358,8 +3358,11 @@ func _drop_person(person_id: String, uid: String) -> void:
 		yard.shake_cell = Vector2i(-1, -1)
 		yard.shake_reason = ""
 		yard.shake_px = 0.0
+	var assigned := _assign_toast_line(person_id, uid)
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
+	if assigned != "":
+		_toast(assigned)
 
 
 ## Who leaves a full room when `person_id` is dropped on it. Empty when no swap makes sense.
@@ -3695,10 +3698,8 @@ func _room_header(detail: Dictionary) -> void:
 		why.add_theme_color_override("font_color", PAPER_MUTED)
 		why.set_meta("yield_line", str(out.key))
 		card_body.add_child(why)
-	if bool(game._room(str(detail.uid)).get("switched_off", false)):
-		_body("Switched off. The crew went back to the platform.")
-	elif bool(detail.offline):
-		_body("Offline.")
+	for line in _room_status_lines(detail):
+		_body_ready(line)
 
 
 func _seat_row(uid: String, detail: Dictionary) -> void:
@@ -3795,10 +3796,12 @@ func _seat_filled(uid: String, member: Dictionary, skill_name: String) -> Contro
 	who.mouse_filter = Control.MOUSE_FILTER_PASS
 	box.add_child(who)
 	if skill_name != "":
-		var skill := _label("%s %d" % [Copy.skill(skill_name, false), int(member.skill)], 14)
+		var skill := _label("%s %d" % [_skill_word(skill_name), int(member.skill)], 14)
 		skill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		skill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		skill.add_theme_color_override("font_color", PAPER_MUTED)
+		skill.tooltip_text = _skill_tip(skill_name, str(member.name), int(member.skill))
+		skill.mouse_filter = Control.MOUSE_FILTER_STOP
 		box.add_child(skill)
 	var off := _button("Unassign", _unassign.bind(str(member.id), uid))
 	off.custom_minimum_size = Vector2(0, 28)
@@ -3819,7 +3822,16 @@ func _seat_empty(uid: String, open: bool) -> Control:
 	slot.custom_minimum_size = Vector2(120, 150)
 	slot.ink = PAPER_EDGE
 	slot.open = open
-	slot.tooltip_text = Copy.t("Choose who works here") if open else Copy.t("Room is off")
+	var wanted := ""
+	var seated = game._room(uid)
+	if seated != null:
+		wanted = str(game.catalog.rooms[str(seated.type)].get("skill", ""))
+	if not open:
+		slot.tooltip_text = Copy.t("Room is off")
+	elif wanted != "":
+		slot.tooltip_text = Copy.fill("assign.tip_empty", {"skill": _skill_word(wanted)})
+	else:
+		slot.tooltip_text = Copy.t("assign.tip_empty_any")
 	if open:
 		slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		slot.picked.connect(_open_picker.bind(uid))
@@ -3958,6 +3970,95 @@ func _room_switch(uid: String) -> void:
 		_body(str(info.reason))
 
 
+## SX5 status. Quarters and the platform stay quiet. Switched off wins over the offline flag it sets.
+func _room_status_lines(detail: Dictionary) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	var type := str(detail.get("type", ""))
+	var room = game._room(str(detail.get("uid", "")))
+	if room == null:
+		return lines
+	var quiet := type == "quarters" or type == "platform"
+	var have := int(room.staff.size())
+	var need := int(detail.get("crew_need", 0))
+	if int(detail.get("block_width", 1)) > 1:
+		have = int(detail.get("block_staff", have))
+	var key := ""
+	if bool(room.get("switched_off", false)):
+		key = "station.status_switched"
+	elif bool(room.get("offline", false)) or int(room.get("disabled", 0)) > 0:
+		key = "station.status_offline"
+	elif bool(room.get("browned", false)) or dark_now.has(str(room.uid)) or power_loss.has(str(room.uid)):
+		key = "station.status_power"
+	elif not quiet and need > 0 and have < need:
+		key = "station.status_understaffed"
+	elif not quiet:
+		key = "station.status_running"
+	if key != "":
+		lines.append(Copy.t(key))
+	if key == "station.status_understaffed":
+		lines.append(Copy.fill("station.status_need", {"n": need - have}))
+	if float(room.get("efficiency", 1.0)) < 0.999:
+		lines.append(Copy.t("station.tip_damaged"))
+	return lines
+
+
+func _room_hover_tip(room: Dictionary) -> String:
+	var detail: Dictionary = game.room_detail(str(room.get("uid", "")))
+	if detail.is_empty():
+		return ""
+	var lines := _room_status_lines(detail)
+	if lines.is_empty():
+		return ""
+	var tip := lines[0]
+	if tip == Copy.t("station.status_switched"):
+		tip = Copy.t("station.tip_switched")
+	elif tip == Copy.t("station.status_understaffed"):
+		tip = Copy.t("station.tip_understaffed")
+	if lines.size() > 1 and lines[1] != Copy.t("station.tip_damaged"):
+		tip = "%s · %s" % [tip, lines[1]]
+	if lines[lines.size() - 1] == Copy.t("station.tip_damaged") and tip != Copy.t("station.tip_damaged"):
+		tip = "%s · %s" % [tip, lines[lines.size() - 1]]
+	return tip
+
+
+func _skill_word(skill_name: String) -> String:
+	var key := "skill.%s" % skill_name
+	var word := Copy.t(key)
+	if word == key:
+		return Copy.skill(skill_name, false)
+	return word
+
+
+func _skill_tip(skill_name: String, person_name: String, value: int) -> String:
+	return Copy.fill("assign.tip_skill", {"skill": _skill_word(skill_name), "name": person_name, "n": value})
+
+
+func _assign_toast_line(person_id: String, uid: String) -> String:
+	var person: Dictionary = game.people.get(person_id, {})
+	var room = game._room(uid)
+	if person.is_empty() or room == null:
+		return ""
+	var line := Copy.fill("assign.toast_on", {
+		"name": Copy.person(str(person.get("name", ""))),
+		"room": Copy.t(str(game.catalog.rooms[str(room.type)].name)),
+	})
+	var effect: Dictionary = Brief.marginal(game, uid, person_id)
+	var key := str(effect.get("key", ""))
+	var delta := int(effect.get("delta", 0))
+	if key != "" and key != "hope" and delta != 0:
+		var res := Copy.res(key)
+		res = res.substr(0, 1).to_lower() + res.substr(1)
+		line += " · %+d %s/wk" % [delta, res]
+	return line
+
+
+func _unassign_toast_line(person_id: String) -> String:
+	var person: Dictionary = game.people.get(person_id, {})
+	if person.is_empty():
+		return ""
+	return Copy.fill("assign.toast_off", {"name": Copy.person(str(person.get("name", "")))})
+
+
 ## The room's current state first; the button next to it says what pressing it does.
 func _switch_state(on: bool, saves: int) -> String:
 	if on:
@@ -3968,8 +4069,13 @@ func _switch_state(on: bool, saves: int) -> String:
 
 
 func _switch_room(uid: String, on: bool) -> void:
+	var saves := int(game.switch_preview(uid).get("saves", 0))
 	if game.apply({"kind": "switch", "room": uid, "on": on}):
 		_refresh()
+		if on:
+			_toast(Copy.t("station.toast_switch_on"))
+		else:
+			_toast(Copy.fill("station.toast_switch_off", {"n": saves}))
 	_show_room(uid)
 
 
@@ -4021,14 +4127,20 @@ func _assign_person(person_id: String, uid: String) -> void:
 		notice = str(info.reason)
 		_show_room(uid)
 		return
+	var assigned := _assign_toast_line(person_id, uid)
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
+	if assigned != "":
+		_toast(assigned)
 	_show_room(uid)
 
 
 func _unassign(person_id: String, uid: String) -> void:
+	var released := _unassign_toast_line(person_id)
 	game.apply({"kind": "unassign", "person": person_id})
 	_refresh()
+	if released != "":
+		_toast(released)
 	_show_room(uid)
 
 
@@ -6666,6 +6778,11 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 
 
 func _do_confirm(action: Dictionary) -> void:
+	var pulled := ""
+	if str(action.get("kind", "")) == "demolish":
+		var gone = game._room(str(action.get("room", "")))
+		if gone != null:
+			pulled = Copy.t(str(game.catalog.rooms[str(gone.type)].name))
 	if action.is_empty() or not game.apply(action):
 		Sound.play("error")
 		footer.text = Copy.t("That did not happen.")
@@ -6685,6 +6802,8 @@ func _do_confirm(action: Dictionary) -> void:
 			_toast(Copy.t("push.toast_ok").replace("{room}", room_name), 3.2)
 	_close_card()
 	_refresh()
+	if pulled != "":
+		_toast(Copy.fill("station.toast_demolish", {"room": pulled}))
 	_action_voice(kind, str(action.get("law", "")))
 
 
@@ -12432,7 +12551,7 @@ class Yard extends Control:
 		var building: Dictionary = station.game.build
 		if not building.is_empty() and int(building.level) == level and int(building.cell) == cell:
 			var name := Copy.t(str(station.game.catalog.rooms[str(building.type)].name))
-			return Copy.t("Building %s, %s left") % [name, Words.count(int(building.left), "week")]
+			return Copy.fill("station.tip_building", {"room": name, "weeks": int(building.left)})
 		match kind:
 			"hidden":
 				return Copy.t("Solid rock")
@@ -12830,10 +12949,15 @@ class Yard extends Control:
 		var spot: Dictionary = station.game.cells["%d:%d" % [hover.x, hover.y]]
 		var kind := _kind(spot)
 		var room_type := ""
+		var found: Dictionary = {}
 		if kind == "room":
-			var found: Dictionary = station.game._room(str(spot.room))
+			found = station.game._room(str(spot.room))
 			room_type = str(found.get("type", ""))
 		var tip := _cell_action(hover.x, hover.y, kind, room_type)
+		if kind == "room" and not found.is_empty():
+			var status: String = station._room_hover_tip(found)
+			if status != "":
+				tip = status if tip == "" else "%s · %s" % [tip, status]
 		if tip == "":
 			return
 		var world := _rect(geo, hover.x, hover.y)

@@ -1378,6 +1378,94 @@
   "staff.listening.who.Tess": {
     "en": "Tess listens like the brick still has paint on it.",
     "ru": "Тесс слушает так, будто на кирпиче ещё краска."
+  },
+  "station.status_running": {
+    "en": "Running",
+    "ru": "Работает"
+  },
+  "station.status_understaffed": {
+    "en": "Understaffed",
+    "ru": "Не хватает людей"
+  },
+  "station.status_need": {
+    "en": "Need {n} more",
+    "ru": "Нужно ещё {n}"
+  },
+  "station.status_power": {
+    "en": "Power starved",
+    "ru": "Нет питания"
+  },
+  "station.status_offline": {
+    "en": "Offline",
+    "ru": "Выключена"
+  },
+  "station.status_switched": {
+    "en": "Switched off",
+    "ru": "Отключена"
+  },
+  "station.tip_understaffed": {
+    "en": "Understaffed",
+    "ru": "Не хватает людей"
+  },
+  "station.tip_switched": {
+    "en": "Switched off",
+    "ru": "Отключена"
+  },
+  "station.tip_building": {
+    "en": "Building {room}, {weeks} left",
+    "ru": "Строим {room}, осталось {weeks}"
+  },
+  "station.tip_damaged": {
+    "en": "Damaged — output cut",
+    "ru": "Повреждена — выработка срезана"
+  },
+  "station.toast_switch_off": {
+    "en": "Switched off · saves {n} power",
+    "ru": "Отключена · экономит {n} энергии"
+  },
+  "station.toast_switch_on": {
+    "en": "Room running again",
+    "ru": "Комната снова работает"
+  },
+  "station.toast_demolish": {
+    "en": "Pulled down · {room}",
+    "ru": "Снесли · {room}"
+  },
+  "assign.toast_on": {
+    "en": "Assigned {name} → {room}",
+    "ru": "Назначили {name} → {room}"
+  },
+  "assign.toast_off": {
+    "en": "Unassigned {name}",
+    "ru": "Сняли {name}"
+  },
+  "assign.tip_skill": {
+    "en": "Room wants {skill} · {name} has {n}",
+    "ru": "Комнате нужен {skill} · у {name} {n}"
+  },
+  "assign.tip_empty": {
+    "en": "Empty seat · wants {skill}",
+    "ru": "Пустое место · нужен {skill}"
+  },
+  "assign.tip_empty_any": {
+    "en": "Empty seat · choose a resident",
+    "ru": "Пустое место · выберите жителя"
+  },
+  "skill.labor": {
+    "en": "labor",
+    "ru": "труд"
+  },
+  "skill.tech": {
+    "en": "tech",
+    "ru": "техника"
+  },
+  "skill.care": {
+    "en": "care",
+    "ru": "уход"
+  },
+  "skill.talk": {
+    "en": "talk",
+    "ru": "разговор"
   }
 }
 
