@@ -1881,6 +1881,7 @@ func _refresh() -> void:
 		return
 	while not game.notices.is_empty():
 		_toast(str(game.notices.pop_front()))
+	_show_perk_floats()
 	_watch_work()
 	var season := ""
 	if not game.active_season.is_empty():
@@ -6202,6 +6203,16 @@ func _change_anchor(key: String) -> Vector2:
 	if target == null:
 		return Vector2(-1, -1)
 	return target.get_global_rect().get_center() - get_global_rect().position
+
+
+## The first week a perk applies, its weekly number flies onto the meter once.
+func _show_perk_floats() -> void:
+	if game == null or game.perk_float_due.is_empty():
+		return
+	var due: Dictionary = game.perk_float_due.duplicate()
+	game.perk_float_due = {}
+	var origin := Vector2(size.x * 0.5, (hud.size.y if hud != null else 72.0) + 48.0)
+	_fly_changes(due, get_global_rect().position + origin)
 
 
 func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:

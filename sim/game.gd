@@ -167,6 +167,8 @@ var burials: Array = []
 ## Creed stays empty until a line law sets it. No line law is in the book yet.
 var creed := ""
 var notices: Array = []
+## Meter changes to float once, the first week a held perk applies. The yard clears this.
+var perk_float_due := {}
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -653,7 +655,7 @@ func upgrade_mood(key: String) -> int:
 
 
 func flood_warning() -> int:
-	return int(bal.get("season_warning", 2)) + int(station_fx("warning_weeks"))
+	return int(bal.get("season_warning", 2)) + int(station_fx("warning_weeks")) + _perk_int("flood_warn_weeks")
 
 
 func room_count(type: String) -> int:
@@ -943,7 +945,7 @@ func build_possible(type: String) -> bool:
 func dig_possible(for_space: bool) -> bool:
 	if not dig.is_empty():
 		return false
-	if int(stock.materials) < int(bal.dig_materials):
+	if int(stock.materials) < dig_material_cost():
 		return false
 	var target := _pick_dig_cell(for_space)
 	if target.is_empty():
@@ -957,6 +959,7 @@ func _dawn() -> void:
 	_expire_need_ticks()
 	battle_dis_week = 0
 	_resolve_queued()
+	_sync_perk_notices()
 	orders_left = council.size()
 	for seat in council:
 		if governor_of(str(seat.id)) != "":
@@ -1050,6 +1053,8 @@ func _night() -> void:
 	if trade_on:
 		stock.tokens = int(stock.tokens) + int(bal.trade_tokens_week)
 	_deliver_outposts()
+	_apply_held_perks()
+	_deliver_goods()
 	var flood_loss := _spoil_flood_stores()
 	_clamp_storage()
 	_spoil_food()
@@ -1183,7 +1188,7 @@ func _finish_checks() -> void:
 
 # --- production ---
 
-func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, commit := false) -> Dictionary:
+func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, commit := false, perk_boost := true) -> Dictionary:
 	var out := {"food": 0, "air": 0, "power": 0, "materials": 0, "tokens": 0, "influence": 0}
 	var mult := 1.0
 	if _law_on("double_shifts"):
@@ -1231,6 +1236,10 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 				n = 0
 			elif not (drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room)):
 				n += crew_extra(skills, room, n)
+			if perk_boost and str(room.type) == "hydroponics" and str(key) == "food":
+				n += _effect_int("food_room_bonus")
+			if perk_boost and str(room.type) == "generator" and str(key) == "power":
+				n = int(round(float(n) * _generator_mult()))
 			n = share_cut(scale_push(n, room))
 			out[key] = int(out[key]) + n
 			made[str(room.uid) + "|" + str(key)] = n
@@ -2352,7 +2361,7 @@ func _spoil_food() -> void:
 	var excess := int(stock.food) - line
 	if excess <= 0:
 		return
-	var loss := int(round(float(excess) * float(bal.spoil_rate)))
+	var loss := int(round(float(excess) * float(bal.spoil_rate) * _spoil_mult()))
 	if loss > 0:
 		stock.food = maxi(0, int(stock.food) - loss)
 
@@ -2737,7 +2746,7 @@ func _dig_at(level: int, cell: int) -> bool:
 	var workers := _pull_workers(int(cost.workers), "labor")
 	if workers.size() < int(cost.workers):
 		return false
-	stock.materials = int(stock.materials) - int(bal.dig_materials)
+	stock.materials = int(stock.materials) - dig_material_cost()
 	dig = {"level": level, "cell": cell, "left": int(cost.turns), "workers": workers}
 	decisions += 1
 	_log("DIG L%d C%d (%d turns)" % [level, cell, int(cost.turns)])
@@ -2747,7 +2756,7 @@ func _dig_at(level: int, cell: int) -> bool:
 func dig_preview(level: int, cell: int) -> Dictionary:
 	var key := _ck(level, cell)
 	if not cells.has(key):
-		return {"ok": false, "reason": Copy.t("No such cell."), "turns": 0, "workers": 0, "materials": int(bal.dig_materials)}
+		return {"ok": false, "reason": Copy.t("No such cell."), "turns": 0, "workers": 0, "materials": dig_material_cost()}
 	var spot: Dictionary = cells[key]
 	var cost := _dig_cost(level)
 	var info := {
@@ -2755,7 +2764,7 @@ func dig_preview(level: int, cell: int) -> Dictionary:
 		"reason": "",
 		"turns": int(cost.turns),
 		"workers": int(cost.workers),
-		"materials": int(bal.dig_materials),
+		"materials": dig_material_cost(),
 	}
 	if bool(spot.dug):
 		info.reason = Copy.t("Already open.")
@@ -2767,8 +2776,8 @@ func dig_preview(level: int, cell: int) -> Dictionary:
 		info.reason = Copy.t("A crew is already digging.")
 		return info
 	var reasons: PackedStringArray = []
-	if int(stock.materials) < int(bal.dig_materials):
-		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(int(bal.dig_materials), "material"), Words.count(int(stock.materials), "material")])
+	if int(stock.materials) < dig_material_cost():
+		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(dig_material_cost(), "material"), Words.count(int(stock.materials), "material")])
 	if _free_count() < int(cost.workers):
 		reasons.append(Copy.t("Needs %s free. %s are free.") % [Words.count(int(cost.workers), "person", "people"), Words.count(_free_count(), "person", "people")])
 	info.reason = " ".join(reasons)
@@ -3135,7 +3144,7 @@ func _apply_dig(for_space: bool) -> bool:
 	var workers := _pull_workers(int(cost.workers), "labor")
 	if workers.size() < int(cost.workers):
 		return false
-	stock.materials = int(stock.materials) - int(bal.dig_materials)
+	stock.materials = int(stock.materials) - dig_material_cost()
 	dig = {"level": int(cell.level), "cell": int(cell.cell), "left": int(cost.turns), "workers": workers}
 	decisions += 1
 	_log("DIG L%d C%d (%d turns)" % [int(cell.level), int(cell.cell), int(cost.turns)])
@@ -3201,6 +3210,8 @@ func _apply_law(law_id: String) -> bool:
 	law_lock = int(bal.law_cooldown)
 	if defin.has("hope_on_enact"):
 		_add_hope(int(defin.hope_on_enact), "law")
+	if law_id == "sermons":
+		_perk_sermons_hope()
 	if defin.has("discontent_on_enact"):
 		_add_discontent(int(defin.discontent_on_enact), "law")
 	if defin.has("materials_on_enact"):
@@ -5416,6 +5427,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		over = "capital"
 		_log("The yard has fallen.", true)
 		_seal_score()
+	_sync_perk_notices()
 	return true
 
 
@@ -5465,7 +5477,341 @@ func outpost_yield(sid: String, focus: String = "", settled: bool = false) -> Di
 		age = maxi(age, 5)
 	var use := focus if focus != "" else str(st.get("focus", ""))
 	var gov := str(st.get("governor", ""))
-	return Formulas.outpost_flow(age, _supply_hops(sid), use, governor_bonus(gov, use), governor_settle(gov), catalog.station_goods(sid))
+	var flow := Formulas.outpost_flow(age, _supply_hops(sid), use, governor_bonus(gov, use), governor_settle(gov), catalog.station_goods(sid))
+	return _with_food_focus_bonus(flow, use)
+
+
+# --- community perks and goods (DEC-G1, DEC-G2) ---
+
+## Perks on stations the player owns right now. Home has none. Each row is {id, station, effects}.
+func held_perks() -> Array:
+	var rows: Array = []
+	for sid in stations:
+		if str(stations[sid].owner) != player:
+			continue
+		var perk := station_perk(str(sid))
+		if perk.is_empty():
+			continue
+		rows.append(perk)
+	return rows
+
+
+func station_perk(sid: String) -> Dictionary:
+	var row = catalog.communities.get("stations", {}).get(sid, {}).get("perk", {})
+	if not (row is Dictionary) or str(row.get("id", "")) == "":
+		return {}
+	var effects: Dictionary = row.get("effects", {})
+	return {"id": str(row.id), "station": sid, "effects": effects if effects is Dictionary else {}}
+
+
+func station_good(sid: String) -> Dictionary:
+	var row = catalog.communities.get("stations", {}).get(sid, {}).get("good", {})
+	if not (row is Dictionary) or str(row.get("id", "")) == "":
+		return {}
+	var effects: Dictionary = row.get("effects", {})
+	return {
+		"id": str(row.id),
+		"station": sid,
+		"name_key": str(row.get("name_key", "")),
+		"effects": effects if effects is Dictionary else {},
+	}
+
+
+## Held source, or passage plus at least one Deal. Full toll routes stay out of this pass.
+func good_flowing(sid: String) -> bool:
+	if station_good(sid).is_empty() or not stations.has(sid):
+		return false
+	if str(stations[sid].owner) == player:
+		return true
+	return bool(stations[sid].get("passage", false)) and deal_count() >= 1
+
+
+func flowing_goods() -> Array:
+	var rows: Array = []
+	for sid in stations:
+		if good_flowing(str(sid)):
+			rows.append(station_good(str(sid)))
+	return rows
+
+
+func perk_sheet_line(sid: String) -> String:
+	var perk := station_perk(sid)
+	if perk.is_empty():
+		return ""
+	return Copy.t("perk." + str(perk.id))
+
+
+func good_sheet_line(sid: String) -> String:
+	var good := station_good(sid)
+	if good.is_empty():
+		return ""
+	var name := Copy.t(str(good.name_key)) if str(good.name_key) != "" else Copy.t("good." + str(good.id) + ".name")
+	var sheet := Copy.t("good." + str(good.id) + ".sheet")
+	var line := "%s: %s. %s" % [Copy.t("good.label"), name, sheet]
+	if good_flowing(sid):
+		line += " " + Copy.fill("good.flowing", {"good": name})
+	return line
+
+
+func _effect_sources() -> Array:
+	var rows: Array = []
+	for perk in held_perks():
+		rows.append(perk.effects)
+	for good in flowing_goods():
+		rows.append(good.effects)
+	return rows
+
+
+func _perk_int(key: String) -> int:
+	var n := 0
+	for perk in held_perks():
+		n += int(perk.effects.get(key, 0))
+	return n
+
+
+func _effect_int(key: String) -> int:
+	var n := 0
+	for fx in _effect_sources():
+		n += int(fx.get(key, 0))
+	return n
+
+
+## Water and the Spring perk both halve cough. Together they stay at half, not a quarter.
+func _cough_mult() -> float:
+	var mult := 1.0
+	var any := false
+	for fx in _effect_sources():
+		if fx.has("cough_mult"):
+			any = true
+			mult *= float(fx.cough_mult)
+	if not any:
+		return 1.0
+	return maxf(0.5, mult)
+
+
+func _generator_mult() -> float:
+	var mult := 1.0
+	for perk in held_perks():
+		if perk.effects.has("generator_mult"):
+			mult *= float(perk.effects.generator_mult)
+	return mult
+
+
+## Heat carries the same sabotage roll as the Atlantic perk. Holding both is one roll, not two.
+func _sabotage_chance() -> float:
+	var chance := 0.0
+	for fx in _effect_sources():
+		chance = maxf(chance, float(fx.get("sabotage_chance", 0.0)))
+	return chance
+
+
+func _spoil_mult() -> float:
+	var mult := 1.0
+	for fx in _effect_sources():
+		if fx.has("spoil_mult"):
+			mult *= float(fx.spoil_mult)
+	return mult
+
+
+func _static_weight_mult() -> int:
+	var mult := 1
+	for perk in held_perks():
+		var w := int(perk.effects.get("static_event_weight", 0))
+		if w > 1:
+			mult *= w
+	return mult
+
+
+func dig_material_cost() -> int:
+	return maxi(1, int(bal.dig_materials) + _perk_int("dig_mat_delta"))
+
+
+func _with_food_focus_bonus(flow: Dictionary, focus: String) -> Dictionary:
+	if flow.is_empty() or focus != "food" or int(flow.get("upkeep_materials", 0)) > 0:
+		return flow
+	var extra := _perk_int("food_focus_bonus")
+	if extra != 0:
+		flow.food = int(flow.get("food", 0)) + extra
+	return flow
+
+
+func _apply_held_perks() -> void:
+	_add_stock("power", _effect_int("power_week"))
+	_add_stock("tokens", _effect_int("token_week"))
+	_add_stock("influence", _effect_int("influence_week"))
+	var dis := _perk_int("discontent_week")
+	if dis != 0:
+		_add_discontent(dis, "perk")
+	var opinion := _perk_int("exchange_opinion_week")
+	if opinion != 0:
+		_add_opinion("exchange", opinion, "perk")
+	_roll_sabotage()
+
+
+## Weekly goods from a held source, or from a station with passage once a Deal exists.
+## Fork sides that are not in the build yet stay a no-op; the weekly number still lands.
+func _deliver_goods() -> void:
+	for good in flowing_goods():
+		var fx: Dictionary = good.effects
+		_add_stock("food", int(fx.get("food_week", 0)))
+		_add_stock("materials", int(fx.get("materials_week", 0)))
+		_add_stock("air", int(fx.get("air_week", 0)))
+		var every := int(fx.get("blueprint_weeks", 0))
+		if every > 0:
+			var key := "good_week:" + str(good.id)
+			flags[key] = int(flags.get(key, 0)) + 1
+			if int(flags[key]) >= every:
+				flags[key] = 0
+				_grant_fork(str(fx.get("fork_unlock", "any_locked")))
+		else:
+			_open_forks(fx)
+
+
+func _add_stock(key: String, n: int) -> void:
+	if n == 0 or not stock.has(key):
+		return
+	stock[key] = int(stock.get(key, 0)) + n
+
+
+func _roll_sabotage() -> void:
+	var chance := _sabotage_chance()
+	if chance <= 0.0 or rng.randf() >= chance:
+		return
+	var open: Array = []
+	for room in rooms:
+		if bool(room.get("offline", false)) or str(room.type) == "platform":
+			continue
+		open.append(room)
+	if open.is_empty():
+		return
+	var room: Dictionary = open[rng.randi_range(0, open.size() - 1)]
+	room.disabled = maxi(int(room.get("disabled", 0)), 1)
+	_log("SABOTAGE %s" % str(catalog.rooms[room.type].name), true)
+	_journal("sabotage", {"type": str(room.type)})
+
+
+func _perk_sermons_hope() -> void:
+	var cost := _perk_int("sermons_hope_once")
+	if cost == 0 or flags.has("perk_sermons_paid"):
+		return
+	flags["perk_sermons_paid"] = week
+	_add_hope(cost, "perk")
+
+
+func _open_forks(fx: Dictionary) -> void:
+	var raw = fx.get("fork_unlock", null)
+	var ids: Array = []
+	if raw is Array:
+		ids = raw
+	elif str(raw) != "":
+		ids = [str(raw)]
+	for id in ids:
+		var key := "fork_open:" + str(id)
+		if flags.has(key):
+			continue
+		flags[key] = week
+		_grant_fork(str(id))
+
+
+## No fork table ships in this pass. A later fork list in the catalog can turn the flag into a side.
+func _grant_fork(id: String) -> void:
+	if id == "" or id == "any_locked":
+		return
+	var forks = catalog.communities.get("forks", null)
+	if not (forks is Dictionary) or not (forks as Dictionary).has(id):
+		return
+	flags["fork:" + id] = true
+
+
+func _perk_station_name(sid: String) -> String:
+	var key := "station." + sid
+	var named := Copy.t(key)
+	if named != key:
+		return named
+	if stations.has(sid):
+		return Copy.t(str(stations[sid].name))
+	return sid
+
+
+func _perk_station_of(perk_id: String) -> String:
+	var rows: Dictionary = catalog.communities.get("stations", {})
+	for sid in rows:
+		var perk = rows[sid].get("perk", {})
+		if perk is Dictionary and str(perk.get("id", "")) == perk_id:
+			return str(sid)
+	return perk_id
+
+
+## Dawn lines for a perk that just started or just stopped. Losing it drops the effect the same night.
+func _sync_perk_notices() -> void:
+	var now := {}
+	for perk in held_perks():
+		now[str(perk.id)] = perk
+	for id in now:
+		var flag := "perk_on:" + str(id)
+		if flags.has(flag):
+			continue
+		flags[flag] = week
+		var perk: Dictionary = now[id]
+		notices.append(Copy.fill("perk.toast_held", {
+			"name": _perk_station_name(str(perk.station)),
+			"perk": Copy.t("perk.short." + str(id)),
+		}))
+		_queue_perk_float(perk)
+	var gone: Array = []
+	for key in flags.keys():
+		var name := str(key)
+		if not name.begins_with("perk_on:"):
+			continue
+		var id := name.trim_prefix("perk_on:")
+		if not now.has(id):
+			gone.append(id)
+	for id in gone:
+		flags.erase("perk_on:" + str(id))
+		var sid := _perk_station_of(str(id))
+		notices.append(Copy.fill("perk.toast_lost", {
+			"name": _perk_station_name(sid),
+			"perk": Copy.t("perk.short." + str(id)),
+		}))
+
+
+func _queue_perk_float(perk: Dictionary) -> void:
+	var id := str(perk.id)
+	if flags.has("perk_floated:" + id):
+		return
+	flags["perk_floated:" + id] = week
+	var fx: Dictionary = perk.effects
+	var due: Dictionary = perk_float_due
+	var food := int(fx.get("food_room_bonus", 0)) * _live_hydro_rooms()
+	food += int(fx.get("food_focus_bonus", 0))
+	if food != 0:
+		due["food"] = int(due.get("food", 0)) + food
+	if fx.has("power_week"):
+		due["power"] = int(due.get("power", 0)) + int(fx.power_week)
+	if fx.has("token_week"):
+		due["tokens"] = int(due.get("tokens", 0)) + int(fx.token_week)
+	if fx.has("influence_week"):
+		due["influence"] = int(due.get("influence", 0)) + int(fx.influence_week)
+	if fx.has("discontent_week"):
+		due["discontent"] = int(due.get("discontent", 0)) + int(fx.discontent_week)
+	if fx.has("generator_mult"):
+		var plain := int(_tally(false, false, false, false, false).get("power", 0))
+		var boosted := int(_tally(false, false, false, false, true).get("power", 0))
+		var extra := boosted - plain
+		if extra != 0:
+			due["power"] = int(due.get("power", 0)) + extra
+	perk_float_due = due
+
+
+func _live_hydro_rooms() -> int:
+	var n := 0
+	for room in rooms:
+		if str(room.type) != "hydroponics":
+			continue
+		if bool(room.get("offline", false)) or int(room.get("disabled", 0)) > 0:
+			continue
+		n += 1
+	return n
 
 
 # --- governors ---
@@ -5738,6 +6084,7 @@ func _deliver_outposts() -> void:
 			continue
 		var gov := str(st.get("governor", ""))
 		var flow := Formulas.outpost_flow(int(st.held_weeks), hops, str(st.focus), governor_bonus(gov, str(st.focus)), governor_settle(gov), catalog.station_goods(str(sid)))
+		flow = _with_food_focus_bonus(flow, str(st.focus))
 		var upkeep := int(flow.upkeep_materials)
 		if upkeep > 0:
 			stock.materials = maxi(0, int(stock.materials) - upkeep)
@@ -5803,6 +6150,7 @@ func _tick_holdings() -> void:
 					_note_flip(sid, player, "neutral")
 					_grant_claim(st, player)
 					_settle_governors()
+					_sync_perk_notices()
 
 
 func _press_loyalty(st: Dictionary, by: String = "") -> void:
@@ -6341,7 +6689,7 @@ func _pull_sick_from_rooms() -> void:
 func _spread_cough() -> void:
 	if quarantine or bool(flags.get("list_sealed", false)):
 		return
-	var chance := float(bal.cough_spread) * station_fx("cough_spread")
+	var chance := float(bal.cough_spread) * station_fx("cough_spread") * _cough_mult()
 	var sick_cells := {}
 	for room in rooms:
 		for id in room.staff:
@@ -6521,11 +6869,29 @@ func _crunch_event(leg: Dictionary) -> Dictionary:
 			suffer,
 		],
 	}
-	var art := ArtPack.crunch_event_art(str(leg.id))
+	var art := _crunch_banner(str(leg.id))
 	if str(art.get("banner", "")) != "":
 		ev["banner"] = str(art.get("banner", ""))
 		ev["tag"] = str(art.get("tag", ""))
 	return ev
+
+
+## Same banners as ArtPack.crunch_event_art. Kept on the sim so a missing texture import
+## does not drop the crunch card.
+func _crunch_banner(id: String) -> Dictionary:
+	match id:
+		"pantry":
+			return {"banner": "hunger", "tag": "hunger"}
+		"ducts", "belt":
+			return {"banner": "dark", "tag": "dark"}
+		"stacks":
+			return {"banner": "rat", "tag": "scrap"}
+		"shopbelt":
+			return {"banner": "tools", "tag": "tools"}
+		"dynamo":
+			return {"banner": "brownout", "tag": "dark"}
+		_:
+			return {}
 
 
 func _bill_three(pool: int) -> Array:
@@ -7410,6 +7776,8 @@ func check_modifiers(skill: String) -> Array:
 	var rows: Array = []
 	if skill == "wits" and _room_ready("workshop"):
 		rows.append({"text": "Workshop", "amount": 1})
+	if skill == "wits" and _perk_int("check_wits") != 0:
+		rows.append({"text": "perk.short.library", "amount": _perk_int("check_wits")})
 	if skill == "wits" and _law_on("engineers_charter"):
 		rows.append({"text": "Engineers' Charter", "amount": 1})
 	if skill == "voice" and _room_ready("meeting_hall"):
@@ -9260,16 +9628,23 @@ func _drop_id(rows: Array, id: String) -> Array:
 	return keep
 
 
+func _event_draw_weight(ev: Dictionary) -> int:
+	var w := int(ev.get("weight", 1))
+	if str(ev.get("id", "")) == "static":
+		w *= maxi(1, _static_weight_mult())
+	return maxi(0, w)
+
+
 func _weighted(pool: Array, stream: RandomNumberGenerator = null) -> Dictionary:
 	var total := 0
 	for ev in pool:
-		total += int(ev.get("weight", 1))
+		total += _event_draw_weight(ev)
 	if total <= 0:
 		return pool[0]
 	var roll := (stream if stream != null else rng).randi_range(1, total)
 	var acc := 0
 	for ev in pool:
-		acc += int(ev.get("weight", 1))
+		acc += _event_draw_weight(ev)
 		if roll <= acc:
 			return ev
 	return pool[0]
