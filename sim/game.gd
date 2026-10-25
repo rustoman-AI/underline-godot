@@ -8112,13 +8112,6 @@ func _bump_need(st: Dictionary, need_id: String, amount: float) -> void:
 			need.fill = clampf(float(need.fill) + amount, 0.0, 1.0)
 
 
-func _need_fill(st: Dictionary, need_id: String) -> float:
-	for need in st.get("needs", []):
-		if str(need.get("id", "")) == need_id:
-			return float(need.get("fill", 0.0))
-	return 0.0
-
-
 func _demand_open(fid: String) -> bool:
 	for d in demands:
 		if str(d.faction) == fid and not bool(d.paid):
