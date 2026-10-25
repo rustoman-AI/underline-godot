@@ -632,6 +632,8 @@ func _check_battle(catalog: Catalog) -> bool:
 	if fresh.residents.size() != pop1:
 		print("Battle: FAIL injuries killed ", pop1, " -> ", fresh.residents.size())
 		return false
+	if not _fought_notes(fresh):
+		return false
 	var pushed := Game.new()
 	pushed.setup(catalog, 7, 40)
 	pushed.week = 4
@@ -657,6 +659,42 @@ func _check_battle(catalog: Catalog) -> bool:
 		print("Battle: FAIL preview shape")
 		return false
 	print("Battle: ok")
+	return true
+
+
+## Injury notes must land on the person, including when story_events was missing, and the fought pool must read back.
+func _fought_notes(game: Game) -> bool:
+	var injured: Array = game.last_combat_report.get("injured", [])
+	if injured.is_empty():
+		print("Battle: FAIL assault injured nobody")
+		return false
+	var place := str(game.last_combat_report.get("place", ""))
+	var who := str(injured[0].get("name", ""))
+	var saw := false
+	for person in game.residents:
+		if str(person.get("name", "")) != who:
+			continue
+		for ev in person.get("story_events", []):
+			if str(ev.get("pool", "")) != "fought":
+				continue
+			saw = true
+			var line := game.journal_line(ev)
+			if line != "Fought at %s." % place:
+				print("Battle: FAIL fought journal '%s'" % line)
+				return false
+		break
+	if not saw:
+		print("Battle: FAIL fought note missing for ", who)
+		return false
+	var bare := {"name": "Ada Quinn", "memory": 0}
+	game._note_fought(bare, "Union Sq")
+	var events: Array = bare.get("story_events", [])
+	if events.size() != 1 or str(events[0].get("pool", "")) != "fought" or int(bare.memory) != 5:
+		print("Battle: FAIL fought note on a person without story_events ", events)
+		return false
+	if game.journal_line(events[0]) != "Fought at Union Sq.":
+		print("Battle: FAIL fought journal on a new note ", game.journal_line(events[0]))
+		return false
 	return true
 
 
