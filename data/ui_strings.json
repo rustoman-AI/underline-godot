@@ -990,5 +990,45 @@
   "map.tip_unknown_border": {
     "en": "Unknown · borders your line",
     "ru": "Неизвестно · граничит с вашей линией"
+  },
+  "pressure.hover_1": {
+    "en": "Under pressure · 1 week. One more and Assault is open.",
+    "ru": "Под давлением · 1 неделя. Ещё одна — и можно штурмовать."
+  },
+  "pressure.hover_ready": {
+    "en": "Under pressure · {n} weeks. Assault ready.",
+    "ru": "Под давлением · {n} нед. Штурм готов."
+  },
+  "pressure.chip_ready": {
+    "en": "Assault ready",
+    "ru": "Штурм готов"
+  },
+  "pressure.hover_by": {
+    "en": "{faction} is squeezing this station.",
+    "ru": "{faction} давят на станцию."
+  },
+  "pressure.claim_hover": {
+    "en": "{faction} claim · {n} weeks",
+    "ru": "Притязание: {faction} · {n} нед."
+  },
+  "pressure.claim_note": {
+    "en": "They want it back. Retaking it costs no extra opinion.",
+    "ru": "Хотят вернуть. Отбить её можно без лишнего урона мнению."
+  },
+  "pressure.visit_line": {
+    "en": "Pressure {n}/2 · Claim: {name}",
+    "ru": "Давление {n}/2 · Притязание: {name}"
+  },
+  "pressure.visit_pressure": {
+    "en": "Pressure {n}/2",
+    "ru": "Давление {n}/2"
+  },
+  "pressure.visit_claim": {
+    "en": "Claim: {name}",
+    "ru": "Притязание: {name}"
+  },
+  "pressure.claim_cleared": {
+    "en": "Claim on {station} is over.",
+    "ru": "Притязание на {station} снято."
   }
 }

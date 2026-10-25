@@ -271,6 +271,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 func end_week() -> void:
 	if over != "":
 		return
+	_tick_claims()
 	_resolve_pending()
 	_rival_phase()
 	_night()
@@ -5068,7 +5069,7 @@ func _resolve_buy(fid: String, sid: String) -> void:
 	if str(st.owner) != "neutral":
 		return
 	st.rival_symp[fid] = int(st.rival_symp.get(fid, 0)) + 8 + net_rng.randi_range(0, 10)
-	_press_loyalty(st)
+	_press_loyalty(st, fid)
 	_log("%s is buying %s (%d)" % [_fname(fid), st.name, int(st.rival_symp[fid])])
 	if int(st.rival_symp[fid]) >= 100:
 		_capture(sid, fid, false)
@@ -5206,7 +5207,7 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 		return false
 	var win := _battle(sq, nxt)
 	if win:
-		_press_loyalty(stations[nxt])
+		_press_loyalty(stations[nxt], str(sq.faction))
 		if _capture(nxt, str(sq.faction), true):
 			sq.station = nxt
 			stations[nxt].known = true
@@ -5252,6 +5253,93 @@ func _battle(sq: Dictionary, sid: String) -> bool:
 	return win
 
 
+## How long a faction that lost a station keeps a claim on it. Display only, plus the ring; Assault numbers stay put.
+const CLAIM_WEEKS := 12
+
+
+func low_weeks_of(sid: String) -> int:
+	if not stations.has(sid):
+		return 0
+	return int(stations[sid].get("low_weeks", 0))
+
+
+## The faction whose colour the pressure ring uses. Empty when the station is not under pressure.
+func pressure_faction(sid: String) -> String:
+	if not stations.has(sid):
+		return ""
+	var st: Dictionary = stations[sid]
+	if int(st.get("low_weeks", 0)) <= 0:
+		return ""
+	var by := str(st.get("pressure_by", ""))
+	if by != "":
+		return by
+	var suitor := _suitor(st)
+	if suitor != "":
+		return suitor
+	if str(st.get("owner", "")) == player:
+		return _courting_rival()
+	return ""
+
+
+## Live claim, or {} when none. A faction that currently holds the station does not claim it.
+func station_claim(sid: String) -> Dictionary:
+	if not stations.has(sid):
+		return {}
+	return _active_claim(stations[sid])
+
+
+func faction_title(fid: String) -> String:
+	if catalog != null and catalog.factions.has(fid):
+		return str(catalog.factions[fid].get("name", fid))
+	return _fname(fid)
+
+
+func _active_claim(st: Dictionary) -> Dictionary:
+	var raw = st.get("claim", null)
+	if typeof(raw) != TYPE_DICTIONARY:
+		return {}
+	var faction := str(raw.get("faction", ""))
+	var left := int(raw.get("weeks_left", 0))
+	if faction == "" or left <= 0:
+		return {}
+	if str(st.get("owner", "")) == faction:
+		return {}
+	return {"faction": faction, "weeks_left": left}
+
+
+func _claimable_faction(fid: String) -> bool:
+	if fid == "" or fid in ["neutral", "ruin", "bunker", "enemy"]:
+		return false
+	return fid == player or (catalog != null and catalog.factions.has(fid))
+
+
+## Previous owner gets a 12-week claim when the station had none. Does not replace a claim already on it.
+func _grant_claim(st: Dictionary, prev: String) -> void:
+	if not _active_claim(st).is_empty():
+		return
+	st.erase("claim")
+	if not _claimable_faction(prev):
+		return
+	st["claim"] = {"faction": prev, "weeks_left": CLAIM_WEEKS}
+
+
+func _tick_claims() -> void:
+	for sid in stations.keys():
+		var st: Dictionary = stations[sid]
+		var claim := _active_claim(st)
+		if claim.is_empty():
+			if st.has("claim"):
+				st.erase("claim")
+			continue
+		var left := int(claim.weeks_left) - 1
+		if left <= 0:
+			st.erase("claim")
+			if bool(st.get("known", false)):
+				notices.append(Copy.fill("pressure.claim_cleared", {"station": _station_place(str(sid))}))
+		else:
+			st["claim"] = {"faction": str(claim.faction), "weeks_left": left}
+
+
 func _capture(sid: String, fid: String, force: bool) -> bool:
 	var pushed := false
 	if stations.has(sid):
@@ -5268,6 +5356,11 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	var prev := str(st.owner)
 	if prev == fid:
 		return false
+	## Holding a station spends your own claim. A different faction's claim stays until it lapses or they retake.
+	var held = st.get("claim", {})
+	if typeof(held) == TYPE_DICTIONARY and str(held.get("faction", "")) == prev:
+		st.erase("claim")
+	var reclaim := str(_active_claim(st).get("faction", "")) == fid
 	st.owner = fid
 	st.sympathy = 0
 	st.loyalty = 20 if force else 72
@@ -5275,6 +5368,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	st.known = true
 	st.held_weeks = 0
 	st.low_weeks = 0
+	st.erase("pressure_by")
 	if fid != player or force:
 		_note_flip(sid, prev, fid)
 	_journal("station", {"station": sid, "to": fid, "from": prev})
@@ -5286,6 +5380,10 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_add_opinion(prev, -20)
 		ambition[prev] = int(ambition.get(prev, 0)) + int(bal.ambition_taken)
 		_log("%s will remember %s." % [_fname(prev), st.name])
+	if reclaim:
+		st.erase("claim")
+		notices.append(Copy.fill("pressure.claim_cleared", {"station": _station_place(sid)}))
+	_grant_claim(st, prev)
 	if fid == player:
 		var shipment := ""
 		if force and bool(bal.get("force_no_join_hope", true)):
@@ -5682,6 +5780,11 @@ func _tick_holdings() -> void:
 		if not _connected(sid):
 			st.loyalty = int(st.loyalty) - 5
 		st.loyalty = clampi(int(st.loyalty), 0, 100)
+		var pressing := _suitor(st)
+		if pressing == "":
+			pressing = _courting_rival()
+		if pressing != "":
+			st["pressure_by"] = pressing
 		_mark_low(st)
 		if int(st.low_weeks) >= 2 and week >= 4:
 				var suitor := _suitor(st)
@@ -5696,11 +5799,15 @@ func _tick_holdings() -> void:
 					st.sympathy = 0
 					st.unrest = 0
 					st.low_weeks = 0
+					st.erase("pressure_by")
 					_note_flip(sid, player, "neutral")
+					_grant_claim(st, player)
 					_settle_governors()
 
 
-func _press_loyalty(st: Dictionary) -> void:
+func _press_loyalty(st: Dictionary, by: String = "") -> void:
+	if by != "":
+		st["pressure_by"] = by
 	st.loyalty = maxi(0, int(st.loyalty) - (4 + net_rng.randi_range(0, 7)))
 	_mark_low(st)
 
@@ -5708,6 +5815,7 @@ func _press_loyalty(st: Dictionary) -> void:
 func _mark_low(st: Dictionary) -> void:
 	if int(st.loyalty) >= 42:
 		st.low_weeks = 0
+		st.erase("pressure_by")
 		return
 	if int(st.get("marked_week", -1)) == week:
 		return
@@ -8858,7 +8966,7 @@ func _synod_preach() -> void:
 		return
 	var st: Dictionary = stations[best]
 	st.rival_symp.synod = int(st.rival_symp.synod) + 6 + net_rng.randi_range(0, 8)
-	_press_loyalty(st)
+	_press_loyalty(st, "synod")
 	st.known = true
 	_log("PREACH The Synod speaks at %s" % st.name, true)
 	if int(st.rival_symp.synod) >= 100:
