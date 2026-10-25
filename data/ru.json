@@ -1688,5 +1688,11 @@
   "{name} was hurt.": "{name} пострадал{a}.",
   "Double tonight's output. Incident risk ~%d%%.": "Удвоить ночной выход. Риск аварии ~%d%%.",
   "{room} pushed. Output doubles tonight.": "{room}: нажали. Ночной выход удвоится.",
-  "pushed": "нажим"
+  "pushed": "нажим",
+  "Order cancelled · {role}": "Приказ отменён · {role}",
+  "Garrison → {station}": "Гарнизон → {station}",
+  "Expedition queued · {station}": "Экспедиция в очереди · {station}",
+  "Expedition queued": "Экспедиция в очереди",
+  "No one free — everyone is posted or on a crew.": "Свободных нет — все на постах или в бригаде.",
+  "Unknown · borders your line": "Неизвестно · граничит с вашей линией"
 }

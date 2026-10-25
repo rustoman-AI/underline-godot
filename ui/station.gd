@@ -2307,7 +2307,7 @@ func _people_group(title: String, members: Array, skill_name: String, highlight:
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	wrap.add_child(heading)
 	if members.is_empty():
-		var empty := _label("Drop here to take off work", 13)
+		var empty := _label("people.empty_free", 13)
 		empty.add_theme_color_override("font_color", MUTED)
 		wrap.add_child(empty)
 		return

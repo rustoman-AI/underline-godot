@@ -966,5 +966,29 @@
   "push.toast_ok": {
     "en": "{room} pushed. Output doubles tonight.",
     "ru": "{room}: нажали. Ночной выход удвоится."
+  },
+  "order.toast_cancel": {
+    "en": "Order cancelled · {role}",
+    "ru": "Приказ отменён · {role}"
+  },
+  "order.toast_garrison": {
+    "en": "Garrison → {station}",
+    "ru": "Гарнизон → {station}"
+  },
+  "order.toast_expedition": {
+    "en": "Expedition queued · {station}",
+    "ru": "Экспедиция в очереди · {station}"
+  },
+  "order.toast_expedition_plain": {
+    "en": "Expedition queued",
+    "ru": "Экспедиция в очереди"
+  },
+  "people.empty_free": {
+    "en": "No one free — everyone is posted or on a crew.",
+    "ru": "Свободных нет — все на постах или в бригаде."
+  },
+  "map.tip_unknown_border": {
+    "en": "Unknown · borders your line",
+    "ru": "Неизвестно · граничит с вашей линией"
   }
 }

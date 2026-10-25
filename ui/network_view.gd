@@ -3107,7 +3107,12 @@ func _tip(sid: String) -> String:
 		return ""
 	var st: Dictionary = game.stations[sid]
 	if not bool(st.get("known", false)):
-		return Copy.t("Hidden station") if bool(st.get("hidden", false)) else ""
+		if bool(st.get("hidden", false)):
+			return Copy.t("Hidden station")
+		## C6 alias for the future border whisper (border.tip_unknown). The tip only.
+		if game.borders_player(sid):
+			return Copy.t("map.tip_unknown_border")
+		return ""
 	var lines: PackedStringArray = [game.station_text(sid, "community")]
 	for intent in game.telegraphed:
 		if bool(intent.get("hidden", false)):
@@ -3667,6 +3672,10 @@ func _issue(kind: String, sid: String) -> void:
 				toast = game.order_toast(kind, action)
 			elif kind in ["patrol", "raid", "assault"]:
 				toast = Copy.t("combat.toast_sent")
+			elif kind == "move":
+				toast = Copy.fill("order.toast_garrison", {"station": _place_name(game, sid)})
+			elif kind == "expedition":
+				toast = _expedition_toast(game)
 			else:
 				toast = _order_toast(kind, sid)
 			if toast == "":
@@ -3819,6 +3828,28 @@ func _station_label(game, sid: String) -> String:
 	return Copy.t(str(game.stations[sid].get("name", sid)))
 
 
+func _place_name(game, sid: String) -> String:
+	if game == null or sid == "" or not game.stations.has(sid):
+		return ""
+	var place: String = game.station_text(sid, "community")
+	if place == "":
+		place = Copy.t(str(game.stations[sid].get("name", sid)))
+	return place
+
+
+## Expedition names its target when the queue has one. Otherwise the plain C6 line.
+func _expedition_toast(game) -> String:
+	var target := ""
+	if game != null and not game.queued_orders.is_empty():
+		var row: Dictionary = game.queued_orders.back()
+		if str(row.get("kind", "")) == "expedition":
+			target = str(row.get("target", ""))
+	var place := _place_name(game, target)
+	if place == "":
+		return Copy.t("order.toast_expedition_plain")
+	return Copy.fill("order.toast_expedition", {"station": place})
+
+
 func _order_toast(kind: String, sid: String) -> String:
 	var game = _game()
 	var line := ""
@@ -3846,6 +3877,8 @@ func _cancel_seat(role: String) -> void:
 	var game = _game()
 	if game == null or not game.cancel_queued(role):
 		return
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.fill("order.toast_cancel", {"role": Copy.t(role.capitalize())}))
 	if host != null and host.has_method("_refresh"):
 		host._refresh()
 	refresh()
