@@ -1,0 +1,14 @@
+Keep frame 1 exactly as it is in the attached sheet. Redraw the other frames so they match frame 1 exactly in the people, their clothes, the gear, the vehicle, the size and the ground or rail height, and follow the frame list from the first prompt exactly. Keep the wide empty gaps between frames and the transparent background.
+
+Draw an animation sheet of the attached three guards marching: 6 frames in one horizontal row, left to right, strict side view facing right, exactly the same style, people, clothes, gear and size as the attached squad reference. All three are in step in every frame.
+
+Frame 1: right heels touch the ground in front, left legs behind (contact).
+Frame 2: weight down on the right legs, bodies lowest (down).
+Frame 3: left legs pass the right, bodies upright (passing).
+Frame 4: left heels touch the ground in front, right legs behind (contact, mirror of frame 1).
+Frame 5: weight down on the left legs (down).
+Frame 6: right legs pass the left (passing).
+Arms swing against the legs. The lamp, the spear and the shield keep their size and shape; the grey armbands stay exactly the same grey. The soles touching the ground sit on the same line in every frame, with clear empty space below the boots and above the spear tip.
+
+Leave a wide empty transparent gap between neighbouring frames, clearly empty between frames. Transparent background with real alpha: no white, no checkerboard, no glow, no halo. No ground line, no shadow, no motion blur, no speed lines, no grid lines, no numbers, no text.
+FINAL FRAMING CORRECTION: previous sheet is image 4. It clips the first boot on the left and the last lantern on the right. Draw all six groups at 80 percent of their previous size, centered in six equal invisible cells. Leave at least 64 pixels of COMPLETELY EMPTY TRANSPARENT BORDER on LEFT and RIGHT edges of the overall sheet. No person or lamp may touch the image boundaries. Keep clear space above all spear tips and below all boots. Keep the six poses from image 4, the same three people, matching neutral grey armbands and all gear. Preserve character identity, proportions and line weight from accepted image 1. Complete the clipped boot and lantern. No grid or cell lines.

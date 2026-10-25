@@ -1,0 +1,23 @@
+Station walls - awaiting owner review, 21 Oct 2026
+
+All three images generated with all four style references on every call:
+assets/rooms/room_quarters.webp
+assets/rooms/room_workshop.webp
+assets/cells/cell_dug.webp
+assets/backdrop_station.webp
+Corrections also attached the previous attempt. All originals retained.
+Exact initial prompts are in <name>_prompt.txt; correction prompts in <name>_v2_prompt.txt and <name>_v3_prompt.txt.
+Each image used three total attempts (two corrections). No game integration.
+
+wall_pillar_v1/v2/v3: real alpha beside pillar. All canvases 793x1983, still 2.5:1 rather than requested 4:1 despite corrections. Review design only; dimensions unresolved.
+floor_slab_v1/v2/v3: real alpha outside slab. All canvases 2172x724, still 3:1 rather than requested 8:1 and with vertical empty margins. Seamless tiling not verified; edge details still differ.
+room_shade_v1/v2/v3: 1721x914, approximately requested aspect. v1 has clear centre, black sampled RGB, side edge alpha ~78%, top ~49%, but alpha drops too soon inward. v2 introduced unwanted texture. v3 removes most visible texture but still needs owner review for smoothness and exact alpha profile. v1 may be the cleaner candidate.
+
+v3 shadow pixel samples: outermost left/right edges alpha 0 (incorrect); 8% inward alpha 182/255; centre alpha 0; right 8% sample RGB 1,1,1 rather than pure black. Prefer v1 for review; exact shadow specification remains unresolved.
+
+Retry limit reached; no image is marked accepted.
+
+LEAD REVIEW, 21 Oct: ACCEPTED wall_pillar_v1 (2.5:1 is fine, drawn at its own proportions), floor_slab_v1 (the
+slab itself is rows 207..528, a 6.75:1 strip; installed trimmed; one slab per cell so every seam sits behind a
+pillar, tiling not needed), room_shade_v1 (real alpha, black, clear centre, edges about 78 percent). Installed in
+assets/station/. Before and after: build/rooms_before_after.png, build/rooms_before_after_zoom.png.

@@ -1,0 +1,191 @@
+{
+  "_note": "Endings and epilogue lines (docs/STORY.md), written by the project lead. The epilogue screen shows: the ending title and text, one line per leader by answer (accepted, refused, helped, none), one truth line by proofs, and station stats from the game state. Failure endings use the same screen.",
+  "endings": {
+    "order": {
+      "title": {
+        "en": "Order",
+        "ru": "Порядок"
+      },
+      "text": {
+        "en": "By the fortieth week the lists hold. Lionel Abelard's ledger covers every platform from Grand Central to the Coney yard, and the lights stay on because the numbers say they must. Nobody asks what the Floor said, or what was burned at Stillwell. The people who are fed do not ask. The ones who are not are no longer on the list.",
+        "ru": "К сороковой неделе списки держатся. Журнал Лайонела Абеларда охватывает каждую платформу от Гранд-Централа до депо Кони, и свет горит, потому что так велят цифры. Никто не спрашивает, что сказал Этаж и что сожгли на Стиллвелле. Те, кого кормят, не спрашивают. Тех, кого нет, уже нет в списке."
+      }
+    },
+    "exodus": {
+      "title": {
+        "en": "The Count",
+        "ru": "Счёт"
+      },
+      "text": {
+        "en": "The pipe taps forty-one and goes quiet. Dr. Reed was right: the weeks were counted, and the count is done. On the forty-first morning the door of the Observatory opens, and the first thirty of your people climb the stairs with lamps they will not need. The wind is real. So is the sound under it, small and regular, like someone counting down.",
+        "ru": "Труба стучит сорок один и замолкает. Доктор Рид был прав: недели были сосчитаны, и счёт закончен. На сорок первое утро дверь Обсерватории открывается, и первые тридцать твоих людей поднимаются по лестнице с лампами, которые им не понадобятся. Ветер настоящий. Как и звук под ним, тихий и ровный, словно кто-то ведёт обратный отсчёт."
+      }
+    },
+    "open_door": {
+      "title": {
+        "en": "The Open Door",
+        "ru": "Открытая дверь"
+      },
+      "text": {
+        "en": "You read it on every wire in the network, in your own voice: the order, the ledger, the recording, the minutes. For one night the stations are silent. Then they are not. The Depot goes for the gates, the Synod prays, the Exchange sets a price on what is left, and the Directorate asks that the lists be burned. Nothing is the same, and everyone knows why.",
+        "ru": "Ты читаешь это по каждому проводу сети своим голосом: приказ, журнал, запись, протокол. На одну ночь станции молчат. Потом нет. Депо идёт к воротам, Синод молится, Биржа назначает цену на то, что осталось, а Дирекция просит сжечь списки. Ничто не прежнее, и все знают почему."
+      }
+    },
+    "winter": {
+      "title": {
+        "en": "The Winter Holds",
+        "ru": "Зима держится"
+      },
+      "text": {
+        "en": "Week forty. The lights are on and your people are alive, and no one can tell you why the surface went quiet or what the tapping in the pipe is counting. Someone says: one more week. Nobody knows what they mean.",
+        "ru": "Сороковая неделя. Свет горит, твои люди живы, и никто не может сказать тебе, почему замолчала поверхность и кто ведёт счёт, отстукивая его в трубе. Кто-то говорит: ещё одну неделю. Никто не знает, что он имеет в виду."
+      }
+    },
+    "collapse": {
+      "title": {
+        "en": "Collapse",
+        "ru": "Крах"
+      },
+      "text": {
+        "en": "The station could not carry its own weight. By the end the lamps are out on every platform, and the last of your people walk the tunnel toward whoever will take them.",
+        "ru": "Станция не смогла нести собственный вес. К концу лампы погасли на каждой платформе, и последние твои люди идут по тоннелю к тем, кто примет их."
+      }
+    },
+    "hope": {
+      "title": {
+        "en": "No More Hope",
+        "ru": "Надежды нет"
+      },
+      "text": {
+        "en": "Nobody tells the story anymore. Nobody sits up to listen to the pipe. The lights still burn, and the platform is empty of voices.",
+        "ru": "Больше никто не рассказывает историй. Никто не сидит ночью, прислушиваясь к трубе. Свет ещё горит, а платформа пуста от голосов."
+      }
+    },
+    "revolt": {
+      "title": {
+        "en": "The Platform Rises",
+        "ru": "Платформа поднимается"
+      },
+      "text": {
+        "en": "They come down the stairs at night, all of them, with the lamps turned up. They do not shout. They put the keys on the table and wait for you to leave.",
+        "ru": "Они спускаются по лестнице ночью, все, с прибавленными до предела лампами. Они не кричат. Они кладут ключи на стол и ждут, когда ты уйдёшь."
+      }
+    },
+    "capital": {
+      "title": {
+        "en": "The Capital Falls",
+        "ru": "Столица пала"
+      },
+      "text": {
+        "en": "Coney Island is no longer yours. Strangers sleep under the lamps you hung.",
+        "ru": "Кони-Айленд больше не твой. Чужие люди спят под лампами, которые ты повесил."
+      }
+    }
+  },
+  "leaders": {
+    "depot": {
+      "accepted": {
+        "en": "He burned the copy with you, and the Depot kept its crew whole. The yard still does not say what was in the stove.",
+        "ru": "Он сжёг копию вместе с тобой, и Депо сохранило бригаду целой. В депо до сих пор не говорят, что было в печи."
+      },
+      "refused": {
+        "en": "He never asked again. The yard kept its parts for itself, and the switch at the platform stayed dark through the winter.",
+        "ru": "Он больше не просил. Депо оставило детали себе, и стрелка на платформе всю зиму оставалась тёмной."
+      },
+      "helped": {
+        "en": "He kept the tea hot on the platform bench. Whatever you carried to his yard, he remembered.",
+        "ru": "Он держал чай горячим на платформенной скамье. Что бы ты ни приносил в его депо, он запомнил."
+      },
+      "none": {
+        "en": "He never came to your platform. The Depot ran the line without you.",
+        "ru": "Он так и не пришёл на твою платформу. Депо вело линию без тебя."
+      }
+    },
+    "directorate": {
+      "accepted": {
+        "en": "He filed the name you gave him and signed under it. He did not thank you. He did not need to.",
+        "ru": "Он подшил имя, которое ты ему дал, и расписался под ним. Он не поблагодарил. Ему не требовалось."
+      },
+      "refused": {
+        "en": "He recorded your refusal and said it would be struck next quarter. It never was.",
+        "ru": "Он внёс твой отказ и сказал, что вычеркнет его в следующем квартале. Не вычеркнул."
+      },
+      "helped": {
+        "en": "He filed your reports as reliable. It is the kindest word he has ever written.",
+        "ru": "Он подшил твои отчёты как надёжные. Это самое доброе слово, какое он когда-либо написал."
+      },
+      "none": {
+        "en": "The Directorate counted your station in its ledger without ever having met you.",
+        "ru": "Дирекция занесла твою станцию в ведомость, ни разу тебя не встретив."
+      }
+    },
+    "synod": {
+      "accepted": {
+        "en": "She kept the surface quiet for your people. They sleep well. She does not.",
+        "ru": "Она сохранила поверхность тихой для твоих людей. Они спят хорошо. Она нет."
+      },
+      "refused": {
+        "en": "She kept a list of your people who ate at the Synod kitchens. She still has it.",
+        "ru": "Она вела список твоих людей, которые ели на кухнях Синода. Он у неё до сих пор."
+      },
+      "helped": {
+        "en": "She remembered the bread. When your people were sick, the quiet room was open to them.",
+        "ru": "Она запомнила хлеб. Когда твои люди болели, тихая комната была для них открыта."
+      },
+      "none": {
+        "en": "The quiet room stayed a story you heard from other stations.",
+        "ru": "Тихая комната так и осталась историей, которую ты слышал от других станций."
+      }
+    },
+    "exchange": {
+      "accepted": {
+        "en": "He read your books once and returned them. He never sold what he learned. He never said he would not.",
+        "ru": "Он прочёл твои тетради один раз и вернул. Он не продал того, что узнал. Он ни разу не сказал, что не продаст."
+      },
+      "refused": {
+        "en": "A boy with a note still comes to your gate for a loaf from two months back.",
+        "ru": "Мальчик с запиской всё ещё приходит к твоим воротам за буханкой двухмесячной давности."
+      },
+      "helped": {
+        "en": "He rubbed your name off his arm. It is the only one he ever rubbed out.",
+        "ru": "Он стёр твоё имя со своей руки. Это единственное, которое он когда-либо стёр."
+      },
+      "none": {
+        "en": "He priced your station without ever visiting it.",
+        "ru": "Он назначил цену твоей станции, ни разу её не посетив."
+      }
+    },
+    "black_flag": {
+      "accepted": {
+        "en": "Her lamps pass through your station on the nights you do not look. Someone leaves a stone on the sill.",
+        "ru": "Её лампы проходят через твою станцию в те ночи, когда ты не смотришь. Кто-то оставляет камень на подоконнике."
+      },
+      "refused": {
+        "en": "Her people no longer come through your tunnel. The dark there has a different weight.",
+        "ru": "Её люди больше не ходят по твоему тоннелю. У темноты там другой вес."
+      },
+      "helped": {
+        "en": "She left water at your gate. It was the last thing anyone expected from the dark.",
+        "ru": "Она оставила воду у твоих ворот. Этого меньше всего ждали от темноты."
+      },
+      "none": {
+        "en": "You never met the Lamplighters. You only heard the tapping on the pipes.",
+        "ru": "Ты так и не встретил Фонарщиков. Ты слышал только стук по трубам."
+      }
+    }
+  },
+  "truth": {
+    "none": {
+      "en": "You never learned what happened, and you never learned what was hidden.",
+      "ru": "Ты так и не узнал, что случилось, и не узнал, что скрыли."
+    },
+    "some": {
+      "en": "You learned some of it, but nobody could be shown the pages.",
+      "ru": "Ты узнал часть, но никому нельзя было показать страницы."
+    },
+    "proof": {
+      "en": "You learned it with proof. Whatever you did with it, you did not do it blind.",
+      "ru": "Ты узнал это с доказательствами. Что бы ты с этим ни сделал, ты сделал это не вслепую."
+    }
+  }
+}

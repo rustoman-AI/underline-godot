@@ -1,0 +1,62 @@
+{
+	"accepted": true,
+	"anchor": [
+		176.0,
+		230.0
+	],
+	"count": 6,
+	"landmarks": [
+		{
+			"base": 186.5,
+			"center": 168.75,
+			"left": 75.5,
+			"rail": 498,
+			"right": 262.0
+		},
+		{
+			"base": 183.0,
+			"center": 167.0,
+			"left": 75.5,
+			"rail": 498,
+			"right": 258.5
+		},
+		{
+			"base": 173.5,
+			"center": 160.75,
+			"left": 74.0,
+			"rail": 499,
+			"right": 247.5
+		},
+		{
+			"base": 184.0,
+			"center": 168.5,
+			"left": 76.5,
+			"rail": 498,
+			"right": 260.5
+		},
+		{
+			"base": 180.5,
+			"center": 166.75,
+			"left": 76.5,
+			"rail": 498,
+			"right": 257.0
+		},
+		{
+			"base": 183.0,
+			"center": 166.0,
+			"left": 74.5,
+			"rail": 498,
+			"right": 257.5
+		}
+	],
+	"owner_grey": 0.662745118141174,
+	"placeholder": false,
+	"source": "res://incoming-art/map_units/set/trader_roll_v1.png",
+	"tint_region": [
+		0.0,
+		0.0,
+		0.72,
+		0.55
+	],
+	"wheelbase": 186.5
+}

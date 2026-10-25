@@ -1,0 +1,34 @@
+CURSOR: FOLLOW-UP TO THE OVERNIGHT QA (lead decisions)
+Thanks for docs/audit/overnight_20261012.md. Decisions on the open items. Local only. No push. Do NOT edit wording or art; the lead's data files are already updated in the working copy (data/ru.json, data/station_communities.json, data/backstories.json, data/resident_profiles.json): read them again, do not overwrite them.
+
+0. ORDER OF WORK
+(a) docs/briefs/cursor_profiles_portraits.txt first (sex-aware portraits, professions, twelve portraits, then rebuild the playtest zip as 0.1.0-playtest2). (b) This brief. (c) docs/briefs/cursor_difficulty_modes.txt. Commit the lead's data files that belong to each step (backstories.json and resident_profiles.json go with (a); ru.json and station_communities.json with (b)).
+
+1. STATION AND COMMANDER NAMES (already added to data/ru.json by the lead)
+Penn Station, Union Sq, Times Sq, Aqueduct, Cathedral Pkwy, Flushing, Astor Pl, Delancey St, Greenpoint, Court St, Myrtle-Willoughby (the en dash is now a hyphen), Captain Rhee, Broker Lin. Make sure every place that prints these goes through Copy.t / Copy.person (map, sheet, visit, morning lines, intents, journal). Re-run the runtime l10n audit for RU and confirm the station-name findings are gone.
+
+2. RIVAL LOG LINES IN RUSSIAN (code in sim/game.gd, wording from the lead; put them through the normal translation path, key = the English template)
+| English template | Russian |
+| BATTLE %s takes %s | Бой. %s занимает %s. |
+| BATTLE %s is thrown back from %s | Бой. %s отброшен от %s. |
+| %s takes %s (rival capture) | %s занимает %s. |
+| DEFECT %s leaves for %s | Отход. Станция %s уходит к %s. |
+| %s throws the garrison out (REVOLT) | Бунт. %s выгоняет гарнизон. |
+| PREACH The Synod speaks at %s | Проповедь. Синод говорит на станции %s. |
+| %s asks to join | Станция %s просит принять её. |
+| DEAL %s (%d) | Сделка. %s (%d). |
+Tags (Бой, Отход, Бунт, Проповедь, Сделка) already exist or are added the same way as the existing Бой. If a template's argument order differs in code, keep the argument order and report it. Names inside the lines use the translated station and faction names.
+
+3. LOW CONTRAST
+Fix the three low-contrast texts from ui_matrix (the red ultimatum plate at 1.9:1 and the two others) to at least 4.5:1 for body text and 3:1 for large text, keeping the hue family and the paper/lamp look (darken the plate or lighten the text; do not change layout). Before and after screenshots EN and RU.
+
+4. INTERFACE SCALE
+Add an automatic interface scale as the default (setting value Auto, manual choices stay): scale = clamp(window height / 1080, 0.9, 1.6) with a step of 0.05, applied the same way the existing manual scale is applied. At 1440p and 3440x1440 the UI must read at roughly the same physical size as at 1080p. Check the matrix again for 1024x768, 1280x720, 1366x768, 1600x900, 1920x1080, 2560x1440, 3440x1440 (EN and RU) and report any overflow. A saved manual choice wins over Auto.
+
+5. HOUSEKEEPING
+- Delete the soak_debug folder you created in the game's %APPDATA% data directory (yours only; do not touch settings.cfg, saves or lore.cfg).
+- Run QA parts in the main working copy (not a git worktree): LFS assets (assets/hubs/hub_coney_island.webp and others) must be present. Confirm hub_coney_island.webp is in build/playtest/pack_contents.txt after the next export (it is today, as .godot/imported/hub_coney_island.webp-*.ctex).
+- Note for the report: whether any text you keep in code (not data) still needs Russian.
+
+6. CHECKS AND COMMITS
+All gates. Commits separate: "Russian names for stations and commanders", "Rival log lines in Russian", "Contrast fixes", "Auto interface scale". Do not commit shots/, build/, incoming-art/.

@@ -1,0 +1,40 @@
+ART: ANIMATION PILOT, ONE WALK CYCLE (ChatGPT image tool)
+
+WHY
+The station's people are single still pictures. Moving a still picture around reads as jumping, so the game needs real frames. This pilot tests one thing only: can the image tool draw one of our residents in 8 walk frames that stay the same person from frame to frame. If yes, the same brief grows to standing, working and digging for a handful of body types. If not, we switch to a 3D-to-2D pipeline or an animator. One evening, nothing installed.
+
+REFERENCE
+Attach incoming-art/anim_pilot/reference_body_03.png (212x660, transparent). This is the character: a slim older man in a dark knitted beanie, white stubble and moustache, a quilted navy blue coat with a brown patch on the left shoulder, a rust-red shirt under it, grey-brown work trousers with patches and a tear on the knee, brown work boots. Our drawing style: one consistent dark ink outline, flat colour with a little texture, muted palette, no gloss.
+
+WHAT TO DRAW
+One image: the same man walking, 8 frames, in one row, left to right.
+- True side view, facing right. (The reference is three-quarter; turn him to a clean profile, same clothes.)
+- He walks empty-handed, so both arms swing.
+- Both boots the same brown in every frame.
+- The 8 frames are one loop of a calm, tired walk, in this order:
+  1. right heel touches the ground in front, left leg behind (contact)
+  2. weight drops onto the right leg, body lowest (down)
+  3. left leg passes the right, body upright (passing)
+  4. body highest, pushing off the right toe (up)
+  5. left heel touches in front, right leg behind (contact, mirror of 1)
+  6. weight drops onto the left leg (down)
+  7. right leg passes the left (passing)
+  8. pushing off the left toe (up)
+  Arms swing against the legs: right leg forward, left arm forward.
+- Every frame the same person: same height, same head size, same coat and patches, same tear on the same knee, same brown boots. Nothing appears or disappears between frames.
+
+STRICT LAYOUT (this is what makes it usable)
+- Canvas 2048 x 512, transparent background (real alpha, no white, no checkerboard, no glow, no halo).
+- 8 equal cells, each 256 wide x 512 tall. One frame per cell, centred in its cell.
+- The soles of the feet on the same line in every cell: 24 pixels above the bottom edge. The foot carrying the weight sits exactly on that line.
+- The same scale in every cell: the head top about 40 pixels below the cell top in the "up" frames.
+- No ground line, no shadow, no motion blur, no speed lines, no numbers, no grid lines, no text.
+- Same ink line weight and colours in all frames. Light from the same side in all frames.
+
+DELIVERY
+- incoming-art/anim_pilot/walk_body03_v1.png (and v2, v3 if you try again).
+- incoming-art/anim_pilot/walk_body03_prompt.txt with the exact prompt used.
+If the first sheet drifts (clothes change, legs do not swap), make a second attempt using the first sheet as a reference and say "keep frame 1 exactly, redraw the others to match it". Send what you have after three attempts; do not polish further.
+
+WHAT HAPPENS NEXT (the lead does this, not ChatGPT)
+The lead cuts the cells, lines the feet up to one floor, cleans the edges, plays the loop at 10 to 12 frames a second in a real room of the game and records a short clip for the owner. Accept or reject is the owner's call on that clip.

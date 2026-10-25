@@ -1,0 +1,20 @@
+MUSE: SOUND OVERHAUL (all game sounds except the voice-over). STATUS: PLAN AND SAMPLES are GO (owner, 13 Oct 2026). Spending beyond the sample budget needs the owner's word "go". The voice-over (assets/audio/vo) is NOT touched.
+Source: feedback F35. The owner played the game: almost all sounds feel weird and annoying, "like Game Boy", especially the dossier (character file), the loading or menu screens, and the End turn sound. He wants professional sound, like a proper PC game. Resources are tight, so first RESEARCH and propose; then make samples.
+
+Current sound files (assets/audio): click, confirm, card, built, error, hover (muted), whoosh, thud, drip, drone, ambient, radio, and room loops in assets/audio/rooms/. Read docs/briefs/muse_leaders_vo.txt and assets/audio/vo/INDEX.md for how loudness is normalised: -23 LUFS integrated, no clipping, ogg.
+
+STEP 1: AUDIT (no credits)
+Play or read the code (ui/station.gd, sim/audio code: search "play_sfx", "AudioStream", settings.gd) and list every place a sound plays: UI click, button confirm, End turn, new week card, event card open, dossier tabs, audience open, build and dig, upgrade bought, error, map click, menu and loading screen, room loops, ambient, drips. Table: event, current file, length, what it sounds like, what is wrong.
+
+STEP 2: RESEARCH (no credits). Compare the real options for a dark, quiet, realistic post-apocalypse UI sound set and recommend one:
+ a) ElevenLabs Sound Effects (text to sound, same account as the voices): quality, control, licence for commercial games, cost per sound.
+ b) Free or paid professional libraries with clear game licences: for example Sonniss GDC bundles, Kenney (CC0), Freesound CC0 only, Pixabay. List licences and what attribution is required. Do NOT use anything that needs attribution we cannot give or that bans games.
+ c) Suno or other music AI: for the music bed only, never for UI sounds. State the commercial-use terms of the plan we would need.
+ State a clear recommendation: what we generate and what we take from libraries. Note that sounds from one source sit together better than a mix.
+
+STEP 3: STYLE RULES (what "professional" means here)
+ Real materials, not synth beeps: paper, brass, wood, rusty metal, stamp on a ledger, radio static, a pencil mark, a switch, a heavy door. Short, soft, low in level. No 8-bit, no chip tones, no rising "reward" arpeggios. End turn: a calm, low, heavy sound (a ledger closing, a lever, a deep thud with a short room tail), not a bright jingle. Dossier: paper and a clip, a page turn and a small stamp, quiet. Loading and menu: a low room tone with distant ticks, no loop that grates over 30 seconds. Nothing louder than the voice-over. Pitch variation: 3 variants for the click and card sounds so repetition does not tire.
+
+STEP 4: SAMPLES (spend at most 25 percent of a normal credit budget; report credits used per sound)
+Make: End turn, click (3 variants), dossier open and tab switch, card open, new week, build done, dig, upgrade bought, error, menu or loading tone. Normalise to -23 LUFS for loops and -26 for short UI cues, peak under -1 dBTP, ogg, same file names in a new folder assets/audio/new/ so nothing is replaced. Give each file a one-line description and the prompt or library source and licence.
+Report: the audit table, the recommendation, the samples, credits spent. The lead approves by technical check (loudness, clipping, length, licence); the owner listens later. Do NOT replace files in assets/audio. The lead will ask Cursor to switch the game over after approval.

@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/edges/ao_doorway_shadow_band.png" id="1_tex"]
+
+[node name="Decal_AoDoorwayShadowBand" type="Decal"]
+size = Vector3(4, 0.5, 1.2)
+texture_albedo = ExtResource("1_tex")
+albedo_mix = 1.0
+upper_fade = 0.1
+lower_fade = 0.1

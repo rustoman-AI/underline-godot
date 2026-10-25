@@ -1,0 +1,61 @@
+MUSE: TEASER NARRATION, "THE SILENCE" (EN + RU)
+STATUS 17 Oct 2026: stage 1 done (incoming-audio/teaser-vo-stage1/). "go" given for STAGE 2 with Roger (CwhRBWXzGAHq8TQ4Fs17), same model and settings as stage 1.
+A short teaser for the Steam page and Shorts, 35 to 40 seconds. One narrator, five lines, English and Russian. Generation is allowed only in the stages below, with the stop rules below. Do not touch any existing file, index or pack (leaders, radio, sound set).
+
+WHAT THE TEASER IS
+New York, after the Silence. The narrator is one of the survivors, not a trailer announcer. He tells the public version of what happened (the surface stopped answering, nobody came back), what life is now (every station on its own), and ends on one quiet hook: someone up there is still counting. The image and music do the rest; the voice must stay small and human.
+
+THE TWO SCRIPTS ARE NOT TRANSLATIONS
+The English and Russian lines below were written separately, each as a native speaker would say it. They mean the same thing; they do not use the same words. Do not "fix" one to match the other, and do not translate either one. If a line sounds unnatural when spoken, flag it in the report with a suggestion; do not change the text yourself.
+
+THE NARRATOR (one voice for both languages, multilingual required)
+Man, about 50. Tired, low, plain. Speaks like someone remembering, not performing. Natural pauses. No trailer voice, no "in a world" drama, no gravel effect, no smile, no sadness acted on top. Clean, close, dry room.
+Do not reuse the Daniel announcer, any of the five leader voices, or any voice from the 25-character pack.
+
+THE LINES
+Each line has a slot in the edit; the take must fit inside it with a little air. Speak only the text in quotes. "..." is a real pause of about half a second.
+
+1. slot 4-10 s (max 5.0 s)
+   EN: "One night, the surface stopped answering."
+   RU: "Однажды ночью сверху перестали отвечать."
+
+2. slot 10-16 s (max 5.0 s)
+   EN: "The radios went quiet. Whoever went up never came back."
+   RU: "Радио замолчало. Кто поднимался наверх, тот не возвращался."
+
+3. slot 16-22 s (max 5.0 s)
+   EN: "So we stayed below. We called it the Silence."
+   RU: "Мы остались под землёй. И назвали это Тишиной."
+
+4. slot 22-31 s (max 8.0 s)
+   EN: "Now every station is its own country. Food. Air. Light. And neighbours who want the same."
+   RU: "Теперь каждая станция сама себе государство. Еда. Воздух. Свет. И соседи, которым нужно то же самое."
+   Direction: the three nouns are short and separate, each one a beat. Not a list read fast.
+
+5. slot 31-36 s (max 4.5 s)
+   EN: "But up there... someone is still counting."
+   RU: "Но наверху... кто-то до сих пор ведёт счёт."
+   Direction: lower and closer to the mic, almost under the breath, but still clear words. Not a whisper effect, not ASMR. The music is gone here; only wind is under this line.
+   Note for RU: "ведёт счёт", not "считает". "Кто-то считает" in Russian also means "someone thinks", which breaks the line.
+
+Pronunciation: "Тишиной" with stress on the second syllable (ти-ши-НОЙ). "Silence" is an ordinary word, not stressed like a title.
+
+FIRST, BEFORE ANY GENERATION (answer in your report)
+1. Real quota from the ElevenLabs dashboard, with the time of the reading.
+2. Exact model_id and settings you will use.
+The whole job is small: about 280 characters per language per take.
+
+STAGE 1: CASTING (about 300 characters)
+Three candidate voices. For each: line 3 in English and line 3 in Russian. Six short clips. Report voice name, voice_id and one line on each. Send the six clips (or one zip) and STOP until the project lead answers "go" with the chosen voice.
+
+STAGE 2: AFTER "go" (about 1,200 characters)
+With the chosen voice: all five lines, both languages, two takes each, 20 files. Keep a running quota check.
+Stop at once and report if: dashboard quota would fall below 3,000 credits; any file fails; a take is longer than its slot; clipping, truncation, repeated words, or silence over 1 s inside a line.
+
+FILES AND NAMES
+teaser_silence_<n>_<lang>_take<k>.ogg, n 1-5, lang en or ru, k 1-2. Example: teaser_silence_5_ru_take2.ogg.
+Export as before: mp3_44100_128 to OGG libvorbis -q:a 5. Do not loudness-match; the edit normalizes later. Keep the untouched API originals separately.
+
+DELIVERY
+incoming-audio/teaser-vo-01/ with ogg/, originals/ and an index (filename, line, language, exact text, voice name and ID, model, settings, duration, slot max, fits yes/no, date). Stage 1 goes to incoming-audio/teaser-vo-stage1/.
+Technical checks only (decode, duration against the slot, clipping, silence, file count). You cannot audition: never claim the delivery or the pronunciation passed. Report actual quota used from the dashboard. Do not install anything into assets/.

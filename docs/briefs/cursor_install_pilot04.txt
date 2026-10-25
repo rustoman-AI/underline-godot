@@ -1,0 +1,8 @@
+CURSOR: INSTALL RADIO PILOT 04 (approved by the project lead without listening)
+The project lead approved these eight files on trust ("do our best, quality pass after funding"). Nobody has auditioned them.
+
+1. Copy incoming-audio/radio-pilot-04/normalized/*.ogg (8 files, already -23 LUFS) to assets/audio/vo/ under the same names (radio_flood_watch, radio_red_scarf, radio_purple_notice, radio_knock_twice, each _en and _ru). Do not touch any other file in that folder.
+2. Make sure the four rows in data/vo/cable_radio.json find them automatically (paths res://assets/audio/vo/<id>_<lang>.ogg). No new trigger. Run the check you use for missing VO / the audience and bot checks.
+3. Update assets/audio/vo/INDEX.md: pilot 04 installed, -23 LUFS, "not auditioned; ear review deferred until funding". Radio count: say how many bulletins are now voiced and how many remain text-only (the remaining unvoiced cable bulletins stay as they are).
+4. In-game check: trigger each of the four bulletins in EN and RU once (or the closest harness you have) and confirm playback and the subtitle text match the script in data/vo/cable_radio.json.
+5. Commit locally: "Radio pilot 04: four bulletins voiced EN/RU". Do not commit incoming-audio/. No push.

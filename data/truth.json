@@ -1,0 +1,50 @@
+{
+  "_note": "Truth fragments (docs/STORY.md), written by the project lead. Shown on the Truth page of the journal. 'hint' is shown while the fragment is unknown; 'text' once it is known. Fragment ids are fixed: depot_order, directorate_ledger, synod_recording, exchange_papers, quarantine_path.",
+  "fragments": [
+    {
+      "id": "depot_order",
+      "title": {"en": "The Stillwell order", "ru": "Приказ Стиллвелла"},
+      "hint": {"en": "Bernie Shaw's crew burned something at Stillwell on the first morning.", "ru": "Бригада Берни Шоу сожгла что-то на Стиллвелле в первое утро."},
+      "text": {
+        "en": "At 03:40 on the first day an order came down the line: lock the gates and let no one into the tunnel. Whoever wrote it knew the platforms above would not be safe. Bernie's crew burned the original and walked the trains out by lantern.",
+        "ru": "В 03:40 в первый день по линии пришёл приказ: запереть створки и никого не пускать в тоннель. Тот, кто его написал, знал, что наверху платформы небезопасны. Бригада Берни сожгла оригинал и вывела поезда по сигнальному фонарю."
+      }
+    },
+    {
+      "id": "directorate_ledger",
+      "title": {"en": "The reserve ledger", "ru": "Резервный журнал"},
+      "hint": {"en": "Lionel Abelard keeps a ledger from before the Silence. He does not show it.", "ru": "Лайонел Абелард хранит журнал со времён до Тишины. Он его не показывает."},
+      "text": {
+        "en": "Three months before the Silence, the terminal office bought rations for four thousand people. The terminal had three hundred staff. Lionel saw the figures and signed. His name is on the page.",
+        "ru": "За три месяца до Тишины контора терминала закупила пайки на четыре тысячи человек. В терминале работало триста. Лайонел увидел цифры и подписал. Его имя стоит на странице."
+      }
+    },
+    {
+      "id": "synod_recording",
+      "title": {"en": "The wind recording", "ru": "Запись ветра"},
+      "hint": {"en": "Dorothy Chen has a recording from the surface. She lets no one hear it.", "ru": "У Дороти Чен есть запись с поверхности. Она никому не даёт её слушать."},
+      "text": {
+        "en": "A surface microphone, the third day. There are no voices, only wind. At the very end, a click, steady, evenly spaced. Someone is counting. Dorothy buried it because the last expedition that followed such a signal did not come back.",
+        "ru": "Микрофон на поверхности, третий день. Голосов нет, только ветер. В самом конце тихий ровный щелчок через равные промежутки. Кто-то ведёт счёт. Дороти спрятала запись, потому что последняя вылазка, шедшая на такой сигнал, не вернулась."
+      }
+    },
+    {
+      "id": "exchange_papers",
+      "title": {"en": "Papers bought twice", "ru": "Бумаги, купленные дважды"},
+      "hint": {"en": "Marcel Toussaint has bought the same secret twice. He will not say from whom.", "ru": "Марсель Туссен купил один и тот же секрет дважды. От кого, он не говорит."},
+      "text": {
+        "en": "One sealed packet, sold to Marcel by a clerk of the Floor and again by a Directorate courier. Both sides were trading the truth. He knows both prices and has not sold either.",
+        "ru": "Один запечатанный пакет: его продал Марселю клерк Этажа и ещё раз курьер Дирекции. Обе стороны торговали правдой. Он знает обе цены и не продал ни одной."
+      }
+    },
+    {
+      "id": "quarantine_path",
+      "title": {"en": "The path to Quarantine", "ru": "Тропа в «Карантин»"},
+      "hint": {"en": "Niki Ortega's lamps know a way through the flooded tunnel. She has not named the end of it.", "ru": "Лампы Ники Ортеги знают путь по затопленному тоннелю. Конца его она не назвала."},
+      "text": {
+        "en": "The flooded run ends at a steel door. Niki's group reached it on the ninth day and knocked. The soldiers inside had orders not to open. They are still behind it.",
+        "ru": "Затопленный перегон кончается стальной дверью. Группа Ники дошла до неё на девятый день и постучала. У солдат внутри приказ не открывать. Они всё ещё за ней."
+      }
+    }
+  ]
+}

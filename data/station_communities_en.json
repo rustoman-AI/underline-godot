@@ -1,0 +1,155 @@
+{
+  "_note": "English text for data/station_communities.json (same station ids). Fields: community, who, conflict, art. The UI uses these when the game language is English; the Russian fields stay for Russian.",
+  "stations": {
+    "northgate": {
+      "community": "Iron Directorate",
+      "who": "Terminal clerks, transit guards and comptrollers. They keep the timetable and the ledger, take tolls, hold order.",
+      "conflict": "Lionel Abelard keeps the single ration list. The clerks remember whose names he put in the column marked 'surplus' when the bunkers were closed.",
+      "art": "A tall dark hall, a round clock over the information booth, the gates shut."
+    },
+    "foundry": {
+      "community": "Children of the Machine",
+      "who": "Transhumanists at the old boilers. They sew iron into their bodies and call machines the heirs of people.",
+      "conflict": "Someone really has learned to hear current. Or gone mad.",
+      "art": "Old boilers, a round arena above the station."
+    },
+    "plaza": {
+      "community": "Communards",
+      "who": "Shared storehouses, everything split evenly, a meeting every evening.",
+      "conflict": "The old guard against those who quietly trade with the Exchange.",
+      "art": "An equestrian statue in the square, red cloths with no writing."
+    },
+    "central": {
+      "community": "Free City",
+      "who": "Performers, gamblers and spies of every faction. Entertainment, rumours, deals.",
+      "conflict": "Once a year they elect the Mayor of the Metro.",
+      "art": "Dead screens and neon without letters, a staircase for a stage."
+    },
+    "market": {
+      "community": "Keepers of the Spring",
+      "who": "Water carriers with a monopoly on the only clean water.",
+      "conflict": "The water gets dearer every week. Someone is quietly poisoning it.",
+      "art": "Cast-iron fronts, barrels and ladles."
+    },
+    "riverside": {
+      "community": "Sisters of the Garden",
+      "who": "A women's commune of agronomists and a seed bank. Their aim: one of their own as Mayor of the Metro.",
+      "conflict": "Everyone wants the seeds, and the sisters will not sell.",
+      "art": "Glass greenhouses, beds under lamps."
+    },
+    "southdepot": {
+      "community": "The Depot",
+      "who": "Crews and workers of the depot on the Coney line. They kept the track and the light, and the cars became their homes.",
+      "conflict": "Bernie Shaw keeps quiet about the order burned at Stillwell. The young demand the shift archive be opened.",
+      "art": "A Ferris wheel and wooden coasters above, cars turned into homes in the depot."
+    },
+    "westfield": {
+      "community": "The Closed Line",
+      "who": "A militia on the edge of the network that lets no strangers in. Raids and defence.",
+      "conflict": "Antagonists: you cannot talk them round, only hold them off or break them.",
+      "art": "The stands of a dead racetrack, flooded pens."
+    },
+    "brickworks": {
+      "community": "The Lamplighters",
+      "who": "A transfer camp of Niki Ortega's guides along the dark tracks. The camp moves; the toll is paid in food.",
+      "conflict": "The path is not free: those who cannot pay are led more slowly. Many fear the toll will become a lawful tax.",
+      "art": "A guide with a lantern at the mouth of a dark tunnel."
+    },
+    "library": {
+      "community": "The Scholars",
+      "who": "Professors and engineers from the technical schools. They mend clocks, argue about the sky, teach the children.",
+      "conflict": "They will be the first to notice that something is wrong with the Silence.",
+      "art": "Brick lecture halls, boards covered in formulas."
+    },
+    "observatory": {
+      "community": "Riverfolk",
+      "who": "Fishermen and boatmen at the shaft to the river, water smugglers.",
+      "conflict": "On quiet nights you can hear water overhead. And someone's footsteps.",
+      "art": "Stone piers of the Brooklyn Bridge."
+    },
+    "trampark": {
+      "community": "Free Exchange",
+      "who": "Seven houses of the Rate Council keep a shared rate, credit and supply. Marcel Toussaint speaks for them and writes other people's debts on his own forearm.",
+      "conflict": "One of the seven elders of the Rate Council is secretly trading with the bunker.",
+      "art": "Weighing scales and sacks of grain on the counting table under a single lamp."
+    },
+    "eastwater": {
+      "community": "The Breathers",
+      "who": "Filter keepers with the biggest lungs in the south. They sell air by the ticket.",
+      "conflict": "Whoever holds the filters holds the south.",
+      "art": "The old park railing, a customs house with a colonnade."
+    },
+    "chapel": {
+      "community": "Synod of the Tunnel",
+      "who": "Shelters, orderlies and Dorothy Chen's quiet room. Shared kitchens and an infirmary have become a community of faith.",
+      "conflict": "Dorothy Chen is seen in the shelter every day. But she lets no one hear the recording of the surface wind, not even her own orderlies.",
+      "art": "A shared kitchen under a staircase, a chain across the exit."
+    },
+    "garden": {
+      "community": "Slowwalkers",
+      "who": "Mushroom growers in a dead-end tunnel. Sleep more, breathe less, live longer.",
+      "conflict": "Poor and content. For some reason no one there falls ill.",
+      "art": "An elevated line overhead, mushroom beds in the dark."
+    },
+    "stadium": {
+      "community": "Free Word",
+      "who": "Liberals and students: a newspaper, a debating club, a jury court.",
+      "conflict": "They argue about freedom while the enemy is at the gate.",
+      "art": "A brownstone college building, a printing press."
+    },
+    "harbor": {
+      "community": "The Guild",
+      "who": "Thieves and middlemen. A market with no questions and no receipts.",
+      "conflict": "Something went missing? Then it is already on a counter here.",
+      "art": "Tenements with fire escapes, a steel bridge."
+    },
+    "dockyard": {
+      "community": "Last Precinct",
+      "who": "Cops and federal agents by the old courthouses. They hold back disorder for a fee.",
+      "conflict": "A corrupt captain against an honest agent. You decide whom to back.",
+      "art": "The colonnade of the courthouse and the municipal building."
+    },
+    "quarry": {
+      "community": "Diggers",
+      "who": "Copper miners in a dead substation. They know every passage.",
+      "conflict": "They will sell the map of the tunnels to whoever pays most.",
+      "art": "An old seaport, masts of sailing ships."
+    },
+    "mill": {
+      "community": "Swineherds",
+      "who": "Quiet workers: pigs knee-deep in water, smoked meat, no politics.",
+      "conflict": "They feed half the line, and everyone wants to take them over.",
+      "art": "Brick warehouses by the water, smoking sheds."
+    },
+    "clocktower": {
+      "community": "The Hoarders",
+      "who": "They drag home anything left lying about. Cramped, rats, but rich.",
+      "conflict": "They can find any thing. They just do not want to sell it.",
+      "art": "A maze of stalls, mountains of junk up to the ceiling."
+    },
+    "archive": {
+      "community": "The Floor bunker",
+      "who": "Officials who still hold planning meetings and write a quarterly budget.",
+      "conflict": "Documents: the burst was predicted months ahead.",
+      "art": "A closed 1904 station: tiled vaults, glass lanterns."
+    },
+    "vault": {
+      "community": "The Quarantine bunker",
+      "who": "A garrison that waited for a war and now guards an emptiness.",
+      "conflict": "Weapons and the lists of those let inside.",
+      "art": "An old loop with a view of the harbour and the Statue of Liberty."
+    },
+    "signal": {
+      "community": "Signal Post",
+      "who": "Hermit radio amateurs.",
+      "conflict": "Cables to the surface and someone's answers on the air.",
+      "art": "Antennas made of rails, walls of radio tubes."
+    },
+    "oldcommand": {
+      "community": "The Observatory bunker",
+      "who": "Scientists who warned and were not heard.",
+      "conflict": "The full picture of the Silence and the way to the Exodus.",
+      "art": "Old cars of different eras on a closed platform."
+    }
+  }
+}

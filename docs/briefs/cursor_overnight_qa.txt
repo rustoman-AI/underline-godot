@@ -1,0 +1,22 @@
+CURSOR: UNATTENDED QA AND ROBUSTNESS PASS (several hours, no questions)
+The project lead is away. Work through the parts in order. Local only: no push, no upload, no publishing, no itch.io. Do not change content text, balance, art or audio. You may fix real bugs in code and in data structure (ids, missing keys), nothing else. If a part needs a decision that is not here, skip it, write it down in the report, and move on. Never leave the working tree red: every commit passes all gates (bot_run, check_balance, check_audience, check_save, check_network, check_slice, check_portraits, check_playtest). If a fix breaks a gate, revert that fix and report it.
+
+PART 1: SOAK TEST (find crashes and soft locks)
+Build .tools/soak.gd. Run 200 seeds for each bot style (silence, helper, helper_mixed, accept_all, mixed, storyteller, storyteller_climb), 40 weeks each, and in each run save to disk and load at three random weeks (the loaded game must continue identically to an uninterrupted copy for 5 weeks). Detect: script errors and warnings, state invariants broken (negative stocks, a resident in two rooms, residents and people out of sync, orphan flags, an audience that never closes, an event card that never closes, a week that cannot be ended, NaN, empty required text), runs that do not reach an ending by week 40, endings reached per style. Output docs/audit/soak_YYYYMMDD.md with counts and the first failing seed for each failure kind, and the exact command to reproduce. Fix real code bugs you find (each in its own commit with a regression test). Do not tune numbers.
+
+PART 2: SAVE FUZZ
+Take 50 mid-run saves from the soak and mutate them (drop a key, wrong type, week out of range, unknown ids, truncated file, duplicated residents, huge strings). Every one must either load cleanly or be rejected with a clear load_error and the player's existing slot untouched; never crash, never half-load. Add the cases to check_save. Report what you fixed.
+
+PART 3: LOCALIZATION AUDIT
+Scan every player-visible string in EN and RU: UI text in ui/*.gd, data/*.json, event, leader, ending, truth, how-to, consent, report labels. Report (docs/audit/l10n_YYYYMMDD.md): strings that exist in only one language, raw ids or keys visible to the player (like drill_heads, black_flag, st2_), English left inside the Russian UI and the reverse, missing plurals (1 week, 2 weeks, 5 weeks in RU: неделя, недели, недель), inconsistent names (Depot / Депо, Lamplighters / Фонарщики, Regard / Отношение, Opinion / Мнение), hard-coded em dashes. Fix only mechanical problems (missing keys in code paths, wrong plural forms, raw ids); put anything that is wording into a list for the project lead and do not rewrite it.
+
+PART 4: UI MATRIX
+Take screenshots in EN and RU at 1280x720, 1366x768, 1600x900, 1920x1080, 2560x1440, 3440x1440 (ultrawide) and 1024x768 for: main menu, new game, how-to card, station at week 1 and at week 25, People panel, event card with 3 choices, audience card with the three buttons, network map, station sheet, journal, Truth page, final decision, epilogue, settings. Detect clipped or overflowing text, controls outside the window, unreadable contrast, overlapping elements (automatically where you can: compare control rects with parent rects). Fix layout bugs in code; list anything that needs art or wording. Save under shots/qa/ and a summary table docs/audit/ui_matrix_YYYYMMDD.md.
+
+PART 5: PERFORMANCE
+Measure start time to main menu, frame time during a busy station and the map with zoom, memory after 40 weeks, save and load time. Report numbers. Fix only clear wins that do not change visuals (for example redundant per-frame allocations, repeated texture loads, unbounded growth of logs or journals). No asset recompression.
+
+PART 6: REPORT
+docs/audit/overnight_YYYYMMDD.md: what ran, what failed, what you fixed (commit list), what you skipped and why, open decisions for the project lead, numbers. Keep it short at the top: 10 lines summary.
+
+Rules: commits separate per fix with clear messages; do not commit incoming-art/, shots/, build/. Do not touch data/leader_lines.json, data/events_*.json, data/endings.json, data/truth.json, data/howto.json, data/station_communities*.json (lead's text), or any art and audio.

@@ -1,0 +1,10 @@
+{
+  "_note": "Coney cast portraits (project lead). The five residents chris, mina, kim, drew, ann are renamed by _apply_coney_cast; each keeps ONE of the existing resident portraits chosen here to fit sex and age. These five portraits are removed from the random pool used by the other residents, so no two people share a face. No new art is drawn for the cast.",
+  "pins": {
+    "old_man_coney": "portrait_07",
+    "salty_maggie": "portrait_04",
+    "bait": "portrait_05",
+    "barnum": "portrait_09",
+    "sylvia": "portrait_08"
+  }
+}

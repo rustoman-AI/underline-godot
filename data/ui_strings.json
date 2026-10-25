@@ -1,0 +1,674 @@
+{
+  "tension.this_week": {
+    "en": "This week:",
+    "ru": "На этой неделе:"
+  },
+  "tension.settled": {
+    "en": "No hardships this week. The platform is cooling.",
+    "ru": "На этой неделе без тягот. Платформа остывает."
+  },
+  "tension.address_hint": {
+    "en": "Address the platform from the HUD (3 influence, once a week).",
+    "ru": "Обратись к платформе с панели (3 влияния, раз в неделю)."
+  },
+  "hardship.food_short": {
+    "en": "Thin food",
+    "ru": "Тонкая еда"
+  },
+  "hardship.air_short": {
+    "en": "Air short",
+    "ru": "Мало воздуха"
+  },
+  "hardship.power_short": {
+    "en": "Dark rooms",
+    "ru": "Тёмные комнаты"
+  },
+  "hardship.sick": {
+    "en": "12%+ sick",
+    "ru": "Больных 12%+"
+  },
+  "hardship.season_flood": {
+    "en": "The flood",
+    "ru": "Паводок"
+  },
+  "hardship.season_cold": {
+    "en": "The cold",
+    "ru": "Холод"
+  },
+  "hardship.season_cough": {
+    "en": "The cough",
+    "ru": "Кашель"
+  },
+  "revolt.in_about": {
+    "en": "Revolt in about %s.",
+    "ru": "Бунт примерно через %s."
+  },
+  "revolt.push_one": {
+    "en": "%s is pushing it.",
+    "ru": "%s давит."
+  },
+  "revolt.push_two": {
+    "en": "%s and %s are pushing it.",
+    "ru": "%s и %s давят."
+  },
+  "address.button": {
+    "en": "Address",
+    "ru": "Обращение"
+  },
+  "address.cost": {
+    "en": "3 influence",
+    "ru": "3 влияния"
+  },
+  "address.tip_ok": {
+    "en": "Speak to the platform. Hope +1. Once this week.",
+    "ru": "Скажи платформе. Надежда +1. Раз за неделю."
+  },
+  "address.disabled_used": {
+    "en": "Already addressed this week.",
+    "ru": "На этой неделе уже обращались."
+  },
+  "address.disabled_influence": {
+    "en": "Need 3 influence.",
+    "ru": "Нужно 3 влияния."
+  },
+  "address.confirm_title": {
+    "en": "Address the platform?",
+    "ru": "Обратиться к платформе?"
+  },
+  "address.confirm_body": {
+    "en": "Spend 3 influence. Hope +1. You can do this once this week.",
+    "ru": "Потратить 3 влияния. Надежда +1. Раз за эту неделю."
+  },
+  "address.toast": {
+    "en": "You addressed the platform. Hope +1.",
+    "ru": "Ты обратился к платформе. Надежда +1."
+  },
+  "epilogue.eyebrow": {
+    "en": "Epilogue · %d of 3",
+    "ru": "Эпилог · %d из 3"
+  },
+  "epilogue.no_creed": {
+    "en": "No creed",
+    "ru": "Без вероучения"
+  },
+  "epilogue.continue": {
+    "en": "Continue",
+    "ru": "Дальше"
+  },
+  "epilogue.chronicle_title": {
+    "en": "The heaviest moments",
+    "ru": "Самое тяжёлое"
+  },
+  "epilogue.chronicle_empty": {
+    "en": "The yard left no chronicle.",
+    "ru": "Двор не оставил хроники."
+  },
+  "epilogue.fates_title": {
+    "en": "Who remains",
+    "ru": "Кто остался"
+  },
+  "epilogue.score": {
+    "en": "Score",
+    "ru": "Счёт"
+  },
+  "epilogue.score_parts": {
+    "en": "Weeks ×10 · Population ×2 · Stations ×15 · Hope · Named dead ×−5",
+    "ru": "Недели ×10 · Люди ×2 · Станции ×15 · Надежда · Именные смерти ×−5"
+  },
+  "epilogue.menu": {
+    "en": "Main menu",
+    "ru": "В меню"
+  },
+  "epilogue.new_run": {
+    "en": "New game",
+    "ru": "Новая игра"
+  },
+  "merge.joins": {
+    "en": "Joins %s: %s",
+    "ru": "Стыкуется с %s: %s"
+  },
+  "merge.shares": {
+    "en": "Shares power, sickness and disasters.",
+    "ru": "Общие энергия, болезнь и беды."
+  },
+  "merge.tag_hydro_2": {
+    "en": "Joins Hydroponics: +10% food, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Гидропоникой: +10% еды, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.bonus_food": {
+    "en": "+10% food, 1 fewer worker",
+    "ru": "+10% еды, на 1 меньше рабочих"
+  },
+  "merge.bonus_air": {
+    "en": "+10% air, 1 fewer worker",
+    "ru": "+10% воздуха, на 1 меньше рабочих"
+  },
+  "merge.bonus_power": {
+    "en": "+10% power, 1 fewer worker",
+    "ru": "+10% энергии, на 1 меньше рабочих"
+  },
+  "merge.bonus_materials": {
+    "en": "+10% materials, 1 fewer worker",
+    "ru": "+10% материалов, на 1 меньше рабочих"
+  },
+  "merge.bonus_housing": {
+    "en": "+2 housing, 1 fewer worker",
+    "ru": "+2 жилья, на 1 меньше рабочих"
+  },
+  "merge.sign": {
+    "en": "%s ×%d",
+    "ru": "%s ×%d"
+  },
+  "merge.cells": {
+    "en": "Level %d, cells %d–%d",
+    "ru": "Уровень %d, клетки %d–%d"
+  },
+  "merge.output": {
+    "en": "%s %+d/wk (+%d merge)",
+    "ru": "%s %+d/нед (+%d от блока)"
+  },
+  "merge.power": {
+    "en": "Power −%d/wk",
+    "ru": "Энергия −%d/нед"
+  },
+  "merge.crew": {
+    "en": "Crew %d/%d",
+    "ru": "Смена %d/%d"
+  },
+  "merge.disaster": {
+    "en": "A disaster here hits all %d cells.",
+    "ru": "Беда здесь бьёт по всем %d клеткам."
+  },
+  "merge.tag_hydro_3": {
+    "en": "Joins Hydroponics: +20% food, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Гидропоникой: +20% еды, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_filter_2": {
+    "en": "Joins Air filter: +10% air, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Фильтром воздуха: +10% воздуха, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_filter_3": {
+    "en": "Joins Air filter: +20% air, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Фильтром воздуха: +20% воздуха, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_generator_2": {
+    "en": "Joins Generator: +10% power, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Генератором: +10% энергии, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_generator_3": {
+    "en": "Joins Generator: +20% power, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Генератором: +20% энергии, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_workshop_2": {
+    "en": "Joins Workshop: +10% materials, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Мастерской: +10% материалов, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_workshop_3": {
+    "en": "Joins Workshop: +20% materials, 2 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Мастерской: +20% материалов, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_quarters_2": {
+    "en": "Joins Quarters: +2 housing, 1 fewer worker. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Жильём: +2 жилья, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "merge.tag_quarters_3": {
+    "en": "Joins Quarters: +4 housing, 2 fewer workers. Shares power, sickness and disasters.",
+    "ru": "Стыкуется с Жильём: +4 жилья, на 2 меньше рабочих. Общие энергия, болезнь и беды."
+  },
+  "breach.confirm_body": {
+    "en": "Spend 6 materials and 1 order. You can hold one kit.",
+    "ru": "Потратить 6 материалов и 1 приказ. Держать можно один набор."
+  },
+  "breach.confirm_title": {
+    "en": "Craft a Breach kit?",
+    "ru": "Скрафтить набор для пролома?"
+  },
+  "breach.cost": {
+    "en": "6 materials · 1 order  ·  stock %d/1",
+    "ru": "6 материалов · 1 приказ  ·  запас %d/1"
+  },
+  "breach.craft": {
+    "en": "Craft Breach kit",
+    "ru": "Скрафтить набор для пролома"
+  },
+  "breach.disabled_held": {
+    "en": "Already holding a Breach kit.",
+    "ru": "Набор для пролома уже есть."
+  },
+  "breach.disabled_mats": {
+    "en": "Need 6 materials.",
+    "ru": "Нужно 6 материалов."
+  },
+  "breach.disabled_shop": {
+    "en": "Workshop must be staffed.",
+    "ru": "Мастерская должна быть укомплектована."
+  },
+  "breach.held": {
+    "en": "Breach kit held. Next Assault can skip the pressure gate.",
+    "ru": "Набор для пролома есть. Следующий Штурм может обойти давление."
+  },
+  "breach.section": {
+    "en": "Craft",
+    "ru": "Крафт"
+  },
+  "breach.toast": {
+    "en": "Breach kit ready.",
+    "ru": "Набор для пролома готов."
+  },
+  "combat.after_assault": {
+    "en": "Assault at %s",
+    "ru": "Штурм у %s"
+  },
+  "combat.after_loss": {
+    "en": "Beaten at %s",
+    "ru": "Отброшены у %s"
+  },
+  "combat.after_raid": {
+    "en": "Raid at %s",
+    "ru": "Набег у %s"
+  },
+  "combat.block.assault_pressure": {
+    "en": "Need a Breach kit or 2 pressure weeks.",
+    "ru": "Нужен набор для пролома или 2 недели давления."
+  },
+  "combat.block.party_away": {
+    "en": "The party is away.",
+    "ru": "Партия в пути."
+  },
+  "combat.block.raid_intel": {
+    "en": "Need more intel on that station.",
+    "ru": "Нужно больше разведки по той станции."
+  },
+  "combat.block.raid_size": {
+    "en": "Need 4 in the party.",
+    "ru": "Нужно четверо в партии."
+  },
+  "combat.block.truce": {
+    "en": "A truce forbids this.",
+    "ru": "Перемирие это запрещает."
+  },
+  "combat.chronicle.raid_loss": {
+    "en": "Week {week}: raid on {place} failed.",
+    "ru": "Неделя {week}: налёт на {place} провалился."
+  },
+  "combat.chronicle.raid_win": {
+    "en": "Week {week}: raided {place}. Came back with packs full.",
+    "ru": "Неделя {week}: налёт на {place}. Вернулись с полными рюкзаками."
+  },
+  "combat.chronicle.station_taken_force": {
+    "en": "Week {week}: took {place} by force.",
+    "ru": "Неделя {week}: взяли {place} силой."
+  },
+  "combat.chronicle.unbidden": {
+    "en": "Week {week}: Unbidden at {place}.",
+    "ru": "Неделя {week}: Незваный удар у {place}."
+  },
+  "combat.confirm_assault": {
+    "en": "Assault · %s?",
+    "ru": "Штурм · %s?"
+  },
+  "combat.confirm_raid": {
+    "en": "Raid · %s?",
+    "ru": "Набег · %s?"
+  },
+  "combat.dawn": {
+    "en": "Dawn report",
+    "ru": "Рассветный отчёт"
+  },
+  "combat.dead": {
+    "en": "%s — dead",
+    "ru": "%s — мёртв"
+  },
+  "combat.dead_known": {
+    "en": "%s — dead (Known)",
+    "ru": "%s — мёртв (Известный)"
+  },
+  "combat.death.battle": {
+    "en": "{name} fell on the line. The squad brought back the tag.",
+    "ru": "{name} пал{a} на линии. Отряд вернул жетон."
+  },
+  "combat.death.battle_at": {
+    "en": "{name} fell at {place}. The party brought back the tag.",
+    "ru": "{name} пал{a} у {place}. Партия вернула жетон."
+  },
+  "combat.discontent_force": {
+    "en": "Discontent  +%d",
+    "ru": "Недовольство  +%d"
+  },
+  "combat.epilogue.force_judgment": {
+    "en": "You took stations by force. The chronicle kept the names you spent.",
+    "ru": "Вы брали станции силой. Хроника сохранила имена, которые вы потратили."
+  },
+  "combat.epilogue.force_moment": {
+    "en": "Was the platform worth their names?",
+    "ru": "Стоила ли платформа их имён?"
+  },
+  "combat.force_cost": {
+    "en": "If you take it by force:",
+    "ru": "Если взять силой:"
+  },
+  "combat.hope_force": {
+    "en": "Hope  −%d",
+    "ru": "Надежда  −%d"
+  },
+  "combat.hope_known": {
+    "en": "(+ Known deaths −2 each)",
+    "ru": "(+ Известные смерти −2 каждая)"
+  },
+  "combat.injured": {
+    "en": "%s — injured %d weeks",
+    "ru": "%s — ранен на %d нед."
+  },
+  "combat.journal.fought": {
+    "en": "Fought at {place}.",
+    "ru": "Бой у {place}."
+  },
+  "combat.known_risk": {
+    "en": " · %d Known",
+    "ru": " · %d Известных"
+  },
+  "combat.log.assault_loss": {
+    "en": "Week {week}: fought at {place}. Driven back.",
+    "ru": "Неделя {week}: бой у {place}. Отбросили."
+  },
+  "combat.log.assault_win": {
+    "en": "Week {week}: fought at {place}. Held the platform.",
+    "ru": "Неделя {week}: бой у {place}. Удержали платформу."
+  },
+  "combat.log.force_capture": {
+    "en": "Week {week}: took {place} by force.",
+    "ru": "Неделя {week}: взяли {place} силой."
+  },
+  "combat.log.named_death": {
+    "en": "{name} fell at {place}.",
+    "ru": "{name} пал{a} у {place}."
+  },
+  "combat.log.named_injury": {
+    "en": "{name} came back hurt from {place}.",
+    "ru": "{name} вернулся{a} с {place} — с ранением."
+  },
+  "combat.log.raid_loss": {
+    "en": "Week {week}: raid on {place} broke. The party limped home.",
+    "ru": "Неделя {week}: налёт на {place} сорвался. Партия пришла хромая."
+  },
+  "combat.log.raid_win": {
+    "en": "Week {week}: raid on {place} held. Loot came home.",
+    "ru": "Неделя {week}: налёт на {place} удался. Добыча вернулась."
+  },
+  "combat.log.unbidden": {
+    "en": "Week {week}: Unbidden at {place}.",
+    "ru": "Неделя {week}: Незваный удар у {place}."
+  },
+  "combat.lost": {
+    "en": "The party was thrown back.",
+    "ru": "Партию отбросили."
+  },
+  "combat.mod_breach": {
+    "en": "Breach",
+    "ru": "Пролом"
+  },
+  "combat.mod_dark": {
+    "en": "Dark platform",
+    "ru": "Тёмная платформа"
+  },
+  "combat.mod_flood": {
+    "en": "Flooded edge",
+    "ru": "Затопленный край"
+  },
+  "combat.mod_home": {
+    "en": "Home guard",
+    "ru": "Домашняя охрана"
+  },
+  "combat.named_losses": {
+    "en": "Named losses",
+    "ru": "Именные потери"
+  },
+  "combat.named_risk": {
+    "en": "~%d named at risk",
+    "ru": "~%d именных под ударом"
+  },
+  "combat.no_named": {
+    "en": "No named deaths. Empty slots took the hit.",
+    "ru": "Именных смертей нет. Удар приняли пустые места."
+  },
+  "combat.odds.assault_moral": {
+    "en": "Force take: hope falls; the yard will not cheer.",
+    "ru": "Силовой захват: надежда падает; двор не обрадуется."
+  },
+  "combat.odds.assault_moral_detail": {
+    "en": "Assault win: hope −3 (−2 more per Known dead). Discontent rises.",
+    "ru": "Победа Штурмом: надежда −3 (−2 за каждого Известного погибшего). Недовольство растёт."
+  },
+  "combat.odds.breach": {
+    "en": "Breach kit: walls count for less this push.",
+    "ru": "Набор для пролома: стены в этом ударе значат меньше."
+  },
+  "combat.odds.dark": {
+    "en": "Dark stop: panic helps the attacker.",
+    "ru": "Тёмная станция: паника на руку атакующим."
+  },
+  "combat.odds.flood": {
+    "en": "Flooded edge: harder going in.",
+    "ru": "Затопленный край: тяжелее идти внутрь."
+  },
+  "combat.odds.header": {
+    "en": "Battle at %s: about %d%%…",
+    "ru": "Бой у %s: примерно %d%%…"
+  },
+  "combat.odds.home_guard": {
+    "en": "Home yard is staffed: their walls feel higher.",
+    "ru": "Двор у них занят: стены кажутся выше."
+  },
+  "combat.odds.named_risk": {
+    "en": "~%d named at risk",
+    "ru": "~%d именных под ударом"
+  },
+  "combat.odds.named_risk_known": {
+    "en": "~%d named at risk (includes Known)",
+    "ru": "~%d именных под ударом (есть Известные)"
+  },
+  "combat.odds.raid_note": {
+    "en": "Raid: loot if you win. No station take.",
+    "ru": "Налёт: добыча при победе. Станцию не берёте."
+  },
+  "combat.odds.unbidden": {
+    "en": "Unbidden: not at war. Extra hope cost.",
+    "ru": "Незваный удар: вы не в войне. Доп. удар по надежде."
+  },
+  "combat.order.assault": {
+    "en": "Assault",
+    "ru": "Штурм"
+  },
+  "combat.order.assault_tip": {
+    "en": "Fight for the platform and take it by force if you win. Needs two weeks of pressure, or a Breach kit. Costs hope. At war — or pay the unbidden price.",
+    "ru": "Бой за платформу; при победе — захват силой. Нужны две недели давления или набор для пролома. Бьёт по надежде. В войне — или цена за незваный удар."
+  },
+  "combat.order.breach_craft": {
+    "en": "Breach kit",
+    "ru": "Набор для пролома"
+  },
+  "combat.order.breach_craft_tip": {
+    "en": "Workshop craft. Spend materials and one order. Holds one. Lets the next Assault skip the pressure wait.",
+    "ru": "Крафт в Мастерской. Материалы и один приказ. Хранится один. Следующий Штурм без ожидания давления."
+  },
+  "combat.order.breach_craft_toast": {
+    "en": "Breach kit ready.",
+    "ru": "Набор для пролома готов."
+  },
+  "combat.order.breach_held": {
+    "en": "Breach kit held. Next Assault can skip the pressure gate.",
+    "ru": "Набор для пролома есть. Следующий Штурм может обойти давление."
+  },
+  "combat.order.breach_none": {
+    "en": "No Breach kit.",
+    "ru": "Нет набора для пролома."
+  },
+  "combat.order.patrol": {
+    "en": "Patrol",
+    "ru": "Патруль"
+  },
+  "combat.order.patrol_tip": {
+    "en": "Walk one hop into owned, neutral, or ruin ground. No fight.",
+    "ru": "Один переход по своей, нейтральной или руине. Без боя."
+  },
+  "combat.order.raid": {
+    "en": "Raid",
+    "ru": "Набег"
+  },
+  "combat.order.raid_tip": {
+    "en": "One hop, fight once, take packed loot. No capture. Party returns home next week. Needs intel and a party of four. Packs food.",
+    "ru": "Один переход, один бой, добыча в рюкзаках. Без захвата. Партия вернётся домой на следующей неделе. Нужна разведка и четверо. Берёт еду с собой."
+  },
+  "combat.raid_cost": {
+    "en": "Raid: no capture. Discontent +%d. Opinion −%d.",
+    "ru": "Набег: без захвата. Недовольство +%d. Мнение −%d."
+  },
+  "combat.raid_win": {
+    "en": "You struck and came home with loot.",
+    "ru": "Ударили и вернулись с добычей."
+  },
+  "combat.send_assault": {
+    "en": "Send Assault",
+    "ru": "Послать Штурм"
+  },
+  "combat.send_raid": {
+    "en": "Send Raid",
+    "ru": "Послать Набег"
+  },
+  "combat.toast.armor": {
+    "en": "Platform guard in scrap plate.",
+    "ru": "Платформенная охрана в ломаных пластинах."
+  },
+  "combat.toast.assault_loss": {
+    "en": "Assault failed. The platform stayed theirs.",
+    "ru": "Штурм не вышел. Платформа осталась их."
+  },
+  "combat.toast.force_capture": {
+    "en": "You hold {place}. The yard is quieter — not kinder.",
+    "ru": "Вы держите {place}. Во дворе тише — не добрее."
+  },
+  "combat.toast.force_discontent": {
+    "en": "Names on the wall. Discontent climbs.",
+    "ru": "Имена на стене. Недовольство растёт."
+  },
+  "combat.toast.force_hope": {
+    "en": "Force takes a station. Hope does not rise with it.",
+    "ru": "Сила берёт станцию. Надежда с ней не поднимается."
+  },
+  "combat.toast.raid_loss": {
+    "en": "Raid broke. Hope dips. The yard counts who came back.",
+    "ru": "Налёт сорвался. Надежда просела. Двор считает, кто вернулся."
+  },
+  "combat.toast.raid_win": {
+    "en": "Raid held. Packs heavier. Neighbors colder.",
+    "ru": "Налёт удался. Рюкзаки тяжелее. Соседи холоднее."
+  },
+  "combat.toast.unbidden": {
+    "en": "Unbidden at {place}. Even the war-hungry look away.",
+    "ru": "Незваный удар у {place}. Даже жаждущие войны отводят глаза."
+  },
+  "combat.toast_sent": {
+    "en": "Order sent. The result comes at next dawn.",
+    "ru": "Приказ отправлен. Итог — на следующем рассвете."
+  },
+  "combat.took_force": {
+    "en": "You took the platform by force.",
+    "ru": "Вы взяли платформу силой."
+  },
+  "combat.unbidden": {
+    "en": "Not at war: Hope −%d more (Unbidden)",
+    "ru": "Не в войне: Надежда ещё −%d (Незваный)"
+  },
+  "combat.win_chance": {
+    "en": "Win chance",
+    "ru": "Шанс победы"
+  },
+  "combat.yard_felt": {
+    "en": "The yard felt it",
+    "ru": "Двор это почувствовал"
+  },
+  "order.assault_gate": {
+    "en": "Need a Breach kit or 2 pressure weeks.",
+    "ru": "Нужен набор для пролома или 2 недели давления."
+  },
+  "order.no_marshal": {
+    "en": "No Marshal to send the party.",
+    "ru": "Нет Маршала, чтобы послать партию."
+  },
+  "order.no_tunnel": {
+    "en": "No open tunnel that way.",
+    "ru": "Туда нет открытого тоннеля."
+  },
+  "order.not_hostile": {
+    "en": "No enemy holds that platform.",
+    "ru": "На той платформе нет врага."
+  },
+  "order.party_away": {
+    "en": "The party is away.",
+    "ru": "Партия в пути."
+  },
+  "order.party_empty": {
+    "en": "The party has no one to send.",
+    "ru": "В партии некого послать."
+  },
+  "order.raid_detail": {
+    "en": "1 order · food −2 · returns next week",
+    "ru": "1 приказ · еда −2 · возврат на след. неделе"
+  },
+  "order.raid_intel": {
+    "en": "Need more intel on that station.",
+    "ru": "Нужно больше разведки по той станции."
+  },
+  "order.raid_size": {
+    "en": "Need 4 in the party.",
+    "ru": "Нужно четверо в партии."
+  },
+  "order.truce": {
+    "en": "A truce forbids this.",
+    "ru": "Перемирие это запрещает."
+  },
+  "party.add": {
+    "en": "Add from free workers",
+    "ru": "Добавить из свободных"
+  },
+  "party.away": {
+    "en": "Away",
+    "ru": "В пути"
+  },
+  "party.away_block": {
+    "en": "Bring the party home first.",
+    "ru": "Сначала верни партию домой."
+  },
+  "party.count": {
+    "en": "%d of %d slots",
+    "ru": "%d из %d мест"
+  },
+  "party.empty_hint": {
+    "en": "Empty slots fight at half strength.",
+    "ru": "Пустые места бьют вполсилы."
+  },
+  "party.empty_slot": {
+    "en": "(empty)",
+    "ru": "(пусто)"
+  },
+  "party.half": {
+    "en": "half strength",
+    "ru": "вполсилы"
+  },
+  "party.marshal_note": {
+    "en": "Jonah Peck (Marshal) is not auto-rostered.",
+    "ru": "Джона Пек (Маршал) в состав сам не попадает."
+  },
+  "party.open": {
+    "en": "Party %d/%d · Edit",
+    "ru": "Партия %d/%d · Изменить"
+  },
+  "party.section": {
+    "en": "Tunnel Party",
+    "ru": "Тоннельная партия"
+  },
+  "party.title": {
+    "en": "Tunnel Party",
+    "ru": "Тоннельная партия"
+  }
+}

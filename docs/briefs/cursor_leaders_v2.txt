@@ -1,0 +1,26 @@
+CURSOR: LEADERS V2 — DATA, DIALOGUE FLOW, DISPLAY NAMES
+Owner of text: project lead. Source of truth: data/leader_lines.json and docs/LEADERS.md. Local only: no push, no history rewrite. Balance, map, save format, cooldowns, audience scheduling, Game.audience_effects(): unchanged.
+
+1. DATA
+- Fill data/faction_leaders.json from data/leader_lines.json for all five factions: name, leader_id, leader, title, voice_note. Keep faction ids (depot, directorate, synod, exchange, black_flag) exactly. black_flag is an internal id; players see "Фонарщики" / "The Lamplighters".
+- leader_id changes (harlan_pike -> berni_shaw, vess_halloran -> lionel_abelard, ione_kato -> dorothy_chen, idris_pell -> marcel_toussaint, nessa_bird -> niki_ortega). Before renaming grep every use of the old ids (data, sim, ui, .tools, saves). If anything is persisted in saves or keyed by leader_id, add a migration or keep a legacy alias and say so in the report.
+- Replace "TODO_REWRITE" in opening/dirty_deal.en/ru. dirty_deal.en/ru stay hidden as terms (Game.audience_effects() is the only source of terms). Keep dirty_deal ids, flags, numbers, opinion shifts untouched.
+- Faction display names in data/factions.json, data/ru.json, data/station_communities.json and GDD faction table: The Depot/Депо, Iron Directorate/Железная Дирекция, Synod of the Tunnel/Синод тоннеля, Free Exchange/Свободная Биржа, Lamplighters/Фонарщики. Remove "Союз Депо"/"Union" and "Чёрный флаг"/"Black Flag" from player-visible text. Station descriptions that mention the old names: update wording only.
+
+2. DIALOGUE FLOW (ui/station.gd::_show_audience)
+- Opening line under the portrait, same layout as now: first_contact if this leader has never been seen (audience_last unset); otherwise bands[<band>] where band comes from the leader's standing against opinion_bands. EN/RU by game language.
+- After "Hear them out": show pitch above the terms. Terms/numbers still come only from Game.audience_effects().
+- After the decision: show accepted or declined as a single line (card footer or journal line, your choice, one place only).
+- If a field is missing, fall back to first_contact; never show empty text or an id.
+
+3. TERRITORY AND TRADE LINES (flavor only)
+- territory: one-line banner/toast when the player's order enters a station owned by that faction (squad move, envoy, propaganda). trade: one line when the player opens a trade route with that faction. Max once per faction per 4 weeks. No effect, no new state beyond a persisted last-shown week if you need it (if you add a field, follow the schema/migration rules from save hardening).
+- Find the hook first. If there is no clean one, skip step 3 and say so. Do not invent mechanics.
+
+4. NOT IN SCOPE
+- PORTRAITS: use the accepted dark set. Copy incoming-art/factions_dark/{harlan_pike,vess_halloran,ione_kato,idris_pell,nessa_bird}.png (keep the originals) into assets/factions/ named after the NEW leader_id (berni_shaw, lionel_abelard, dorothy_chen, marcel_toussaint, niki_ortega), as WebP or PNG with the same import settings the project used for portraits; show them in the card portrait slot (rounded, no smile-retouching). Symbols stay on the plaque with initial until new symbols are accepted. No voice hooks. Do not use incoming-art/rejected/, factions_v3 or faction_identities.
+
+5. CHECKS
+- bot_run, check_audience, check_save, check_network (check_slice failures are tracked separately). New check: every faction has every line key in EN and RU, none empty, none equals TODO_REWRITE.
+- Screenshots: all five cards EN and RU at 1280x720, opening before and after "Hear them out", longest pitch (Synod, RU) must not clip.
+- Report: files changed, leader_id rename handling, hook used (or absent) for territory/trade.

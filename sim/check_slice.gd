@@ -5,6 +5,7 @@ extends SceneTree
 
 
 func _init() -> void:
+	Copy.set_lang("en")
 	var failed := false
 	var catalog := Catalog.new()
 	if not catalog.load_all():
@@ -26,6 +27,10 @@ func _init() -> void:
 	if not _check_plurals(catalog):
 		failed = true
 	if not _check_modals():
+		failed = true
+	if not _check_battle(catalog):
+		failed = true
+	if not _check_merge(catalog):
 		failed = true
 	if failed:
 		print("SLICE FAIL")
@@ -230,11 +235,19 @@ func _check_events(catalog: Catalog) -> bool:
 	for person in catalog.residents:
 		names.append(str(person.name).split(" ")[0])
 	var named := 0
+	var drawn := 0
+	## The one-in-three follow-up rule counts data/events.json only (docs/audit/balance_gate_decisions.md).
+	var base := {}
+	var raw = JSON.parse_string(FileAccess.get_file_as_string("res://data/events.json"))
+	for ev in raw if raw is Array else []:
+		base[str(ev.get("id", ""))] = true
 	for ev in catalog.events:
 		if bool(ev.get("sasha", false)):
 			sasha += 1
-		if str(ev.get("follow", "")) != "":
-			chains += 1
+		if base.has(str(ev.id)) and not bool(ev.get("check_only", false)) and not ev.has("needs") and not ev.has("trigger"):
+			drawn += 1
+			if str(ev.get("follow", "")) != "":
+				chains += 1
 		var free := false
 		for choice in ev.choices:
 			var cost = choice.get("cost", {})
@@ -260,8 +273,8 @@ func _check_events(catalog: Catalog) -> bool:
 	if sasha < 9:
 		print("Events: FAIL sasha %d" % sasha)
 		return false
-	if float(chains) < float(catalog.events.size()) / 3.0:
-		print("Events: FAIL chains %d of %d" % [chains, catalog.events.size()])
+	if float(chains) < float(drawn) / 3.0:
+		print("Events: FAIL chains %d of %d" % [chains, drawn])
 		return false
 	if named < 9:
 		print("Events: FAIL named residents %d" % named)
@@ -344,7 +357,7 @@ func _check_crisis(catalog: Catalog) -> bool:
 				continue
 			var last: Dictionary = game.demand_log[game.demand_log.size() - 1]
 			var span := int(last.span)
-			if span < 2 or span > 3 or int(last.amount) != int(last.income) * span:
+			if span < 2 or span > 3 or int(last.amount) != maxi(8, int(last.income)) * span:
 				print("Crisis: FAIL demand %s" % str(last))
 				return false
 			if game.warning_weeks.has(int(last.deadline_week)):
@@ -363,6 +376,13 @@ func _check_crisis(catalog: Catalog) -> bool:
 		if not game.crisis_faults.is_empty():
 			print("Crisis: FAIL ", game.crisis_faults)
 			return false
+		for kind in [0, 1, 2]:
+			game.crunch_kind = kind
+			for leg in game._crunch_legs():
+				var found: Dictionary = game.crunch_leg(str(leg.id))
+				if str(found.get("title", "")) != str(leg.title) or str(found.get("suffer", "")) != str(leg.suffer):
+					print("Crisis: FAIL journal cannot name crunch %s" % str(leg.id))
+					return false
 	print("Crisis: ok")
 	return true
 
@@ -467,6 +487,292 @@ func _check_modals() -> bool:
 		print("Modals: FAIL empty")
 		return false
 	print("Modals: ok")
+	return true
+
+
+func _check_battle(catalog: Catalog) -> bool:
+	Copy.set_lang("en")
+	if Copy.t("combat.toast.armor") != "Platform guard in scrap plate.":
+		print("Battle: FAIL armor toast")
+		return false
+	if Copy.t("combat.epilogue.force_moment") != "Was the platform worth their names?":
+		print("Battle: FAIL force moment")
+		return false
+	if Copy.t("combat.dead") != "%s — dead" or Copy.t("combat.injured") != "%s — injured %d weeks":
+		print("Battle: FAIL named loss lines")
+		return false
+	if Copy.t("combat.named_risk") != "~%d named at risk" or Copy.t("combat.mod_flood") != "Flooded edge":
+		print("Battle: FAIL mod or named risk key")
+		return false
+	if Copy.t("order.assault_gate") != "Need a Breach kit or 2 pressure weeks.":
+		print("Battle: FAIL assault gate key")
+		return false
+	Copy.set_lang("ru")
+	if Copy.t("combat.order.patrol") != "Патруль" or Copy.t("combat.order.raid") != "Набег" or Copy.t("combat.order.assault") != "Штурм":
+		print("Battle: FAIL RU order titles")
+		return false
+	Copy.set_lang("en")
+	var game := Game.new()
+	game.setup(catalog, 3, 40)
+	if game.over == "error":
+		print("Battle: FAIL setup ", game.errors)
+		return false
+	var roster: Dictionary = game.party_roster()
+	if roster.members.size() != 8 or absf(float(roster.effective_size) - 8.0) > 0.01:
+		print("Battle: FAIL roster ", roster.members.size(), " eff ", roster.effective_size)
+		return false
+	for member in roster.members:
+		if str(member.id) == "jonah":
+			print("Battle: FAIL Jonah rostered")
+			return false
+	var cap := str(game.capital_id)
+	var hop := ""
+	for n in game._neighbors(cap):
+		hop = str(n)
+		break
+	if hop == "":
+		print("Battle: FAIL no neighbor")
+		return false
+	var sq: Dictionary = game.squads[game.player]
+	var edge := game._edge(cap, hop)
+	edge.state = "flooded"
+	edge.flooded = true
+	game.stations[hop].unrest = 0
+	var wet: Dictionary = game._battle_factors(sq, hop, false)
+	edge.state = "open"
+	edge.flooded = false
+	var dry: Dictionary = game._battle_factors(sq, hop, false)
+	if not is_equal_approx(float(wet.attack), float(dry.attack) * 0.85):
+		print("Battle: FAIL flood atk ", wet.attack, " ", dry.attack)
+		return false
+	game.stations[hop].unrest = 4
+	var dark: Dictionary = game._battle_factors(sq, hop, false)
+	if not is_equal_approx(float(dark.attack), float(dry.attack) * 1.10):
+		print("Battle: FAIL dark atk ", dark.attack, " ", dry.attack)
+		return false
+	if not is_equal_approx(float(dark.defense), float(dry.defense) * 0.90):
+		print("Battle: FAIL dark def ", dark.defense, " ", dry.defense)
+		return false
+	game.stations[hop].unrest = 0
+	var enemy: Dictionary = game.squads.directorate
+	var parked := str(sq.station)
+	sq.station = "vault" if game.stations.has("vault") else hop
+	if str(sq.station) == cap or str(sq.station) == hop:
+		sq.station = str(game.squads.exchange.station)
+	var guarded: Dictionary = game._battle_factors(enemy, hop, false)
+	sq.station = parked
+	var open: Dictionary = game._battle_factors(enemy, hop, false)
+	var fort := float(game.stations[hop].fort)
+	var expect := float(guarded.defense) / float(open.defense)
+	if not is_equal_approx(expect, (fort + 0.10) / fort):
+		print("Battle: FAIL home guard ", expect, " fort ", fort)
+		return false
+	var gear0 := float(sq.gear)
+	game.stock.materials = 40
+	var shop := "room_0_1_workshop"
+	if not game.apply({"kind": "upgrade", "room": shop}) or bool(sq.get("armor_fit", false)):
+		print("Battle: FAIL first upgrade")
+		return false
+	if not game.apply({"kind": "upgrade", "room": shop}) or not bool(sq.armor_fit):
+		print("Battle: FAIL armor upgrade")
+		return false
+	if not is_equal_approx(float(sq.gear), gear0 + 0.15):
+		print("Battle: FAIL gear ", sq.gear)
+		return false
+	var plated := false
+	for note in game.notices:
+		if str(note) == Copy.t("combat.toast.armor"):
+			plated = true
+	if not plated:
+		print("Battle: FAIL armor notice")
+		return false
+	game.stations[hop].owner = "directorate"
+	game.stations[hop].known = true
+	game.stations[hop].garrison = 1
+	game.stations[hop].fort = 0.2
+	game.stations[hop].unrest = 0
+	var before_station := str(sq.station)
+	if game._order_patrol(hop) or str(sq.station) != before_station:
+		print("Battle: FAIL patrol fought a hostile")
+		return false
+	game.injury_bias = 0.0
+	sq.gear = 8.0
+	game.stock.food = 30
+	var pop0 := game.residents.size()
+	if not game._order_raid(hop, true) or game.residents.size() >= pop0:
+		print("Battle: FAIL raid deaths ", pop0, " -> ", game.residents.size(), " block ", game._raid_gate(hop))
+		return false
+	var fresh := Game.new()
+	fresh.setup(catalog, 5, 40)
+	fresh.week = 4
+	fresh.injury_bias = 1.0
+	var side := ""
+	for n in fresh._neighbors(fresh.capital_id):
+		side = str(n)
+		break
+	fresh.stations[side].owner = "directorate"
+	fresh.stations[side].known = true
+	fresh.stations[side].garrison = 1
+	fresh.stations[side].fort = 0.2
+	fresh.stations[side].unrest = 0
+	fresh.stations[side].low_weeks = 2
+	fresh.at_war.directorate = true
+	fresh.squads[fresh.player].gear = 8.0
+	var hope0 := fresh.hope
+	var pop1 := fresh.residents.size()
+	if not fresh._order_assault(side, true):
+		print("Battle: FAIL assault ", fresh._assault_gate(side))
+		return false
+	if str(fresh.stations[side].owner) != fresh.player:
+		print("Battle: FAIL force capture")
+		return false
+	if fresh.hope - hope0 != int(fresh.bal.assault_hope):
+		print("Battle: FAIL hope ", fresh.hope - hope0, " expected ", fresh.bal.assault_hope)
+		return false
+	if fresh.residents.size() != pop1:
+		print("Battle: FAIL injuries killed ", pop1, " -> ", fresh.residents.size())
+		return false
+	var pushed := Game.new()
+	pushed.setup(catalog, 7, 40)
+	pushed.week = 4
+	pushed.injury_bias = 1.0
+	var gate := ""
+	for n in pushed._neighbors(pushed.capital_id):
+		gate = str(n)
+		break
+	pushed.stations[gate].owner = "directorate"
+	pushed.stations[gate].known = true
+	pushed.stations[gate].garrison = 1
+	pushed.stations[gate].fort = 0.2
+	pushed.stations[gate].low_weeks = 0
+	pushed.stations[gate].unrest = 0
+	pushed.at_war.directorate = true
+	pushed.squads[pushed.player].gear = 8.0
+	pushed.artifacts.breach = 1
+	if not pushed._order_assault(gate, true) or str(pushed.stations[gate].owner) != pushed.player or int(pushed.artifacts.breach) != 0:
+		print("Battle: FAIL breach skip ", pushed._assault_gate(gate), " owner ", pushed.stations[gate].owner)
+		return false
+	var preview: Dictionary = game.battle_preview("raid", hop)
+	if not preview.has("named_at_risk") or not preview.has("mods"):
+		print("Battle: FAIL preview shape")
+		return false
+	print("Battle: ok")
+	return true
+
+
+func _check_merge(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 3, 40)
+	if game.over == "error":
+		print("Merge: FAIL setup")
+		return false
+	var starter := ""
+	for room in game.rooms:
+		if str(room.type) == "hydroponics" and starter == "":
+			starter = str(room.uid)
+	var alone: Dictionary = game.room_detail(starter)
+	if int(alone.get("block_width", 0)) != 1 or str(alone.get("disaster_note", "x")) != "":
+		print("Merge: FAIL single room card")
+		return false
+	var before := game.housing()
+	game._place_room("quarters", 2, 0)
+	game._place_room("quarters", 2, 1)
+	if game.housing() != before + 18:
+		print("Merge: FAIL housing %d -> %d" % [before, game.housing()])
+		return false
+	var qid := str(game.cells["2:0"].room)
+	var quarters: Dictionary = game.room_detail(qid)
+	if int(quarters.block_width) != 2 or int(quarters.merge_bonus) != 2:
+		print("Merge: FAIL quarters detail")
+		return false
+	if str(quarters.disaster_note) != "A disaster here hits all 2 cells.":
+		print("Merge: FAIL disaster line ", quarters.disaster_note)
+		return false
+	var qcells: Array = quarters.cells
+	if qcells.size() != 2 or int(qcells[0]) != 0 or int(qcells[1]) != 1:
+		print("Merge: FAIL cells ", qcells)
+		return false
+	if not game._apply_demolish(qid):
+		print("Merge: FAIL demolish")
+		return false
+	var remain := str(game.cells["2:1"].room)
+	if game.merge_group_of(remain).size() != 1:
+		print("Merge: FAIL split")
+		return false
+	if not game._apply_demolish(remain):
+		print("Merge: FAIL demolish rest")
+		return false
+	game._place_room("hydroponics", 2, 0)
+	var preview: Dictionary = game.merge_preview("hydroponics", 2, 1)
+	var locked := "Joins Hydroponics: +10% food, 1 fewer worker. Shares power, sickness and disasters."
+	if not bool(preview.joins) or str(preview.bonus_line) != locked or int(preview.width) != 2:
+		print("Merge: FAIL hydro tag ", preview.bonus_line)
+		return false
+	if bool(game.merge_preview("workshop", 2, 1).joins):
+		print("Merge: FAIL workshop joined hydro")
+		return false
+	Copy.set_lang("ru")
+	var ru_line := str(game.merge_preview("hydroponics", 2, 1).bonus_line)
+	Copy.set_lang("en")
+	var ru_locked := "Стыкуется с Гидропоникой: +10% еды, на 1 меньше рабочих. Общие энергия, болезнь и беды."
+	if ru_line != ru_locked:
+		print("Merge: FAIL ru tag ", ru_line)
+		return false
+	game._place_room("hydroponics", 2, 1)
+	var hid := str(game.cells["2:0"].room)
+	var hid2 := str(game.cells["2:1"].room)
+	var hydro: Dictionary = game.room_detail(hid)
+	if int(hydro.crew_need) != 3 or int(hydro.block_width) != 2:
+		print("Merge: FAIL crew need ", hydro.crew_need)
+		return false
+	if str(game.merge_group_of(hid2)[0]) != hid:
+		print("Merge: FAIL group order")
+		return false
+	game.stock.materials = 100
+	if not game._apply_upgrade(hid):
+		print("Merge: FAIL upgrade")
+		return false
+	if int(game._room(hid).upgrade) != 1 or int(game._room(hid2).upgrade) != 1:
+		print("Merge: FAIL upgrade did not cover the block")
+		return false
+	var spent := 100 - int(game.stock.materials)
+	if spent != int(game.catalog.rooms["hydroponics"].upgrade_materials):
+		print("Merge: FAIL upgrade spent %d" % spent)
+		return false
+	if game.merge_group_of(hid).size() != 2:
+		print("Merge: FAIL upgrade split the block")
+		return false
+	game.cells["2:2"].dug = true
+	if bool(game.merge_preview("hydroponics", 2, 2).joins):
+		print("Merge: FAIL upgraded block accepted a new room")
+		return false
+	if not game._apply_demolish(hid) or not game._apply_demolish(hid2):
+		print("Merge: FAIL clear hydros")
+		return false
+	game._place_room("hydroponics", 2, 0)
+	game._place_room("hydroponics", 2, 2)
+	var mid: Dictionary = game.merge_preview("hydroponics", 2, 1)
+	if not bool(mid.joins) or int(mid.width) != 3:
+		print("Merge: FAIL width 3 ", mid.width, " ", mid.joins)
+		return false
+	if str(mid.bonus_line) != "Joins Hydroponics: +20% food, 2 fewer worker. Shares power, sickness and disasters.":
+		print("Merge: FAIL tag3 ", mid.bonus_line)
+		return false
+	game._place_room("hydroponics", 2, 1)
+	var mid_id := str(game.cells["2:1"].room)
+	game.cells["2:1"].walled = true
+	game.active_season = {"id": "flood", "start": int(game.week)}
+	game.pumped = false
+	game.flood_guard = false
+	game._apply_flood_if_needed()
+	var mid_room = game._room(mid_id)
+	if not bool(game.cells["2:1"].flooded) or mid_room == null or not bool(mid_room.offline):
+		print("Merge: FAIL flood shared across the block")
+		return false
+	if game.merge_group_of("missing").size() != 0:
+		print("Merge: FAIL unknown uid")
+		return false
+	print("Merge: ok")
 	return true
 
 
