@@ -1634,6 +1634,70 @@
   "staff.salvage.who.June": {
     "en": "June fits quiet. She does not celebrate a bolt.",
     "ru": "Джун ставит тихо. Болт не празднует."
+  },
+  "clear.title_rubble": {
+    "en": "Platform rubble",
+    "ru": "Обломки платформы"
+  },
+  "clear.title_scrap": {
+    "en": "Scrap heap",
+    "ru": "Куча лома"
+  },
+  "clear.title_coal": {
+    "en": "Coal spill",
+    "ru": "Угольная россыпь"
+  },
+  "clear.confirm": {
+    "en": "Clear this pile?",
+    "ru": "Расчистить эту кучу?"
+  },
+  "clear.go": {
+    "en": "Clear",
+    "ru": "Расчистить"
+  },
+  "clear.busy": {
+    "en": "A crew is already clearing.",
+    "ru": "Бригада уже расчищает."
+  },
+  "clear.dig_busy": {
+    "en": "The dig crew is busy.",
+    "ru": "Копатели заняты."
+  },
+  "clear.progress": {
+    "en": "Clearing, {n} left",
+    "ru": "Расчистка, осталось {n}"
+  },
+  "clear.toast_mats": {
+    "en": "Cleared · +{n} materials",
+    "ru": "Расчищено · +{n} материалов"
+  },
+  "clear.toast_coal": {
+    "en": "Cleared coal · +{n} materials · filters rest a week",
+    "ru": "Уголь расчищен · +{n} материалов · фильтры отдыхают неделю"
+  },
+  "clear.tip": {
+    "en": "{kind} · Clear · {weeks} · crew {crew}",
+    "ru": "{kind} · Расчистить · {weeks} · бригада {crew}"
+  },
+  "clear.blocked_build": {
+    "en": "Clear the pile first.",
+    "ru": "Сначала расчистите кучу."
+  },
+  "clear.chronicle": {
+    "en": "Crew hauled the pile off the floor.",
+    "ru": "Бригада утащила кучу с пола."
+  },
+  "clear.hurt": {
+    "en": "Someone took a bad cut on the pile.",
+    "ru": "Кто-то сильно порезался на куче."
+  },
+  "clear.risk": {
+    "en": "Risk · {pct}% one worker sick",
+    "ru": "Риск · {pct}% — один работник заболеет"
+  },
+  "clear.risk_coal": {
+    "en": "Risk · 12% sick · hope −1 if Claustrophobic on crew",
+    "ru": "Риск · 12% болезнь · надежда −1, если в бригаде Клаустрофоб"
   }
 }
 

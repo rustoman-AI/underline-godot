@@ -1888,8 +1888,11 @@ func _shrink_card() -> void:
 func _refresh() -> void:
 	if game == null:
 		return
+	var notes: PackedStringArray = []
 	while not game.notices.is_empty():
-		_toast(str(game.notices.pop_front()))
+		notes.append(str(game.notices.pop_front()))
+	if not notes.is_empty():
+		_toast_chain(notes)
 	_show_perk_floats()
 	_watch_work()
 	var season := ""
@@ -3322,6 +3325,9 @@ func _tap_cell(level: int, cell: int) -> void:
 	if str(spot.room) != "":
 		_show_room(str(spot.room))
 		return
+	if str(spot.get("pile", "")) != "" or _clearing_cell(level, cell):
+		_tap_clear(level, cell, spot)
+		return
 	if not game.dig.is_empty() and int(game.dig.level) == level and int(game.dig.cell) == cell:
 		var digging: PackedStringArray = [
 			Copy.t("%s left.") % Words.count(int(game.dig.left), "week"),
@@ -3345,6 +3351,37 @@ func _tap_cell(level: int, cell: int) -> void:
 		_confirm("Dig this cell?", lines, bool(info.ok), {"kind": "dig", "level": level, "cell": cell}, "Dig", why)
 		return
 	_show_build(level, cell)
+
+
+func _clearing_cell(level: int, cell: int) -> bool:
+	return not game.clear.is_empty() and int(game.clear.level) == level and int(game.clear.cell) == cell
+
+
+## Soft-confirm for a pile. Same card as dig, with the injury line muted under the costs.
+func _tap_clear(level: int, cell: int, spot: Dictionary) -> void:
+	var kind := str(spot.get("pile", game.clear.get("kind", "")))
+	if _clearing_cell(level, cell):
+		var busy: PackedStringArray = [
+			Copy.fill("clear.progress", {"n": str(int(game.clear.left))}),
+			Copy.t("%s on the crew.") % Words.count(game.clear.workers.size(), "person", "people"),
+		]
+		_confirm("clear.confirm", busy, false, {"kind": "clear", "level": level, "cell": cell}, "clear.go", Copy.t("clear.busy"))
+		return
+	var info := game.clear_preview(level, cell)
+	var lines: PackedStringArray = [
+		Words.count(int(info.weeks), "week"),
+		Words.count(int(info.workers), "worker"),
+	]
+	if int(info.materials) > 0:
+		lines.append(Words.count(int(info.materials), "material"))
+	var muted := PackedStringArray()
+	if kind != "":
+		muted.append(Copy.t("clear.title_" + kind))
+	if kind == "coal":
+		muted.append(Copy.t("clear.risk_coal"))
+	elif int(info.risk_pct) > 0:
+		muted.append(Copy.fill("clear.risk", {"pct": str(int(info.risk_pct))}))
+	_confirm("clear.confirm", lines, bool(info.ok), {"kind": "clear", "level": level, "cell": cell}, "clear.go", str(info.reason), muted)
 
 
 func _drop_person(person_id: String, uid: String) -> void:
@@ -4638,6 +4675,18 @@ func _park_toast_label(parent: Node) -> void:
 	if toast_label.get_parent() != null:
 		toast_label.get_parent().remove_child(toast_label)
 	parent.add_child(toast_label)
+
+
+func _toast_chain(lines: PackedStringArray) -> void:
+	if lines.is_empty():
+		return
+	_toast(str(lines[0]))
+	if lines.size() < 2 or toast_fade == null:
+		return
+	var rest := lines.slice(1)
+	toast_fade.tween_callback(func() -> void:
+		_toast_chain(rest)
+	)
 
 
 func _toast(text: String, hold: float = 1.8) -> void:
@@ -7159,8 +7208,8 @@ func _choice_bits(choice: Dictionary) -> String:
 	return ", ".join(bits)
 
 
-func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dictionary, verb: String = "Confirm", reason: String = "") -> void:
-	if not _claim(ModalDeck.AMBIENT, "confirm", _confirm.bind(heading, lines, ok, action, verb, reason)):
+func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dictionary, verb: String = "Confirm", reason: String = "", muted: PackedStringArray = PackedStringArray()) -> void:
+	if not _claim(ModalDeck.AMBIENT, "confirm", _confirm.bind(heading, lines, ok, action, verb, reason, muted)):
 		return
 	if str(action.get("kind", "")) == "build" and yard != null:
 		yard.place_lock = true
@@ -7174,6 +7223,8 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 		shown = lines.slice(0, lines.size() - 1)
 	for line in shown:
 		_body(Copy.gloss(line))
+	for line in muted:
+		_body_muted(line)
 	if ready:
 		card_body.add_child(_button(verb, _do_confirm.bind(action), ""))
 	else:
@@ -7373,6 +7424,14 @@ func _heading(text: String) -> void:
 
 func _body(text: String) -> void:
 	var lab := _label(text, 17)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_body.add_child(lab)
+
+
+func _body_muted(text: String) -> void:
+	var lab := _label(text, 15)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_body.add_child(lab)
@@ -7616,6 +7675,8 @@ func _lock_button(label: String) -> Button:
 
 
 func _brigade_busy_reason() -> String:
+	if not game.clear.is_empty():
+		return Copy.t("clear.busy")
 	if game.dig.is_empty():
 		return ""
 	var left := int(game.dig.left)
@@ -10917,7 +10978,7 @@ func _hint_target(target: String) -> Rect2:
 				"dark_cell":
 					fits = yard._kind(spot) == "undug" and bool(game.dig_preview(level, cell).ok)
 				"open_floor":
-					fits = bool(spot.dug) and str(spot.room) == "" and not _job_here(level, cell)
+					fits = bool(spot.dug) and str(spot.room) == "" and str(spot.get("pile", "")) == "" and not _job_here(level, cell)
 				"room":
 					var room = game._room(str(spot.room)) if str(spot.room) != "" else null
 					if room != null:
@@ -10932,7 +10993,7 @@ func _hint_target(target: String) -> Rect2:
 
 
 func _job_here(level: int, cell: int) -> bool:
-	for job in [game.dig, game.build]:
+	for job in [game.dig, game.clear, game.build]:
 		if not job.is_empty() and int(job.level) == level and int(job.cell) == cell:
 			return true
 	return false
@@ -11580,6 +11641,12 @@ class Yard extends Control:
 	## Empty while the v2 backgrounds paint their own key props (the generator's jerrycans replaced the fuel drums).
 	const PROPS := {}
 	var prop_tex := {}
+	var pile_tex := {}
+	var dust_tex: Texture2D
+	var dust_tried := false
+	var clear_dust_cell := Vector2i(-1, -1)
+	var clear_dust_until := 0
+	var clear_dust_seq := 0
 	var backdrop_tex: Texture2D
 	var scaffold: Texture2D
 	var ghosts := {}
@@ -12170,6 +12237,7 @@ class Yard extends Control:
 	func _draw() -> void:
 		if station == null or station.game == null:
 			return
+		_poll_clear_burst()
 		more_hits.clear()
 		help_hits.clear()
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.06, 0.07))
@@ -12311,7 +12379,8 @@ class Yard extends Control:
 			shift = shake_px if shake_px != 0.0 else sin(Time.get_ticks_msec() / 45.0) * 8.0
 		if shift != 0.0:
 			rect.position += Vector2(shift, 0.0)
-		if _job_span(level, cell).x >= 0:
+		var clearing: bool = station._clearing_cell(level, cell)
+		if not clearing and _job_span(level, cell).x >= 0:
 			_draw_site(rect, level, cell)
 			if hover == Vector2i(level, cell):
 				draw_rect(rect.grow(-2.0), Color(0.93, 0.78, 0.45, 0.9), false, 2.0)
@@ -12336,7 +12405,7 @@ class Yard extends Control:
 				_blit_room(cell_dug, rect)
 			else:
 				_paint_rock(rect, level * 6 + cell)
-			_draw_dug_props(rect, level * 6 + cell)
+			_draw_dug_props(rect, level * 6 + cell, str(spot.get("pile", "")) != "")
 		else:
 			draw_rect(rect, Color(0.08, 0.07, 0.06))
 			var tier_tex: Texture2D = tier_art(room_type, int(room.upgrade)) if room != null else null
@@ -12384,6 +12453,11 @@ class Yard extends Control:
 			_draw_water(rect, level, cell)
 		if kind == "undug":
 			_draw_dig_outline(rect, level, cell)
+		if kind == "dug" and str(spot.get("pile", "")) != "":
+			_draw_pile(rect, str(spot.pile))
+		if clearing:
+			_draw_clear_work(rect, level, cell)
+		_draw_clear_burst(rect, level, cell)
 		if drag_id != "" and kind == "room" and room != null:
 			var uid := str(room.uid)
 			var preview: Dictionary = station.game.assign_preview(drag_id, uid)
@@ -12580,6 +12654,91 @@ class Yard extends Control:
 		draw_rect(ring, Color(0.02, 0.015, 0.01, 0.9), false, 5.0)
 		draw_rect(ring, Color(0.95, 0.84, 0.55, alpha), false, 2.0)
 		_draw_status(rect.get_center() - Vector2(12, 12), "dig")
+
+	func _poll_clear_burst() -> void:
+		var burst: Dictionary = station.game.clear_burst
+		if burst.is_empty():
+			return
+		var seq := int(burst.get("seq", 0))
+		if seq == clear_dust_seq:
+			return
+		clear_dust_seq = seq
+		clear_dust_cell = Vector2i(int(burst.level), int(burst.cell))
+		clear_dust_until = Time.get_ticks_msec() + 700
+
+	func _pile_texture(kind: String) -> Texture2D:
+		if pile_tex.has(kind):
+			var cached = pile_tex[kind]
+			return cached if cached is Texture2D else null
+		var tex := ArtPack.pile_texture(kind)
+		pile_tex[kind] = tex if tex != null else false
+		return tex
+
+	func _dust_texture() -> Texture2D:
+		if not dust_tried:
+			dust_tried = true
+			dust_tex = ArtPack.clear_dust_texture()
+		return dust_tex
+
+	## Floor clutter. The 210-wide overlay sits at about two fifths of the cell; a mound stands in if the art is missing.
+	func _draw_pile(rect: Rect2, kind: String) -> void:
+		var tex := _pile_texture(kind)
+		if tex == null:
+			_draw_mound(rect, kind)
+			return
+		var pw := rect.size.x * 0.42
+		var ph := pw * float(tex.get_height()) / maxf(float(tex.get_width()), 1.0)
+		if ph > rect.size.y * 0.46:
+			ph = rect.size.y * 0.46
+			pw = ph * float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
+		var dest := Rect2(rect.get_center().x - pw * 0.5, rect.end.y - ph - rect.size.y * 0.05, pw, ph)
+		draw_texture_rect(tex, dest, false)
+
+	func _draw_mound(rect: Rect2, kind: String) -> void:
+		var col := Color(0.45, 0.40, 0.34)
+		if kind == "scrap":
+			col = Color(0.55, 0.32, 0.18)
+		elif kind == "coal":
+			col = Color(0.18, 0.16, 0.15)
+		var w := rect.size.x * 0.42
+		var h := rect.size.y * 0.22
+		var base := Vector2(rect.position.x + (rect.size.x - w) * 0.5, rect.end.y - rect.size.y * 0.08)
+		var mound := PackedVector2Array([
+			base,
+			base + Vector2(w * 0.16, -h * 0.5),
+			base + Vector2(w * 0.48, -h),
+			base + Vector2(w * 0.8, -h * 0.42),
+			base + Vector2(w, 0.0),
+		])
+		draw_colored_polygon(mound, col)
+		draw_polyline(mound, col.darkened(0.35), maxf(1.0, rect.size.y * 0.008))
+
+	## Dust while a crew is on the pile. Reduce-motion keeps a still puff and the progress chip; it does not pulse.
+	func _draw_clear_work(rect: Rect2, level: int, cell: int) -> void:
+		var still: bool = station._motion_off()
+		var tex := _dust_texture()
+		if tex != null:
+			var sway := 0.0 if still else sin(Time.get_ticks_msec() / 280.0)
+			var s := rect.size.y * (0.28 if still else 0.30 + sway * 0.04)
+			var at := rect.get_center() + Vector2(0.0, rect.size.y * 0.08)
+			var alpha := 0.5 if still else 0.42 + absf(sway) * 0.18
+			draw_texture_rect(tex, Rect2(at.x - s, at.y - s, s * 2.0, s * 2.0), false, Color(1, 1, 1, alpha))
+		if not still:
+			_draw_dig_haze(rect, level * 6 + cell)
+		draw_rect(rect.grow(-5.0), Color(0.72, 0.58, 0.32, 0.8), false, 2.0)
+
+	func _draw_clear_burst(rect: Rect2, level: int, cell: int) -> void:
+		if station._motion_off() or clear_dust_cell != Vector2i(level, cell):
+			return
+		var now := Time.get_ticks_msec()
+		if now >= clear_dust_until:
+			return
+		var tex := _dust_texture()
+		if tex == null:
+			return
+		var u := 1.0 - float(clear_dust_until - now) / 700.0
+		var s := rect.size.y * (0.22 + 0.45 * u)
+		draw_texture_rect(tex, Rect2(rect.get_center().x - s, rect.get_center().y - s * 0.4, s * 2.0, s * 2.0), false, Color(1, 1, 1, 0.75 * (1.0 - u)))
 
 	func _lamp_texture() -> Texture2D:
 		if lamp_glow != null:
@@ -12823,7 +12982,7 @@ class Yard extends Control:
 			draw_circle(at, rect.size.y * 0.008, Color(0.78, 0.7, 0.58, 0.5 * (1.0 - rise)))
 
 	## A dug, empty cell: a slack cable along the wall and a small heap of rubble in one corner.
-	func _draw_dug_props(rect: Rect2, salt: int) -> void:
+	func _draw_dug_props(rect: Rect2, salt: int, skip_heap := false) -> void:
 		var h := rect.size.y
 		var y0 := rect.position.y + h * 0.2
 		var sag := h * 0.07
@@ -12832,6 +12991,8 @@ class Yard extends Control:
 			var f := float(i) / 12.0
 			cable.append(Vector2(rect.position.x + rect.size.x * f, y0 + sag * sin(f * PI) + sag * 0.6 * sin(f * TAU)))
 		draw_polyline(cable, Color(0.04, 0.035, 0.03, 0.55), maxf(1.5, h * 0.012))
+		if skip_heap:
+			return
 		var left := salt % 2 == 0
 		var base := Vector2(rect.position.x + rect.size.x * (0.2 if left else 0.8), rect.end.y - h * 0.03)
 		for i in 5:
@@ -12940,6 +13101,11 @@ class Yard extends Control:
 			draw_circle(at + drift, r, Color(0.7, 0.62, 0.5, 0.7 * (1.0 - age)))
 
 	func _job_span(level: int, cell: int) -> Vector2i:
+		var clearing: Dictionary = station.game.clear
+		if not clearing.is_empty() and int(clearing.level) == level and int(clearing.cell) == cell:
+			var total: int = station.game.clear_weeks(str(clearing.get("kind", "rubble")))
+			var left := int(clearing.left)
+			return Vector2i(left, maxi(total, left))
 		var digging: Dictionary = station.game.dig
 		if not digging.is_empty() and int(digging.level) == level and int(digging.cell) == cell:
 			var total := int(station.game._dig_cost(level).turns)
@@ -12964,6 +13130,9 @@ class Yard extends Control:
 		return not building.is_empty() and int(building.level) == level and int(building.cell) == cell
 
 	func _cell_action(level: int, cell: int, kind: String, room_type: String) -> String:
+		var clearing: Dictionary = station.game.clear
+		if not clearing.is_empty() and int(clearing.level) == level and int(clearing.cell) == cell:
+			return Copy.fill("clear.progress", {"n": str(int(clearing.left))})
 		var digging: Dictionary = station.game.dig
 		if not digging.is_empty() and int(digging.level) == level and int(digging.cell) == cell:
 			return Copy.t("Digging, %s left") % Words.count(int(digging.left), "week")
@@ -12977,6 +13146,15 @@ class Yard extends Control:
 			"undug":
 				return Copy.t("Dig")
 			"dug":
+				var piled: Dictionary = station.game.cells["%d:%d" % [level, cell]]
+				var pile := str(piled.get("pile", ""))
+				if pile != "":
+					var info: Dictionary = station.game.clear_preview(level, cell)
+					return Copy.fill("clear.tip", {
+						"kind": Copy.t("clear.title_" + pile),
+						"weeks": str(int(info.weeks)),
+						"crew": str(int(info.workers)),
+					})
 				return Copy.t("Build")
 			"room":
 				return Copy.t(str(station.game.catalog.rooms[room_type].name))
@@ -13071,10 +13249,11 @@ class Yard extends Control:
 		var screen := Rect2(pan + world.position * zoom, world.size * zoom)
 		if screen.size.x < 60.0:
 			return
+		var clearing: bool = station._clearing_cell(level, cell)
 		var kind := str(station.game.build.type) if _job_is_build(level, cell) else "dig"
 		var icon_px := 48.0 if screen.size.x >= 150.0 else 32.0
 		var font_size := 24 if icon_px >= 48.0 else 18
-		var label := job_label(job)
+		var label := Copy.fill("clear.progress", {"n": str(job.x)}) if clearing else job_label(job)
 		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		var line_h := font.get_height(font_size)
 		var bar_w := maxf(text_w, clampf(screen.size.x * 0.4, 60.0, 170.0))

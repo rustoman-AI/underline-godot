@@ -614,6 +614,9 @@ func _project(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "infirmary"}
 	if game.week >= 16 and game.room_count("radio") == 0 and game.build_possible("radio"):
 		return {"kind": "build", "type": "radio"}
+	var scrap := _careful_clear(game)
+	if not scrap.is_empty():
+		return scrap
 	if game.build_slots() == 0 and game.dig_possible(true):
 		return {"kind": "dig", "space": true}
 	if game.week >= 4 and int(game.stock.materials) >= 16 and game.build_slots() > 0 and game.dig_possible(false):
@@ -630,23 +633,35 @@ func _project_expander(game: Game) -> Dictionary:
 		return {"kind": "quarantine"}
 	var retry := _retry_build(game)
 	if not retry.is_empty():
+		if str(retry.get("kind", "")) == "build" and int(game.stock.materials) < 14:
+			var ahead := _clear_kind(game, "")
+			if not ahead.is_empty():
+				return ahead
 		return retry
-	if game.room_count("generator") == 0 and game.week >= 2 and game.build_possible("generator"):
-		return {"kind": "build", "type": "generator"}
-	if game.output_of("air") < game.air_need() and game.build_possible("air_filter"):
-		return {"kind": "build", "type": "air_filter"}
-	if game.housing() < game.residents.size() and game.build_possible("quarters"):
-		return {"kind": "build", "type": "quarters"}
-	if game.food_buffer_weeks() < 1.4 and game.room_count("hydroponics") < 3 and game.build_possible("hydroponics"):
-		return {"kind": "build", "type": "hydroponics"}
-	if game.room_count("meeting_hall") == 0 and game.build_possible("meeting_hall"):
-		return {"kind": "build", "type": "meeting_hall"}
-	if game.output_of("food") < game.food_need() and game.build_possible("hydroponics"):
-		return {"kind": "build", "type": "hydroponics"}
-	if game.week >= 12 and int(game.stock.materials) >= 20 and game.room_count("radio") == 0 and game.build_possible("radio"):
-		return {"kind": "build", "type": "radio"}
-	if game.week >= 14 and int(game.stock.materials) >= 22 and game._has_radio() and game.room_count("listening_post") == 0 and game.build_possible("listening_post"):
-		return {"kind": "build", "type": "listening_post"}
+	var built := _expander_room(game, "generator", game.room_count("generator") == 0 and game.week >= 2)
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "air_filter", game.output_of("air") < game.air_need())
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "quarters", game.housing() < game.residents.size())
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "hydroponics", game.food_buffer_weeks() < 1.4 and game.room_count("hydroponics") < 3)
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "meeting_hall", game.room_count("meeting_hall") == 0)
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "hydroponics", game.output_of("food") < game.food_need())
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "radio", game.week >= 12 and int(game.stock.materials) >= 20 and game.room_count("radio") == 0)
+	if not built.is_empty():
+		return built
+	built = _expander_room(game, "listening_post", game.week >= 14 and int(game.stock.materials) >= 22 and game._has_radio() and game.room_count("listening_post") == 0)
+	if not built.is_empty():
+		return built
 	if int(game.stock.materials) >= 12 and bool(game.strip_preview().get("ok", false)):
 		return {"kind": "strip"}
 	if game.dig_possible(false):
@@ -654,6 +669,40 @@ func _project_expander(game: Game) -> Dictionary:
 	if game.dig_possible(true):
 		return {"kind": "dig", "space": true}
 	return {}
+
+
+## Expander clears a pile when materials are under 14 before the build it was about to start.
+func _expander_room(game: Game, type: String, want: bool) -> Dictionary:
+	if not want or not game.build_possible(type):
+		return {}
+	if int(game.stock.materials) < 14:
+		var ahead := _clear_kind(game, "")
+		if not ahead.is_empty():
+			return ahead
+	return {"kind": "build", "type": type}
+
+
+## Careful clears a scrap heap when materials are under 10. Otherwise it would rather dig for space.
+func _careful_clear(game: Game) -> Dictionary:
+	if profile != "careful" or int(game.stock.materials) >= 10:
+		return {}
+	return _clear_kind(game, "scrap")
+
+
+func _clear_kind(game: Game, kind: String) -> Dictionary:
+	if kind == "":
+		for name in ["scrap", "coal", "rubble"]:
+			var act := _clear_kind(game, str(name))
+			if not act.is_empty():
+				return act
+		return {}
+	var spot: Dictionary = game.pile_spot(kind)
+	if spot.is_empty():
+		return {}
+	var info: Dictionary = game.clear_preview(int(spot.level), int(spot.cell))
+	if not bool(info.ok):
+		return {}
+	return {"kind": "clear", "level": int(spot.level), "cell": int(spot.cell)}
 
 
 func _order(game: Game) -> Dictionary:

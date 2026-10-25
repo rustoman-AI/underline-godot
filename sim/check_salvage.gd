@@ -364,17 +364,17 @@ func _raid() -> void:
 
 
 func _save() -> void:
-	_expect(Game.SAVE_SCHEMA == 13, "Save schema is 13", str(Game.SAVE_SCHEMA))
+	_expect(Game.SAVE_SCHEMA == 14, "Save schema is 14", str(Game.SAVE_SCHEMA))
 	var game := _game()
 	game.stock.blueprints = 4
 	game.salvage.strip_week = 9
 	game.salvage.junk_week = 6
 	var fixture := game.export_state()
-	fixture.schema = 13
+	fixture.schema = 14
 	var other := _game()
 	var loaded := other.import_state(fixture)
 	_expect(loaded and int(other.stock.blueprints) == 4 and int(other.salvage.strip_week) == 9 and int(other.salvage.junk_week) == 6,
-		"Schema 13 keeps blueprints and the strip week", "loaded=%s err=%s bp=%s strip=%s" % [loaded, other.load_error, other.stock.get("blueprints", "?"), other.salvage.get("strip_week", "?")])
+		"Schema 14 keeps blueprints and the strip week", "loaded=%s err=%s bp=%s strip=%s" % [loaded, other.load_error, other.stock.get("blueprints", "?"), other.salvage.get("strip_week", "?")])
 	fixture.schema = 11
 	fixture.erase("salvage")
 	fixture.stock.erase("blueprints")
