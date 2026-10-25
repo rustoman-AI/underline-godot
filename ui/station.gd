@@ -5609,8 +5609,8 @@ func _intent_row(lines: PackedStringArray) -> void:
 
 
 func _event_banner(ev: Dictionary) -> TextureRect:
-	var use := str(ev.get("banner", ev.get("id", "")))
-	if use == "" or not ArtPack.has_event_art(use):
+	var use := ArtPack.event_banner_stem(ev)
+	if use == "":
 		return null
 	var path := "res://assets/events/%s.webp" % use
 	var tex := ArtPack.load_texture(path)

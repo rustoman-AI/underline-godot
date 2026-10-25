@@ -39,7 +39,7 @@
     {"id": "search", "label": "Send a crew after them", "cost": {"food": 4}, "hope": 0},
     {"id": "let", "label": "Let them go", "people": -2, "discontent": -1, "hope": -3}
   ]},
-  {"id": "wire", "title": "Spare cable", "sasha": true, "major": false, "weight": 2, "cooldown": 8, "who": "Mara", "text": "Mara's crew finds a spool of cable in a sealed locker: old Depot stock nobody remembers. Use it yourselves, or sell it.", "choices": [
+  {"id": "wire", "banner": "dark", "title": "Spare cable", "sasha": true, "major": false, "weight": 2, "cooldown": 8, "who": "Mara", "text": "Mara's crew finds a spool of cable in a sealed locker: old Depot stock nobody remembers. Use it yourselves, or sell it.", "choices": [
     {"id": "reel", "label": "Take it to the workshop", "materials": 8},
     {"id": "trade", "label": "Sell it to passing traders", "hope": -1, "tokens": 8, "materials": 2}
   ]},
@@ -47,43 +47,43 @@
     {"id": "beds", "label": "Put them to bed and lose their shift", "cost": {"food": 4}, "sick": 1, "hope": 0},
     {"id": "work", "label": "Make them work through it", "sick": 3, "discontent": 2}
   ]},
-  {"id": "leak", "title": "A drip over the bunks", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "follow": "leak_next", "who": "Pete", "text": "Pete finds water dripping over the bunks. Left alone it will get worse, and when the flood comes the water will reach the rooms.", "choices": [
+  {"id": "leak", "banner": "flood", "title": "A drip over the bunks", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "follow": "leak_next", "who": "Pete", "text": "Pete finds water dripping over the bunks. Left alone it will get worse, and when the flood comes the water will reach the rooms.", "choices": [
     {"id": "patch", "label": "Patch it with workshop cloth (protects from the flood)", "cost": {"materials": 3}, "hope": 0, "flag": "leak_patched"},
     {"id": "buckets", "label": "Put out buckets and move on", "discontent": 2, "hope": -1}
   ]},
-  {"id": "nightshift", "title": "Hal will not sleep", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Hal", "text": "Hal can't sleep and walks the platform all night. The night shift says he is a danger at the machines and wants him kept away from the tools.", "choices": [
+  {"id": "nightshift", "banner": "sleep", "title": "Hal will not sleep", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Hal", "text": "Hal can't sleep and walks the platform all night. The night shift says he is a danger at the machines and wants him kept away from the tools.", "choices": [
     {"id": "bench", "label": "Put him on night watch", "hope": 1, "discontent": -1},
     {"id": "order", "label": "Order him to bed", "discontent": 2, "hope": -1}
   ]},
-  {"id": "ration", "title": "Owen counts the bowls", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Owen", "text": "Owen counts the bowls twice: tonight there is one meal too few. Either everyone eats a little less, or someone goes hungry until tomorrow.", "choices": [
+  {"id": "ration", "banner": "hunger", "title": "Owen counts the bowls", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Owen", "text": "Owen counts the bowls twice: tonight there is one meal too few. Either everyone eats a little less, or someone goes hungry until tomorrow.", "choices": [
     {"id": "share", "label": "Split what there is between everyone", "food": -2, "discontent": 1},
     {"id": "hold", "label": "Someone goes without, promise more tomorrow", "hope": -1, "discontent": 2}
   ]},
-  {"id": "tools", "title": "Samira's drill walks off", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Samira", "text": "Samira's drill is gone from its peg in the workshop. Someone borrowed it and never brought it back.", "choices": [
+  {"id": "tools", "banner": "tools", "title": "Samira's drill walks off", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Samira", "text": "Samira's drill is gone from its peg in the workshop. Someone borrowed it and never brought it back.", "choices": [
     {"id": "ask", "label": "Go room to room and ask", "influence": -1, "hope": 0},
     {"id": "drop", "label": "Let it go", "discontent": 1, "hope": -1}
   ]},
-  {"id": "bunks", "title": "Ada wants a curtain", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Ada", "text": "Ada asks for a curtain between the bunks. It is a small thing, and everyone is waiting to see how you answer.", "choices": [
+  {"id": "bunks", "banner": "sleep", "title": "Ada wants a curtain", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Ada", "text": "Ada asks for a curtain between the bunks. It is a small thing, and everyone is waiting to see how you answer.", "choices": [
     {"id": "hang", "label": "Hang a curtain", "cost": {"materials": 2}, "hope": 1},
     {"id": "no", "label": "Refuse: the cloth is needed for the filters", "discontent": 2}
   ]},
-  {"id": "salt", "title": "Nora tastes salt in the air", "major": false, "min_week": 5, "weight": 2, "cooldown": 8, "who": "Nora", "text": "Nora tastes salt in the air by the east wall. There is a crack there, and the river is closer than the map says.", "choices": [
+  {"id": "salt", "banner": "flood", "title": "Nora tastes salt in the air", "major": false, "min_week": 5, "weight": 2, "cooldown": 8, "who": "Nora", "text": "Nora tastes salt in the air by the east wall. There is a crack there, and the river is closer than the map says.", "choices": [
     {"id": "seal", "label": "Seal the crack", "cost": {"materials": 3}, "hope": 0},
     {"id": "note", "label": "Write it down and leave it", "hope": -1, "discontent": 1}
   ]},
-  {"id": "scrap", "title": "Vic's scrap pile", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Vic", "text": "Vic has gathered a pile of scrap. The workshop could use it, but Vic says it is his, and taking it will cause bad blood.", "choices": [
+  {"id": "scrap", "banner": "scrap", "title": "Vic's scrap pile", "major": false, "min_week": 2, "weight": 2, "cooldown": 8, "who": "Vic", "text": "Vic has gathered a pile of scrap. The workshop could use it, but Vic says it is his, and taking it will cause bad blood.", "choices": [
     {"id": "shop", "label": "Take it for the workshop anyway", "materials": 4, "discontent": 1},
     {"id": "leave", "label": "Leave it with Vic", "hope": -1}
   ]},
-  {"id": "overtime", "title": "Rob won't leave his machine", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Rob", "text": "Rob has worked two shifts in a row and will not leave his machine. The next shift is standing behind him with nothing to do.", "choices": [
+  {"id": "overtime", "banner": "labor", "title": "Rob won't leave his machine", "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Rob", "text": "Rob has worked two shifts in a row and will not leave his machine. The next shift is standing behind him with nothing to do.", "choices": [
     {"id": "relief", "label": "Send him off to eat", "food": -1, "hope": 1},
     {"id": "keep", "label": "Let him finish the run", "discontent": 2, "hope": -1}
   ]},
-  {"id": "hymn", "title": "Tess starts a hymn", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Tess", "text": "Tess starts a hymn in the passage. It is not a Synod hymn. People join in anyway.", "choices": [
+  {"id": "hymn", "banner": "chapel", "title": "Tess starts a hymn", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Tess", "text": "Tess starts a hymn in the passage. It is not a Synod hymn. People join in anyway.", "choices": [
     {"id": "join", "label": "Let her finish", "hope": 2, "discontent": -1},
     {"id": "quiet", "label": "Ask for quiet on the platform", "discontent": 1, "hope": -1}
   ]},
-  {"id": "drill", "title": "Paul's old route", "major": false, "min_week": 5, "weight": 2, "cooldown": 8, "who": "Paul", "text": "Paul swears he can still drive a handcar to the ferry by his old route. That tunnel is not on your map. If he gets through, more stations will hear of you.", "choices": [
+  {"id": "drill", "banner": "expedition", "title": "Paul's old route", "major": false, "min_week": 5, "weight": 2, "cooldown": 8, "who": "Paul", "text": "Paul swears he can still drive a handcar to the ferry by his old route. That tunnel is not on your map. If he gets through, more stations will hear of you.", "choices": [
     {"id": "map", "label": "Send him with a lamp and a partner", "hope": 0, "influence": 2},
     {"id": "stay", "label": "Keep him at the station", "discontent": 1, "hope": -1}
   ]},
@@ -91,7 +91,7 @@
     {"id": "thank", "label": "Thank the crew in front of everyone", "hope": 1},
     {"id": "move", "label": "Get back to work", "discontent": 1}
   ]},
-  {"id": "refugees_next", "title": "Back at the gate", "chain_only": true, "weight": 1, "text": "Someone from that crowd is back at the gate.", "by": {"take": "One of the people you took in has family still outside. They ask if the yard can stand one more.", "turn": "The people you turned away left a mark on the gate. A child keeps calling their names."}, "choices": [
+  {"id": "refugees_next", "banner": "refugees", "title": "Back at the gate", "chain_only": true, "weight": 1, "text": "Someone from that crowd is back at the gate.", "by": {"take": "One of the people you took in has family still outside. They ask if the yard can stand one more.", "turn": "The people you turned away left a mark on the gate. A child keeps calling their names."}, "choices": [
     {"id": "open", "label": "Promise to let their people in later", "hope": -1, "discontent": 1},
     {"id": "names", "label": "Write down the names and promise nothing", "hope": -2}
   ]},
@@ -103,7 +103,7 @@
     {"id": "table", "label": "Sit them down to eat at one table", "food": -1, "discontent": -1},
     {"id": "split", "label": "Put them on different shifts", "discontent": 2, "hope": -1}
   ]},
-  {"id": "preacher_next", "title": "Ellis asks for a room", "chain_only": true, "weight": 1, "who": "Ellis", "text": "Ellis wants a room for the talking.", "by": {"allow": "Ellis says the sermon you allowed needs a room now, not a passage.", "stop": "Ellis is quieter, and the people you pulled away from the sermon have not forgotten."}, "choices": [
+  {"id": "preacher_next", "banner": "preacher", "title": "Ellis asks for a room", "chain_only": true, "weight": 1, "who": "Ellis", "text": "Ellis wants a room for the talking.", "by": {"allow": "Ellis says the sermon you allowed needs a room now, not a passage.", "stop": "Ellis is quieter, and the people you pulled away from the sermon have not forgotten."}, "choices": [
     {"id": "corner", "label": "Give Ellis a corner of the meeting hall", "hope": 1, "discontent": 1},
     {"id": "no", "label": "Keep the hall for everyone", "discontent": 2, "hope": -1}
   ]},
@@ -127,11 +127,11 @@
     {"id": "hang", "label": "Hang the tag in the hall for all to see", "hope": -1, "discontent": -1},
     {"id": "box", "label": "Put it away in a box", "hope": -2}
   ]},
-  {"id": "cough_next", "title": "Ruth's cough moves", "chain_only": true, "weight": 1, "who": "Ruth", "text": "Ruth's cough is in another room.", "by": {"beds": "The beds you cleared held Ruth. The cough is in the next bunk now.", "work": "Ruth worked through it, like you asked. Two more people are coughing."}, "choices": [
+  {"id": "cough_next", "banner": "cough", "title": "Ruth's cough moves", "chain_only": true, "weight": 1, "who": "Ruth", "text": "Ruth's cough is in another room.", "by": {"beds": "The beds you cleared held Ruth. The cough is in the next bunk now.", "work": "Ruth worked through it, like you asked. Two more people are coughing."}, "choices": [
     {"id": "beds", "label": "Put the sick to bed again", "food": -2, "hope": 0, "sick": 1},
     {"id": "push", "label": "Keep everyone on shift", "discontent": 2, "sick": 2}
   ]},
-  {"id": "leak_next", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "The cloth held the first seam. Pete found one more, smaller.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
+  {"id": "leak_next", "banner": "flood", "title": "Pete's drip is back", "chain_only": true, "weight": 1, "who": "Pete", "text": "Pete is under the same pipe.", "by": {"patch": "The cloth held the first seam. Pete found one more, smaller.", "buckets": "The buckets Pete set are full. The bunks under them are not dry."}, "choices": [
     {"id": "patch", "label": "Patch the new seam (protects from the flood)", "cost": {"materials": 2}, "hope": 1, "flag": "leak_patched"},
     {"id": "move", "label": "Move the bunks away from the drip", "discontent": 2, "hope": -1}
   ]},
@@ -174,7 +174,7 @@
     {"id": "stall", "label": "Give cable instead and ask for time (the Exchange is displeased)", "cost": {"materials": 6}, "opinion_exchange": -2},
     {"id": "default", "label": "Say the station has nothing to give (the Exchange may stop trading with you)", "opinion_exchange": -8, "discontent": 1}
   ]},
-  {"id": "stores_turn", "title": "The stores are sweating", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Kim", "text": "Kim opens the food store and the air inside is warm and sweet. The top row of sacks is going bad and will not keep another week.", "choices": [
+  {"id": "stores_turn", "banner": "hunger", "title": "The stores are sweating", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Kim", "text": "Kim opens the food store and the air inside is warm and sweet. The top row of sacks is going bad and will not keep another week.", "choices": [
     {"id": "feast", "label": "Cook all of it tonight", "food": -6, "hope": 2, "discontent": -1},
     {"id": "pick", "label": "Sort it by hand and eat the bruised part", "food": -3, "sick": 1},
     {"id": "salt", "label": "Buy salt from the Exchange to save it", "cost": {"tokens": 4}, "opinion_exchange": 2}
@@ -184,7 +184,7 @@
     {"id": "drum", "label": "Buy a drum from the Exchange", "cost": {"tokens": 8}, "opinion_exchange": 2},
     {"id": "dim", "label": "Run it at half power this week and dim the lamps", "gen_down": true, "discontent": 1, "hope": -1}
   ]},
-  {"id": "ration_coat", "title": "A ration in Drew's coat", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Chris", "text": "Chris caught Drew leaving the kitchen with a ration inside his coat. Drew says it was for Ann, who has been too sick to stand in the queue for two days. The whole platform saw it.", "choices": [
+  {"id": "ration_coat", "banner": "hunger", "title": "A ration in Drew's coat", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Chris", "text": "Chris caught Drew leaving the kitchen with a ration inside his coat. Drew says it was for Ann, who has been too sick to stand in the queue for two days. The whole platform saw it.", "choices": [
     {"id": "dock", "label": "Dock Drew's ration for a week", "discontent": -1, "hope": -1},
     {"id": "feed", "label": "Let it go and bring Ann her bowl", "cost": {"food": 2}, "hope": 1, "discontent": 1},
     {"id": "vote", "label": "Let the platform decide", "cost": {"influence": 2}, "discontent": -2}

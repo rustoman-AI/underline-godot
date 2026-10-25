@@ -3,7 +3,7 @@ extends RefCounted
 ## Leader consequence events (data/events_leaders.json): data validation and the rules that make them fire.
 ## Pure sim, no UI. Run by sim/audience_checks.gd, so check_audience.gd and bot_run.gd both cover it.
 
-const EVENT_KEYS := ["id", "title", "major", "weight", "cooldown", "needs", "forced", "trigger", "requires", "text", "choices", "ru_own"]
+const EVENT_KEYS := ["id", "banner", "title", "major", "weight", "cooldown", "needs", "forced", "trigger", "requires", "text", "choices", "ru_own"]
 ## What Game._apply_deltas and _apply_standing_choice understand on a plain choice.
 const CHOICE_KEYS := ["id", "label", "cost", "food", "air", "power", "materials", "tokens", "influence", "hope",
 	"discontent", "people", "sick", "efficiency", "papers", "synod", "opinion_exchange", "opinion_directorate",

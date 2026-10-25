@@ -83,7 +83,8 @@ func _init() -> void:
 			if str(line).begins_with("FAIL"):
 				print("  ", line)
 	print("")
-	_print_banners()
+	if not _print_banners(catalog):
+		failed = true
 	print("")
 	if failed:
 		print("BOT RUN FAILED")
@@ -180,16 +181,21 @@ static func _story_beat(ev: Dictionary) -> bool:
 	return needs is Dictionary and not bool(ev.get("forced", needs.has("leader")))
 
 
-func _print_banners() -> void:
-	var want := ["expedition", "moles", "showtime", "cough", "brownout"]
+func _print_banners(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	var rows: Array = game.catalog.events.duplicate()
+	rows.append_array(game._crunch_table().values())
 	var missing: PackedStringArray = []
-	for id in want:
-		if not FileAccess.file_exists("res://assets/events/%s.webp" % id):
-			missing.append(id)
+	for ev in rows:
+		var problem := ArtPack.event_banner_problem(ev)
+		if problem != "":
+			missing.append(problem)
 	if missing.is_empty():
-		print("Missing banners: none")
-	else:
-		print("Missing banners: %s" % ", ".join(missing))
+		print("Missing banners: none (%d events)" % rows.size())
+		return true
+	print("Missing banners: %s" % ", ".join(missing))
+	return false
 
 
 func _print_network(careful: Array, expander: Array, follower: Array) -> void:

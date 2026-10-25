@@ -26,12 +26,33 @@ func _init() -> void:
 		failed = true
 	if not _check_modals():
 		failed = true
+	if not _check_banners(catalog):
+		failed = true
 	if failed:
 		print("SLICE FAIL")
 		quit(1)
 		return
 	print("SLICE OK")
 	quit(0)
+
+
+## P21: every event that can reach the dawn card, check events and crunch bills included, names a plate or a mood
+## plate that loads.
+func _check_banners(catalog: Catalog) -> bool:
+	var game := Game.new()
+	game.setup(catalog, 1, 40)
+	var rows: Array = game.catalog.events.duplicate()
+	rows.append_array(game._crunch_table().values())
+	var bad: PackedStringArray = []
+	for ev in rows:
+		var problem := ArtPack.event_banner_problem(ev)
+		if problem != "":
+			bad.append(problem)
+	if not bad.is_empty():
+		print("Banners: FAIL ", "; ".join(bad))
+		return false
+	print("Banners: ok (%d events)" % rows.size())
+	return true
 
 
 func _check_queue(catalog: Catalog) -> bool:
