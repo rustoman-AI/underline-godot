@@ -646,6 +646,10 @@ func _order(game: Game) -> Dictionary:
 	if game.owned_count() >= 2:
 		if game.hope < 40 and game.address_reason() == "":
 			return {"kind": "order", "order": "address"}
+		if profile == "careful":
+			var pushed := _careful_assault(game)
+			if not pushed.is_empty():
+				return pushed
 		return {}
 	var border := _best_border(game)
 	if border != "" and int(game.stock.influence) >= int(game.bal.propaganda_influence):
@@ -668,6 +672,10 @@ func _order(game: Game) -> Dictionary:
 			return {"kind": "order", "order": "focus", "station": str(sid), "focus": _focus_for(game)}
 	if game.hope < 40 and game.address_reason() == "":
 		return {"kind": "order", "order": "address"}
+	if profile == "careful":
+		var late := _careful_assault(game)
+		if not late.is_empty():
+			return late
 	return {}
 
 
@@ -682,6 +690,10 @@ func _order_expander(game: Game) -> Dictionary:
 	if game.hope < 40 and not _did_talk and game.address_reason() == "":
 		_did_talk = true
 		return {"kind": "order", "order": "address"}
+	if game.week >= 8:
+		var fight := _expander_fight(game)
+		if not fight.is_empty():
+			return fight
 	if game.owned_count() >= 5:
 		return {}
 	var border := _best_border(game)
@@ -702,6 +714,52 @@ func _order_expander(game: Game) -> Dictionary:
 		return {"kind": "order", "order": "expedition"}
 	if game.can_approach():
 		return {"kind": "order", "order": "approach"}
+	return {}
+
+
+func _hostile_hop(game: Game) -> String:
+	var sq: Dictionary = game.squads[game.player]
+	var here := str(sq.station)
+	for n in game._neighbors(here):
+		var sid := str(n)
+		var st: Dictionary = game.stations[sid]
+		var owner := str(st.owner)
+		if owner == game.player or owner == "neutral" or owner == "ruin" or owner == "bunker" or str(st.get("bunker", "")) != "":
+			continue
+		if not bool(st.get("known", false)):
+			continue
+		return sid
+	return ""
+
+
+func _careful_assault(game: Game) -> Dictionary:
+	if game.week < 16 or game.week % 8 != 0:
+		return {}
+	var warring := false
+	for fid in game.at_war:
+		if bool(game.at_war[fid]):
+			warring = true
+	if not warring:
+		return {}
+	var hop := _hostile_hop(game)
+	if hop == "" or int(game.stations[hop].get("low_weeks", 0)) < 2:
+		return {}
+	if game.order_block("assault", hop) != "":
+		return {}
+	return {"kind": "order", "order": "assault", "dest": hop}
+
+
+func _expander_fight(game: Game) -> Dictionary:
+	var hop := _hostile_hop(game)
+	if hop == "":
+		return {}
+	var low := int(game.stations[hop].get("low_weeks", 0)) >= 2
+	if (low or (game.breach_stock() >= 1 and game.week >= 12)) and game.order_block("assault", hop) == "":
+		return {"kind": "order", "order": "assault", "dest": hop}
+	if game.breach_stock() < 1 and game.week >= 12 and game.week % 4 == 0 and not low and game.order_block("breach") == "":
+		return {"kind": "order", "order": "breach"}
+	if game.order_block("raid", hop) == "":
+		return {"kind": "order", "order": "raid", "dest": hop}
 	return {}
 
 
