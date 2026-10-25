@@ -55,7 +55,7 @@
     {"id": "bench", "label": "Put him on night watch", "hope": 1, "discontent": -1},
     {"id": "order", "label": "Order him to bed", "discontent": 2, "hope": -1}
   ]},
-  {"id": "ration", "banner": "hunger", "tag": "hunger", "title": "Owen counts the bowls", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Owen", "text": "Owen counts the bowls twice: tonight there is one meal too few. Either everyone eats a little less, or someone goes hungry until tomorrow.", "choices": [
+  {"id": "ration", "banner": "ration", "tag": "hunger", "title": "Owen counts the bowls", "major": false, "min_week": 3, "weight": 2, "cooldown": 8, "who": "Owen", "text": "Owen counts the bowls twice: tonight there is one meal too few. Either everyone eats a little less, or someone goes hungry until tomorrow.", "choices": [
     {"id": "share", "label": "Split what there is between everyone", "food": -2, "discontent": 1},
     {"id": "hold", "label": "Someone goes without, promise more tomorrow", "hope": -1, "discontent": 2}
   ]},
