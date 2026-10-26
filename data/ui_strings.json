@@ -762,5 +762,61 @@
   "map.deals_pips": {
     "en": "Deals {n}/3",
     "ru": "Сделки {n}/3"
+  },
+  "push.button": {
+    "en": "Push",
+    "ru": "Нажать"
+  },
+  "push.confirm_body": {
+    "en": "Output doubles tonight. Incident risk ~%d%%.",
+    "ru": "Ночной выход удвоится. Риск аварии ~%d%%."
+  },
+  "push.confirm_title": {
+    "en": "Push this room?",
+    "ru": "Нажать эту комнату?"
+  },
+  "push.disabled_room": {
+    "en": "This room cannot be pushed.",
+    "ru": "Эту комнату нажимать нельзя."
+  },
+  "push.disabled_used": {
+    "en": "Already pushed this week.",
+    "ru": "На этой неделе уже нажимали."
+  },
+  "push.incident.air_filter": {
+    "en": "Air filter: gate fire. Room off 1 week, 1 injured.",
+    "ru": "Воздушный фильтр: пожар у створки. Комната выключена на неделю, 1 ранен."
+  },
+  "push.incident.generator": {
+    "en": "Generator: blowout. Lost 8 power, 1 injured.",
+    "ru": "Генератор: выброс. −8 энергии, 1 ранен."
+  },
+  "push.incident.generic": {
+    "en": "Push went wrong. Something broke.",
+    "ru": "Нажим сорвался. Что-то сломалось."
+  },
+  "push.incident.hydroponics": {
+    "en": "Hydroponics: rot. Lost 4 food.",
+    "ru": "Гидропоника: гниль. −4 еды."
+  },
+  "push.incident.meeting_hall": {
+    "en": "Meeting hall: shouting. Discontent +4.",
+    "ru": "Зал собраний: крик. Недовольство +4."
+  },
+  "push.incident.workshop": {
+    "en": "Workshop: accident. 1 injured.",
+    "ru": "Мастерская: авария. 1 ранен."
+  },
+  "push.incident_known": {
+    "en": "{name} was hurt.",
+    "ru": "{name} пострадал{a}."
+  },
+  "push.tip_ok": {
+    "en": "Double tonight's output. Incident risk ~%d%%.",
+    "ru": "Удвоить ночной выход. Риск аварии ~%d%%."
+  },
+  "push.toast_ok": {
+    "en": "{room} pushed. Output doubles tonight.",
+    "ru": "{room}: нажали. Ночной выход удвоится."
   }
 }

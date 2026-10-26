@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 $godot = ".tools/godot/Godot_v4.7.2-stable_win64_console.exe"
-$gates = "bot_run", "check_balance", "check_audience", "check_save", "check_network", "check_slice", "check_portraits", "check_playtest", "check_guard"
+$gates = "bot_run", "check_balance", "check_audience", "check_save", "check_network", "check_slice", "check_portraits", "check_playtest", "check_guard", "check_push"
 New-Item -ItemType Directory -Force build/gates | Out-Null
 $procs = @{}
 foreach ($gate in $gates) {

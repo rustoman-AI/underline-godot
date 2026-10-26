@@ -152,5 +152,9 @@
   "tunnel_flood_atk": 0.85,
   "tunnel_dark_atk": 1.1,
   "tunnel_dark_def": 0.9,
-  "home_guard_fort": 0.1
+  "home_guard_fort": 0.1,
+  "push_mult": 2.0,
+  "push_risk": 0.15,
+  "push_stack": 0.10,
+  "push_cap": 0.55
 }

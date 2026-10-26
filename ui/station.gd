@@ -80,6 +80,7 @@ const YIELD_STEP := {
 	"double_shifts": "double shifts",
 	"event": "event",
 	"quarantine": "quarantine",
+	"push": "pushed",
 }
 const ModalDeck = preload("res://ui/modals.gd")
 const NetworkViewScript = preload("res://ui/network_view.gd")
@@ -3557,6 +3558,7 @@ func _show_room(uid: String) -> void:
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
 		card_body.add_child(_button("Laws", _show_laws))
+	_room_push(uid)
 	_room_switch(uid)
 
 
@@ -3853,6 +3855,38 @@ func _seat_minus(uid: String) -> void:
 	var weakest := _weakest_staff(uid)
 	if weakest != "":
 		_unassign(weakest, uid)
+
+
+## Push doubles this room for one night. The odds string is the same percent the night rolls.
+func _room_push(uid: String) -> void:
+	var info: Dictionary = game.push_preview(uid)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var odds := str(info.get("reason", ""))
+	if bool(info.get("ok", false)):
+		odds = Copy.t("push.tip_ok") % int(info.pct)
+	var state := _label(odds, 16)
+	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(state)
+	var button := _button("Push", _ask_push.bind(uid))
+	button.disabled = not bool(info.get("ok", false)) or game.over != ""
+	button.tooltip_text = odds
+	button.custom_minimum_size = Vector2(140, 48)
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	row.add_child(button)
+	card_body.add_child(row)
+
+
+func _ask_push(uid: String) -> void:
+	var info: Dictionary = game.push_preview(uid)
+	var lines: PackedStringArray = [Copy.t("push.confirm_body") % int(info.get("pct", 0))]
+	var why := str(info.get("reason", ""))
+	if why != "":
+		lines.append(why)
+	_confirm(Copy.t("push.confirm_title"), lines, bool(info.get("ok", false)), {"kind": "push", "room": uid}, "Push", why)
 
 
 func _room_switch(uid: String) -> void:
@@ -4512,6 +4546,8 @@ func _journal_line(row: Dictionary) -> String:
 			return Copy.t("Repealed %s.") % Copy.t(str(game.catalog.laws.get(str(row.get("law", "")), {}).get("name", row.get("law", ""))))
 		"pump", "quarantine", "burn", "rally":
 			return Copy.t({"pump": "Pumped the water out.", "quarantine": "Called a quarantine.", "burn": "Burned salvage for power.", "rally": "Held a rally."}[kind])
+		"push":
+			return Copy.t("push.toast_ok").replace("{room}", _room_type_name(str(row.get("type", ""))))
 		"order", "cancel":
 			var target := _station_name(str(row.get("station", "")))
 			var verb := Copy.t(network_view._order_title(str(row.get("order", ""))))
@@ -4564,7 +4600,7 @@ func _journal_group(kind: String) -> String:
 	match kind:
 		"build", "built", "dig", "upgrade", "demolish", "find", "tunnel", "dark":
 			return "builds"
-		"event", "law", "repeal", "pump", "quarantine", "burn", "rally", "audience", "handed_over", "papers_burned", "false_way", "regard":
+		"event", "law", "repeal", "pump", "quarantine", "burn", "rally", "push", "audience", "handed_over", "papers_burned", "false_way", "regard":
 			return "decisions"
 		"order", "cancel", "order_done", "station", "war", "ultimatum":
 			return "map"
@@ -5971,7 +6007,7 @@ func _morning_lines() -> PackedStringArray:
 		var text := str(entry.text)
 		if w == game.week and _starts(text, ["INTENT", "SEASON", "ULTIMATUM", "PRESSURE", "No warning"]):
 			lines.append(text)
-		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH", "WARN", "TRUTH", "TESTIMONY", "LOST", "SICK", "BACK"]):
+		elif w == game.week - 1 and bool(entry.important) and _starts(text, ["SHORT", "ROT", "AGENT", "SEASON", "JOIN", "ULTIMATUM", "FIND", "BATTLE", "DEFECT", "REVOLT", "DEAL", "PREACH", "WARN", "TRUTH", "TESTIMONY", "LOST", "SICK", "BACK", "PUSH"]):
 			lines.append(text)
 	return lines
 
@@ -6525,6 +6561,11 @@ func _do_confirm(action: Dictionary) -> void:
 		Sound.play("dig")
 	else:
 		Sound.play("confirm")
+	if kind == "push":
+		var pushed = game._room(str(action.get("room", "")))
+		if pushed != null:
+			var room_name := Copy.t(str(game.catalog.rooms[str(pushed.type)].name))
+			_toast(Copy.t("push.toast_ok").replace("{room}", room_name), 3.2)
 	_close_card()
 	_refresh()
 	_action_voice(kind, str(action.get("law", "")))
@@ -11662,6 +11703,8 @@ class Yard extends Control:
 			if int(room.upgrade) > 0:
 				draw_rect(rect.grow(-1.0), Color(station.BRASS, 0.9), false, 1.0 + float(int(room.upgrade)))
 			_draw_flash(rect, str(room.uid))
+			if int(room.get("push_tint_until", 0)) >= station.game.week:
+				draw_rect(rect, Color(0.05, 0.03, 0.02, 0.5))
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
 		if kind == "undug":
