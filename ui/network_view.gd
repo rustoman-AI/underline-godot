@@ -16,6 +16,7 @@ const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const FocusPip = preload("res://sim/focus_pip.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -188,6 +189,9 @@ var _back_layer: Control
 var _base_layer: Control
 var _wash_layer: Control
 var _ink_layer: Control
+## Supply miniatures are sprites on the unit layer and travel through pin centers, so they
+## cover the body slot. The letter is drawn with the pin, then again here, same slot.
+var _focus_layer: Control
 var _layout := {}
 var _lift := {}
 var _join_left := {}
@@ -230,6 +234,10 @@ func _ready() -> void:
 	_ink_layer = _add_layer(_draw_ink)
 	_unit_layer = _add_layer(_draw_units)
 	_sprites.setup(_unit_layer)
+	_focus_layer = _add_layer(_draw_focus_letters)
+	## Cart sprites sit at z 1 and their cargo tags at z 2, which sorts above a later
+	## sibling at z 0. Stay under the visit sheet (z 6) and the soft floats (z 8).
+	_focus_layer.z_index = 3
 	_paper = _map_tex("res://assets/map/paper.webp")
 	_build_zoom_bar()
 	_build_sheet()
@@ -359,7 +367,7 @@ func refresh() -> void:
 
 func _redraw() -> void:
 	queue_redraw()
-	for layer in [_back_layer, _base_layer, _wash_layer, _ink_layer, _unit_layer]:
+	for layer in [_back_layer, _base_layer, _wash_layer, _ink_layer, _unit_layer, _focus_layer]:
 		if layer != null:
 			layer.queue_redraw()
 
@@ -581,6 +589,8 @@ func _process(delta: float) -> void:
 		ink_busy = true
 	if ink_busy and _ink_layer != null:
 		_ink_layer.queue_redraw()
+		if _focus_layer != null:
+			_focus_layer.queue_redraw()
 	var walking: bool = not _unit_routes.is_empty() or not _walks.is_empty() or not _caravans.is_empty() or (game_now != null and (not game_now.expedition.is_empty() or not game_now.squads.is_empty()))
 	if _unit_layer != null and (busy or (walking and not _motion_off())):
 		_unit_layer.queue_redraw()
@@ -1658,10 +1668,12 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 			c.draw_arc(head, r * 0.72, 0, TAU, 24, Color(TAG_INK, 0.7), 1.0, true)
 			var s := r * 1.08
 			c.draw_texture_rect(mark, Rect2(head - Vector2(s, s) * 0.5, Vector2(s, s)), false)
-	## Base pin is already down. Warmth, then the P37 neighbor tick, then the leaflet scrap,
-	## then the need tick. Deal pips paint later in _draw_ink so they stay readable over both.
+	## Base pin is already down. Warmth, then the P37 neighbor tick, then the P57 focus letter
+	## on the pin head. Leaflet, need, and the goods pip keep their own corners. Deal pips
+	## paint later in _draw_ink so they stay readable over both.
 	_draw_warmth_ring(c, game, sid, st, at, r, lift)
 	_draw_border_tick(c, game, sid, at, r, lift)
+	_draw_focus_pip(c, game, sid, st, at, r, lift)
 	_draw_leaflet_chip(c, game, sid, at, r, lift)
 	_draw_need_tick(c, game, sid, at, r, lift)
 	if sid == selected:
@@ -1864,6 +1876,46 @@ func _draw_warmth_ring(c: CanvasItem, game, sid: String, st: Dictionary, at: Vec
 ## That pack is not on this branch, so the slot stays empty and does not invent a second ring.
 func _draw_border_tick(_c: CanvasItem, _game, _sid: String, _at: Vector2, _r: float, _lift: float) -> void:
 	pass
+
+
+## Quiet F/A/D/I on the pin head. Static in both motion settings. Upper-inner slot only.
+func _draw_focus_pip(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
+	if not FocusPip.shows(game, sid):
+		return
+	var glyph := FocusPip.glyph(str(st.get("focus", "")))
+	if glyph == "":
+		return
+	var pos := FocusPip.slot(at, r) - Vector2(0, 2.0 * lift)
+	var disc := FocusPip.disc_px(r)
+	c.draw_circle(pos, disc * 0.5, TAG_PAPER)
+	var brass := DEAL_BRASS
+	brass.a = 0.9
+	c.draw_arc(pos, disc * 0.5, 0.0, TAU, 24, brass, 1.0, true)
+	var fs := FocusPip.letter_px(r)
+	var font := _focus_letter_font()
+	var size := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var baseline := pos.y + (font.get_ascent(fs) - font.get_descent(fs)) * 0.5
+	c.draw_string(font, Vector2(pos.x - size.x * 0.5, baseline), glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CARD_INK)
+
+
+func _focus_letter_font() -> Font:
+	_ready_fonts()
+	if _tag_font != null:
+		return _tag_font
+	return _font()
+
+
+## Same body slot as the pin pass. Sits above cart and squad sprites so a miniature
+## crossing the head does not hide the letter. Does not move the slot.
+func _draw_focus_letters(c: CanvasItem) -> void:
+	var game = _game()
+	if game == null or _layout.is_empty():
+		return
+	for sid in _layout:
+		var row: Dictionary = _layout[sid]
+		if not bool(row.get("known", false)) or not game.stations.has(sid):
+			continue
+		_draw_focus_pip(c, game, str(sid), game.stations[sid], row.at, float(row.r), float(_lift.get(sid, 0.0)))
 
 
 func _draw_listening_chips(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
@@ -3884,6 +3936,8 @@ func _tip(sid: String) -> String:
 	for extra in leaf_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
+		lines.append(str(extra))
+	for extra in FocusPip.lines(game, sid):
 		lines.append(str(extra))
 	return "\n".join(lines)
 
