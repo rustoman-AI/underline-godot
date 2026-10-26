@@ -60,20 +60,23 @@ static func has_event_art(event_id: String) -> bool:
 	return textures().has("res://assets/events/%s.webp" % event_id)
 
 
-## Plate, then the event tag's mood, then event_{hash%8} from MOOD_PLATES.
+## Own plate (`{id}.webp`) first, then the authored banner, then the tag mood,
+## then event_{hash%8} from MOOD_PLATES. A mood alias in `banner` must not hide
+## art that was drawn for this event.
 static func resolve_event_banner(ev: Dictionary) -> String:
+	var id := str(ev.get("id", "")).strip_edges()
+	if has_event_art(id):
+		return id
 	var plate := str(ev.get("banner", "")).strip_edges()
 	if plate == "":
-		plate = str(ev.get("id", "")).strip_edges()
+		plate = id
 	if has_event_art(plate):
 		return plate
 	var mood := mood_for_tag(str(ev.get("tag", "")).strip_edges())
 	if has_event_art(mood):
 		return mood
-	var id := str(ev.get("id", "")).strip_edges()
-	if id == "":
-		id = plate
-	var hashed := event_hash_mood(id)
+	var hash_id := id if id != "" else plate
+	var hashed := event_hash_mood(hash_id)
 	if has_event_art(hashed):
 		return hashed
 	return ""

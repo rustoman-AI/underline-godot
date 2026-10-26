@@ -36,6 +36,8 @@ const ORDER_RED := Color("a0281e")
 ## P45 deal marks. Brass only — never ORDER_RED. Numbers live on DealMarks.
 const DEAL_BRASS := Color("e2a63a")
 const DEAL_PIP_R := 2.8
+## Brass pick ring, outside the pressure arc (pin + 4) and inside a claim ring (pin + 9.5).
+const PICK_RING_OUT := 7.2
 const PASSAGE_DOT := 1.8
 const PASSAGE_STEP := 11.0
 ## Pressure ring: faction colour at 70% opacity, tight under the pin. One week leaves a quarter open; two closes it.
@@ -1664,9 +1666,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_border_tick(c, game, sid, at, r, lift)
 	_draw_leaflet_chip(c, game, sid, at, r, lift)
 	_draw_need_tick(c, game, sid, at, r, lift)
-	if sid == selected:
-		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
-		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
+	_draw_pick_ring(c, at, r, sid)
 	if int(st.get("low_weeks", 0)) > 0:
 		var warn := ArtPack.icon_texture("warning", 16.0)
 		if warn != null:
@@ -1689,6 +1689,34 @@ func pressure_sweep(weeks: int) -> float:
 
 func pressure_ring_radius(pin_r: float) -> float:
 	return pin_r + 4.0
+
+
+## Brass ring for the station under the cursor or the open sheet. Sits outside the pressure
+## arc and inside a claim ring, so a pick still reads on a junction.
+func pick_ring_radius(pin_r: float) -> float:
+	return pin_r + PICK_RING_OUT
+
+
+func pick_ring_width(selected: bool) -> float:
+	return 3.0 if selected else 1.6
+
+
+func pick_ring_color(selected: bool) -> Color:
+	var brass := Color("e2a63a")
+	if not selected:
+		brass.a = 0.75
+	return brass
+
+
+func _draw_pick_ring(c: CanvasItem, at: Vector2, r: float, sid: String) -> void:
+	var on := sid == selected
+	if not on and sid != _hover:
+		return
+	var width := pick_ring_width(on)
+	var radius := pick_ring_radius(r)
+	# Dark understroke, then brass, so the pick still reads on paper and on a pin.
+	c.draw_arc(at, radius, 0, TAU, 48, Color("1a120c"), width + 1.4, true)
+	c.draw_arc(at, radius, 0, TAU, 48, pick_ring_color(on), width, true)
 
 
 func claim_ring_radius(pin_r: float) -> float:
@@ -2234,27 +2262,42 @@ func _add_focus_picker(game, sid: String, parent: Node) -> void:
 	parent.add_child(box)
 
 
-## Quiet paper choice. The selected face and the idle face are the same size, so a pick does not bounce.
+## Quiet paper choice. Every state shares one margin and a 1px border, so a pick does not bounce. Only the fill moves.
 func _style_focus_choice(button: Button, on: bool) -> void:
-	var face := StyleBoxFlat.new()
-	face.set_corner_radius_all(3)
-	face.set_content_margin_all(6)
 	var ink := Color("2b2118")
 	var cream := Color("efe6d2")
+	var rest := Color("3a3126")
+	var border := Color("8a6a44")
 	if _on_paper:
-		face.bg_color = Color("2b2118") if on else Color("efe8d6")
-		face.border_color = Color("e2a63a") if on else Color("8a6a44")
+		rest = Color("2b2118") if on else Color("efe8d6")
+		border = Color("e2a63a") if on else Color("8a6a44")
 		ink = cream if on else Color("2b2118")
 	else:
-		face.bg_color = Color("efe4c8") if on else Color("3a3126")
-		face.border_color = Color("e2a63a") if on else Color("8a6a44")
+		rest = Color("efe4c8") if on else Color("3a3126")
+		border = Color("e2a63a") if on else Color("8a6a44")
 		ink = Color("2b2118") if on else cream
-	face.set_border_width_all(2 if on else 1)
-	for state in ["normal", "hover", "pressed", "focus", "hover_pressed"]:
-		button.add_theme_stylebox_override(state, face.duplicate())
+	var light := rest.get_luminance() > 0.45
+	var hover := rest.darkened(0.10) if light else rest.lightened(0.18)
+	var pressed := rest.darkened(0.18) if light else rest.darkened(0.08)
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_stylebox_override("normal", _focus_face(rest, border))
+	button.add_theme_stylebox_override("hover", _focus_face(hover, border))
+	button.add_theme_stylebox_override("pressed", _focus_face(pressed, border))
+	button.add_theme_stylebox_override("focus", _focus_face(rest, border))
+	button.add_theme_stylebox_override("hover_pressed", _focus_face(pressed, border))
 	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
 		button.add_theme_color_override(key, ink)
 	button.add_theme_font_size_override("font_size", 14)
+
+
+func _focus_face(bg: Color, border: Color) -> StyleBoxFlat:
+	var face := StyleBoxFlat.new()
+	face.bg_color = bg
+	face.border_color = border
+	face.set_border_width_all(1)
+	face.set_content_margin_all(6)
+	face.set_corner_radius_all(3)
+	return face
 
 
 ## First owned-outpost visit of a run. The flag is saved with the game. Capital never teaches.
@@ -2474,6 +2517,7 @@ func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
 	var fs := int(clampf(r * 1.25, 12.0, 40.0))
 	var w := font.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	c.draw_string(font, at + Vector2(-w * 0.5, fs * 0.36), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
+	_draw_pick_ring(c, at, r, sid)
 	var game = _game()
 	if game != null and game.stations.has(sid):
 		_draw_warmth_ring(c, game, sid, game.stations[sid], at, r, 0.0)
@@ -4185,6 +4229,7 @@ func _fill_council() -> void:
 			var cancel := Button.new()
 			cancel.text = Copy.t("Cancel order")
 			cancel.pressed.connect(_cancel_seat.bind(role))
+			_paint_sheet_button(cancel, true)
 			stack.add_child(cancel)
 		row.add_child(stack)
 		photo.add_child(row)
@@ -4205,6 +4250,7 @@ func _fill_sheet_body(sid: String) -> void:
 	var back := Button.new()
 	back.text = Copy.t("Back to the map")
 	back.pressed.connect(close_sheet)
+	_paint_sheet_button(back, true)
 	_sheet_body.add_child(back)
 	var game = _game()
 	if game == null or not game.stations.has(sid):
@@ -4282,41 +4328,40 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	row.offset_right = -8.0
 	row.add_theme_constant_override("separation", 8)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var icon_rect: TextureRect = null
 	var tex := ArtPack.icon_texture(_order_icon(kind), 24.0)
 	if tex != null:
-		var face := TextureRect.new()
-		face.texture = tex
-		face.custom_minimum_size = Vector2(24, 24)
-		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(face)
+		icon_rect = TextureRect.new()
+		icon_rect.texture = tex
+		icon_rect.custom_minimum_size = Vector2(24, 24)
+		icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(icon_rect)
 	var why := ""
 	var caption := Label.new()
 	caption.text = Copy.t(label)
 	if game != null:
 		why = game.order_block(kind, sid)
+	if icon_rect != null and why != "":
+		icon_rect.modulate = Color(1, 1, 1, 0.45)
 	if why != "" and APPROACHES.has(kind):
 		caption.text = "%s\n%s" % [Copy.t(label), why]
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	caption.add_theme_color_override("font_color", Color("efe6d2"))
+	caption.add_theme_color_override("font_color", _order_ink(why == ""))
 	row.add_child(caption)
 	if game != null and not (why != "" and APPROACHES.has(kind)):
-		row.add_child(_cost_tag(game.order_cost(kind, sid)))
+		row.add_child(_cost_tag(game.order_cost(kind, sid), why == ""))
 	button.custom_minimum_size = Vector2(0, 36)
 	button.add_child(row)
 	button.disabled = why != ""
-	if button.disabled:
-		var locked := StyleBoxFlat.new()
-		locked.bg_color = Color(0.24, 0.16, 0.08, 0.7)
-		locked.set_content_margin_all(4)
-		button.add_theme_stylebox_override("disabled", locked)
+	_paint_order_button(button, why == "")
 	if game != null:
 		button.tooltip_text = _order_tip(game, kind, sid, why)
 	button.set_meta("order_kind", kind)
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.mouse_default_cursor_shape = Control.CURSOR_ARROW if why != "" else Control.CURSOR_POINTING_HAND
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
 	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 40)
@@ -4333,8 +4378,54 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 			notes.add_child(line)
 
 
+## Dark brass face used by station orders, matching combat orders. Margins stay put so hover does not bounce.
+func _order_ink(enabled: bool) -> Color:
+	return Color("efe6d2") if enabled else Color("8d8272")
+
+
+func _order_face(hover: bool, pressed: bool, enabled: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	if not enabled:
+		style.bg_color = Color("2a241c")
+		style.border_color = Color("5c5144")
+	elif pressed:
+		style.bg_color = Color("1a140e")
+		style.border_color = Color("e2a63a")
+	elif hover:
+		style.bg_color = Color("4a3f32")
+		style.border_color = Color("e2a63a")
+	else:
+		style.bg_color = Color("3a3126")
+		style.border_color = Color("8a6a44")
+	style.set_border_width_all(1)
+	style.set_content_margin_all(8)
+	style.set_corner_radius_all(3)
+	return style
+
+
+func _paint_order_button(button: Button, enabled: bool) -> void:
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_stylebox_override("normal", _order_face(false, false, enabled))
+	button.add_theme_stylebox_override("hover", _order_face(true, false, enabled))
+	button.add_theme_stylebox_override("pressed", _order_face(false, true, enabled))
+	button.add_theme_stylebox_override("disabled", _order_face(false, false, false))
+	button.add_theme_stylebox_override("focus", _order_face(false, false, enabled))
+
+
+## Visit, Back, Party, Cancel, Recruit and Release. Same dark brass face as Send envoy.
+func _paint_sheet_button(button: Button, enabled := true) -> void:
+	_paint_order_button(button, enabled)
+	var ink := _order_ink(enabled)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(key, ink)
+	button.add_theme_color_override("font_disabled_color", _order_ink(false))
+	button.mouse_default_cursor_shape = Control.CURSOR_ARROW if not enabled else Control.CURSOR_POINTING_HAND
+
+
 ## An order's price at the right of its button: a number and the resource's icon per cost, or "No cost".
-func _cost_tag(cost: Dictionary) -> HBoxContainer:
+func _cost_tag(cost: Dictionary, enabled := true) -> HBoxContainer:
+	var ink := _order_ink(enabled)
+	var muted := Color("b9ad96") if enabled else Color("6e6558")
 	var tag := HBoxContainer.new()
 	tag.add_theme_constant_override("separation", 3)
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4343,14 +4434,14 @@ func _cost_tag(cost: Dictionary) -> HBoxContainer:
 		var free := Label.new()
 		free.text = Copy.t("No cost")
 		free.add_theme_font_size_override("font_size", 13)
-		free.add_theme_color_override("font_color", Color("b9ad96"))
+		free.add_theme_color_override("font_color", muted)
 		free.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tag.add_child(free)
 		return tag
 	for key in cost:
 		var amount := Label.new()
 		amount.text = str(int(cost[key]))
-		amount.add_theme_color_override("font_color", Color("efe6d2"))
+		amount.add_theme_color_override("font_color", ink)
 		amount.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tag.add_child(amount)
 		var tex := ArtPack.icon_texture(str(key), 24.0)
@@ -4364,6 +4455,8 @@ func _cost_tag(cost: Dictionary) -> HBoxContainer:
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if not enabled:
+			face.modulate = Color(1, 1, 1, 0.45)
 		tag.add_child(face)
 	return tag
 
@@ -4875,6 +4968,7 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 		open_b.tooltip_text = Copy.t("Close the map and return to your own station.") if home else Copy.t("See the station up close: its people, leader and needs. Spends nothing.")
 		open_b.set_meta("visit_station", sid)
 		open_b.pressed.connect(_open_station.bind(sid))
+		_paint_sheet_button(open_b, true)
 		parent.add_child(open_b)
 	if game_now == null:
 		return
@@ -4939,6 +5033,7 @@ func _add_guard(game, parent: Node) -> void:
 	recruit.disabled = why != ""
 	recruit.tooltip_text = why if why != "" else Copy.t("%s leaves their work and joins the guard.") % str(game.recruit_preview())
 	recruit.pressed.connect(_guard_action.bind("recruit"))
+	_paint_sheet_button(recruit, why == "")
 	row.add_child(recruit)
 	var dismiss := Button.new()
 	dismiss.text = Copy.t("Release")
@@ -4946,6 +5041,7 @@ func _add_guard(game, parent: Node) -> void:
 	dismiss.disabled = why_d != ""
 	dismiss.tooltip_text = why_d if why_d != "" else Copy.t("One soldier goes back to work.")
 	dismiss.pressed.connect(_guard_action.bind("dismiss"))
+	_paint_sheet_button(dismiss, why_d == "")
 	row.add_child(dismiss)
 
 
@@ -5107,6 +5203,7 @@ func _party_line(parent: Node) -> void:
 	var open_party := Button.new()
 	open_party.text = Copy.t("party.open") % [roster.members.size(), int(roster.max_size)]
 	open_party.pressed.connect(_open_party)
+	_paint_sheet_button(open_party, true)
 	parent.add_child(open_party)
 
 
@@ -5257,9 +5354,9 @@ func _build_visit() -> void:
 	visit_close.text = Copy.t("Back to map")
 	visit_close.custom_minimum_size = Vector2(120, 36)
 	visit_close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	visit_close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	visit_close.tooltip_text = "Esc"
 	visit_close.pressed.connect(close_visit)
+	_paint_sheet_button(visit_close, true)
 	header.add_child(visit_close)
 	column.add_child(header)
 	var scroll := ScrollContainer.new()

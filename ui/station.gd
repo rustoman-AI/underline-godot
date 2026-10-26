@@ -4723,7 +4723,7 @@ func _blown_toast(text: String) -> bool:
 	return stem != "" and text.begins_with(stem)
 
 
-## Map tags use this paper. The order toast sits on it while the network is open so the line stays readable.
+## Map tags use this paper. Map and yard toasts both sit on it, under an open card.
 func _map_toast_face() -> StyleBoxFlat:
 	var face := StyleBoxFlat.new()
 	face.bg_color = SLIP_PAPER
@@ -5089,9 +5089,17 @@ func _place_home_float() -> void:
 func _toast(text: String, hold: float = 1.8) -> void:
 	if toast_label == null:
 		toast_label = _label("", 16, true)
-		toast_label.z_index = 30
 		toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(toast_label)
+	if toast_plate == null:
+		toast_plate = PanelContainer.new()
+		toast_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		toast_plate.add_theme_stylebox_override("panel", _map_toast_face())
+		add_child(toast_plate)
+	## Modal dim is z 20. The plate stays under it so a yard line does not cover Demolish. The menu lifts it.
+	var layer := 95 if menu_layer != null and menu_layer.visible else 18
+	toast_plate.z_index = layer
+	toast_label.z_index = layer
 	var blown := _blown_toast(text)
 	if blown:
 		_arm_blown_flash()
@@ -5102,31 +5110,15 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	toast_label.modulate.a = 1.0
 	var icon_w := 36.0 if blown else 0.0
 	var toast_y := (hud.size.y if hud != null else 72.0) + 8.0
-	var on_map := showing_network
-	if not on_map:
+	if not showing_network:
 		toast_y = _yard_toast_y(toast_y)
 	var origin := Vector2(16.0 + icon_w, toast_y)
-	if on_map:
-		if toast_plate == null:
-			toast_plate = PanelContainer.new()
-			toast_plate.z_index = 30
-			toast_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			toast_plate.add_theme_stylebox_override("panel", _map_toast_face())
-			add_child(toast_plate)
-		_park_toast_label(toast_plate)
-		toast_label.add_theme_color_override("font_color", SLIP_INK)
-		toast_label.add_theme_constant_override("outline_size", 0)
-		toast_plate.position = origin
-		toast_plate.visible = true
-		toast_plate.modulate.a = 1.0
-	else:
-		_park_toast_label(self)
-		toast_label.add_theme_color_override("font_color", INK)
-		toast_label.add_theme_constant_override("outline_size", 6)
-		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		toast_label.position = origin
-		if toast_plate != null:
-			toast_plate.visible = false
+	_park_toast_label(toast_plate)
+	toast_label.add_theme_color_override("font_color", SLIP_INK)
+	toast_label.add_theme_constant_override("outline_size", 0)
+	toast_plate.position = origin
+	toast_plate.visible = true
+	toast_plate.modulate.a = 1.0
 	if blown_flash != null and blown:
 		blown_flash.position = Vector2(8.0, origin.y - 18.0)
 		blown_flash.modulate.a = 1.0
@@ -5138,9 +5130,8 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	toast_fade = create_tween()
 	var fade := toast_fade
 	fade.tween_interval(hold)
-	var fade_node: CanvasItem = toast_plate if on_map and toast_plate != null else toast_label
 	if not _motion_off():
-		fade.tween_property(fade_node, "modulate:a", 0.0, 0.35)
+		fade.tween_property(toast_plate, "modulate:a", 0.0, 0.35)
 		if blown_flash != null and blown:
 			fade.parallel().tween_property(blown_flash, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
@@ -11041,7 +11032,6 @@ func _copy_report() -> void:
 	DisplayServer.clipboard_set(_report_text())
 	Sound.play("confirm")
 	_toast(Copy.t("Report copied. Paste it into your reply."), 3.0)
-	toast_label.z_index = 95 if menu_layer != null and menu_layer.visible else 30
 
 
 func _session_info() -> Dictionary:
