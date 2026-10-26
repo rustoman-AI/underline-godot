@@ -1846,6 +1846,26 @@
   "leaf.reduce": {
     "en": "Leaflets.",
     "ru": "Листовки."
+  },
+  "sick.cots": {
+    "en": "{n} on cots",
+    "ru": "{n} на койках"
+  },
+  "sick.tip": {
+    "en": "Someone is still down.",
+    "ru": "Кто-то всё ещё лежит."
+  },
+  "sick.first": {
+    "en": "A cot is taken.",
+    "ru": "Койка занята."
+  },
+  "sick.reduce": {
+    "en": "{n} sick",
+    "ru": "{n} больных"
+  },
+  "sick.label": {
+    "en": "Cots",
+    "ru": "Койки"
   }
 }
 
