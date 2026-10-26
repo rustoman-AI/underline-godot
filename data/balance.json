@@ -183,5 +183,31 @@
   "probe_tokens": 3,
   "probe_blown": 0.15,
   "tap_blown": 0.25,
-  "blown_opinion": -12
+  "blown_opinion": -12,
+  "chain_scale": {
+    "_note": "P54 effects_words for toll, knock, loan, armband. Event rows use these ints. Opinion 2/4/8 and hope 1/2 stay well under opinion_war. Tokens 8/10/14, repay 18, materials 2/3/5/6 and food 2/3 match swings already on these cards.",
+    "opinion_small": 2,
+    "opinion_medium": 4,
+    "opinion_large": 8,
+    "hope_small": 1,
+    "hope_medium": 2,
+    "discontent_small": 1,
+    "tokens_medium": 8,
+    "tokens_medium_large": 10,
+    "tokens_large": 14,
+    "tokens_repay": 18,
+    "materials_small": 3,
+    "materials_small_loss": 2,
+    "materials_small_medium": 5,
+    "materials_medium": 6,
+    "food_small": 2,
+    "food_small_feed": 3,
+    "influence_small": 1,
+    "influence_medium": 3,
+    "synod_small": 3,
+    "trait_hope_small": 1,
+    "trait_absent_short": 2,
+    "papers_step": 1,
+    "people_one": 1
+  }
 }
