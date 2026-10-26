@@ -344,6 +344,23 @@ static func _load_keys() -> void:
 		keys = data
 	else:
 		keys = {}
+	_merge_pack("res://data/raid_share.json")
+
+
+## A locked Texts pack. `by_key` wins over ui_strings for the same id. Meta keys are skipped.
+static func _merge_pack(path: String) -> void:
+	if not FileAccess.file_exists(path):
+		return
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (data is Dictionary):
+		return
+	var rows = data.get("by_key", {})
+	if not (rows is Dictionary):
+		return
+	for key in rows:
+		var row = rows[key]
+		if row is Dictionary and (row.has("en") or row.has("ru")):
+			keys[str(key)] = row
 
 
 static func _load() -> bool:

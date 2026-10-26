@@ -2555,6 +2555,9 @@ func _end_cover_input(event: InputEvent) -> void:
 func _end_turn() -> void:
 	if game.over != "":
 		return
+	if game.raid_share_open() or game.dawn_held():
+		_show_raid_share()
+		return
 	if not game.pending.is_empty():
 		event_mode = "all"
 		_show_dawn()
@@ -2563,7 +2566,9 @@ func _end_turn() -> void:
 	for room in game.rooms:
 		before[str(room.uid)] = true
 	Sound.play("end_turn")
+	game.raid_share_hold = true
 	game.end_week()
+	game.raid_share_hold = false
 	var placed: Array = []
 	if game.over == "" and yard != null:
 		for room in game.rooms:
@@ -2577,6 +2582,12 @@ func _end_turn() -> void:
 			_staff_new_room(uid)
 	if game.over == "":
 		_sync_rail_noise()
+	if game.over == "" and game.raid_share_open():
+		home_hold_float = true
+		_refresh()
+		home_hold_float = false
+		_show_raid_share()
+		return
 	if game.over == "" and not shot_mode:
 		SaveGame.write_auto(game)
 	home_hold_float = true
@@ -5128,9 +5139,10 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	var fade := toast_fade
 	fade.tween_interval(hold)
 	var fade_node: CanvasItem = toast_plate if on_map and toast_plate != null else toast_label
-	fade.tween_property(fade_node, "modulate:a", 0.0, 0.35)
-	if blown_flash != null and blown:
-		fade.parallel().tween_property(blown_flash, "modulate:a", 0.0, 0.35)
+	if not _motion_off():
+		fade.tween_property(fade_node, "modulate:a", 0.0, 0.35)
+		if blown_flash != null and blown:
+			fade.parallel().tween_property(blown_flash, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
 		if toast_label != null:
 			toast_label.visible = false
@@ -6137,6 +6149,11 @@ func _fragment_title(id: String) -> String:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and game != null and deck.top_token() == "raid_share":
+		Sound.play("click")
+		_pick_raid_share("stockpile")
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_ESCAPE and _sheet_open():
 		Sound.play("click")
 		_menu_back()
@@ -6224,6 +6241,9 @@ func note_spend(cost: Dictionary) -> void:
 
 func _show_dawn() -> void:
 	shelved_event = ""
+	if game != null and game.raid_share_open():
+		_show_raid_share()
+		return
 	if game != null and not game.order_reports.is_empty():
 		_show_order_report()
 		return
@@ -6365,6 +6385,53 @@ func _order_report_body(row: Dictionary) -> String:
 	if not bool(row.get("ok", true)):
 		return Copy.t("The order failed.")
 	return ""
+
+
+## Share card after a player raid win. Dilemma paper, three choices, no deltas on the buttons.
+## Close, ESC, or the dawn timeout takes Stockpile. Not a soft dawn chip.
+func _show_raid_share() -> void:
+	if game == null or not game.raid_share_open():
+		if game != null and game.dawn_held():
+			game.resume_dawn()
+		_show_dawn()
+		return
+	if not _claim(ModalDeck.NARRATIVE, "raid_share", _show_raid_share):
+		return
+	_open_card("raid_share.title", true)
+	_body_ready(game.raid_share_body())
+	_body_muted("raid_share.tip")
+	_choice_divider()
+	card_body.add_child(_choice_button("raid_share.stockpile", {}, _pick_raid_share.bind("stockpile")))
+	card_body.add_child(_choice_button("raid_share.yard", {}, _pick_raid_share.bind("yard")))
+	card_body.add_child(_choice_button("raid_share.tribute", {}, _pick_raid_share.bind("tribute")))
+
+
+func _pick_raid_share(choice_id: String) -> void:
+	if game == null:
+		return
+	if game.raid_share_open():
+		var row: Dictionary = game.apply_raid_share(choice_id)
+		if not bool(row.get("ok", false)):
+			_body_muted("raid_share.tip")
+			_fit_card()
+			return
+		var toast := str(row.get("toast", ""))
+		if toast != "":
+			_toast(toast)
+	var resume := game.dawn_held()
+	game.resume_dawn()
+	_close_card()
+	_refresh()
+	if not resume:
+		return
+	if game.over == "":
+		if not shot_mode:
+			SaveGame.write_auto(game)
+		_show_dawn()
+		_play_night()
+	else:
+		_show_ending()
+	_try_home_float()
 
 
 func _show_order_report() -> void:
@@ -8068,6 +8135,9 @@ func _help_badge(type: String, line: Label) -> Button:
 
 
 func _close_card() -> void:
+	if deck.top_token() == "raid_share" and game != null and game.raid_share_open():
+		_pick_raid_share("stockpile")
+		return
 	if yard != null:
 		yard.place_lock = false
 		yard.clear_place()
