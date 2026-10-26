@@ -29,6 +29,12 @@ const TAG_BADGE_SMALL := 16.0
 const TAG_BADGE_LARGE := 20.0
 const GRAPHITE := Color(0.19, 0.18, 0.17, 0.78)
 const ORDER_RED := Color("a0281e")
+## Pressure ring: faction colour at 70% opacity, tight under the pin. One week leaves a quarter open; two closes it.
+const PRESSURE_ALPHA := 0.7
+const PRESSURE_AMBER := Color("e2a63a")
+const PRESSURE_ARC := TAU * 0.75
+const CLAIM_DASHES := 16
+const CLAIM_GAP := 0.42
 const LINE_COLOR := {
 	"g": Color("46783c"),
 	"b": Color("285096"),
@@ -110,6 +116,7 @@ var origin := Vector2.ZERO
 var zoom := 1.0
 var _drag := false
 var _hover := ""
+var _visit_sid := ""
 var selected := ""
 var sheet: PanelContainer
 var council: PanelContainer
@@ -451,7 +458,7 @@ func _game():
 
 
 func _motion_off() -> bool:
-	if host != null and bool(host.get("shot_mode")) and not bool(host.get("motion_in_shots")):
+	if host != null and host.get("shot_mode") == true and host.get("motion_in_shots") != true:
 		return true
 	return Settings.reduced()
 
@@ -538,6 +545,8 @@ func _process(delta: float) -> void:
 			continue
 		_lift[sid] = goal if _motion_off() else move_toward(now, goal, delta / 0.12)
 		busy = true
+		ink_busy = true
+	if game_now != null and not _motion_off() and _siege_pulses(game_now):
 		ink_busy = true
 	if ink_busy and _ink_layer != null:
 		_ink_layer.queue_redraw()
@@ -1585,6 +1594,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	var px := float(row.px)
 	var r := float(row.r)
 	var lift := float(_lift.get(sid, 0.0))
+	_draw_siege(c, game, sid, st, at - Vector2(0, 2.0 * lift), r)
 	if lift > 0.0:
 		_shadow(c, at + Vector2(1.5, 2.0) * lift, r * 1.15, 0.45 * lift)
 	if _pins == null or src.size.x < 1.0:
@@ -1610,6 +1620,130 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 		if warn != null:
 			c.draw_texture_rect(warn, Rect2(at + Vector2(r * 0.6, -r - 14.0), Vector2(16, 16)), false)
 	_draw_join_pulse(c, game, sid, at, r, lift)
+
+
+## One week of pressure is a 270° arc. Two or more close the ring (Assault's gate is still low_weeks >= 2).
+func pressure_sweep(weeks: int) -> float:
+	if weeks <= 0:
+		return 0.0
+	if weeks < 2:
+		return PRESSURE_ARC
+	return TAU
+
+
+func pressure_ring_radius(pin_r: float) -> float:
+	return pin_r + 4.0
+
+
+func claim_ring_radius(pin_r: float) -> float:
+	return pin_r + 9.5
+
+
+func _siege_pulses(game) -> bool:
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		if int(st.get("low_weeks", 0)) > 0 and bool(st.get("known", false)) and not _secret(st):
+			return true
+	return false
+
+
+func _draw_siege(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float) -> void:
+	var weeks := int(st.get("low_weeks", 0))
+	if game != null and game.has_method("low_weeks_of"):
+		weeks = int(game.low_weeks_of(sid))
+	if weeks > 0:
+		var fid := ""
+		if game != null and game.has_method("pressure_faction"):
+			fid = str(game.pressure_faction(sid))
+		var col := _faction_color(game, fid) if fid != "" else PRESSURE_AMBER
+		_draw_pressure_ring(c, at, pressure_ring_radius(r), weeks, col, not _motion_off(), _anim_t * 3.2 + float(sid.length()))
+		if weeks >= 2 and (sid == _hover or sid == _visit_sid):
+			_draw_assault_chip(c, at, r)
+	var claim: Dictionary = {}
+	if game != null and game.has_method("station_claim"):
+		claim = game.station_claim(sid)
+	if not claim.is_empty():
+		var mark := _faction_color(game, str(claim.get("faction", "")))
+		mark.a = 0.95
+		_draw_dashed_ring(c, at, claim_ring_radius(r), mark, 1.7)
+
+
+func _draw_pressure_ring(c: CanvasItem, center: Vector2, radius: float, weeks: int, color: Color, motion: bool, phase: float) -> void:
+	if weeks <= 0:
+		return
+	var col := color
+	var width := 1.6 if weeks < 2 else 3.0
+	var alpha := PRESSURE_ALPHA
+	if motion:
+		var beat := 0.72 + 0.28 * sin(phase)
+		alpha *= beat
+		width *= 0.94 + 0.06 * beat
+	col.a = alpha
+	var start := -PI * 0.5
+	c.draw_arc(center, radius, start, start + pressure_sweep(weeks), 40 if weeks >= 2 else 28, col, width, true)
+
+
+func _draw_dashed_ring(c: CanvasItem, center: Vector2, radius: float, color: Color, width: float) -> void:
+	var slot := TAU / float(CLAIM_DASHES)
+	var ink := slot * (1.0 - CLAIM_GAP)
+	for i in CLAIM_DASHES:
+		var a0 := -PI * 0.5 + float(i) * slot
+		c.draw_arc(center, radius, a0, a0 + ink, 8, color, width, true)
+
+
+func _draw_assault_chip(c: CanvasItem, at: Vector2, pin_r: float) -> void:
+	var text := Copy.t("pressure.chip_ready")
+	var font := _font()
+	var fs := 12
+	var size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var pad := Vector2(6, 3)
+	var box := Rect2(at + Vector2(-size.x * 0.5 - pad.x, -pin_r - 26.0 - size.y), size + pad * 2.0)
+	c.draw_rect(box, Color(TAG_PAPER, 0.96))
+	c.draw_rect(box, Color(PRESSURE_AMBER, 0.95), false, 1.2)
+	c.draw_string(font, box.position + Vector2(pad.x, pad.y + font.get_ascent(fs)), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
+
+
+## Hover, visit line and the Assault-ready chip for one station. Empty strings when that mark is absent.
+func siege_copy(game, sid: String) -> Dictionary:
+	var out := {"visit": "", "chip": "", "hover": PackedStringArray()}
+	if game == null or not game.stations.has(sid):
+		return out
+	var weeks := int(game.low_weeks_of(sid)) if game.has_method("low_weeks_of") else int(game.stations[sid].get("low_weeks", 0))
+	var claim: Dictionary = game.station_claim(sid) if game.has_method("station_claim") else {}
+	var hover: PackedStringArray = []
+	if weeks == 1:
+		hover.append(Copy.t("pressure.hover_1"))
+	elif weeks >= 2:
+		hover.append(Copy.fill("pressure.hover_ready", {"n": weeks}))
+		out.chip = Copy.t("pressure.chip_ready")
+	if weeks >= 1:
+		var fid := str(game.pressure_faction(sid)) if game.has_method("pressure_faction") else ""
+		if fid != "":
+			hover.append(Copy.fill("pressure.hover_by", {"faction": Copy.t(game.faction_title(fid))}))
+	if not claim.is_empty():
+		var name := Copy.t(game.faction_title(str(claim.get("faction", ""))))
+		hover.append(Copy.fill("pressure.claim_hover", {"faction": name, "n": int(claim.get("weeks_left", 0))}))
+		hover.append(Copy.t("pressure.claim_note"))
+		if weeks > 0:
+			out.visit = Copy.fill("pressure.visit_line", {"n": weeks, "name": name})
+		else:
+			out.visit = Copy.fill("pressure.visit_claim", {"name": name})
+	elif weeks > 0:
+		out.visit = Copy.fill("pressure.visit_pressure", {"n": weeks})
+	out.hover = hover
+	return out
+
+
+func _add_siege_lines(parent: Node, game, sid: String) -> void:
+	var siege: Dictionary = siege_copy(game, sid)
+	if str(siege.get("chip", "")) != "":
+		var chip := _lab(str(siege.chip), 14, true)
+		chip.set_meta("assault_ready", true)
+		parent.add_child(chip)
+	if str(siege.get("visit", "")) != "":
+		var line := _lab(str(siege.visit), 15, false)
+		line.set_meta("siege_line", true)
+		parent.add_child(line)
 
 
 func _sympathy_band(sympathy: int) -> Color:
@@ -3114,6 +3248,8 @@ func _tip(sid: String) -> String:
 			return Copy.t("map.tip_unknown_border")
 		return ""
 	var lines: PackedStringArray = [game.station_text(sid, "community")]
+	for extra in siege_copy(game, sid).hover:
+		lines.append(str(extra))
 	for intent in game.telegraphed:
 		if bool(intent.get("hidden", false)):
 			continue
@@ -3459,6 +3595,7 @@ func _fill_sheet_body(sid: String) -> void:
 		head.add_child(title)
 		_sheet_body.add_child(head)
 	_sheet_body.add_child(_lab(Copy.t(str(st.name)), 14, false))
+	_add_siege_lines(_sheet_body, game, sid)
 	var known := _known_for(game, sid)
 	if known != "":
 		_sheet_body.add_child(_lab(known, 14, false))
@@ -4390,6 +4527,7 @@ func open_visit(sid: String) -> void:
 
 
 func close_visit() -> void:
+	_visit_sid = ""
 	if visit != null:
 		visit.visible = false
 	if sheet != null and selected != "":
@@ -4400,6 +4538,7 @@ func close_visit() -> void:
 
 
 func _show_visit(sid: String) -> void:
+	_visit_sid = sid
 	if visit == null:
 		return
 	visit.offset_top = 78.0
@@ -4411,6 +4550,7 @@ func _show_visit(sid: String) -> void:
 	visit.visible = true
 	_size_visit()
 	_fill_visit(sid)
+	_redraw()
 
 
 func _fill_visit(sid: String) -> void:
@@ -4460,6 +4600,7 @@ func _fill_visit(sid: String) -> void:
 	named.add_child(community)
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
+	_add_siege_lines(column, game, sid)
 	head.add_child(column)
 	_visit_body.add_child(head)
 	var details := _details_box()

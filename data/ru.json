@@ -1694,5 +1694,15 @@
   "Expedition queued · {station}": "Экспедиция в очереди · {station}",
   "Expedition queued": "Экспедиция в очереди",
   "No one free — everyone is posted or on a crew.": "Свободных нет — все на постах или в бригаде.",
-  "Unknown · borders your line": "Неизвестно · граничит с вашей линией"
+  "Unknown · borders your line": "Неизвестно · граничит с вашей линией",
+  "Under pressure · 1 week. One more and Assault is open.": "Под давлением · 1 неделя. Ещё одна — и можно штурмовать.",
+  "Under pressure · {n} weeks. Assault ready.": "Под давлением · {n} нед. Штурм готов.",
+  "Assault ready": "Штурм готов",
+  "{faction} is squeezing this station.": "{faction} давят на станцию.",
+  "{faction} claim · {n} weeks": "Притязание: {faction} · {n} нед.",
+  "They want it back. Retaking it costs no extra opinion.": "Хотят вернуть. Отбить её можно без лишнего урона мнению.",
+  "Pressure {n}/2 · Claim: {name}": "Давление {n}/2 · Притязание: {name}",
+  "Pressure {n}/2": "Давление {n}/2",
+  "Claim: {name}": "Притязание: {name}",
+  "Claim on {station} is over.": "Притязание на {station} снято."
 }
