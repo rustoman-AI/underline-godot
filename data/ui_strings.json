@@ -831,6 +831,18 @@
     "en": "Deal → {station} · Deal {n}/3, passage opens",
     "ru": "Сделка → {station} · Сделка {n}/3, проход открыт"
   },
+  "order.toast_patrol": {
+    "en": "Patrol → {station}",
+    "ru": "Патруль → {station}"
+  },
+  "order.toast_raid": {
+    "en": "Raid → {station}",
+    "ru": "Рейд → {station}"
+  },
+  "order.toast_assault": {
+    "en": "Assault → {station}",
+    "ru": "Штурм → {station}"
+  },
   "order.report_propaganda_title": {
     "en": "Leaflets at {community}",
     "ru": "Листовки у {community}"

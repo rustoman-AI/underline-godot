@@ -1403,13 +1403,27 @@ func _dash(c: CanvasItem, a: Vector2, b: Vector2, col: Color, width: float, dash
 		t += step
 
 
+## Gift and Pay have no station target. Expedition draws only when the queue named a station.
+func _queued_mark(game, row: Dictionary) -> bool:
+	var kind := str(row.get("kind", ""))
+	if kind == "gift" or kind == "pay":
+		return false
+	var target := str(row.get("target", ""))
+	var home := str(row.get("home", ""))
+	if not game.stations.has(target) or not game.stations.has(home):
+		return false
+	if _secret(game.stations[target]):
+		return false
+	return true
+
+
 func _draw_order_trails(c: CanvasItem, game) -> void:
 	var k := 1.0 / _map_scale()
 	for row in game.queued_orders:
+		if not _queued_mark(game, row):
+			continue
 		var target := str(row.get("target", ""))
 		var home := str(row.get("home", ""))
-		if not game.stations.has(target) or not game.stations.has(home) or _secret(game.stations[target]):
-			continue
 		var a := _map_spot(home)
 		var b := _map_spot(target)
 		var length := a.distance_to(b)
@@ -2085,6 +2099,8 @@ func _draw_flags(c: CanvasItem, game) -> void:
 	_rumor_hit = Rect2()
 	var src: Rect2 = _pin_rects.get("flag", Rect2())
 	for row in game.queued_orders:
+		if not _queued_mark(game, row):
+			continue
 		var target := str(row.get("target", ""))
 		if not _layout.has(target):
 			continue
@@ -3848,20 +3864,7 @@ func _issue(kind: String, sid: String) -> void:
 		if host != null and host.has_method("note_spend"):
 			host.note_spend(cost)
 		if host != null and host.has_method("_toast"):
-			var toast := ""
-			if kind in ["gift", "aid", "pay"]:
-				toast = game.order_toast(kind, action)
-			elif kind in ["patrol", "raid", "assault"]:
-				toast = Copy.t("combat.toast_sent")
-			elif kind == "move":
-				toast = Copy.fill("order.toast_garrison", {"station": _place_name(game, sid)})
-			elif kind == "expedition":
-				toast = _expedition_toast(game)
-			else:
-				toast = _order_toast(kind, sid)
-			if toast == "":
-				toast = Copy.t("Order sent. The result comes at next dawn.")
-			host._toast(toast)
+			host._toast(_order_queue_toast(kind, sid, _order_toast_ctx(game, kind, action)))
 		refresh()
 		if visit != null and visit.visible:
 			_fill_visit(sid)
@@ -4009,48 +4012,126 @@ func _station_label(game, sid: String) -> String:
 	return Copy.t(str(game.stations[sid].get("name", sid)))
 
 
-func _place_name(game, sid: String) -> String:
+## A cited toast key, or "" when that pack has not landed yet. Never return the raw key.
+func _order_line(key: String, vars: Dictionary = {}) -> String:
+	if not Copy.keys.has(key):
+		Copy.t(key)
+	if not Copy.keys.has(key):
+		return ""
+	if str(Copy.keys[key].get("en", "")) == "":
+		return ""
+	return Copy.fill(key, vars)
+
+
+## Display name for {station}. Empty when the station cannot be named.
+func _order_place(game, sid: String) -> String:
 	if game == null or sid == "" or not game.stations.has(sid):
 		return ""
-	var place: String = game.station_text(sid, "community")
+	var place := Copy.t(str(game.stations[sid].get("name", "")))
 	if place == "":
-		place = Copy.t(str(game.stations[sid].get("name", sid)))
+		place = str(game.station_text(sid, "community"))
 	return place
 
 
-## Expedition names its target when the queue has one. Otherwise the plain C6 line.
-func _expedition_toast(game) -> String:
-	var target := ""
-	if game != null and not game.queued_orders.is_empty():
+func _player_station(game, sid: String) -> bool:
+	if game == null or sid == "" or not game.stations.has(sid):
+		return false
+	return str(game.stations[sid].get("owner", "")) == str(game.player)
+
+
+## Extra fill for kinds whose toast is not just the station name. Numbers come from the sim preview.
+func _order_toast_ctx(game, kind: String, action: Dictionary) -> Dictionary:
+	var ctx := {}
+	if game == null:
+		return ctx
+	if kind == "gift":
+		var fid := str(action.get("faction", ""))
+		var n := int(game.bal.get("gift_opinion", 0))
+		if fid != "" and n != 0:
+			ctx["faction"] = Copy.t(game._fname(fid))
+			ctx["n"] = n
+	elif kind == "aid":
+		var sid := str(action.get("station", ""))
+		if game.stations.has(sid):
+			var need_id := str(game._lowest_need(game.stations[sid]))
+			if need_id != "":
+				ctx["need"] = Copy.t(need_id)
+	elif kind == "pay":
+		var faction := str(action.get("faction", ""))
+		## Same opinion bump as Game._order_pay.
+		if faction != "":
+			ctx["faction"] = Copy.t(game._fname(faction))
+			ctx["n"] = 5
+	elif kind == "expedition" and not game.queued_orders.is_empty():
 		var row: Dictionary = game.queued_orders.back()
 		if str(row.get("kind", "")) == "expedition":
-			target = str(row.get("target", ""))
-	var place := _place_name(game, target)
-	if place == "":
-		return Copy.t("order.toast_expedition_plain")
-	return Copy.fill("order.toast_expedition", {"station": place})
+			ctx["target"] = str(row.get("target", ""))
+	return ctx
 
 
-func _order_toast(kind: String, sid: String) -> String:
+## One line for a successful queue. 72 characters, map plate is the host's job.
+func _order_queue_toast(kind: String, sid: String, ctx: Dictionary = {}) -> String:
 	var game = _game()
+	var place := _order_place(game, sid)
 	var line := ""
-	if game != null:
-		var station := _station_label(game, sid)
-		match kind:
-			"propaganda":
-				line = Copy.fill("order.toast_propaganda", {"station": station, "preview": game.sympathy_preview(sid)})
-			"envoy":
+	match kind:
+		"propaganda":
+			if game != null and place != "":
+				line = _order_line("order.toast_propaganda", {"station": place, "preview": game.sympathy_preview(sid)})
+		"envoy":
+			if game != null and place != "":
 				var prev: Dictionary = game.envoy_preview(sid)
-				line = Copy.fill("order.toast_envoy", {
-					"station": station,
+				line = _order_line("order.toast_envoy", {
+					"station": place,
 					"gain": int(prev.get("gain", 0)),
 					"need": Copy.t(str(prev.get("need_id", ""))),
 				})
-			"trade":
-				if sid != "":
-					line = Copy.fill("order.toast_deal", {"station": station, "n": game.deal_preview(sid)})
+		"trade":
+			if game != null and sid != "" and place != "":
+				line = _order_line("order.toast_deal", {"station": place, "n": game.deal_preview(sid)})
+		"gift":
+			if str(ctx.get("faction", "")) != "" and ctx.has("n"):
+				line = _order_line("order.toast_gift", {"faction": str(ctx.get("faction", "")), "n": ctx.get("n", 0)})
+		"aid":
+			if place != "" and str(ctx.get("need", "")) != "":
+				line = _order_line("order.toast_aid", {"station": place, "need": str(ctx.get("need", ""))})
+		"pay":
+			if str(ctx.get("faction", "")) != "" and ctx.has("n"):
+				line = _order_line("order.toast_pay", {"faction": str(ctx.get("faction", "")), "n": ctx.get("n", 0)})
+		"move":
+			if place != "":
+				if _player_station(game, sid):
+					line = _order_line("order.toast_garrison", {"station": place})
+				else:
+					line = _order_line("order.toast_patrol", {"station": place})
+		"patrol":
+			if place != "":
+				line = _order_line("order.toast_patrol", {"station": place})
+		"raid", "assault":
+			if place == "":
+				line = Copy.t("combat.toast_sent")
+			else:
+				var key := "order.toast_raid" if kind == "raid" else "order.toast_assault"
+				line = _order_line(key, {"station": place})
+				if line == "":
+					line = Copy.t("combat.toast_sent")
+		"expedition":
+			var exp_place := _order_place(game, str(ctx.get("target", "")))
+			if exp_place == "":
+				line = _order_line("order.toast_expedition_plain")
+			else:
+				line = _order_line("order.toast_expedition", {"station": exp_place})
+		_:
+			line = ""
 	if line == "":
 		line = Copy.t("Order sent. The result comes at next dawn.")
+	return Copy.clip(line)
+
+
+func _cancel_toast(role: String) -> String:
+	var line := _order_line("order.toast_cancel", {"role": Copy.t(role.capitalize())})
+	if line == "":
+		return ""
 	return Copy.clip(line)
 
 
@@ -4059,7 +4140,9 @@ func _cancel_seat(role: String) -> void:
 	if game == null or not game.cancel_queued(role):
 		return
 	if host != null and host.has_method("_toast"):
-		host._toast(Copy.fill("order.toast_cancel", {"role": Copy.t(role.capitalize())}))
+		var line := _cancel_toast(role)
+		if line != "":
+			host._toast(line)
 	if host != null and host.has_method("_refresh"):
 		host._refresh()
 	refresh()

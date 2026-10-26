@@ -214,6 +214,7 @@ var guide_next: Button
 var guide_step := -1
 var guide_skips := 0
 var toast_label: Label
+var toast_plate: PanelContainer
 var toast_fade: Tween
 var blown_flash: TextureRect
 var salvage_float: Control
@@ -4616,13 +4617,34 @@ func _blown_toast(text: String) -> bool:
 	return stem != "" and text.begins_with(stem)
 
 
+## Map tags use this paper. The order toast sits on it while the network is open so the line stays readable.
+func _map_toast_face() -> StyleBoxFlat:
+	var face := StyleBoxFlat.new()
+	face.bg_color = SLIP_PAPER
+	face.border_color = Color(SLIP_INK, 0.85)
+	face.set_border_width_all(1)
+	face.set_content_margin_all(8)
+	face.content_margin_left = 12
+	face.content_margin_right = 12
+	face.shadow_color = Color(0, 0, 0, 0.35)
+	face.shadow_size = 3
+	face.shadow_offset = Vector2(1, 2)
+	return face
+
+
+func _park_toast_label(parent: Node) -> void:
+	if toast_label == null or parent == null or toast_label.get_parent() == parent:
+		return
+	if toast_label.get_parent() != null:
+		toast_label.get_parent().remove_child(toast_label)
+	parent.add_child(toast_label)
+
+
 func _toast(text: String, hold: float = 1.8) -> void:
 	if toast_label == null:
 		toast_label = _label("", 16, true)
 		toast_label.z_index = 30
 		toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		toast_label.add_theme_constant_override("outline_size", 6)
-		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		add_child(toast_label)
 	var blown := _blown_toast(text)
 	if blown:
@@ -4630,25 +4652,52 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	elif blown_flash != null:
 		blown_flash.visible = false
 	toast_label.text = text
-	var icon_w := 36.0 if blown else 0.0
-	toast_label.position = Vector2(16.0 + icon_w, (hud.size.y if hud != null else 72.0) + 8.0)
 	toast_label.visible = true
 	toast_label.modulate.a = 1.0
+	var icon_w := 36.0 if blown else 0.0
+	var origin := Vector2(16.0 + icon_w, (hud.size.y if hud != null else 72.0) + 8.0)
+	var on_map := showing_network
+	if on_map:
+		if toast_plate == null:
+			toast_plate = PanelContainer.new()
+			toast_plate.z_index = 30
+			toast_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			toast_plate.add_theme_stylebox_override("panel", _map_toast_face())
+			add_child(toast_plate)
+		_park_toast_label(toast_plate)
+		toast_label.add_theme_color_override("font_color", SLIP_INK)
+		toast_label.add_theme_constant_override("outline_size", 0)
+		toast_plate.position = origin
+		toast_plate.visible = true
+		toast_plate.modulate.a = 1.0
+	else:
+		_park_toast_label(self)
+		toast_label.add_theme_color_override("font_color", INK)
+		toast_label.add_theme_constant_override("outline_size", 6)
+		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		toast_label.position = origin
+		if toast_plate != null:
+			toast_plate.visible = false
 	if blown_flash != null and blown:
-		blown_flash.position = Vector2(8.0, toast_label.position.y - 18.0)
+		blown_flash.position = Vector2(8.0, origin.y - 18.0)
 		blown_flash.modulate.a = 1.0
 		blown_flash.visible = true
 	if toast_fade != null and toast_fade.is_valid():
 		toast_fade.kill()
+	if not is_inside_tree():
+		return
 	toast_fade = create_tween()
 	var fade := toast_fade
 	fade.tween_interval(hold)
-	fade.tween_property(toast_label, "modulate:a", 0.0, 0.35)
+	var fade_node: CanvasItem = toast_plate if on_map and toast_plate != null else toast_label
+	fade.tween_property(fade_node, "modulate:a", 0.0, 0.35)
 	if blown_flash != null and blown:
 		fade.parallel().tween_property(blown_flash, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
 		if toast_label != null:
 			toast_label.visible = false
+		if toast_plate != null:
+			toast_plate.visible = false
 		if blown_flash != null:
 			blown_flash.visible = false)
 
@@ -5557,6 +5606,20 @@ func _choice_reason(text: String) -> Label:
 	return lab
 
 
+## Prefer the report's own text. Structured blocks fill an empty body. A failure stays a failure line.
+func _order_report_body(row: Dictionary) -> String:
+	var text := str(row.get("text", ""))
+	if text != "":
+		return text
+	if game != null and game.has_method("order_report_lines"):
+		var lines: PackedStringArray = game.order_report_lines(row)
+		if not lines.is_empty():
+			return "\n".join(lines)
+	if not bool(row.get("ok", true)):
+		return Copy.t("The order failed.")
+	return ""
+
+
 func _show_order_report() -> void:
 	if game == null or game.order_reports.is_empty():
 		_show_dawn()
@@ -5572,7 +5635,7 @@ func _show_order_report() -> void:
 	var art := _order_art(row)
 	if art != null:
 		card_body.add_child(art)
-	_body(str(row.get("text", "")))
+	_body(_order_report_body(row))
 	var said := _leader_said(str(row.get("faction", "")), row.get("line", {}))
 	if said != "":
 		_body(said)
@@ -5670,7 +5733,10 @@ func _send_combat(kind: String, sid: String) -> void:
 		Sound.play("error")
 		_toast(game.order_block(kind, sid))
 		return
-	_toast(Copy.t("combat.toast_sent"))
+	var toast := Copy.t("combat.toast_sent")
+	if network_view != null and network_view.has_method("_order_queue_toast"):
+		toast = network_view._order_queue_toast(kind, sid, {})
+	_toast(toast)
 	_close_card()
 	_refresh()
 	if network_view != null:
@@ -9544,13 +9610,15 @@ func _network_shots() -> void:
 			var spent: Dictionary = game.order_cost("envoy", foreign)
 			_refresh()
 			note_spend(spent)
-			_toast(Copy.t("Order sent. The result comes at next dawn."))
+			_toast(network_view._order_queue_toast("envoy", foreign, {}))
 			network_view.refresh()
 			await _frame()
 			await _frame()
 			_save("network_order")
 			if toast_label != null:
 				toast_label.visible = false
+			if toast_plate != null:
+				toast_plate.visible = false
 			game._resolve_queued()
 			hold_dawn = false
 			_show_order_report()
