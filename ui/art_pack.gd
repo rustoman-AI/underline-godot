@@ -304,8 +304,6 @@ static func textures() -> Dictionary:
 		"res://assets/events/toll_last.webp": preload("res://assets/events/toll_last.webp"),
 		"res://assets/events/stores_turn.webp": preload("res://assets/events/stores_turn.webp"),
 		"res://assets/events/ration_coat.webp": preload("res://assets/events/ration_coat.webp"),
-		"res://assets/rooms/room_listening_post.webp": preload("res://assets/rooms/room_listening_post.webp"),
-		"res://assets/rooms/room_listening_post_alt.webp": preload("res://assets/rooms/room_listening_post_alt.webp"),
 		"res://assets/overlays/room_probe.webp": preload("res://assets/overlays/room_probe.webp"),
 		"res://assets/overlays/room_offline.webp": preload("res://assets/overlays/room_offline.webp"),
 		"res://assets/overlays/room_offline_256.webp": preload("res://assets/overlays/room_offline_256.webp"),
