@@ -12460,6 +12460,122 @@ func breach_craft_reason() -> String:
 	return order_block("breach")
 
 
+## Locked soft-dawn order. Party Away is sticky yard chrome and has no slot here.
+## P43 homecoming queues the arrival chip; this badge does not.
+const DAWN_SOFT_STACK := ["rumor", "border.dawn_new", "rail", "homecoming"]
+
+
+func dawn_soft_stack() -> Array:
+	return DAWN_SOFT_STACK.duplicate()
+
+
+## Always false. P44 must not become a fifth soft dawn chip. P43 owns the arrival chip.
+func party_away_dawn_chip() -> bool:
+	return false
+
+
+func _party_position_away(sq: Dictionary) -> bool:
+	if bool(sq.get("away", false)):
+		return true
+	return str(sq.get("station", "")) != str(capital_id)
+
+
+func _away_station_name(sid: String) -> String:
+	if not stations.has(sid):
+		return ""
+	var community := station_text(sid, "community")
+	if community != "":
+		return community
+	return str(stations[sid].get("name", ""))
+
+
+func _remember_away_station(sq: Dictionary) -> void:
+	var sid := str(sq.get("station", ""))
+	if sid == "" or sid == str(capital_id) or not stations.has(sid):
+		return
+	if not _home_station_known(sid) or _away_station_name(sid) == "":
+		return
+	flags["away_last_station"] = sid
+
+
+## Current non-home station when intel allows; otherwise the last known non-home
+## (expedition / in transit, station field still home). An unknown current stop stays unnamed.
+func _party_away_place(sq: Dictionary) -> Dictionary:
+	var sid := str(sq.get("station", ""))
+	if sid != "" and sid != str(capital_id) and stations.has(sid):
+		var name := _away_station_name(sid)
+		if _home_station_known(sid) and name != "":
+			return {"id": sid, "name": name, "known": true}
+		return {"id": sid, "name": "", "known": false}
+	var last := str(flags.get("away_last_station", ""))
+	if last != "" and last != str(capital_id) and stations.has(last):
+		var last_name := _away_station_name(last)
+		if _home_station_known(last) and last_name != "":
+			return {"id": last, "name": last_name, "known": true}
+	return {"id": "", "name": "", "known": false}
+
+
+## Sticky yard read. Sets `flags.party_left_home` the first time a living party is out,
+## so a later save remembers they have left. Hides the same tick the party is home.
+## Does not touch dawn queues, homecoming flags, stock, or health.
+func party_away_view() -> Dictionary:
+	var heard := bool(flags.get("heard_away", false))
+	var view := {
+		"show": false,
+		"away": false,
+		"wiped": true,
+		"never_left": not bool(flags.get("party_left_home", false)),
+		"living": 0,
+		"known": false,
+		"station_id": "",
+		"station": "",
+		"line_key": "",
+		"first": false,
+		"heard": heard,
+		"dawn": false,
+	}
+	if not squads.has(player):
+		return view
+	var sq: Dictionary = squads[player]
+	var living := _party_living_count(sq)
+	var away := _party_position_away(sq)
+	view.living = living
+	view.away = away
+	view.wiped = living <= 0
+	if away and living > 0:
+		flags["party_left_home"] = true
+		_remember_away_station(sq)
+	view.never_left = not bool(flags.get("party_left_home", false))
+	var place := _party_away_place(sq)
+	view.station_id = str(place.id)
+	view.station = str(place.name)
+	view.known = bool(place.known)
+	var show: bool = away and living > 0 and not bool(view.never_left)
+	view.show = show
+	if show:
+		view.line_key = "away.out" if bool(place.known) else "away.out_unknown"
+	view.heard = bool(flags.get("heard_away", false))
+	view.first = show and not bool(view.heard)
+	view.dawn = false
+	return view
+
+
+func party_away_line(reduce_motion := false) -> String:
+	var view := party_away_view()
+	if not bool(view.show):
+		return ""
+	if reduce_motion:
+		return Copy.t("away.reduce")
+	if str(view.line_key) == "away.out":
+		return Copy.fill("away.out", {"station": str(view.station)})
+	return Copy.t("away.out_unknown")
+
+
+## First platform float has been seen this run. Save/load keeps `flags.heard_away`.
+func party_mark_heard_away() -> void:
+	flags["heard_away"] = true
+
+
 func party_roster() -> Dictionary:
 	var sq: Dictionary = squads.get(player, {})
 	var members: Array = []

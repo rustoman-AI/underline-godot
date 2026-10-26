@@ -1746,6 +1746,30 @@
   "home.reduce": {
     "en": "Party home.",
     "ru": "Отряд дома."
+  },
+  "away.out": {
+    "en": "Party out · {station}",
+    "ru": "Отряд вне · {station}"
+  },
+  "away.out_unknown": {
+    "en": "Party out · on the line",
+    "ru": "Отряд вне · на линии"
+  },
+  "away.first": {
+    "en": "The platform feels thin.",
+    "ru": "На платформе пустовато."
+  },
+  "away.tip": {
+    "en": "Your party is still on the line.",
+    "ru": "Ваш отряд всё ещё на линии."
+  },
+  "away.badge_label": {
+    "en": "Away",
+    "ru": "Вне"
+  },
+  "away.reduce": {
+    "en": "Party out.",
+    "ru": "Отряд вне."
   }
 }
 
