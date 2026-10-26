@@ -279,6 +279,11 @@ static func textures() -> Dictionary:
 		"res://assets/icons/status/away_boots_24.png": preload("res://assets/icons/status/away_boots_24.png"),
 		"res://assets/icons/map/away_boots.png": preload("res://assets/icons/map/away_boots.png"),
 		"res://assets/icons/map/away_boots_24.png": preload("res://assets/icons/map/away_boots_24.png"),
+		## P48. Badge size is 22px, so icon_texture loads sick_cot_24 before the 256 plate.
+		"res://assets/icons/status/sick_cot.png": preload("res://assets/icons/status/sick_cot.png"),
+		"res://assets/icons/status/sick_cot_24.png": preload("res://assets/icons/status/sick_cot_24.png"),
+		"res://assets/icons/map/sick_cot.png": preload("res://assets/icons/map/sick_cot.png"),
+		"res://assets/icons/map/sick_cot_24.png": preload("res://assets/icons/map/sick_cot_24.png"),
 		"res://assets/icons/status/gift.png": preload("res://assets/icons/status/gift.png"),
 		"res://assets/icons/status/gift_24.png": preload("res://assets/icons/status/gift_24.png"),
 		"res://assets/icons/status/aid.png": preload("res://assets/icons/status/aid.png"),
