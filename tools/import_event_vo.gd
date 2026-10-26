@@ -7,6 +7,7 @@ extends SceneTree
 ## full one. The spoken text comes from exact_text, or current_text_spoken in re-record packs.
 ## File names say what each line voices:
 ##   evt_<event>_body          the event card text           evt_<event>_after_<choice>  a follow-up's text by choice
+##   dilemma_<event>_body      the same binding as evt_<event>_body (release dilemma cards)
 ##   chk_<check>_body          a check event's intro          chk_<check>_<option>_<success|fail>  its outcome
 ##   crunch_<leg>_body         a crunch bill's text           end_<reason>                the plain game-over title
 ## Each row keeps the exact recorded text as en/ru, so the game can tell whether a recording still says what the
@@ -76,8 +77,11 @@ func _init() -> void:
 		copied += 1
 		var id := str(key.id)
 		if not rows.has(id):
+			var speaker := str(cell.call("speaker"))
+			if speaker == "":
+				speaker = "Narrator"
 			rows[id] = {"id": id, "type": "event_show", "kind": key.kind, "event": key.event, "part": key.part,
-				"speaker": cell.call("speaker"), "en": "", "ru": "", "audio_en": "", "audio_ru": ""}
+				"speaker": speaker, "en": "", "ru": "", "audio_en": "", "audio_ru": ""}
 			order.append(id)
 		var spoken: String = cell.call("exact_text")
 		if spoken == "":
@@ -108,7 +112,10 @@ func _unquote(cell: String) -> String:
 
 
 ## evt_lamps_next_after_fix -> {kind event, event lamps_next, part after_fix}; {} for a name it does not know.
+## dilemma_<event>_body is the same card reading as evt_<event>_body. The release pack names those files that way.
 func _key(stem: String, check_ids: Array) -> Dictionary:
+	if stem.begins_with("dilemma_") and stem.ends_with("_body"):
+		return {"id": stem, "kind": "event", "event": stem.trim_prefix("dilemma_").trim_suffix("_body"), "part": "body"}
 	if stem.begins_with("evt_"):
 		var rest := stem.trim_prefix("evt_")
 		var at := rest.rfind("_after_")
