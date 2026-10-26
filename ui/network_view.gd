@@ -89,14 +89,10 @@ const STAMP_ON_PAPER := ["black_flag"]
 const FLAG_ANCHOR := Vector2(0.176, 0.35)
 const FLAG_CLOTH := Vector2(0.62, 0.42)
 const PANORAMA_HUBS := ["northgate", "chapel", "trampark", "brickworks"]
-## Room picture for each station without its own hub art, chosen from what the station's community and art
-## lines describe. A station missing here has no fitting picture and shows a dark plate with its name.
-## Stations that still borrow a room picture. The rest use assets/hubs/<id>.webp, a placeholder
-## until a finished painting replaces it. Capitals keep the hubs already accepted.
-const BANNER_ROOMS := {
-	"southdepot": "platform",
-	"stadium": "meeting_hall",
-}
+## Room picture for a station that still has no assets/hubs/<id>.webp. Empty after P70: every visit id,
+## including stadium, has its own hub plate. Hidden bunkers vault, signal, and oldcommand keep the
+## placeholder plates already in LFS. A station missing from both shows a dark plate with its name.
+const BANNER_ROOMS := {}
 const PLATE := Color("1e1812")
 const HUB_MAX_H := 400.0
 ## The visit sheet never grows wider than this; the map shows dimmed on both sides of it.
