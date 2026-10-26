@@ -1794,6 +1794,38 @@
   "deal.reduce": {
     "en": "{n}/3",
     "ru": "{n}/3"
+  },
+  "warm.cold": {
+    "en": "Cold",
+    "ru": "Холод"
+  },
+  "warm.wary": {
+    "en": "Wary",
+    "ru": "Настороже"
+  },
+  "warm.warm": {
+    "en": "Warm",
+    "ru": "Тепло"
+  },
+  "warm.ready": {
+    "en": "Ready",
+    "ru": "Готовы"
+  },
+  "warm.join": {
+    "en": "With us",
+    "ru": "С нами"
+  },
+  "warm.band": {
+    "en": "{band}",
+    "ru": "{band}"
+  },
+  "warm.tip": {
+    "en": "Sympathy sits on the ring.",
+    "ru": "Симпатия на кольце."
+  },
+  "warm.first": {
+    "en": "The ring remembers how they feel.",
+    "ru": "Кольцо помнит, как они к вам."
   }
 }
 
