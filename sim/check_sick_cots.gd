@@ -46,6 +46,8 @@ func _init() -> void:
 		failed = true
 	if not _check_ui():
 		failed = true
+	if not _check_art():
+		failed = true
 	if FileAccess.get_file_as_string("res://data/balance.json") != balance:
 		print("Balance: FAIL balance.json changed")
 		failed = true
@@ -419,5 +421,48 @@ func _check_ui() -> bool:
 		if not src.contains(str(needle)):
 			print("UI: FAIL missing ", needle)
 			return false
+	if not src.contains('icon_texture("sick_cot", 22.0)'):
+		print("UI: FAIL badge icon")
+		return false
 	print("UI: ok")
+	return true
+
+
+## status+map twins. Badge size asks for the _24 plate; the 256 plate is the fallback.
+const COT_24_MD5 := "18a53f064abfe2ee7bf0f11625958716"
+
+
+func _check_art() -> bool:
+	var paths := [
+		"res://assets/icons/status/sick_cot.png",
+		"res://assets/icons/status/sick_cot_24.png",
+		"res://assets/icons/map/sick_cot.png",
+		"res://assets/icons/map/sick_cot_24.png",
+	]
+	for path in paths:
+		if not FileAccess.file_exists(path):
+			print("Art: FAIL missing ", path)
+			return false
+	var pack := FileAccess.get_file_as_string("res://ui/art_pack.gd")
+	for path in paths:
+		if not pack.contains(path):
+			print("Art: FAIL not preloaded ", path)
+			return false
+	var status := FileAccess.get_file_as_bytes("res://assets/icons/status/sick_cot_24.png")
+	var twin := FileAccess.get_file_as_bytes("res://assets/icons/map/sick_cot_24.png")
+	if status != twin or status.is_empty():
+		print("Art: FAIL status/map 24 differ")
+		return false
+	if status[0] == 118:
+		var head := status.get_string_from_ascii()
+		if not head.begins_with("version https://git-lfs.github.com/spec/v1") or not head.contains("oid sha256:"):
+			print("Art: FAIL lfs pointer")
+			return false
+		print("Art: ok lfs")
+		return true
+	var md5 := FileAccess.get_md5("res://assets/icons/status/sick_cot_24.png")
+	if md5 != COT_24_MD5 or FileAccess.get_md5("res://assets/icons/map/sick_cot_24.png") != COT_24_MD5:
+		print("Art: FAIL md5 ", md5)
+		return false
+	print("Art: ok")
 	return true

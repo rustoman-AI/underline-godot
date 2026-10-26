@@ -5370,7 +5370,7 @@ func _sync_sick_badge() -> void:
 	sick_badge_label.text = Copy.t("sick.label")
 	sick_badge_body.text = game.sick_cots_line(reduce)
 	sick_badge.tooltip_text = Copy.t("sick.tip")
-	var icon := ArtPack.icon_texture("sick", 22.0)
+	var icon := ArtPack.icon_texture("sick_cot", 22.0)
 	sick_badge_icon.texture = icon
 	sick_badge_icon.visible = icon != null
 	sick_badge.rotation = 0.0
