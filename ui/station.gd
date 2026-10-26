@@ -234,6 +234,14 @@ var away_badge_icon: TextureRect
 var away_float: Label
 var away_float_until := 0
 var away_float_fade: Tween
+## P48 sticky cot count. One plate, on the infirmary when it stands, else the people strip. Not a dawn chip.
+var sick_badge: PanelContainer
+var sick_badge_label: Label
+var sick_badge_body: Label
+var sick_badge_icon: TextureRect
+var sick_float: Label
+var sick_float_until := 0
+var sick_float_fade: Tween
 var undo_toast: PanelContainer
 ## P42 dawn rail-noise chip (bottom-left yard) and the once-per-run platform float.
 var rail_chip: PanelContainer
@@ -986,6 +994,7 @@ func _process(_delta: float) -> void:
 		_tick_hints()
 	_pulse_alarms()
 	_tick_away_float()
+	_tick_sick_cots()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -1092,6 +1101,7 @@ func _build() -> void:
 	side = _side_panel()
 	add_child(side)
 	_build_away_badge()
+	_build_sick_badge()
 
 	footer = _label("", 14)
 	footer.visible = false
@@ -1669,6 +1679,7 @@ func _place_chrome() -> void:
 	if yard != null:
 		yard.on_resize()
 	_sync_away_badge()
+	_sync_sick_badge()
 
 
 func _show_ahead(show: bool) -> void:
@@ -2048,6 +2059,7 @@ func _refresh() -> void:
 	_sync_waiting()
 	_offer_pending()
 	_sync_away_badge()
+	_sync_sick_badge()
 
 
 func _fill_people() -> void:
@@ -5080,8 +5092,8 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	var icon_w := 36.0 if blown else 0.0
 	var toast_y := (hud.size.y if hud != null else 72.0) + 8.0
 	var on_map := showing_network
-	if not on_map and away_badge != null and away_badge.visible:
-		toast_y = away_badge.position.y + away_badge.get_combined_minimum_size().y + 6.0
+	if not on_map:
+		toast_y = _yard_toast_y(toast_y)
 	var origin := Vector2(16.0 + icon_w, toast_y)
 	if on_map:
 		if toast_plate == null:
@@ -5281,6 +5293,182 @@ func _tick_away_float() -> void:
 	_place_away_badge()
 	if away_float_until > 0 and Time.get_ticks_msec() >= away_float_until:
 		_hide_away_float()
+
+
+## Toasts sit under the people-strip badges. A cot plate on the infirmary stays in the yard and does not push them.
+func _yard_toast_y(above: float) -> float:
+	var y := above
+	if away_badge != null and away_badge.visible:
+		y = maxf(y, away_badge.position.y + away_badge.get_combined_minimum_size().y + 6.0)
+	if sick_badge != null and sick_badge.visible and bool(sick_badge.get_meta("on_strip", false)):
+		y = maxf(y, sick_badge.position.y + sick_badge.get_combined_minimum_size().y + 6.0)
+	return y
+
+
+## Same plate family as the away badge. Dusty, still, no pulse.
+func _build_sick_badge() -> void:
+	sick_badge = PanelContainer.new()
+	sick_badge.name = "SickCotsBadge"
+	sick_badge.visible = false
+	sick_badge.z_index = 8
+	sick_badge.mouse_filter = Control.MOUSE_FILTER_STOP
+	sick_badge.set_meta("sick_cots", true)
+	sick_badge.set_meta("on_strip", true)
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("2c2426")
+	face.border_color = Color("a85a62")
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.content_margin_left = 8
+	face.content_margin_right = 10
+	face.content_margin_top = 4
+	face.content_margin_bottom = 4
+	sick_badge.add_theme_stylebox_override("panel", face)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sick_badge.add_child(row)
+	sick_badge_icon = TextureRect.new()
+	sick_badge_icon.custom_minimum_size = Vector2(22, 22)
+	sick_badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sick_badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sick_badge_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(sick_badge_icon)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(col)
+	sick_badge_label = _label("", 11, true, false)
+	sick_badge_label.add_theme_color_override("font_color", Color("c48a90"))
+	sick_badge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(sick_badge_label)
+	sick_badge_body = _label("", 15, false, false)
+	sick_badge_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(sick_badge_body)
+	add_child(sick_badge)
+	sick_float = _label("", 18, true, false)
+	sick_float.name = "SickCotsFloat"
+	sick_float.visible = false
+	sick_float.z_index = 12
+	sick_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sick_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sick_float.add_theme_constant_override("outline_size", 6)
+	sick_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	add_child(sick_float)
+
+
+func _sync_sick_badge() -> void:
+	if sick_badge == null or game == null:
+		return
+	var view: Dictionary = game.sick_cots_view()
+	var show: bool = bool(view.get("show", false)) and _away_yard_open()
+	sick_badge.visible = show
+	if not show:
+		_hide_sick_float()
+		return
+	var reduce := _motion_off()
+	sick_badge_label.text = Copy.t("sick.label")
+	sick_badge_body.text = game.sick_cots_line(reduce)
+	sick_badge.tooltip_text = Copy.t("sick.tip")
+	var icon := ArtPack.icon_texture("sick", 22.0)
+	sick_badge_icon.texture = icon
+	sick_badge_icon.visible = icon != null
+	sick_badge.rotation = 0.0
+	sick_badge.scale = Vector2.ONE
+	sick_badge.modulate = Color.WHITE
+	if bool(view.get("first", false)):
+		_show_sick_float()
+		game.sick_mark_seen_cots()
+	_place_sick_badge()
+
+
+func _place_sick_badge() -> void:
+	if sick_badge == null or game == null:
+		return
+	var view: Dictionary = game.sick_cots_view()
+	var badge_size := sick_badge.get_combined_minimum_size()
+	if badge_size.x < 8.0:
+		badge_size.x = 148.0
+	if badge_size.y < 8.0:
+		badge_size.y = 40.0
+	var on_strip := true
+	var pos := Vector2.ZERO
+	if str(view.get("place", "")) == "infirmary" and yard != null:
+		var rect := yard.cell_screen(int(view.get("level", -1)), int(view.get("cell", -1)))
+		rect.position += yard.position
+		if rect.size.x > 2.0 and rect.size.y > 2.0:
+			on_strip = false
+			pos = rect.position + Vector2(6.0, 6.0)
+	if on_strip:
+		var top := hud.size.y if hud != null else 72.0
+		var x := 16.0
+		if away_badge != null and away_badge.visible:
+			var away_w := maxf(away_badge.size.x, away_badge.get_combined_minimum_size().x)
+			x = away_badge.position.x + away_w + 8.0
+		pos = Vector2(x, top + 8.0)
+	var top_lim := (hud.size.y if hud != null else 72.0) + 8.0
+	var bot_lim := maxf(top_lim, size.y - chrome_bottom - badge_size.y - 8.0)
+	pos.x = clampf(pos.x, 8.0, maxf(8.0, size.x - badge_size.x - 8.0))
+	pos.y = clampf(pos.y, top_lim, bot_lim)
+	if away_badge != null and away_badge.visible:
+		var away_box := Rect2(away_badge.position, away_badge.get_combined_minimum_size())
+		var mine := Rect2(pos, badge_size)
+		if away_box.intersects(mine):
+			pos.x = clampf(away_box.end.x + 8.0, 8.0, maxf(8.0, size.x - badge_size.x - 8.0))
+	sick_badge.position = pos
+	sick_badge.rotation = 0.0
+	sick_badge.scale = Vector2.ONE
+	sick_badge.set_meta("on_strip", on_strip)
+	if sick_float == null or not sick_float.visible:
+		return
+	var w := maxf(sick_float.size.x, sick_float.get_combined_minimum_size().x)
+	var play_top := top_lim + 40.0
+	var play_bot := size.y - chrome_bottom
+	var fy := lerpf(play_top, play_bot, 0.46)
+	if away_float != null and away_float.visible:
+		fy += 36.0
+	sick_float.position = Vector2((size.x - w) * 0.5, fy)
+
+
+func _show_sick_float() -> void:
+	if sick_float == null:
+		return
+	sick_float.text = Copy.t("sick.first")
+	sick_float.visible = true
+	sick_float.modulate.a = 1.0
+	sick_float.rotation = 0.0
+	if sick_float_fade != null and sick_float_fade.is_valid():
+		sick_float_fade.kill()
+	if _motion_off():
+		sick_float_until = Time.get_ticks_msec() + 3200
+		return
+	sick_float_until = 0
+	sick_float_fade = create_tween()
+	sick_float_fade.tween_interval(2.6)
+	sick_float_fade.tween_property(sick_float, "modulate:a", 0.0, 0.4)
+	sick_float_fade.tween_callback(func() -> void:
+		if sick_float != null:
+			sick_float.visible = false)
+
+
+func _hide_sick_float() -> void:
+	sick_float_until = 0
+	if sick_float_fade != null and sick_float_fade.is_valid():
+		sick_float_fade.kill()
+	if sick_float != null:
+		sick_float.visible = false
+
+
+func _tick_sick_cots() -> void:
+	if sick_badge == null or not sick_badge.visible:
+		return
+	sick_badge.rotation = 0.0
+	sick_badge.scale = Vector2.ONE
+	_place_sick_badge()
+	if sick_float == null or not sick_float.visible:
+		return
+	if sick_float_until > 0 and Time.get_ticks_msec() >= sick_float_until:
+		_hide_sick_float()
 
 
 ## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.

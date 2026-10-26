@@ -12467,8 +12467,8 @@ func breach_craft_reason() -> String:
 	return order_block("breach")
 
 
-## Locked soft-dawn order. Party Away is sticky yard chrome and has no slot here.
-## P43 homecoming queues the arrival chip; this badge does not.
+## Locked soft-dawn order. Party Away and Sick Cots are sticky yard chrome and have no slot here.
+## P43 homecoming queues the arrival chip; those badges do not.
 const DAWN_SOFT_STACK := ["rumor", "border.dawn_new", "rail", "homecoming"]
 
 
@@ -12478,6 +12478,11 @@ func dawn_soft_stack() -> Array:
 
 ## Always false. P44 must not become a fifth soft dawn chip. P43 owns the arrival chip.
 func party_away_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P48 cot count is sticky yard chrome, never a soft dawn chip.
+func sick_cots_dawn_chip() -> bool:
 	return false
 
 
@@ -12581,6 +12586,50 @@ func party_away_line(reduce_motion := false) -> String:
 ## First platform float has been seen this run. Save/load keeps `flags.heard_away`.
 func party_mark_heard_away() -> void:
 	flags["heard_away"] = true
+
+
+## Built infirmary, if one is standing. A room still under construction does not count.
+func _sick_cots_room() -> Dictionary:
+	for room in rooms:
+		if str(room.get("type", "")) != "infirmary":
+			continue
+		return {"uid": str(room.get("uid", "")), "level": int(room.get("level", -1)), "cell": int(room.get("cell", -1))}
+	return {}
+
+
+## Sticky yard cot count. One read while any living resident still has sick time.
+## Prefers the infirmary when that room exists; otherwise the people strip.
+## Does not heal, assign, touch hope or stock, or queue a dawn chip.
+func sick_cots_view() -> Dictionary:
+	var n := sick_count()
+	var room := _sick_cots_room()
+	var seen := bool(flags.get("seen_sick_cots", false))
+	var show := n >= 1
+	var on_infirmary := not room.is_empty()
+	return {
+		"show": show,
+		"count": n,
+		"place": "infirmary" if on_infirmary else "strip",
+		"room": str(room.get("uid", "")),
+		"level": int(room.get("level", -1)),
+		"cell": int(room.get("cell", -1)),
+		"first": show and not seen,
+		"seen": seen,
+		"dawn": false,
+	}
+
+
+func sick_cots_line(reduce_motion := false) -> String:
+	var view := sick_cots_view()
+	if not bool(view.show):
+		return ""
+	var key := "sick.reduce" if reduce_motion else "sick.cots"
+	return Copy.fill(key, {"n": int(view.count)})
+
+
+## First platform float has been seen this run. Save/load keeps `flags.seen_sick_cots`.
+func sick_mark_seen_cots() -> void:
+	flags["seen_sick_cots"] = true
 
 
 func party_roster() -> Dictionary:
