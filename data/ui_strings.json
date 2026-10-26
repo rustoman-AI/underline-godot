@@ -1906,6 +1906,38 @@
   "join.reduce": {
     "en": "Joined.",
     "ru": "С нами."
+  },
+  "focus.current": {
+    "en": "Focus: {name}",
+    "ru": "Уклон: {name}"
+  },
+  "focus.food": {
+    "en": "Food",
+    "ru": "Еда"
+  },
+  "focus.air": {
+    "en": "Air",
+    "ru": "Воздух"
+  },
+  "focus.defense": {
+    "en": "Defense",
+    "ru": "Оборона"
+  },
+  "focus.influence": {
+    "en": "Influence",
+    "ru": "Влияние"
+  },
+  "focus.tip": {
+    "en": "This outpost leans here.",
+    "ru": "Эта застава клонится сюда."
+  },
+  "focus.first": {
+    "en": "Outposts can lean food, air, defense, or influence.",
+    "ru": "Заставы могут клониться к еде, воздуху, обороне или влиянию."
+  },
+  "focus.set": {
+    "en": "Focus set to {name}.",
+    "ru": "Уклон — {name}."
   }
 }
 
