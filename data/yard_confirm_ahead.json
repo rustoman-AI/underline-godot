@@ -1,0 +1,50 @@
+{
+  "_note": "P56 Yard Confirm + Ahead. Spec: /workspace/YARD_CONFIRM_AHEAD_SPEC.md DEC-Y1…Y2 (cite-land POST_EA L1+L2). Confirm toasts + Ahead Clear/Blocked only. Dry metro grit. Do not redefine station polish demolish/switch toasts. Zero balance / no invented Δ. HARD NO: soft-dawn; L3 People chips.",
+  "_roadmap": "P56",
+  "_owners": "Texts; Code L1+L2 + gate; UIUX cite-land POST_EA L1+L2; Art none",
+  "_placeholders": [
+    "{weeks}",
+    "{room}",
+    "{d}",
+    "{h}",
+    "{name}"
+  ],
+  "by_key": {
+    "station.toast_dig": {
+      "en": "Dig started · {weeks} left",
+      "ru": "Раскопки начаты · осталось {weeks}"
+    },
+    "station.toast_build": {
+      "en": "Building {room} · {weeks} left",
+      "ru": "Строим {room} · осталось {weeks}"
+    },
+    "station.toast_upgrade": {
+      "en": "Upgrade ordered · {room}",
+      "ru": "Улучшение заказано · {room}"
+    },
+    "station.toast_rally": {
+      "en": "Rally held · Discontent {d} · Hope {h}",
+      "ru": "Сходка прошла · Недовольство {d} · Надежда {h}"
+    },
+    "station.toast_law": {
+      "en": "Law passed · {name}",
+      "ru": "Закон принят · {name}"
+    },
+    "station.toast_repeal": {
+      "en": "Law repealed · {name}",
+      "ru": "Закон отменён · {name}"
+    },
+    "station.toast_burn": {
+      "en": "Burned salvage · Power and hope up",
+      "ru": "Сожгли лом · Энергия и надежда вверх"
+    },
+    "ahead.clear": {
+      "en": "Clear to End turn",
+      "ru": "Можно завершить ход"
+    },
+    "ahead.blocked": {
+      "en": "Something still needs you",
+      "ru": "Ещё что-то ждёт вас"
+    }
+  }
+}
