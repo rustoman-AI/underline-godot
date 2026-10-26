@@ -216,6 +216,8 @@ var guide_skips := 0
 var toast_label: Label
 var toast_plate: PanelContainer
 var toast_fade: Tween
+## How many times _toast ran. The yard-confirm gate reads it; play never does.
+var toast_hits := 0
 var blown_flash: TextureRect
 var salvage_float: Control
 ## P43 dawn chip (paper strip under the top bar) and the once-per-run platform float.
@@ -1685,7 +1687,7 @@ func _place_chrome() -> void:
 func _show_ahead(show: bool) -> void:
 	if ahead == null or game == null:
 		return
-	if not game.pending.is_empty():
+	if dim != null and dim.visible:
 		ahead.visible = false
 		return
 	ahead.visible = show and game.over == ""
@@ -1694,32 +1696,123 @@ func _show_ahead(show: bool) -> void:
 		_place_ahead()
 
 
+## End turn is blocked while a big decision waits, or a forecast / revolt warning is up.
+func _ahead_blocked() -> bool:
+	if game == null:
+		return false
+	if _end_state() == "waiting":
+		return true
+	if not game.forecasts().is_empty():
+		return true
+	if not game.revolt_warning().is_empty():
+		return true
+	return false
+
+
+func _ahead_now(key: String) -> int:
+	if key == "hope":
+		return int(game.hope)
+	if key == "discontent":
+		return int(game.discontent)
+	return int(game.stock.get(key, 0))
+
+
+## Name  {now}  →  {proj}   ({signed Δ}). The parenthesis is omitted when Δ is 0.
+## Color is the sign itself: up green, down red. Numbers come from the live projection.
+func _ahead_meter(key: String) -> Control:
+	var proj: Dictionary = game.dawn_projection()
+	var now := _ahead_now(key)
+	var after := int(proj.get(key, now))
+	var delta := after - now
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 0)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.set_meta("ahead_key", key)
+	row.set_meta("ahead_delta", delta)
+	row.set_meta("ahead_now", now)
+	row.set_meta("ahead_proj", after)
+	var body := _label("%s  %d  →  %d" % [Copy.res(key), now, after], 14, false, false)
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(body)
+	if delta != 0:
+		var mark := _label("   (%s)" % _signed(delta), 14, false, false)
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.add_theme_color_override("font_color", DELTA_UP if delta > 0 else DELTA_DOWN)
+		mark.set_meta("ahead_sign", true)
+		row.add_child(mark)
+	return row
+
+
+func _ahead_dig_place(level: int, cell: int) -> String:
+	for nb in game._cell_neighbors(level, cell):
+		var spot: Dictionary = game.cells.get("%d:%d" % [int(nb[0]), int(nb[1])], {})
+		var room = game._room(str(spot.get("room", "")))
+		if room == null:
+			continue
+		var type := str(room.type)
+		if game.catalog.rooms.has(type):
+			return Copy.t(str(game.catalog.rooms[type].name))
+	return Copy.t("Level %d, cell %d") % [level + 1, cell + 1]
+
+
+## Up to three lines: the live dig, the live build, then the queued-order count.
+func _ahead_queue_lines() -> PackedStringArray:
+	var lines: PackedStringArray = []
+	if not game.dig.is_empty():
+		var place := _ahead_dig_place(int(game.dig.level), int(game.dig.cell))
+		lines.append("%s · %s · %s" % [Copy.t("Dig"), place, Words.count(int(game.dig.left), "week")])
+	if lines.size() < 3 and not game.build.is_empty():
+		var type := str(game.build.type)
+		var room := type
+		if game.catalog.rooms.has(type):
+			room = Copy.t(str(game.catalog.rooms[type].name))
+		lines.append(Copy.fill("station.tip_building", {"room": room, "weeks": str(int(game.build.left))}))
+	if lines.size() < 3 and not game.queued_orders.is_empty():
+		lines.append(Copy.t("Orders queued: %d") % game.queued_orders.size())
+	return lines
+
+
 func _fill_ahead() -> void:
 	_wipe(ahead_box)
 	var was := on_paper
 	on_paper = true
-	var title := _label("After this week", 22, true)
+	var title := _label("After this week", 18, true)
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ahead_box.add_child(title)
-	var proj: Dictionary = game.dawn_projection()
 	for key in STOCK_KEYS:
-		var line := _label("%s %d" % [Copy.res(str(key)), int(proj.get(key, 0))], 16)
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ahead_box.add_child(line)
-	var hope_line := _label(Copy.t("Hope %d") % int(proj.get("hope", 0)), 16)
-	hope_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ahead_box.add_child(hope_line)
-	var dis_line := _label(Copy.t("Discontent %d") % int(proj.get("discontent", 0)), 16)
-	dis_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ahead_box.add_child(dis_line)
+		ahead_box.add_child(_ahead_meter(str(key)))
+	ahead_box.add_child(_ahead_meter("hope"))
+	ahead_box.add_child(_ahead_meter("discontent"))
+	var queued := 0
+	for line in _ahead_queue_lines():
+		var job := _label(line, 14, false, false)
+		job.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		job.set_meta("ahead_queue", true)
+		ahead_box.add_child(job)
+		queued += 1
+		if queued >= 3:
+			break
+	var blocked := _ahead_blocked()
+	var foot := _label("ahead.blocked" if blocked else "ahead.clear", 14, true)
+	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	foot.set_meta("ahead_footer", "blocked" if blocked else "clear")
+	foot.add_theme_color_override("font_color", DELTA_DOWN if blocked else DELTA_UP)
+	ahead_box.add_child(foot)
 	on_paper = was
 
 
 func _place_ahead() -> void:
 	if ahead == null or not ahead.visible:
 		return
-	var w := 248.0
-	var h := 248.0
+	var need := ahead.get_combined_minimum_size()
+	var w := maxf(248.0, need.x)
+	var h := need.y
+	if h < 8.0:
+		h = 248.0
+	h = minf(h, 280.0)
+	if size.x > 64.0:
+		w = minf(w, maxf(248.0, size.x - 32.0))
 	ahead.anchor_left = 0.0
 	ahead.anchor_top = 0.0
 	ahead.anchor_right = 0.0
@@ -1763,9 +1856,11 @@ func _build_overlay() -> void:
 	ahead = PanelContainer.new()
 	ahead.visible = false
 	ahead.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ahead.clip_contents = true
+	ahead.custom_minimum_size = Vector2(248, 0)
 	ahead.add_theme_stylebox_override("panel", _paper_style())
 	ahead_box = VBoxContainer.new()
-	ahead_box.add_theme_constant_override("separation", 2)
+	ahead_box.add_theme_constant_override("separation", 1)
 	ahead_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ahead.add_child(ahead_box)
 	add_child(ahead)
@@ -4602,11 +4697,9 @@ func _confirm_upgrade(uid: String) -> void:
 	card_body.add_child(_button("Back", _close_card))
 
 
-## Buys the next tier, then marks it: the "upgrade" cue, a brass flash on the room and a toast with what it adds.
+## Buys the next tier, then marks it: the "upgrade" cue, a brass flash, and one confirm toast.
 func _do_upgrade(uid: String) -> void:
 	var room = game._room(uid)
-	var info := game.upgrade_preview(uid)
-	var gains := upgrade_gains(uid)
 	if room == null or not game.apply({"kind": "upgrade", "room": uid}):
 		_do_confirm({})
 		return
@@ -4616,10 +4709,7 @@ func _do_upgrade(uid: String) -> void:
 	_action_voice("upgrade", "")
 	if yard != null:
 		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
-	var fitted_line := upgrade_toast(str(room.type), str(info.name), gains)
-	if str(info.get("node", "")) != "":
-		fitted_line += "\n" + _salvage_staff_line("fit")
-	_toast(fitted_line, 3.2)
+	_yard_confirm_toast({"kind": "upgrade", "room": uid})
 
 
 func upgrade_toast(type: String, upgrade_id: String, gains: Array) -> String:
@@ -4676,6 +4766,7 @@ func _enact(law_id: String) -> void:
 		return
 	_refresh()
 	_show_laws()
+	_yard_confirm_toast({"kind": "law", "law": law_id})
 	_action_voice("law", law_id)
 
 
@@ -4723,18 +4814,18 @@ func _blown_toast(text: String) -> bool:
 	return stem != "" and text.begins_with(stem)
 
 
-## Map tags use this paper. The order toast sits on it while the network is open so the line stays readable.
+## Network toasts sit on a dark plate (P39 / audit L1), centered under the HUD so they clear the Council column.
 func _map_toast_face() -> StyleBoxFlat:
 	var face := StyleBoxFlat.new()
-	face.bg_color = SLIP_PAPER
-	face.border_color = Color(SLIP_INK, 0.85)
+	face.bg_color = PAPER_BUTTON_DOWN
+	face.border_color = Color(PAPER_EDGE, 0.9)
 	face.set_border_width_all(1)
 	face.set_content_margin_all(8)
 	face.content_margin_left = 12
 	face.content_margin_right = 12
-	face.shadow_color = Color(0, 0, 0, 0.35)
-	face.shadow_size = 3
-	face.shadow_offset = Vector2(1, 2)
+	face.shadow_color = Color(0, 0, 0, 0.45)
+	face.shadow_size = 4
+	face.shadow_offset = Vector2(0, 2)
 	return face
 
 
@@ -5086,7 +5177,18 @@ func _place_home_float() -> void:
 	home_float.size = Vector2(360, 28)
 
 
+func _toast_text_width(lab: Label) -> float:
+	var font := lab.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var sz := lab.get_theme_font_size("font_size")
+	if sz <= 0:
+		sz = 16
+	return font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+
+
 func _toast(text: String, hold: float = 1.8) -> void:
+	toast_hits += 1
 	if toast_label == null:
 		toast_label = _label("", 16, true)
 		toast_label.z_index = 30
@@ -5111,11 +5213,13 @@ func _toast(text: String, hold: float = 1.8) -> void:
 			toast_plate = PanelContainer.new()
 			toast_plate.z_index = 30
 			toast_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			toast_plate.add_theme_stylebox_override("panel", _map_toast_face())
 			add_child(toast_plate)
+		toast_plate.add_theme_stylebox_override("panel", _map_toast_face())
 		_park_toast_label(toast_plate)
-		toast_label.add_theme_color_override("font_color", SLIP_INK)
+		toast_label.add_theme_color_override("font_color", INK)
 		toast_label.add_theme_constant_override("outline_size", 0)
+		var plate_w := _toast_text_width(toast_label) + 28.0
+		origin = Vector2((size.x - plate_w) * 0.5, toast_y)
 		toast_plate.position = origin
 		toast_plate.visible = true
 		toast_plate.modulate.a = 1.0
@@ -5128,7 +5232,10 @@ func _toast(text: String, hold: float = 1.8) -> void:
 		if toast_plate != null:
 			toast_plate.visible = false
 	if blown_flash != null and blown:
-		blown_flash.position = Vector2(8.0, origin.y - 18.0)
+		var flash_x := 8.0
+		if on_map and toast_plate != null:
+			flash_x = toast_plate.position.x - 28.0
+		blown_flash.position = Vector2(flash_x, origin.y - 18.0)
 		blown_flash.modulate.a = 1.0
 		blown_flash.visible = true
 	if toast_fade != null and toast_fade.is_valid():
@@ -7997,6 +8104,64 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 	card_body.add_child(_button("Back", _close_card))
 
 
+func _yard_law_name(law_id: String) -> String:
+	var defin: Dictionary = game.catalog.laws.get(law_id, {})
+	return Copy.t(str(defin.get("name", law_id)))
+
+
+func _yard_room_name(uid: String) -> String:
+	var room = game._room(uid)
+	if room == null:
+		return ""
+	var type := str(room.type)
+	if not game.catalog.rooms.has(type):
+		return type
+	return Copy.t(str(game.catalog.rooms[type].name))
+
+
+## One confirm line after a successful yard apply. Empty for kinds that already have their own toast.
+func _yard_confirm_line(action: Dictionary) -> String:
+	if game == null:
+		return ""
+	var kind := str(action.get("kind", ""))
+	match kind:
+		"dig":
+			var weeks := "0"
+			if not game.dig.is_empty():
+				weeks = str(int(game.dig.left))
+			return Copy.fill("station.toast_dig", {"weeks": weeks})
+		"build":
+			var room := ""
+			var weeks := "0"
+			if not game.build.is_empty():
+				var type := str(game.build.type)
+				if game.catalog.rooms.has(type):
+					room = Copy.t(str(game.catalog.rooms[type].name))
+				weeks = str(int(game.build.left))
+			return Copy.fill("station.toast_build", {"room": room, "weeks": weeks})
+		"upgrade":
+			return Copy.fill("station.toast_upgrade", {"room": _yard_room_name(str(action.get("room", "")))})
+		"rally":
+			return Copy.fill("station.toast_rally", {
+				"d": _signed(int(game.bal.rally_discontent)),
+				"h": _signed(int(game.bal.rally_hope)),
+			})
+		"law":
+			return Copy.fill("station.toast_law", {"name": _yard_law_name(str(action.get("law", "")))})
+		"repeal":
+			return Copy.fill("station.toast_repeal", {"name": _yard_law_name(str(action.get("law", "")))})
+		"burn":
+			return Copy.t("station.toast_burn")
+	return ""
+
+
+func _yard_confirm_toast(action: Dictionary) -> void:
+	var line := _yard_confirm_line(action)
+	if line == "":
+		return
+	_toast(Copy.clip(line, 72))
+
+
 func _do_confirm(action: Dictionary) -> void:
 	var pulled := ""
 	if str(action.get("kind", "")) == "demolish":
@@ -8024,6 +8189,8 @@ func _do_confirm(action: Dictionary) -> void:
 	_refresh()
 	if pulled != "":
 		_toast(Copy.fill("station.toast_demolish", {"room": pulled}))
+	else:
+		_yard_confirm_toast(action)
 	_action_voice(kind, str(action.get("law", "")))
 
 
