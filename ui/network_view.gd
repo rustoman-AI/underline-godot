@@ -1619,6 +1619,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 		var warn := ArtPack.icon_texture("warning", 16.0)
 		if warn != null:
 			c.draw_texture_rect(warn, Rect2(at + Vector2(r * 0.6, -r - 14.0), Vector2(16, 16)), false)
+	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 
 
@@ -2369,6 +2370,18 @@ func _draw_intents(c: CanvasItem, game) -> void:
 ## traders walk out and back to every station with a deal. Pure view: the sim pays at dawn either way.
 const FOCUS_GOOD := {"food": "food", "air": "air", "defense": "materials", "influence": "influence"}
 const YIELD_KEYS := ["food", "materials", "air", "influence", "tokens"]
+const GOOD_ICON := {
+	"seeds": "food", "pork": "food", "salt": "food", "water": "air",
+	"copper": "materials", "junk": "materials", "air": "air", "heat": "power",
+}
+const GOOD_TINT := {
+	"food": Color("d7a441"),
+	"materials": Color("c4a574"),
+	"air": Color("7eb8c9"),
+	"power": Color("e7c56a"),
+	"tokens": Color("e2d2a2"),
+	"influence": Color("d07a4a"),
+}
 const CARAVAN_SPEED := 34.0
 const CARAVAN_SPACING := 200.0
 const TRADE_GOLD := Color("c9a227")
@@ -3599,6 +3612,7 @@ func _fill_sheet_body(sid: String) -> void:
 	var known := _known_for(game, sid)
 	if known != "":
 		_sheet_body.add_child(_lab(known, 14, false))
+	_add_perk_good(game, sid, _sheet_body)
 	var details := _details_box()
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body, details)
@@ -4030,6 +4044,39 @@ func _add_needs(st: Dictionary, parent: Node, sid: String = "") -> void:
 	parent.add_child(_lab(Copy.t("Needs"), 14, true))
 	for need in needs:
 		parent.add_child(_need_bar(str(need.id), float(need.fill), sid))
+
+
+## Perk one-liner and the good row. Shown on the station sheet and the visit card.
+func _add_perk_good(game, sid: String, parent: Node) -> void:
+	var perk := str(game.perk_sheet_line(sid))
+	if perk != "":
+		var line := _lab("%s: %s" % [Copy.t("perk.label"), perk], 14, false)
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		line.set_meta("perk_line", sid)
+		parent.add_child(line)
+	var good := str(game.good_sheet_line(sid))
+	if good != "":
+		var line := _lab(good, 14, false)
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		line.set_meta("good_line", sid)
+		parent.add_child(line)
+
+
+## A small resource pip on the pin while that station's good is coming in.
+func _draw_good_pip(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not game.good_flowing(sid):
+		return
+	var good: Dictionary = game.station_good(sid)
+	var icon_kind := str(GOOD_ICON.get(str(good.get("id", "")), "food"))
+	var pip := at + Vector2(r * 0.62, r * 0.55) - Vector2(0, 2.0 * lift)
+	c.draw_circle(pip, 8.0, Color(TAG_INK, 0.9))
+	c.draw_circle(pip, 6.5, Color(TAG_PAPER, 0.95))
+	var tex := ArtPack.icon_texture(icon_kind, 16.0)
+	var tint: Color = GOOD_TINT.get(icon_kind, TRADE_GOLD)
+	if tex != null:
+		c.draw_texture_rect(tex, Rect2(pip - Vector2(5, 5), Vector2(10, 10)), false, tint)
+	else:
+		c.draw_string(_font(), pip + Vector2(-3, 4), "+", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tint)
 
 
 ## "Known for: food, materials": a station's two biggest own goods (data, docs/STATION_GOODS_PLAN.md). Empty for the
@@ -4601,6 +4648,7 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
+	_add_perk_good(game, sid, column)
 	head.add_child(column)
 	_visit_body.add_child(head)
 	var details := _details_box()
