@@ -87,6 +87,15 @@ var orders_left := 0
 var seat_used := {}
 var queued_orders: Array = []
 var order_reports: Array = []
+## P53 Raid Share. The haul from a player raid win, held until Stockpile, Yard, or Tribute.
+## Empty once applied. Not saved: the card resolves before the auto-save, and a bot resolves it inside the raid.
+var raid_share := {}
+## The station UI sets this so dawn waits on the share card. Bots leave it false.
+var raid_share_hold := false
+## Bot profile for the share pick. Empty means Stockpile, the walk-away default.
+var raid_share_profile := ""
+## True after order resolve when the share card still has the haul and the rest of dawn has not run.
+var _dawn_held := false
 var last_order_note := {}
 var choice_results: Array = []
 ## One map rumor: {station, text_key, week_until, true}. `blind` is extra: the pin was unknown when it was rolled.
@@ -223,6 +232,10 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	burials = []
 	creed = ""
 	notices = []
+	raid_share = {}
+	raid_share_hold = false
+	raid_share_profile = ""
+	_dawn_held = false
 	over = ""
 	player_lean = str(cat.factions[player].lean)
 	capital_id = str(cat.factions[player].capital)
@@ -305,6 +318,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 func end_week() -> void:
 	if over != "":
 		return
+	if _dawn_held:
+		return
 	_tick_claims()
 	_resolve_pending()
 	_rival_phase()
@@ -325,6 +340,8 @@ func end_week() -> void:
 	NeedTick.settle_all(self)
 	decisions = 0
 	_dawn()
+	if _dawn_held:
+		return
 	_vo_watch()
 
 
@@ -1179,6 +1196,20 @@ func _dawn() -> void:
 	_expire_need_ticks()
 	battle_dis_week = 0
 	_resolve_queued()
+	## The share card sits at the end of order resolve, before the rest of dawn reads the stock.
+	if raid_share_open() and raid_share_hold:
+		_dawn_held = true
+		return
+	if raid_share_open():
+		var pick := "stockpile"
+		if raid_share_profile != "":
+			pick = raid_share_bot_choice()
+		apply_raid_share(pick)
+	_dawn_after_orders()
+
+
+## Dawn after the raid haul is in stock. Events, the dawn log, and the soft chip run from here.
+func _dawn_after_orders() -> void:
 	_sync_perk_notices()
 	orders_left = council.size()
 	for seat in council:
@@ -11802,6 +11833,17 @@ func chronicle_line(moment: Dictionary) -> String:
 	var kind := str(moment.get("kind", ""))
 	var fields: Dictionary = moment.get("fields", {})
 	fields["week"] = int(moment.get("week", week))
+	if kind == "raid_share":
+		if str(fields.get("choice", "")) == "tribute":
+			return Copy.fill("raid_share.dawn_tribute", {
+				"faction": str(fields.get("faction", "")),
+				"before": str(fields.get("before", 0)),
+				"after": str(fields.get("after", 0)),
+			})
+		return Copy.fill("raid_share.dawn_yard", {
+			"before": str(fields.get("before", 0)),
+			"after": str(fields.get("after", 0)),
+		})
 	var combat_key := ""
 	match kind:
 		"listening_blown":
@@ -13018,6 +13060,207 @@ func _order_patrol(dest: String) -> bool:
 	return stepped
 
 
+## DEC-L1. Food half is ceil. Opinion reuses gift_opinion. These are not balance.json keys.
+const RAID_SHARE_CHOICES := ["stockpile", "yard", "tribute"]
+const RAID_SHARE_YARD_HOPE := 2
+const RAID_SHARE_YARD_DIS := -2
+const RAID_SHARE_GOOD_HOPE := 1
+const RAID_SHARE_TRIBUTE_HOPE := -1
+const RAID_SHARE_MATS_TOKENS := 4
+const RAID_SHARE_GOOD_TOKENS := 3
+
+
+func raid_share_open() -> bool:
+	return not raid_share.is_empty()
+
+
+func dawn_held() -> bool:
+	return _dawn_held
+
+
+## Finish dawn after the share card. A dismiss with the haul still waiting takes Stockpile.
+func resume_dawn() -> void:
+	if raid_share_open():
+		apply_raid_share("stockpile")
+	if not _dawn_held:
+		return
+	_dawn_held = false
+	_dawn_after_orders()
+	_vo_watch()
+
+
+func raid_share_loot() -> Dictionary:
+	return raid_share.duplicate(true)
+
+
+func raid_share_loot_line(loot: Dictionary = {}) -> String:
+	var row := raid_share
+	if not loot.is_empty():
+		row = loot
+	var bits: PackedStringArray = []
+	var food := int(row.get("food", 0))
+	var mats := int(row.get("mats", 0))
+	var good := int(row.get("good", 0))
+	if food > 0:
+		bits.append(Copy.stock(food, "food"))
+	if mats > 0:
+		bits.append(Copy.stock(mats, "materials"))
+	if good > 0:
+		var key := str(row.get("good_res", ""))
+		if key == "" or not stock.has(key):
+			key = "materials"
+		bits.append(Copy.stock(good, key))
+	return ", ".join(bits)
+
+
+func raid_share_body() -> String:
+	return Copy.fill("raid_share.body", {"loot": raid_share_loot_line()})
+
+
+## Careful always Stockpile. Follower shares with the yard while hope is under 40.
+## Expander sends tribute when opinion with the raided faction is -20 or worse.
+## The raid's own opinion hit is already in `opinions` when this runs.
+func raid_share_bot_choice(profile_name: String = "") -> String:
+	var who := raid_share_profile if profile_name == "" else profile_name
+	if who == "follower" and hope < 40:
+		return "yard"
+	if who == "expander":
+		var fid := str(raid_share.get("faction", ""))
+		if fid != "" and int(opinions.get(fid, 0)) <= -20:
+			return "tribute"
+	return "stockpile"
+
+
+## Apply one share choice. A second call is a no-op. An unknown id leaves the haul waiting.
+func apply_raid_share(choice_id: String) -> Dictionary:
+	var choice := str(choice_id)
+	if raid_share.is_empty():
+		return {"ok": true, "already": true, "choice": "", "toast": ""}
+	if not RAID_SHARE_CHOICES.has(choice):
+		return {"ok": false, "choice": choice, "toast": ""}
+	var loot: Dictionary = raid_share.duplicate(true)
+	raid_share = {}
+	var food := int(loot.get("food", 0))
+	var mats := int(loot.get("mats", 0))
+	var good := int(loot.get("good", 0))
+	var kind := _raid_share_kind(food, mats, good)
+	var hope_before := hope
+	var fid := str(loot.get("faction", ""))
+	var opinion_before := int(opinions.get(fid, 0))
+	var toast := ""
+	if choice == "stockpile":
+		_raid_share_give_stock(food, mats, good, loot)
+	elif choice == "yard":
+		_raid_share_give_stock(_raid_share_half(food), mats, good, loot)
+		if kind == "good":
+			_add_hope(RAID_SHARE_GOOD_HOPE, "raid_share")
+		elif kind != "empty":
+			_add_hope(RAID_SHARE_YARD_HOPE, "raid_share")
+			_add_discontent(RAID_SHARE_YARD_DIS, "raid_share")
+		toast = Copy.t("raid_share.toast_yard")
+	else:
+		if kind == "food":
+			var give := _raid_share_half(food)
+			_raid_share_give_stock(food - give, mats, good, loot)
+		elif kind == "mats":
+			_raid_share_pay_tokens(RAID_SHARE_MATS_TOKENS)
+			_raid_share_give_stock(0, mats, good, loot)
+		elif kind == "good":
+			_raid_share_pay_tokens(RAID_SHARE_GOOD_TOKENS)
+			_raid_share_give_stock(0, 0, good, loot)
+		_add_hope(RAID_SHARE_TRIBUTE_HOPE, "raid_share")
+		_add_opinion(fid, int(bal.get("gift_opinion", 0)), "raid_share")
+		toast = Copy.fill("raid_share.toast_tribute", {"faction": Copy.t(_fname(fid)) if fid != "" else ""})
+	if toast != "":
+		toast = Copy.clip(toast, 72)
+	if choice == "yard" or choice == "tribute":
+		var before := hope_before if choice == "yard" else opinion_before
+		var after := hope if choice == "yard" else int(opinions.get(fid, opinion_before))
+		var faction_name := Copy.t(_fname(fid)) if fid != "" else ""
+		_raid_share_record(choice, before, after, faction_name, str(loot.get("place", "")))
+	return {"ok": true, "already": false, "choice": choice, "toast": toast}
+
+
+func _raid_loot(dest: String) -> Dictionary:
+	var owner := ""
+	if stations.has(dest):
+		owner = str(stations[dest].get("owner", ""))
+	return {
+		"food": int(bal.get("raid_loot_food", 8)),
+		"mats": int(bal.get("raid_loot_materials", 6)),
+		"good": 0,
+		"good_res": "",
+		"faction": owner,
+		"station": dest,
+		"place": _station_place(dest),
+	}
+
+
+func _raid_share_kind(food: int, mats: int, good: int) -> String:
+	if food > 0:
+		return "food"
+	if mats > 0:
+		return "mats"
+	if good > 0:
+		return "good"
+	return "empty"
+
+
+func _raid_share_half(n: int) -> int:
+	if n <= 0:
+		return 0
+	return ceili(float(n) * 0.5)
+
+
+func _raid_share_give_stock(food: int, mats: int, good: int, loot: Dictionary) -> void:
+	if food != 0:
+		stock.food = int(stock.food) + food
+	if mats != 0:
+		stock.materials = int(stock.materials) + mats
+	if good <= 0:
+		return
+	var key := str(loot.get("good_res", ""))
+	if key == "" or not stock.has(key):
+		return
+	stock[key] = int(stock.get(key, 0)) + good
+
+
+## Mats-only tribute pays 4 tokens; a station good alone pays 3. The opinion bump stays gift_opinion either way.
+## The choice cannot fail closed: a short token pile pays what it has.
+func _raid_share_pay_tokens(n: int) -> void:
+	if n <= 0:
+		return
+	var have := int(stock.get("tokens", 0))
+	var spent := mini(n, maxi(0, have))
+	stock.tokens = have - spent
+
+
+func _raid_share_record(choice: String, before: int, after: int, faction_name: String, place: String) -> void:
+	var text := ""
+	if choice == "yard":
+		text = Copy.fill("raid_share.dawn_yard", {"before": str(before), "after": str(after)})
+	else:
+		text = Copy.fill("raid_share.dawn_tribute", {"faction": faction_name, "before": str(before), "after": str(after)})
+	order_reports.append({
+		"title": Copy.t("Dawn report"),
+		"text": text,
+		"ok": true,
+		"kind": "raid_share",
+		"choice": choice,
+		"before": before,
+		"after": after,
+		"faction": faction_name,
+		"place": place,
+	})
+	_note_moment("raid_share", {
+		"choice": choice,
+		"before": before,
+		"after": after,
+		"faction": faction_name,
+		"place": place,
+	}, 1)
+
+
 func _order_raid(dest: String, immediate: bool) -> bool:
 	last_combat_report = {}
 	if _raid_gate(dest) != "":
@@ -13031,8 +13274,6 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 	var st: Dictionary = stations[dest]
 	var place := _station_place(dest)
 	if win:
-		stock.food = int(stock.food) + int(bal.get("raid_loot_food", 8))
-		stock.materials = int(stock.materials) + int(bal.get("raid_loot_materials", 6))
 		_add_opinion(str(st.owner), int(bal.get("raid_opinion", -15)))
 		for n in _neighbors(dest):
 			var nid := str(n)
@@ -13064,6 +13305,14 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 		opinion = Copy.t("combat.raid_cost") % [int(bal.get("raid_discontent", 2)), absi(int(bal.get("raid_opinion", -15)))]
 	_stamp_combat("raid", dest, win, false, fought.get("player", {}), hope0, dis0, opinion)
 	_note_party_home()
+	if win:
+		## Loot waits until the share pick. A bot, or a sim with no card, resolves it here — after the raid's own opinion hit.
+		raid_share = _raid_loot(dest)
+		if not raid_share_hold:
+			var pick := "stockpile"
+			if raid_share_profile != "":
+				pick = raid_share_bot_choice()
+			apply_raid_share(pick)
 	return true
 
 

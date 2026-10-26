@@ -42,6 +42,7 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful", given: Ca
 	var game := Game.new()
 	game.setup(catalog, run_seed, weeks)
 	game.audit = profile_name != "follower"
+	game.raid_share_profile = profile
 	var guard := 0
 	while game.over == "" and guard < weeks + 2:
 		guard += 1
@@ -53,6 +54,7 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful", given: Ca
 
 
 func _act(game: Game) -> void:
+	game.raid_share_profile = profile
 	if game.use_medkits():
 		pass
 	_answer_audience(game)

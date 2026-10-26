@@ -1,0 +1,53 @@
+{
+  "_note": "P53 Raid Share (was P31). After a successful player Raid, before stock apply — not a soft dawn chip. Default Stockpile if closed without pick. No Assault share. No P20 Raid button rewrite. Balance ints in Code only.",
+  "_roadmap": "P53",
+  "_owners": "Texts; Code Share card after Raid win; UIUX dilemma chrome if cheap; Art none",
+  "_placeholders": [
+    "{loot}",
+    "{faction}",
+    "{before}",
+    "{after}"
+  ],
+  "by_key": {
+    "raid_share.title": {
+      "en": "What we took",
+      "ru": "Что взяли"
+    },
+    "raid_share.body": {
+      "en": "{loot}",
+      "ru": "{loot}"
+    },
+    "raid_share.stockpile": {
+      "en": "Stockpile",
+      "ru": "На склад"
+    },
+    "raid_share.yard": {
+      "en": "Share with the yard",
+      "ru": "Поделить со двором"
+    },
+    "raid_share.tribute": {
+      "en": "Tribute",
+      "ru": "Дань"
+    },
+    "raid_share.toast_yard": {
+      "en": "Shared with the yard.",
+      "ru": "Поделили со двором."
+    },
+    "raid_share.toast_tribute": {
+      "en": "Tribute sent to {faction}.",
+      "ru": "Дань ушла к {faction}."
+    },
+    "raid_share.dawn_yard": {
+      "en": "The yard ate. Hope {before} → {after}.",
+      "ru": "Двор поел. Надежда {before} → {after}."
+    },
+    "raid_share.dawn_tribute": {
+      "en": "Tribute to {faction}. Opinion {before} → {after}.",
+      "ru": "Дань {faction}. Мнение {before} → {after}."
+    },
+    "raid_share.tip": {
+      "en": "Same haul. Different soul.",
+      "ru": "Та же добыча. Другая душа."
+    }
+  }
+}
