@@ -259,7 +259,6 @@ static func textures() -> Dictionary:
 		"res://assets/events/loan.webp": preload("res://assets/events/loan.webp"),
 		"res://assets/events/diesel.webp": preload("res://assets/events/diesel.webp"),
 		"res://assets/events/armband.webp": preload("res://assets/events/armband.webp"),
-<<<<<<< HEAD
 		"res://assets/events/desertion_next.webp": preload("res://assets/events/desertion_next.webp"),
 		"res://assets/events/lamps_next.webp": preload("res://assets/events/lamps_next.webp"),
 		"res://assets/events/preacher_next.webp": preload("res://assets/events/preacher_next.webp"),
@@ -460,15 +459,10 @@ static func _icon_names(kind: String) -> PackedStringArray:
 			return PackedStringArray(["dig", "workshop"])
 		"hold":
 			return PackedStringArray(["warning", "hold"])
-<<<<<<< HEAD
 		"wired", "wired_tint", "probing", "probing_tint":
 			return PackedStringArray([kind])
-		## P42. status/ and map/ both resolve in _load_icon (png or webp, plus the _24 pair).
-		## Missing files return null; the dawn chip keeps rumor/border text chrome.
-=======
 		## P42. _load_icon searches status/ before map/, so the dawn chip takes the status glyph.
 		## The _24 pair is preferred at 24px. A missing file still leaves the paper chip as text.
->>>>>>> d33fe95 (Ship the locked P42 art for the rail-noise chip and room plates.)
 		"noise_rail":
 			return PackedStringArray(["noise_rail"])
 		_:
