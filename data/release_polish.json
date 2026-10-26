@@ -1,0 +1,65 @@
+{
+  "_note": "RELEASE_POLISH (no new pack id). Cite /workspace/underline_ux_audit/RELEASE_POLISH_UI_BRIEFS.md RP2/RP4/RP5. Soft dawn: does NOT join. Do not redefine why.* / approach.* / pin tip keys. EN stubs from UIUX; RU Texts natural.",
+  "_roadmap": "RELEASE_POLISH",
+  "_owners": "Texts; Code check_release_polish.gd; UIUX RP1–RP5; Art none",
+  "_status": "Designer APPROVED / Code-ready — RELEASE_POLISH Texts stamped 2026-10-26 (13 keys: legend.open|title|close|warmth|deals|pressure|goods + optional leaflet|need|focus|flow|rumor + event.chain_part). Soft dawn does NOT join. why.*/approach.*/pin tips untouched. UI RP1–RP5 already Designer APPROVED. Code paste one brief at a time. Merge Temur.",
+  "_cite_locked": [
+    "why.* (P65)",
+    "approach.* (P63)",
+    "pin tip keys P45–P58"
+  ],
+  "by_key": {
+    "legend.open": {
+      "en": "Map key",
+      "ru": "Условные обозначения"
+    },
+    "legend.title": {
+      "en": "Map key",
+      "ru": "Условные обозначения"
+    },
+    "legend.close": {
+      "en": "Close",
+      "ru": "Закрыть"
+    },
+    "legend.warmth": {
+      "en": "Warmth — how they lean",
+      "ru": "Тепло — куда они тянутся"
+    },
+    "legend.deals": {
+      "en": "Deals — handshake steps",
+      "ru": "Сделки — шаги рукопожатия"
+    },
+    "legend.pressure": {
+      "en": "Pressure — siege heat",
+      "ru": "Давление — жар осады"
+    },
+    "legend.goods": {
+      "en": "Goods — weekly good flowing",
+      "ru": "Товар — что идёт за неделю"
+    },
+    "legend.leaflet": {
+      "en": "Leaflet — loud propaganda dust",
+      "ru": "Листовка — громкая пыль пропаганды"
+    },
+    "legend.need": {
+      "en": "Need — what they lack",
+      "ru": "Нужда — чего им не хватает"
+    },
+    "legend.focus": {
+      "en": "Focus — outpost focus",
+      "ru": "Фокус — упор заставы"
+    },
+    "legend.flow": {
+      "en": "Flow — good on the passage",
+      "ru": "Поток — товар по проходу"
+    },
+    "legend.rumor": {
+      "en": "Rumor — dawn whisper",
+      "ru": "Слух — шёпот на рассвете"
+    },
+    "event.chain_part": {
+      "en": "Part {n} of {m}",
+      "ru": "Часть {n} из {m}"
+    }
+  }
+}
