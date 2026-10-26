@@ -87,7 +87,7 @@
     {"id": "map", "label": "Send him with a lamp and a partner", "hope": 0, "influence": 2},
     {"id": "stay", "label": "Keep him at the station", "discontent": 1, "hope": -1}
   ]},
-  {"id": "lamps_next", "tag": "dark", "title": "The beds remember the belt", "banner": "lamps", "chain_only": true, "weight": 1, "text": "The hydroponic beds still have not recovered.", "by": {"fix": "The new belt holds. The beds are back, and the crew knows who climbed in for it.", "lose": "The lost crop is still talked about at meals. The next belt looks worn too."}, "choices": [
+  {"id": "lamps_next", "tag": "dark", "title": "The beds remember the belt", "banner": "lamps_next", "chain_only": true, "weight": 1, "text": "The hydroponic beds still have not recovered.", "by": {"fix": "The new belt holds. The beds are back, and the crew knows who climbed in for it.", "lose": "The lost crop is still talked about at meals. The next belt looks worn too."}, "choices": [
     {"id": "thank", "label": "Thank the crew in front of everyone", "hope": 1},
     {"id": "move", "label": "Get back to work", "discontent": 1}
   ]},
@@ -107,11 +107,11 @@
     {"id": "corner", "label": "Give Ellis a corner of the meeting hall", "hope": 1, "discontent": 1},
     {"id": "no", "label": "Keep the hall for everyone", "discontent": 2, "hope": -1}
   ]},
-  {"id": "smuggler_next", "tag": "scrap", "title": "Fran has another crate", "banner": "smuggler", "chain_only": true, "weight": 1, "who": "Fran", "text": "Fran is back with another offer.", "by": {"take": "Fran says the crate you took opened a route. She can run it again, for a cut.", "refuse": "Fran tells the line you sent her crate back. The next offer is smaller, and colder."}, "choices": [
+  {"id": "smuggler_next", "tag": "scrap", "title": "Fran has another crate", "banner": "smuggler_next", "chain_only": true, "weight": 1, "who": "Fran", "text": "Fran is back with another offer.", "by": {"take": "Fran says the crate you took opened a route. She can run it again, for a cut.", "refuse": "Fran tells the line you sent her crate back. The next offer is smaller, and colder."}, "choices": [
     {"id": "cut", "label": "Take your cut and say nothing", "tokens": 4, "discontent": 2},
     {"id": "end", "label": "Stop dealing with Fran (the Exchange takes offence)", "hope": -1, "opinion_exchange": -2}
   ]},
-  {"id": "rumble_next", "tag": "labor", "title": "Lila will not go back down", "banner": "rumble", "chain_only": true, "weight": 1, "who": "Lila", "text": "Lila stands on the platform and will not go near the ladder.", "by": {"shore": "Lila says the shore you built held. She still will not be the first one down.", "push": "Lila remembers being told to keep digging. She will not take the ladder."}, "choices": [
+  {"id": "rumble_next", "tag": "labor", "title": "Lila will not go back down", "banner": "rumble_next", "chain_only": true, "weight": 1, "who": "Lila", "text": "Lila stands on the platform and will not go near the ladder.", "by": {"shore": "Lila says the shore you built held. She still will not be the first one down.", "push": "Lila remembers being told to keep digging. She will not take the ladder."}, "choices": [
     {"id": "pair", "label": "Send her down with a partner", "hope": 0, "discontent": 1},
     {"id": "up", "label": "Keep her on the upper level", "hope": -1, "discontent": 1}
   ]},
@@ -123,7 +123,7 @@
     {"id": "buy", "label": "Buy a smaller load", "cost": {"tokens": 6}, "food": 8},
     {"id": "wave", "label": "Wave them through", "discontent": 1, "hope": -1}
   ]},
-  {"id": "desertion_next", "tag": "sleep", "title": "A tag comes back", "banner": "desertion", "chain_only": true, "weight": 1, "text": "One of the name tags from the empty bunks has turned up at the station.", "by": {"search": "The crew you sent comes back with one tag and no person. The other bunk is still empty.", "let": "Someone left a tag on the gate. It belongs to one of the two you let go."}, "choices": [
+  {"id": "desertion_next", "tag": "sleep", "title": "A tag comes back", "banner": "desertion_next", "chain_only": true, "weight": 1, "text": "One of the name tags from the empty bunks has turned up at the station.", "by": {"search": "The crew you sent comes back with one tag and no person. The other bunk is still empty.", "let": "Someone left a tag on the gate. It belongs to one of the two you let go."}, "choices": [
     {"id": "hang", "label": "Hang the tag in the hall for all to see", "hope": -1, "discontent": -1},
     {"id": "box", "label": "Put it away in a box", "hope": -2}
   ]},

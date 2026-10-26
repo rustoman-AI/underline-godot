@@ -61,6 +61,21 @@ var queued_orders: Array = []
 var order_reports: Array = []
 var last_order_note := {}
 var choice_results: Array = []
+## One map rumor: {station, text_key, week_until, true}. `blind` is extra: the pin was unknown when it was rolled.
+## Empty when the map has none. Kept for 3 weeks, or until the station is scouted or owned.
+var rumor := {}
+## Rival-intent hops waiting for the map to draw. The view drains this; it is not saved.
+var map_playback: Array = []
+## Gift / pay floats and aid stamps waiting for the next map draw. Not saved.
+var map_marks: Array = []
+## Aid need-bar ticks the visit sheet plays once: {station, need, old, new, week}. Not saved.
+var need_ticks: Array = []
+const RUMOR_LINES := ["rumor.line_01", "rumor.line_02", "rumor.line_03", "rumor.line_04", "rumor.line_05", "rumor.line_06"]
+const RUMOR_WEEKS := 3
+## What _order_pay already adds. Named so the toast and the dawn line use the same figure.
+const PAY_OPINION := 5
+## What _order_aid already adds to a need fill. Named so the report can read the same step.
+const AID_BUMP := 0.25
 var decisions := 0
 var hope_zero := 0
 var next_person := 0
@@ -918,6 +933,7 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
+	_expire_need_ticks()
 	battle_dis_week = 0
 	_resolve_queued()
 	orders_left = council.size()
@@ -953,6 +969,7 @@ func _dawn() -> void:
 		if Copy.ru():
 			ultimatum = "ULTIMATUM %s хочет %s, осталось %s." % [Copy.t(_fname(str(d.faction))), Copy.stock(int(d.amount), "tokens"), Words.count(int(d.deadline), "week")]
 		_log(ultimatum, true)
+	_roll_rumor()
 	_audience_dawn()
 
 
@@ -3549,6 +3566,17 @@ func order_cost(kind: String, _sid: String = "") -> Dictionary:
 		"move":
 			var food := move_food(_sid)
 			return {"food": food} if food > 0 else {}
+		"gift":
+			return {"tokens": int(bal.get("gift_tokens", 0))}
+		"aid":
+			if not stations.has(_sid):
+				return {}
+			return _aid_price(_lowest_need(stations[_sid]))
+		"pay":
+			var due: Dictionary = open_demand_for(_sid)
+			if due.is_empty():
+				return {}
+			return {"tokens": int(due.get("amount", 0))}
 		"raid":
 			return {"food": int(bal.get("raid_pack_food", 2))}
 		"breach":
@@ -3703,12 +3731,22 @@ func _resolve_queued() -> void:
 		var title := Copy.t("Dawn report")
 		var who := Copy.person(str(row.get("name", "")))
 		var text := _order_result_text(kind, action, who, place, before, ok)
+		var extra := {}
 		if ok:
 			title = Copy.t(_order_title(kind))
+		if ok and kind in ["gift", "aid", "pay"]:
+			extra = _soft_order_report(kind, action, who, place, before)
+			title = str(extra.get("title", title))
+			text = str(extra.get("text", text))
 		var report := {"title": title, "text": text, "ok": ok, "kind": kind, "person": str(row.get("person", "")),
 			"station": str(action.get("dest", "")) if kind == "move" else sid}
+		for key in ["before", "after", "faction", "need"]:
+			if extra.has(key):
+				report[key] = extra[key]
 		if ok and host != "":
 			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
+		if ok and kind in ["gift", "aid", "pay"]:
+			_note_soft_mark(kind, report)
 		order_reports.append(report)
 		if ok and kind == "trade":
 			_vo_cue("caravan_arrived")
@@ -3733,6 +3771,22 @@ func _order_before(kind: String, action: Dictionary) -> Dictionary:
 		var nxt := str(path[1]) if path.size() >= 2 else ""
 		snap.step = nxt
 		snap.step_owner = str(stations[nxt].owner) if stations.has(nxt) else ""
+	if kind == "gift":
+		var fid := str(action.get("faction", ""))
+		if fid == "" :
+			fid = _gift_faction(sid)
+		snap.faction = fid
+		snap.opinion = int(opinions.get(fid, 0))
+	elif kind == "pay":
+		var fid := str(action.get("faction", ""))
+		if fid == "":
+			fid = str(open_demand_for(sid).get("faction", ""))
+		snap.faction = fid
+		snap.opinion = int(opinions.get(fid, 0))
+	elif kind == "aid" and stations.has(sid):
+		var need := _lowest_need(stations[sid])
+		snap.need = need
+		snap.need_fill = _need_fill(stations[sid], need)
 	return snap
 
 
@@ -4009,6 +4063,12 @@ func order_block(kind: String, sid: String = "") -> String:
 			return quarantine_block()
 		"address":
 			return address_reason()
+		"aid":
+			return _aid_block(sid)
+		"gift":
+			return _gift_block(sid)
+		"pay":
+			return _pay_block(sid)
 		_:
 			return Copy.t("No such order.")
 	return ""
@@ -4099,6 +4159,8 @@ func order_risk(kind: String, sid: String = "") -> String:
 			return Copy.t("The squad is away 3 weeks and comes back about 15% smaller.")
 		"approach", "approach_observatory", "approach_quarantine":
 			return Copy.t("No risk. The meeting comes at the next dawn.")
+		"gift", "aid", "pay":
+			return order_toast(kind, _soft_action(kind, sid))
 	return ""
 
 
@@ -4184,19 +4246,13 @@ func _order_aid(sid: String) -> bool:
 	var need := _lowest_need(st)
 	if need == "":
 		return false
-	if need == "air":
-		if int(stock.air) < 6:
+	var cost := _aid_price(need)
+	for key in cost:
+		if int(stock.get(key, 0)) < int(cost[key]):
 			return false
-		stock.air = int(stock.air) - 6
-	elif need == "food" or need == "work":
-		if int(stock.food) < int(bal.aid_food):
-			return false
-		stock.food = int(stock.food) - int(bal.aid_food)
-	else:
-		if int(stock.materials) < 4:
-			return false
-		stock.materials = int(stock.materials) - 4
-	_bump_need(st, need, 0.25)
+	for key in cost:
+		stock[key] = int(stock.get(key, 0)) - int(cost[key])
+	_bump_need(st, need, AID_BUMP)
 	_log("ORDER aid %s (%s)" % [st.name, need])
 	return true
 
@@ -4209,7 +4265,7 @@ func _order_pay(did: String) -> bool:
 			return false
 		stock.tokens = int(stock.tokens) - int(d.amount)
 		d.paid = true
-		_add_opinion(str(d.faction), 5)
+		_add_opinion(str(d.faction), PAY_OPINION)
 		_log("ORDER paid %s %d tokens" % [_fname(str(d.faction)), int(d.amount)])
 		return true
 	return false
@@ -4224,6 +4280,360 @@ func _order_gift(fid: String) -> bool:
 	_add_opinion(fid, int(bal.gift_opinion))
 	_log("ORDER gift to %s (now %d)" % [_fname(fid), int(opinions[fid])])
 	return true
+
+
+## Gift lands on the faction that owns the station (_order_gift), so the toast names that faction, not the station.
+func _gift_faction(sid: String) -> String:
+	if not stations.has(sid):
+		return ""
+	var fid := str(stations[sid].owner)
+	if fid == "" or fid == player or fid == "synod" or not opinions.has(fid):
+		return ""
+	return fid
+
+
+func _gift_delta(sid: String) -> int:
+	var fid := _gift_faction(sid)
+	if fid == "" or bool(at_war.get(fid, false)):
+		return 0
+	return int(bal.get("gift_opinion", 0))
+
+
+## Aid's step is AID_BUMP. No step is left when the worst need is already full, so the button stays hidden.
+func _aid_delta(sid: String) -> bool:
+	if not stations.has(sid) or not borders_player(sid):
+		return false
+	var st: Dictionary = stations[sid]
+	if str(st.owner) in ["bunker", "ruin"] or str(st.get("bunker", "")) != "":
+		return false
+	var need := _lowest_need(st)
+	if need == "":
+		return false
+	return _need_fill(st, need) < 1.0
+
+
+func _pay_delta(sid: String) -> int:
+	var due := open_demand_for(sid)
+	if due.is_empty():
+		return 0
+	var fid := str(due.get("faction", ""))
+	if fid == "" or fid == "synod" or not opinions.has(fid):
+		return 0
+	return PAY_OPINION
+
+
+## False when that verb changes nothing today, so the card does not invent a button.
+func verb_shown(kind: String, sid: String) -> bool:
+	match kind:
+		"gift":
+			return _gift_delta(sid) != 0
+		"aid":
+			return _aid_delta(sid)
+		"pay":
+			return _pay_delta(sid) != 0
+	return false
+
+
+func open_demand_for(sid: String) -> Dictionary:
+	if not stations.has(sid):
+		return {}
+	var fid := str(stations[sid].owner)
+	for d in demands:
+		if str(d.get("faction", "")) == fid and not bool(d.get("paid", false)):
+			return d
+	return {}
+
+
+func _demand_queued(did: String) -> bool:
+	for row in queued_orders:
+		if str(row.get("kind", "")) == "pay" and str(row.get("action", {}).get("demand", "")) == did:
+			return true
+	return false
+
+
+func _aid_price(need: String) -> Dictionary:
+	if need == "air":
+		return {"air": 6}
+	if need == "food" or need == "work":
+		return {"food": int(bal.get("aid_food", 0))}
+	if need == "":
+		return {}
+	return {"materials": 4}
+
+
+func _need_fill(st: Dictionary, need_id: String) -> float:
+	for need in st.get("needs", []):
+		if str(need.get("id", "")) == need_id:
+			return float(need.get("fill", 0.0))
+	return 0.0
+
+
+func _soft_action(kind: String, sid: String) -> Dictionary:
+	var action := {"order": kind, "station": sid}
+	if kind == "gift":
+		action["faction"] = _gift_faction(sid)
+	elif kind == "pay":
+		var due := open_demand_for(sid)
+		action["demand"] = str(due.get("id", ""))
+		action["faction"] = str(due.get("faction", ""))
+	return action
+
+
+## The line the map toasts when the order is queued. Empty for every other order.
+func order_toast(kind: String, action: Dictionary) -> String:
+	match kind:
+		"gift":
+			var fid := str(action.get("faction", ""))
+			if fid == "":
+				fid = _gift_faction(str(action.get("station", "")))
+			var n := int(bal.get("gift_opinion", 0))
+			if fid == "" or n == 0:
+				return ""
+			return Copy.fill("order.toast_gift", {"faction": Copy.t(_fname(fid)), "n": str(n)})
+		"aid":
+			var sid := str(action.get("station", ""))
+			if not stations.has(sid):
+				return ""
+			var need := _lowest_need(stations[sid])
+			if need == "":
+				return ""
+			var place := station_text(sid, "community")
+			if place == "":
+				place = Copy.t(str(stations[sid].get("name", sid)))
+			return Copy.fill("order.toast_aid", {"station": place, "need": Copy.t(need)})
+		"pay":
+			var fid := str(action.get("faction", ""))
+			if fid == "":
+				fid = str(open_demand_for(str(action.get("station", ""))).get("faction", ""))
+			if fid == "" or PAY_OPINION == 0:
+				return ""
+			return Copy.fill("order.toast_pay", {"faction": Copy.t(_fname(fid)), "n": str(PAY_OPINION)})
+	return ""
+
+
+func _aid_block(sid: String) -> String:
+	if not _aid_delta(sid):
+		return Copy.t("No such order.")
+	var cost := _aid_price(_lowest_need(stations[sid]))
+	for key in cost:
+		if int(stock.get(key, 0)) < int(cost[key]):
+			return Copy.t("Not enough %s.") % Copy.res(key)
+	return ""
+
+
+func _gift_block(sid: String) -> String:
+	if _gift_delta(sid) == 0:
+		return Copy.t("No such order.")
+	if int(stock.get("tokens", 0)) < int(bal.get("gift_tokens", 0)):
+		return Copy.t("Not enough tokens.")
+	return ""
+
+
+func _pay_block(sid: String) -> String:
+	var due := open_demand_for(sid)
+	if due.is_empty() or _pay_delta(sid) == 0:
+		return Copy.t("No such order.")
+	if _demand_queued(str(due.get("id", ""))):
+		return Copy.t("That demand is already being paid.")
+	if int(stock.get("tokens", 0)) < int(due.get("amount", 0)):
+		return Copy.t("Not enough tokens.")
+	return ""
+
+
+## Dawn card for Gift, Aid and Pay: the same before → after the toast promised. Numbers are what the order just did.
+func _soft_order_report(kind: String, action: Dictionary, who: String, place: String, before: Dictionary) -> Dictionary:
+	var out := {"title": Copy.t("Dawn report"), "text": ""}
+	if kind == "aid":
+		var sid := str(action.get("station", ""))
+		var need := str(before.get("need", ""))
+		var old_pct := int(round(float(before.get("need_fill", 0.0)) * 100.0))
+		var new_pct := old_pct
+		if stations.has(sid) and need != "":
+			new_pct = int(round(_need_fill(stations[sid], need) * 100.0))
+		var need_name := Copy.t(need) if need != "" else ""
+		out.title = Copy.fill("order.report_aid_title", {"station": place})
+		out.text = "%s · %s %s %s %s" % [
+			who, place,
+			Copy.fill("order.report_aid_body", {"station": place}),
+			Copy.fill("order.report_aid_need", {"need": need_name, "old": str(old_pct), "new": str(new_pct)}),
+			Copy.t("order.report_aid_outcome"),
+		]
+		out.before = old_pct
+		out.after = new_pct
+		out.need = need
+		return out
+	var fid := str(before.get("faction", action.get("faction", "")))
+	var was := int(before.get("opinion", 0))
+	var now := int(opinions.get(fid, was))
+	var faction_name := Copy.t(_fname(fid))
+	var opinion := Copy.fill("order.report_opinion", {"before": str(was), "after": str(now), "n": str(now - was)})
+	if kind == "pay":
+		out.title = Copy.t("order.report_pay_title")
+		out.text = "%s · %s %s %s %s" % [
+			who, place,
+			Copy.fill("order.report_pay_body", {"faction": faction_name}),
+			opinion,
+			Copy.t("order.report_pay_outcome"),
+		]
+	else:
+		out.title = Copy.fill("order.report_gift_title", {"faction": faction_name})
+		out.text = "%s · %s %s %s %s" % [
+			who, place,
+			Copy.fill("order.report_gift_body", {"faction": faction_name}),
+			opinion,
+			Copy.t("order.report_gift_outcome"),
+		]
+	out.before = was
+	out.after = now
+	out.faction = fid
+	return out
+
+
+## Lasting mark after a soft order lands. Gift and Pay float the real opinion step; Aid ticks the need bar.
+## No float when the step clamped to nothing.
+func _note_soft_mark(kind: String, report: Dictionary) -> void:
+	if kind == "aid":
+		need_ticks.append({
+			"station": str(report.get("station", "")),
+			"need": str(report.get("need", "")),
+			"old": int(report.get("before", 0)),
+			"new": int(report.get("after", 0)),
+			"week": week,
+		})
+		map_marks.append({"kind": "aid", "station": str(report.get("station", "")), "text": ""})
+		return
+	var step := int(report.get("after", 0)) - int(report.get("before", 0))
+	if step == 0:
+		return
+	map_marks.append({
+		"kind": kind,
+		"faction": str(report.get("faction", "")),
+		"station": str(report.get("station", "")),
+		"text": "+%d" % step,
+	})
+
+
+func _expire_need_ticks() -> void:
+	var keep: Array = []
+	for row in need_ticks:
+		if int(row.get("week", 0)) == week:
+			keep.append(row)
+	need_ticks = keep
+
+
+## 0..1 from the run seed and week, so a rumor does not consume the balance streams.
+func _rumor_unit(salt: int) -> float:
+	var n := int(seed) * 100003 + week * 10007 + salt * 9176 + 13
+	n = (n * 1103515245 + 12345) & 0x7fffffff
+	n = (n ^ (n >> 16)) & 0x7fffffff
+	return float(n % 10000) / 10000.0
+
+
+func rumor_truth_chance() -> float:
+	return 0.9 if _has_radio() else 0.6
+
+
+func rumor_count() -> int:
+	return 1 if _rumor_live() else 0
+
+
+func _rumor_live() -> bool:
+	if rumor.is_empty():
+		return false
+	if week >= int(rumor.get("week_until", 0)):
+		return false
+	var sid := str(rumor.get("station", ""))
+	if not stations.has(sid):
+		return false
+	var st: Dictionary = stations[sid]
+	if str(st.owner) == player:
+		return false
+	if bool(rumor.get("blind", false)) and bool(st.get("known", false)):
+		return false
+	if int(st.get("sympathy", 0)) > 0 or int(st.get("deals", 0)) > 0:
+		return false
+	return true
+
+
+func _rumor_candidate(sid: String) -> bool:
+	if not stations.has(sid) or sid == capital_id:
+		return false
+	var st: Dictionary = stations[sid]
+	var owner := str(st.owner)
+	if owner == player or owner == "bunker" or owner == "ruin":
+		return false
+	if bool(st.get("hidden", false)) and not bool(st.get("known", false)):
+		return false
+	if not bool(st.get("known", false)):
+		return true
+	return int(st.get("sympathy", 0)) <= 0 and int(st.get("deals", 0)) <= 0
+
+
+func _rumor_pool() -> Array:
+	var seen := {}
+	for owned in _owned_by(player):
+		for n in _neighbors(str(owned)):
+			var sid := str(n)
+			if _rumor_candidate(sid):
+				seen[sid] = true
+	for intent in telegraphed:
+		var sid := str(intent.get("station", ""))
+		if _rumor_candidate(sid):
+			seen[sid] = true
+	var pool: Array = seen.keys()
+	pool.sort()
+	return pool
+
+
+## Exactly one rumor, or none when every neighbour is already known and courted.
+func _roll_rumor() -> void:
+	if _rumor_live():
+		return
+	rumor = {}
+	var pool := _rumor_pool()
+	if pool.is_empty():
+		return
+	var pick := int(_rumor_unit(1) * pool.size())
+	if pick >= pool.size():
+		pick = pool.size() - 1
+	var sid := str(pool[pick])
+	var line_i := int(_rumor_unit(3) * RUMOR_LINES.size())
+	if line_i >= RUMOR_LINES.size():
+		line_i = RUMOR_LINES.size() - 1
+	var st: Dictionary = stations[sid]
+	rumor = {
+		"station": sid,
+		"text_key": str(RUMOR_LINES[line_i]),
+		"week_until": week + RUMOR_WEEKS,
+		"true": _rumor_unit(2) < rumor_truth_chance(),
+		"blind": not bool(st.get("known", false)),
+	}
+
+
+func rumor_label() -> String:
+	if not _rumor_live():
+		return ""
+	var sid := str(rumor.get("station", ""))
+	var community := station_text(sid, "community")
+	if community == "":
+		return Copy.t("rumor.chip_fallback")
+	return Copy.fill("rumor.chip_label", {"community": community})
+
+
+func rumor_toast() -> String:
+	if not _rumor_live():
+		return ""
+	var sid := str(rumor.get("station", ""))
+	var community := station_text(sid, "community")
+	if community == "":
+		community = Copy.t("rumor.chip_fallback")
+	var line := Copy.fill(str(rumor.get("text_key", "")), {"community": community})
+	if line == "" or line == str(rumor.get("text_key", "")):
+		line = community
+	var prefix := Copy.t("rumor.toast_prefix")
+	if prefix != "" and not line.begins_with(prefix):
+		return "%s %s" % [prefix, line]
+	return line
 
 
 func _order_trade() -> bool:
@@ -4544,11 +4954,16 @@ func _resolve_intent(intent: Dictionary) -> void:
 	var hidden := bool(intent.get("hidden", false))
 	if _faction_dead(fid) or not squads.has(fid):
 		return
+	var sid := str(intent.get("station", ""))
+	var from_station := str(squads[fid].get("station", ""))
+	var owner_before := str(stations[sid].owner) if stations.has(sid) else ""
+	var sym_before := int(stations[sid].rival_symp.get(fid, 0)) if stations.has(sid) else 0
+	var size_before := int(squads[fid].get("size", 0))
 	match kind:
 		"buy":
-			_resolve_buy(fid, str(intent.get("station", "")))
+			_resolve_buy(fid, sid)
 		"squad":
-			_resolve_squad(fid, str(intent.get("station", "")))
+			_resolve_squad(fid, sid)
 		"secure":
 			squads[fid].secure = maxi(0, int(squads[fid].secure) - 1)
 			if not hidden:
@@ -4560,6 +4975,70 @@ func _resolve_intent(intent: Dictionary) -> void:
 		if Copy.ru():
 			quiet = "No warning from %s." % Copy.t(_fname(fid))
 		_log(quiet, true)
+	if not hidden:
+		_queue_intent_playback(intent, from_station, owner_before, sym_before, size_before)
+
+
+## One result chip for a visible intent. Kinds that exist today: buy, squad, hold, secure, demand_posted.
+## Preached is art only; this does not invent a preach verb.
+func _queue_intent_playback(intent: Dictionary, from_station: String, owner_before: String, sym_before: int, size_before: int) -> void:
+	var fid := str(intent.get("faction", ""))
+	var kind := str(intent.get("kind", ""))
+	var sid := str(intent.get("station", ""))
+	var chip := ""
+	var at := sid
+	match kind:
+		"buy":
+			if not stations.has(sid) or owner_before != "neutral":
+				chip = "map.chip.bought_fail"
+			elif str(stations[sid].owner) == fid:
+				chip = "map.chip.bought_faction"
+			elif int(stations[sid].rival_symp.get(fid, 0)) > sym_before and sym_before > 0:
+				chip = "map.chip.bought_soft"
+			elif int(stations[sid].rival_symp.get(fid, 0)) > sym_before:
+				chip = "map.chip.bought"
+			else:
+				chip = "map.chip.bought_fail"
+		"squad":
+			var here := str(squads[fid].get("station", ""))
+			if here != from_station and stations.has(here):
+				var owner := str(stations[here].owner)
+				chip = "map.chip.marched_faction" if owner != "" and owner != "neutral" and owner != fid and owner != player else "map.chip.marched"
+				if owner == player:
+					chip = "map.chip.marched"
+				at = here
+			elif int(squads[fid].get("size", 0)) > size_before:
+				chip = "map.chip.held"
+				at = from_station
+			else:
+				chip = "map.chip.marched_back"
+				at = from_station
+		"secure":
+			chip = "map.chip.secured"
+			at = str(squads[fid].get("station", sid))
+		"hold":
+			chip = "map.chip.held"
+			at = from_station
+		"demand_posted":
+			chip = "map.chip.demanded"
+			at = from_station
+		_:
+			return
+	var dest := at if at != "" else sid
+	var path: Array = []
+	if from_station != "" and dest != "" and from_station != dest and stations.has(from_station) and stations.has(dest):
+		path = _path(from_station, dest)
+	elif dest != "" and stations.has(dest):
+		path = [dest]
+	elif from_station != "" and stations.has(from_station):
+		path = [from_station]
+	map_playback.append({
+		"faction": fid,
+		"kind": kind,
+		"chip": chip,
+		"station": dest,
+		"path": path.duplicate(),
+	})
 
 
 func _resolve_buy(fid: String, sid: String) -> void:
@@ -7633,13 +8112,6 @@ func _bump_need(st: Dictionary, need_id: String, amount: float) -> void:
 			need.fill = clampf(float(need.fill) + amount, 0.0, 1.0)
 
 
-func _need_fill(st: Dictionary, need_id: String) -> float:
-	for need in st.get("needs", []):
-		if str(need.get("id", "")) == need_id:
-			return float(need.get("fill", 0.0))
-	return 0.0
-
-
 func _demand_open(fid: String) -> bool:
 	for d in demands:
 		if str(d.faction) == fid and not bool(d.paid):
@@ -8825,7 +9297,7 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock", "address_week", "hardship_now", "chronicle", "departed", "burials", "creed", "notices", "combat_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results",
+	"power_zero_streak", "rally_lock", "address_week", "hardship_now", "chronicle", "departed", "burials", "creed", "notices", "combat_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results", "rumor",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
@@ -8839,7 +9311,9 @@ const PERSIST := [
 ## every person; older saves get them from the profiles and names on load (_dress_legacy). Version 8 added
 ## "governor" to every station; older saves start with no governors. Version 9 added "address_week"; older saves
 ## start with the platform not yet addressed. Version 10 added the chronicle, departures, and burials.
-const SAVE_SCHEMA := 11
+## Version 11 added the truce lock from tunnel combat; older saves start with none.
+## Version 12 added the map rumor; older saves start with none.
+const SAVE_SCHEMA := 12
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -8871,6 +9345,8 @@ const V8_ADDED := ["address_week"]
 const V9_ADDED := ["hardship_now", "chronicle", "departed", "burials", "creed", "notices"]
 ## Fields a version 1 to 10 save may lack: no truce lock from tunnel combat yet.
 const V10_ADDED := ["combat_lock"]
+## Fields a version 1 to 11 save may lack: no map rumor yet.
+const V11_ADDED := ["rumor"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -8927,7 +9403,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}

@@ -215,6 +215,154 @@
     "en": "Joins Quarters: +4 housing, 2 fewer workers. Shares power, sickness and disasters.",
     "ru": "Стыкуется с Жильём: +4 жилья, на 2 меньше рабочих. Общие энергия, болезнь и беды."
   },
+  "map.chip.bought": {
+    "en": "Bought {station}",
+    "ru": "Купили {station}"
+  },
+  "map.chip.bought_faction": {
+    "en": "{faction} bought {station}",
+    "ru": "{faction} купили {station}"
+  },
+  "map.chip.bought_fail": {
+    "en": "Buy failed at {station}",
+    "ru": "Покупка у {station} сорвалась"
+  },
+  "map.chip.bought_soft": {
+    "en": "Soft buy at {station}",
+    "ru": "Мягкая покупка у {station}"
+  },
+  "map.chip.demanded": {
+    "en": "Demanded tokens",
+    "ru": "Потребовали жетоны"
+  },
+  "map.chip.held": {
+    "en": "Holding",
+    "ru": "Держат"
+  },
+  "map.chip.marched": {
+    "en": "Marched on {station}",
+    "ru": "Марш на {station}"
+  },
+  "map.chip.marched_back": {
+    "en": "Fell back",
+    "ru": "Отошли"
+  },
+  "map.chip.marched_faction": {
+    "en": "{faction} marched",
+    "ru": "{faction} вышли"
+  },
+  "map.chip.preached": {
+    "en": "Preached at {station}",
+    "ru": "Проповедь у {station}"
+  },
+  "map.chip.secured": {
+    "en": "Securing {station}",
+    "ru": "Закрепляют {station}"
+  },
+  "order.aid": {
+    "en": "Aid",
+    "ru": "Помощь"
+  },
+  "order.gift": {
+    "en": "Gift",
+    "ru": "Подарок"
+  },
+  "order.pay": {
+    "en": "Pay",
+    "ru": "Заплатить"
+  },
+  "order.report_aid_body": {
+    "en": "We sent what {station} needed most.",
+    "ru": "Мы отправили то, что {station} нужнее всего."
+  },
+  "order.report_aid_need": {
+    "en": "{need}: {old}% → {new}%.",
+    "ru": "{need}: {old}% → {new}%."
+  },
+  "order.report_aid_outcome": {
+    "en": "Their worst need eased a little.",
+    "ru": "Их худшая нужда чуть отступила."
+  },
+  "order.report_aid_title": {
+    "en": "Aid reaches {station}",
+    "ru": "Помощь дошла до {station}"
+  },
+  "order.report_gift_body": {
+    "en": "Tokens left the yard for {faction}.",
+    "ru": "Жетоны ушли со двора к {faction}."
+  },
+  "order.report_gift_outcome": {
+    "en": "They took the tokens without a word.",
+    "ru": "Они приняли жетоны без слов."
+  },
+  "order.report_gift_title": {
+    "en": "A gift to {faction}",
+    "ru": "Подарок для {faction}"
+  },
+  "order.report_opinion": {
+    "en": "Opinion {before} → {after} (+{n}).",
+    "ru": "Мнение {before} → {after} (+{n})."
+  },
+  "order.report_pay_body": {
+    "en": "The demand from {faction} is settled.",
+    "ru": "Требование {faction} закрыто."
+  },
+  "order.report_pay_outcome": {
+    "en": "The ledger marks it paid.",
+    "ru": "В гроссбухе стоит: оплачено."
+  },
+  "order.report_pay_title": {
+    "en": "Demand paid",
+    "ru": "Требование оплачено"
+  },
+  "order.toast_aid": {
+    "en": "Aid → {station} · {need} improves",
+    "ru": "Помощь → {station} · {need} лучше"
+  },
+  "order.toast_gift": {
+    "en": "Gift → {faction} · Opinion ~+{n}",
+    "ru": "Подарок → {faction} · Мнение ~+{n}"
+  },
+  "order.toast_pay": {
+    "en": "Pay → {faction} · Opinion ~+{n}",
+    "ru": "Оплата → {faction} · Мнение ~+{n}"
+  },
+  "rumor.chip_fallback": {
+    "en": "Rumor",
+    "ru": "Слух"
+  },
+  "rumor.chip_label": {
+    "en": "{community}",
+    "ru": "{community}"
+  },
+  "rumor.line_01": {
+    "en": "Word is {community} is short on food.",
+    "ru": "Говорят, у {community} кончается еда."
+  },
+  "rumor.line_02": {
+    "en": "Someone says the air at {community} tastes thin.",
+    "ru": "Кто-то сказал, что воздух у {community} уже жидкий."
+  },
+  "rumor.line_03": {
+    "en": "Rumor: {community}'s lamps flicker after midnight.",
+    "ru": "Слух: у {community} после полуночи мигают лампы."
+  },
+  "rumor.line_04": {
+    "en": "A runner swears a squad left for {community}.",
+    "ru": "Бегун клянётся, что отряд ушёл к {community}."
+  },
+  "rumor.line_05": {
+    "en": "They say the Exchange is leaning on {community}.",
+    "ru": "Говорят, Биржа давит на {community}."
+  },
+  "rumor.line_06": {
+    "en": "Floor talk: something moved under {community}.",
+    "ru": "Говорят на Этаже: под {community} что-то шевельнулось."
+  },
+  "rumor.toast_prefix": {
+    "en": "Rumor:",
+    "ru": "Слух:"
+  },
   "breach.confirm_body": {
     "en": "Spend 6 materials and 1 order. You can hold one kit.",
     "ru": "Потратить 6 материалов и 1 приказ. Держать можно один набор."
@@ -818,5 +966,29 @@
   "push.toast_ok": {
     "en": "{room} pushed. Output doubles tonight.",
     "ru": "{room}: нажали. Ночной выход удвоится."
+  },
+  "order.toast_cancel": {
+    "en": "Order cancelled · {role}",
+    "ru": "Приказ отменён · {role}"
+  },
+  "order.toast_garrison": {
+    "en": "Garrison → {station}",
+    "ru": "Гарнизон → {station}"
+  },
+  "order.toast_expedition": {
+    "en": "Expedition queued · {station}",
+    "ru": "Экспедиция в очереди · {station}"
+  },
+  "order.toast_expedition_plain": {
+    "en": "Expedition queued",
+    "ru": "Экспедиция в очереди"
+  },
+  "people.empty_free": {
+    "en": "No one free — everyone is posted or on a crew.",
+    "ru": "Свободных нет — все на постах или в бригаде."
+  },
+  "map.tip_unknown_border": {
+    "en": "Unknown · borders your line",
+    "ru": "Неизвестно · граничит с вашей линией"
   }
 }

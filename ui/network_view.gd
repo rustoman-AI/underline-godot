@@ -510,8 +510,18 @@ func _process(delta: float) -> void:
 		_splashes = _splashes.filter(func(row): return float(row.age) < SPLASH_S)
 		busy = true
 	var game_now = _game()
+	if game_now != null:
+		drain_map_playback(game_now)
 	if game_now != null and not game_now.telegraphed.is_empty() and not _motion_off():
 		busy = true
+	if not _plays.is_empty() or not _marks.is_empty():
+		for row in _plays:
+			row.age = float(row.age) + delta
+		_plays = _plays.filter(func(row): return float(row.age) < PLAY_S)
+		for row in _marks:
+			row.age = float(row.age) + delta
+		_marks = _marks.filter(func(row): return float(row.age) < MARK_S)
+		ink_busy = true
 	if not _walks.is_empty():
 		for fid in _walks.keys():
 			_walks[fid].t = float(_walks[fid].t) + delta
@@ -1124,6 +1134,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	var game = _game()
 	if game == null:
 		return
+	drain_map_playback(game)
 	_ready_fonts()
 	var view := _view()
 	c.draw_set_transform_matrix(view * _map_xf)
@@ -1143,6 +1154,8 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_yields(c, game)
 	_draw_governors(c, game)
 	_draw_flags(c, game)
+	_draw_playback(c, game)
+	_draw_soft_marks(c, game)
 	_draw_unit_routes(c, game)
 	_draw_legend(c, game)
 
@@ -1912,6 +1925,7 @@ func _order_icon(kind: String) -> String:
 
 
 func _draw_flags(c: CanvasItem, game) -> void:
+	_rumor_hit = Rect2()
 	var src: Rect2 = _pin_rects.get("flag", Rect2())
 	for row in game.queued_orders:
 		var target := str(row.get("target", ""))
@@ -1934,6 +1948,160 @@ func _draw_flags(c: CanvasItem, game) -> void:
 		if icon != null:
 			var s := clampf(dst.y * 0.3, 10.0, 22.0)
 			c.draw_texture_rect(icon, Rect2(corner + FLAG_CLOTH * dst - Vector2(s, s) * 0.5, Vector2(s, s)), false, Color(0.45, 0.2, 0.14, 0.85))
+	_draw_rumor(c, game)
+
+
+func _draw_rumor(c: CanvasItem, game) -> void:
+	if game.rumor_count() != 1:
+		return
+	var sid := str(game.rumor.get("station", ""))
+	if not _layout.has(sid):
+		return
+	var info: Dictionary = _layout[sid]
+	var label: String = game.rumor_label()
+	var font := _font()
+	var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x if label != "" else 0.0
+	var w := 8.0 + 14.0 + (6.0 + text_w if label != "" else 0.0) + 6.0
+	var h := 20.0
+	var at: Vector2 = info.at + Vector2(-float(info.r) * 0.2, -float(info.r) - h - 4.0)
+	var box := Rect2(at, Vector2(w, h))
+	c.draw_rect(box, TAG_PAPER)
+	c.draw_rect(box, Color(TAG_INK, 0.85), false, 1.0)
+	var icon := ArtPack.icon_texture("rumor", 14.0)
+	var icon_at := at + Vector2(4.0, 3.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(icon_at, Vector2(14, 14)), false)
+	if label != "":
+		c.draw_string(font, at + Vector2(22.0, 15.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TAG_INK)
+	_rumor_hit = box
+
+
+## Pulls the sim's playback and mark queues into this view. Drawing and the visible-map tick both call it,
+## so the sim queue is empty as soon as the map has looked.
+func drain_map_playback(game) -> void:
+	if game == null:
+		return
+	for row in game.map_playback:
+		var play: Dictionary = row.duplicate(true)
+		play["age"] = 0.0
+		_plays.append(play)
+	game.map_playback.clear()
+	for row in game.map_marks:
+		var mark: Dictionary = row.duplicate(true)
+		mark["age"] = 0.0
+		_marks.append(mark)
+	game.map_marks.clear()
+
+
+func _intent_art(chip_key: String) -> String:
+	if chip_key.begins_with("map.chip.bought"):
+		return "intent_bought"
+	if chip_key.begins_with("map.chip.marched"):
+		return "intent_marched"
+	if chip_key == "map.chip.held" or chip_key == "map.chip.secured":
+		return "intent_held"
+	if chip_key.begins_with("map.chip.preach"):
+		return "intent_preached"
+	return ""
+
+
+func _chip_line(game, play: Dictionary) -> String:
+	var sid := str(play.get("station", ""))
+	var community: String = game.station_text(sid, "community") if sid != "" else ""
+	var fid := str(play.get("faction", ""))
+	var faction: String = Copy.t(game._fname(fid)) if fid != "" else ""
+	return Copy.fill(str(play.get("chip", "")), {"station": community, "faction": faction})
+
+
+func _playback_anchor(play: Dictionary) -> Vector2:
+	var sid := str(play.get("station", ""))
+	if sid != "" and _layout.has(sid):
+		var row: Dictionary = _layout[sid]
+		return (row.at as Vector2) + Vector2(0, -float(row.r) - 18.0)
+	var path: Array = play.get("path", [])
+	if not path.is_empty() and _layout.has(str(path[-1])):
+		return (_layout[str(path[-1])].at as Vector2) + Vector2(0, -28.0)
+	return Vector2.ZERO
+
+
+func _play_points(play: Dictionary) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for hop in play.get("path", []):
+		if _layout.has(str(hop)):
+			pts.append(_layout[str(hop)].at)
+	return pts
+
+
+func _draw_playback(c: CanvasItem, game) -> void:
+	var font := _font()
+	var hop := not _motion_off()
+	for play in _plays:
+		var age := float(play.get("age", 0.0))
+		if hop and age < HOP_S:
+			var pts := _play_points(play)
+			if pts.size() > 0:
+				var k := clampf(age / HOP_S, 0.0, 1.0)
+				k = k * k * (3.0 - 2.0 * k)
+				var at := pts[0]
+				if pts.size() >= 2:
+					at = _along(pts, k * _poly_length(pts))[0]
+				at += Vector2(0, -16.0 * sin(k * PI))
+				var col := _faction_color(game, str(play.get("faction", "")))
+				c.draw_circle(at, 9.0, Color(col, 0.95))
+				c.draw_circle(at, 5.0, Color(col.lightened(0.35), 0.95))
+		if age >= PLAY_S:
+			continue
+		var anchor := _playback_anchor(play)
+		var art := _intent_art(str(play.get("chip", "")))
+		var col := _faction_color(game, str(play.get("faction", "")))
+		if art != "":
+			var tint := ArtPack.map_chip(art, true)
+			var ink := ArtPack.map_chip(art, false)
+			var rect := Rect2(anchor - Vector2(16, 16), Vector2(32, 32))
+			if tint != null:
+				c.draw_texture_rect(tint, rect, false, col)
+			if ink != null:
+				c.draw_texture_rect(ink, rect, false)
+		var text := _chip_line(game, play)
+		if text == "":
+			continue
+		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+		var text_at := anchor + Vector2(-text_size.x * 0.5, 28.0)
+		var plate := Rect2(text_at + Vector2(-4, -13), Vector2(text_size.x + 8, 18))
+		c.draw_rect(plate, Color(TAG_INK, 0.88))
+		c.draw_string(font, text_at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TAG_PAPER)
+
+
+func _mark_station(game, mark: Dictionary) -> String:
+	var kind := str(mark.get("kind", ""))
+	if kind == "gift" or kind == "pay":
+		var fid := str(mark.get("faction", ""))
+		if game.catalog.factions.has(fid):
+			return str(game.catalog.factions[fid].get("capital", ""))
+	return str(mark.get("station", ""))
+
+
+func _draw_soft_marks(c: CanvasItem, game) -> void:
+	var font := _font()
+	for mark in _marks:
+		var age := float(mark.get("age", 0.0))
+		if age >= MARK_S:
+			continue
+		var sid := _mark_station(game, mark)
+		if not _layout.has(sid):
+			continue
+		var row: Dictionary = _layout[sid]
+		var rise := 0.0 if _motion_off() else -18.0 * (age / MARK_S)
+		var at: Vector2 = (row.at as Vector2) + Vector2(float(row.r) * 0.6, -float(row.r) + rise)
+		var stamp := ArtPack.map_stamp(str(mark.get("kind", "")))
+		var fade := 1.0 - clampf(age / MARK_S, 0.0, 1.0)
+		if stamp != null:
+			c.draw_texture_rect(stamp, Rect2(at - Vector2(11, 11), Vector2(22, 22)), false, Color(1, 1, 1, fade))
+		var text := str(mark.get("text", ""))
+		if text == "":
+			continue
+		var text_at := at + Vector2(14, 4)
+		c.draw_string(font, text_at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(TAG_PAPER, fade))
 
 
 func _pin_at(game, sid: String) -> Vector2:
@@ -2082,6 +2250,13 @@ var _chip_hover := ""
 var _focus_menu: PopupMenu
 var _focus_menu_sid := ""
 const FOCUS_ORDER := ["food", "air", "defense", "influence"]
+## Rival result chips stay up for 2s. The colour hop is the first 0.6s, skipped when motion is reduced.
+const PLAY_S := 2.0
+const HOP_S := 0.6
+const MARK_S := 0.6
+var _plays: Array = []
+var _marks: Array = []
+var _rumor_hit := Rect2()
 
 
 func _chip_at(screen_at: Vector2) -> String:
@@ -2829,6 +3004,12 @@ func _gui_input(event: InputEvent) -> void:
 			_wheel_zoom(button.position, 1.0 / 1.12)
 			accept_event()
 		elif button.button_index == MOUSE_BUTTON_LEFT:
+			if button.pressed and _rumor_hit.size.x > 1.0 and _rumor_hit.has_point(button.position):
+				var game = _game()
+				if game != null and host != null and host.has_method("_toast"):
+					host._toast(game.rumor_toast(), 3.2)
+				accept_event()
+				return
 			if button.pressed and button.double_click:
 				var aimed := _station_at(button.position)
 				var game = _game()
@@ -2853,12 +3034,17 @@ func _gui_input(event: InputEvent) -> void:
 		var motion := event as InputEventMouseMotion
 		var hit := _station_at(motion.position)
 		var chip := _chip_at(motion.position) if hit == "" else ""
+		var on_rumor := _rumor_hit.size.x > 1.0 and _rumor_hit.has_point(motion.position)
 		if hit != _hover or chip != _chip_hover:
 			_hover = hit
 			_chip_hover = chip
 			_redraw()
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hit != "" or chip != "" else Control.CURSOR_ARROW
-		tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hit != "" or chip != "" or on_rumor else Control.CURSOR_ARROW
+		if on_rumor:
+			var game = _game()
+			tooltip_text = game.rumor_label() if game != null else ""
+		else:
+			tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
 		if _drag:
 			origin -= motion.relative / zoom
 			_clamp_view()
@@ -2921,7 +3107,12 @@ func _tip(sid: String) -> String:
 		return ""
 	var st: Dictionary = game.stations[sid]
 	if not bool(st.get("known", false)):
-		return Copy.t("Hidden station") if bool(st.get("hidden", false)) else ""
+		if bool(st.get("hidden", false)):
+			return Copy.t("Hidden station")
+		## C6 alias for the future border whisper (border.tip_unknown). The tip only.
+		if game.borders_player(sid):
+			return Copy.t("map.tip_unknown_border")
+		return ""
 	var lines: PackedStringArray = [game.station_text(sid, "community")]
 	for intent in game.telegraphed:
 		if bool(intent.get("hidden", false)):
@@ -3286,7 +3477,7 @@ func _fill_sheet_body(sid: String) -> void:
 		details.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
 		if int(st.unrest) > 0:
 			details.add_child(_lab("%s: %s" % [Copy.t("Unrest"), str(int(st.unrest))], 14, false))
-		_add_needs(st, details)
+		_add_needs(st, details, sid)
 		var art: String = game.station_text(sid, "art")
 		if art != "":
 			details.add_child(_lab(art, 13, false))
@@ -3457,6 +3648,14 @@ func _issue(kind: String, sid: String) -> void:
 	var action := {"kind": "order", "order": kind}
 	if kind in ["move", "patrol", "raid", "assault"]:
 		action["dest"] = sid
+	elif kind == "gift":
+		action["station"] = sid
+		action["faction"] = game._gift_faction(sid)
+	elif kind == "pay":
+		action["station"] = sid
+		var due: Dictionary = game.open_demand_for(sid)
+		action["demand"] = str(due.get("id", ""))
+		action["faction"] = str(due.get("faction", ""))
 	elif APPROACHES.has(kind) or kind == "expedition":
 		pass
 	else:
@@ -3469,10 +3668,18 @@ func _issue(kind: String, sid: String) -> void:
 			host.note_spend(cost)
 		if host != null and host.has_method("_toast"):
 			var toast := ""
-			if kind in ["patrol", "raid", "assault"]:
+			if kind in ["gift", "aid", "pay"]:
+				toast = game.order_toast(kind, action)
+			elif kind in ["patrol", "raid", "assault"]:
 				toast = Copy.t("combat.toast_sent")
+			elif kind == "move":
+				toast = Copy.fill("order.toast_garrison", {"station": _place_name(game, sid)})
+			elif kind == "expedition":
+				toast = _expedition_toast(game)
 			else:
 				toast = _order_toast(kind, sid)
+			if toast == "":
+				toast = Copy.t("Order sent. The result comes at next dawn.")
 			host._toast(toast)
 		refresh()
 		if visit != null and visit.visible:
@@ -3481,7 +3688,23 @@ func _issue(kind: String, sid: String) -> void:
 			_fill_sheet(sid)
 
 
-func _need_bar(need_id: String, fill: float) -> Control:
+func _take_need_tick(sid: String, need_id: String) -> Dictionary:
+	var game = _game()
+	if game == null or sid == "" or need_id == "":
+		return {}
+	for i in game.need_ticks.size():
+		var row: Dictionary = game.need_ticks[i]
+		if str(row.get("station", "")) == sid and str(row.get("need", "")) == need_id and int(row.get("week", -1)) == int(game.week):
+			game.need_ticks.remove_at(i)
+			return row
+	return {}
+
+
+func _need_bar(need_id: String, fill: float, sid: String = "") -> Control:
+	var tick := _take_need_tick(sid, need_id)
+	var shown := clampf(fill, 0.0, 1.0)
+	if not tick.is_empty():
+		shown = clampf(float(tick.get("old", 0)) / 100.0, 0.0, 1.0)
 	var row := HBoxContainer.new()
 	var name := _lab(Copy.t(need_id), 14, false)
 	name.custom_minimum_size = Vector2(110, 18)
@@ -3490,7 +3713,7 @@ func _need_bar(need_id: String, fill: float) -> Control:
 	var bar := ProgressBar.new()
 	bar.min_value = 0
 	bar.max_value = 100
-	bar.value = clampf(fill, 0.0, 1.0) * 100.0
+	bar.value = shown * 100.0
 	bar.show_percentage = false
 	bar.custom_minimum_size = Vector2(120, 14)
 	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3503,10 +3726,19 @@ func _need_bar(need_id: String, fill: float) -> Control:
 	fill_box.bg_color = col
 	bar.add_theme_stylebox_override("fill", fill_box)
 	row.add_child(bar)
-	var num := _lab(str(int(round(clampf(fill, 0.0, 1.0) * 100.0))), 14, true)
+	var num := _lab(str(int(round(shown * 100.0))), 14, true)
 	num.add_theme_color_override("font_color", col)
 	num.custom_minimum_size = Vector2(36, 18)
 	row.add_child(num)
+	if not tick.is_empty():
+		var target := clampf(float(tick.get("new", 0)), 0.0, 100.0)
+		if _motion_off():
+			bar.value = target
+			num.text = str(int(round(target)))
+		else:
+			bar.value_changed.connect(func(v: float): num.text = str(int(round(v))))
+			var tw := bar.create_tween()
+			tw.tween_property(bar, "value", target, MARK_S)
 	return row
 
 
@@ -3567,6 +3799,12 @@ func _order_title(kind: String, sid: String = "") -> String:
 			return "Approach the Observatory"
 		"approach_quarantine":
 			return "Approach the Quarantine"
+		"gift":
+			return "Gift"
+		"aid":
+			return "Aid"
+		"pay":
+			return "Pay"
 		_:
 			return kind.capitalize()
 
@@ -3588,6 +3826,28 @@ func _station_label(game, sid: String) -> String:
 	if game == null or not game.stations.has(sid):
 		return sid
 	return Copy.t(str(game.stations[sid].get("name", sid)))
+
+
+func _place_name(game, sid: String) -> String:
+	if game == null or sid == "" or not game.stations.has(sid):
+		return ""
+	var place: String = game.station_text(sid, "community")
+	if place == "":
+		place = Copy.t(str(game.stations[sid].get("name", sid)))
+	return place
+
+
+## Expedition names its target when the queue has one. Otherwise the plain C6 line.
+func _expedition_toast(game) -> String:
+	var target := ""
+	if game != null and not game.queued_orders.is_empty():
+		var row: Dictionary = game.queued_orders.back()
+		if str(row.get("kind", "")) == "expedition":
+			target = str(row.get("target", ""))
+	var place := _place_name(game, target)
+	if place == "":
+		return Copy.t("order.toast_expedition_plain")
+	return Copy.fill("order.toast_expedition", {"station": place})
 
 
 func _order_toast(kind: String, sid: String) -> String:
@@ -3617,6 +3877,8 @@ func _cancel_seat(role: String) -> void:
 	var game = _game()
 	if game == null or not game.cancel_queued(role):
 		return
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.fill("order.toast_cancel", {"role": Copy.t(role.capitalize())}))
 	if host != null and host.has_method("_refresh"):
 		host._refresh()
 	refresh()
@@ -3624,13 +3886,13 @@ func _cancel_seat(role: String) -> void:
 		_fill_sheet(selected)
 
 
-func _add_needs(st: Dictionary, parent: Node) -> void:
+func _add_needs(st: Dictionary, parent: Node, sid: String = "") -> void:
 	var needs: Array = st.get("needs", [])
 	if needs.is_empty():
 		return
 	parent.add_child(_lab(Copy.t("Needs"), 14, true))
 	for need in needs:
-		parent.add_child(_need_bar(str(need.id), float(need.fill)))
+		parent.add_child(_need_bar(str(need.id), float(need.fill), sid))
 
 
 ## "Known for: food, materials": a station's two biggest own goods (data, docs/STATION_GOODS_PLAN.md). Empty for the
@@ -3666,7 +3928,7 @@ func _add_own_facts(game, st: Dictionary, sid: String, parent: Node, details: No
 		_add_governor(game, st, str(sid), parent)
 	parent.add_child(_lab(_supply_text(game, sid), 14, false))
 	parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
-	_add_needs(st, details)
+	_add_needs(st, details, sid)
 
 
 func _supply_text(game, sid: String) -> String:
@@ -3807,8 +4069,17 @@ func order_rows(game, own: bool, sid: String = "") -> Array:
 		rows.append(["patrol", "Patrol"])
 		if sid == "" or sid == str(game.capital_id):
 			rows.append(["breach", "Breach kit"])
+		if sid != "" and game.verb_shown("aid", sid):
+			rows.append(["aid", "Aid"])
 		return rows
 	var rows := [["envoy", "Send envoy"], ["propaganda", "Propaganda"], ["patrol", "Patrol"], ["raid", "Raid"], ["assault", "Assault"], ["move", "Move squad"], ["trade", "Open trade"], ["expedition", "Start expedition"]]
+	if sid != "":
+		if game.verb_shown("gift", sid):
+			rows.append(["gift", "Gift"])
+		if game.verb_shown("aid", sid):
+			rows.append(["aid", "Aid"])
+		if game.verb_shown("pay", sid):
+			rows.append(["pay", "Pay"])
 	if not game.floor_met:
 		rows.append(["approach", "Approach the Floor"])
 	if not game._scene_used("st3_quarantine"):
@@ -4199,7 +4470,7 @@ func _fill_visit(sid: String) -> void:
 	if who != "":
 		details.add_child(_lab(who, 15, false))
 	details.add_child(_lab("%s: %d" % [Copy.t("Loyalty"), int(st.loyalty)], 15, false))
-	_add_needs(st, details)
+	_add_needs(st, details, sid)
 	var trade := _trade_line(st)
 	if trade != "":
 		details.add_child(_lab(trade, 15, false))
