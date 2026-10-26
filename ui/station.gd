@@ -12,6 +12,13 @@ const PAPER_BUTTON := Color("3a3126")
 const PAPER_BUTTON_HOVER := Color("4a3f32")
 const PAPER_BUTTON_DOWN := Color("1a140e")
 const PAPER_EDGE := Color("b89a6a")
+## RELEASE_POLISH RP1. Week leads. Stocks sit one step under. Meters stay secondary.
+const HUD_WEEK_SIZE := 22
+const HUD_STOCK_SIZE := 20
+const HUD_DELTA_SIZE := 12
+const HUD_METER_LABEL := 12
+const HUD_TRACK_H := 6
+const HUD_METER_MIN_W := 88.0
 const CARD_PAPER := Color("30261b")
 const CARD_EDGE := Color("d9ac4f")
 ## Extra space above each button row in a card.
@@ -375,7 +382,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_rp_shots():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +398,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_rp_shots():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -436,6 +443,8 @@ func _ready() -> void:
 		await _rooms_shots()
 	elif _want_vo():
 		await _vo_shots()
+	elif _want_rp_shots():
+		await _release_polish_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
 
@@ -768,6 +777,17 @@ func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
 
 
+func _want_rp_shots() -> bool:
+	return _rp_shot_tag() != ""
+
+
+func _rp_shot_tag() -> String:
+	for arg in _dev_args():
+		if str(arg).begins_with("--rp-shots="):
+			return str(arg).trim_prefix("--rp-shots=")
+	return ""
+
+
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
 ## station, a close look at a busy row, and an empty dug cell next to rooms. Writes rooms_station*.png.
 func _rooms_shots() -> void:
@@ -977,6 +997,7 @@ func _who_row(who: String) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.set_meta("who_row", true)
 	row.add_child(_portrait_box(id, 84))
 	var lab := _label(Copy.person(str(game.people[id].name)), 18)
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1143,18 +1164,27 @@ func _style_tool(button: Button) -> void:
 
 
 ## The top bar is the station's ceiling beam: dark riveted steel with a brass lip and a shadow on the rooms below.
-func _top_bar() -> PanelContainer:
-	var panel := PanelContainer.new()
+## 1 px brass/paper hairline under the shared yard and Network strip. Not a second card.
+func hud_edge_style() -> StyleBoxFlat:
 	var beam := _steel_style()
 	beam.bg_color = Color(0.085, 0.085, 0.095, 0.97)
-	beam.border_color = Color(0.62, 0.5, 0.3, 0.75)
+	beam.border_color = Color(PAPER_EDGE, 0.7)
 	beam.set_border_width_all(0)
-	beam.border_width_bottom = 2
+	beam.border_width_bottom = 1
 	beam.set_corner_radius_all(0)
 	beam.shadow_color = Color(0, 0, 0, 0.55)
 	beam.shadow_size = 10
 	beam.shadow_offset = Vector2(0, 5)
-	beam.content_margin_bottom = 10
+	beam.content_margin_top = 10
+	beam.content_margin_bottom = 12
+	return beam
+
+
+func _top_bar() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "Hud"
+	panel.set_meta("hud_edge", true)
+	var beam := hud_edge_style()
 	panel.add_theme_stylebox_override("panel", beam)
 	panel.draw.connect(_draw_beam_rivets.bind(panel))
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1166,7 +1196,7 @@ func _top_bar() -> PanelContainer:
 	title_row = HBoxContainer.new()
 	title_row.add_theme_constant_override("separation", 10)
 	box.add_child(title_row)
-	week_label = _label("Week 1", 22, true)
+	week_label = _label("Week 1", HUD_WEEK_SIZE, true)
 	week_label.custom_minimum_size = Vector2(108, 28)
 	week_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	week_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1217,7 +1247,7 @@ func _top_bar() -> PanelContainer:
 		icon_col.add_child(icon)
 		icon_col.add_child(name)
 		var life := str(key) in LIFE_KEYS
-		var value := _label("0", 26 if life else 21)
+		var value := _label("0", HUD_STOCK_SIZE)
 		value.add_theme_constant_override("outline_size", 4)
 		value.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1226,16 +1256,17 @@ func _top_bar() -> PanelContainer:
 			value.add_theme_font_override("font", number_font)
 		var digit := 12.0
 		if number_font != null:
-			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 26 if life else 21).x
+			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_STOCK_SIZE).x
 		value.custom_minimum_size = Vector2(digit * 3.4 + 2.0, 24)
-		var delta := _label("", 11)
+		var delta := _label("", HUD_DELTA_SIZE)
+		delta.add_theme_color_override("font_color", MUTED)
 		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		delta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		if number_font != null:
 			delta.add_theme_font_override("font", number_font)
 		var small := 8.0
 		if number_font != null:
-			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_DELTA_SIZE).x
 		delta.custom_minimum_size = Vector2(small * 3.0 + 2.0, 13)
 		chip.tooltip_text = Copy.res(str(key))
 		chip.add_child(icon_col)
@@ -1405,7 +1436,7 @@ func _sync_people_pill() -> void:
 func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.custom_minimum_size = Vector2(88, 0)
+	box.custom_minimum_size = Vector2(HUD_METER_MIN_W, 0)
 	box.mouse_filter = Control.MOUSE_FILTER_STOP
 	var meter_key := "hope" if hope else "discontent"
 	box.gui_input.connect(_chip_input.bind(meter_key))
@@ -1418,17 +1449,19 @@ func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	var dial := Dial.new()
 	dial.needle = fill_color
 	dial.danger_high = not hope
-	dial.custom_minimum_size = Vector2(46, 30)
+	dial.custom_minimum_size = Vector2(46, 24)
 	dial.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(dial)
-	var lab := _label("Hope", 12)
+	var lab := _label("Hope", HUD_METER_LABEL)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(lab)
 	var track := ColorRect.new()
 	track.color = Color(1, 1, 1, 0.14)
-	track.custom_minimum_size = Vector2(0, 4)
-	track.visible = false
+	track.custom_minimum_size = Vector2(0, HUD_TRACK_H)
+	track.visible = true
+	track.set_meta("hud_track", true)
 	var fill := ColorRect.new()
 	fill.color = fill_color
 	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1910,15 +1943,14 @@ func _shrink_card() -> void:
 		return
 	if h > max_h and card_body.get_child_count() > 0:
 		var top_child := card_body.get_child(0)
-		if top_child is TextureRect and top_child.has_meta("banner") and top_child.visible:
-			## The banner gives up only the height the card lacks, down to a strip; below that it goes.
+		if top_child is Control and top_child.has_meta("banner") and top_child.visible:
+			## The banner gives up only the height the card lacks, and never drops below the reserved band.
 			var shorter: float = top_child.custom_minimum_size.y - (h - max_h)
-			if shorter >= BANNER_MIN_H:
-				top_child.custom_minimum_size.y = roundf(shorter)
-			else:
-				top_child.visible = false
-			_queue_shrink()
-			return
+			var floor_h := maxf(BANNER_MIN_H, shorter)
+			if floor_h < top_child.custom_minimum_size.y - 0.5:
+				top_child.custom_minimum_size.y = roundf(floor_h)
+				_queue_shrink()
+				return
 		if card_body.get_theme_constant("separation") > 2:
 			card_body.add_theme_constant_override("separation", 2)
 			_space_buttons(0.0)
@@ -6167,16 +6199,21 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _tooltip_theme() -> Theme:
-	var tips := Theme.new()
-	tips.default_font = body_font
-	tips.default_font_size = 16
+## One dark brass plate for tooltips and Network order tips. Map toasts keep _map_toast_face.
+func _tip_plate_style() -> StyleBoxFlat:
 	var plate := StyleBoxFlat.new()
 	plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
 	plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
 	plate.set_border_width_all(1)
 	plate.set_content_margin_all(8)
-	tips.set_stylebox("panel", "TooltipPanel", plate)
+	return plate
+
+
+func _tooltip_theme() -> Theme:
+	var tips := Theme.new()
+	tips.default_font = body_font
+	tips.default_font_size = 16
+	tips.set_stylebox("panel", "TooltipPanel", _tip_plate_style())
 	tips.set_color("font_color", "TooltipLabel", Color("efe6d2"))
 	tips.set_font_size("font_size", "TooltipLabel", 16)
 	return tips
@@ -6298,10 +6335,12 @@ func _paint_dawn() -> void:
 	var ev: Dictionary = game.front_event()
 	note_incident(ev)
 	_open_card(game.line_of(ev, "title"), false, "Event")
+	card_body.add_theme_constant_override("separation", 8)
 	var banner := _event_banner(ev)
 	if banner != null:
 		card_body.add_child(banner)
 		card_body.move_child(banner, 0)
+	_insert_chain_part(ev)
 	_who_row(str(ev.get("who", "")))
 	_body(game.line_of(ev, "text"))
 	_event_voice(ev)
@@ -6348,8 +6387,6 @@ func _paint_dawn() -> void:
 		if game.choice_locked(choice) or why != "":
 			pick.disabled = true
 			pick.tooltip_text = why
-			if why != "":
-				card_body.add_child(_choice_reason(why))
 	var after_n: int = game.pending.size() - 1
 	if event_mode == "dawn":
 		after_n = game.pending.size() - game.small_pending() - 1
@@ -7394,19 +7431,95 @@ func _intent_row(lines: PackedStringArray) -> void:
 		card_body.add_child(row)
 
 
+## Muted paper band when an event has no plate. Same floor as the small banner clamp.
+func _reserved_banner_band() -> ColorRect:
+	var band := ColorRect.new()
+	band.color = Color(0.16, 0.14, 0.12, 1.0)
+	band.custom_minimum_size = Vector2(0, BANNER_MIN_H)
+	band.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.set_meta("banner", true)
+	band.set_meta("banner_reserved", true)
+	return band
+
+
+## "Part n of m" only when this event already sits on a follow chain. No new chain widget.
+func _chain_part_line(ev: Dictionary) -> String:
+	if game == null or game.catalog == null:
+		return ""
+	var id := str(ev.get("id", ""))
+	if id == "":
+		return ""
+	var nxt := {}
+	var prev := {}
+	for row in game.catalog.events:
+		if not (row is Dictionary):
+			continue
+		var eid := str(row.get("id", ""))
+		var follow := str(row.get("follow", ""))
+		if eid == "" or follow == "" or nxt.has(eid):
+			continue
+		nxt[eid] = follow
+		if not prev.has(follow):
+			prev[follow] = eid
+	if not nxt.has(id) and not prev.has(id):
+		return ""
+	var root := id
+	var guard := 0
+	while prev.has(root) and guard < 8:
+		root = str(prev[root])
+		guard += 1
+	var chain: Array = [root]
+	var cur := root
+	var seen := {root: true}
+	guard = 0
+	while nxt.has(cur) and guard < 8:
+		cur = str(nxt[cur])
+		if seen.has(cur):
+			break
+		seen[cur] = true
+		chain.append(cur)
+		guard += 1
+	if chain.size() < 2 or chain.find(id) < 0:
+		return ""
+	return Copy.fill("event.chain_part", {"n": chain.find(id) + 1, "m": chain.size()})
+
+
+func _insert_chain_part(ev: Dictionary) -> void:
+	var line := _chain_part_line(ev)
+	if line == "" or card_body == null:
+		return
+	var lab := _label(line, 14, false, false)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	lab.set_meta("chain_part", true)
+	var at := card_body.get_child_count()
+	for i in card_body.get_child_count():
+		var child := card_body.get_child(i)
+		if child is HBoxContainer and not child.has_meta("banner"):
+			at = i + 1
+			break
+	card_body.add_child(lab)
+	card_body.move_child(lab, at)
+
+
 func _event_banner(ev: Dictionary) -> Control:
+	if bool(ev.get("rp_skip_art", false)):
+		return _reserved_banner_band()
 	var use := ArtPack.resolve_event_banner(ev)
-	if use == "":
-		return null
-	var path := "res://assets/events/%s.webp" % use
-	var tex := ArtPack.load_texture(path)
+	var tex: Texture2D = null
+	if use != "":
+		tex = ArtPack.load_texture("res://assets/events/%s.webp" % use)
 	if tex == null:
-		return null
+		return _reserved_banner_band()
 	## The art is 2.4:1, so the banner takes the card's width at that ratio and shows the whole picture.
-	var wide := card_body.custom_minimum_size.x
+	var wide := 0.0
+	if card_body != null:
+		wide = card_body.custom_minimum_size.x
 	if wide <= 0.0:
 		wide = minf(size.x - 48.0, 680.0) - 36.0
-	var height := roundf(wide / 2.4)
+	if wide < 72.0:
+		wide = 640.0
+	var height := maxf(BANNER_MIN_H, roundf(wide / 2.4))
 	var plate := TextureRect.new()
 	plate.texture = tex
 	plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -10618,6 +10731,95 @@ func _card_shot(shot_name: String) -> void:
 	if dim.visible:
 		_close_card()
 	game.pending = saved
+
+
+## RELEASE_POLISH evidence. Tag comes from --rp-shots=before|after. Surfaces only.
+func _release_polish_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_refresh()
+	await _frame()
+	await _frame()
+	_save("rp_%s_hud" % _rp_shot_tag())
+	hold_dawn = true
+	_close_card()
+	_toggle_network()
+	await _frame()
+	await _frame()
+	await _frame()
+	var net = network_view
+	if net != null and net.has_method("_open_legend"):
+		net._open_legend()
+		await _frame()
+		await _frame()
+		if net.has_method("_place_legend"):
+			net._place_legend()
+		await _frame()
+	_save("rp_%s_legend" % _rp_shot_tag())
+	if net != null and net.has_method("_close_legend"):
+		net._close_legend()
+	var sid := ""
+	if game != null:
+		for candidate in game.stations:
+			if str(candidate) == str(game.capital_id):
+				continue
+			var row: Dictionary = game.stations[candidate]
+			if bool(row.get("known", false)):
+				sid = str(candidate)
+				break
+	if sid != "" and net != null:
+		game.stock.influence = 0
+		net.open_sheet(sid)
+		await _frame()
+		await _frame()
+		if net.has_method("_show_order_tip_shot"):
+			net._show_order_tip_shot("trade", sid)
+			await _frame()
+		_save("rp_%s_orders" % _rp_shot_tag())
+		net.close_sheet()
+	_toggle_network()
+	await _frame()
+	var lamps := {}
+	if game != null:
+		for ev in game.catalog.events:
+			if str(ev.get("id", "")) == "lamps":
+				lamps = ev.duplicate(true)
+				break
+	if not lamps.is_empty():
+		lamps["major"] = true
+		game.pending = [lamps]
+		event_mode = "dawn"
+		_show_dawn()
+		await _frame()
+		await _frame()
+		_save("rp_%s_event" % _rp_shot_tag())
+		_close_card()
+	if game != null:
+		game.pending = [{
+			"id": "rp_bare_band",
+			"title": "The stores are thin",
+			"text": "The week opens with an empty banner band so the title does not jump up into the art.",
+			"major": true,
+			"rp_skip_art": true,
+			"choices": [
+				{"id": "pay", "label": "Buy in food", "cost": {"materials": 99}},
+				{"id": "wait", "label": "Wait"},
+			],
+		}]
+		game.stock.materials = 0
+		_show_dawn()
+		await _frame()
+		await _frame()
+		_save("rp_%s_event_bare" % _rp_shot_tag())
+	print("RP SHOTS ", _rp_shot_tag())
+	get_tree().quit()
 
 
 func _polish_shots() -> void:
