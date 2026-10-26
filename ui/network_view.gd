@@ -191,6 +191,11 @@ var _ink_layer: Control
 var _layout := {}
 var _lift := {}
 var _join_left := {}
+var _join_dim := {}
+## One pin beat. Not a loop, and not a lasting ring.
+const JOIN_PULSE_S := 0.4
+var join_toast := ""
+var join_toasts: PackedStringArray = PackedStringArray()
 var _deal_float: Label
 var _deal_float_tween: Tween
 var _warm_float: Label
@@ -521,7 +526,9 @@ func _draw_splashes(c: CanvasItem, game) -> void:
 func _process(delta: float) -> void:
 	if not visible:
 		return
-	_arm_join_pulses()
+	var pulse_busy := _tick_join_pulses(delta)
+	if _arm_join_pulses():
+		pulse_busy = true
 	var busy := false
 	var ink_busy := false
 	_anim_t += delta
@@ -567,6 +574,8 @@ func _process(delta: float) -> void:
 		busy = true
 		ink_busy = true
 	if game_now != null and not _motion_off() and _siege_pulses(game_now):
+		ink_busy = true
+	if pulse_busy:
 		ink_busy = true
 	if ink_busy and _ink_layer != null:
 		_ink_layer.queue_redraw()
@@ -1915,28 +1924,72 @@ func _draw_need_tick(c: CanvasItem, game, sid: String, at: Vector2, r: float, li
 func _draw_join_pulse(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
 	if not _join_left.has(sid):
 		return
-	var left := clampf(float(_join_left[sid]), 0.0, 0.5)
-	var t := 1.0 - left / 0.5
-	var radius := lerpf(r + 4.0, r + 18.0, t)
+	var left := clampf(float(_join_left[sid]), 0.0, JOIN_PULSE_S)
+	var t := 1.0 - left / JOIN_PULSE_S
+	var dim := bool(_join_dim.get(sid, false))
 	var col := _faction_color(game, str(game.player))
-	col.a = lerpf(0.9, 0.0, t)
-	c.draw_arc(at - Vector2(0, 2.0 * lift), radius, 0, TAU, 28, col, 2.0, true)
+	if dim:
+		col = col.darkened(0.4)
+	var beat := sin(t * PI)
+	var flash := col
+	flash.a = (0.22 if dim else 0.5) * beat
+	var body := r * (1.0 + (0.05 if dim else 0.1) * beat)
+	c.draw_circle(at - Vector2(0, 2.0 * lift), body, flash)
+	col.a = lerpf(0.4 if dim else 0.9, 0.0, t)
+	var radius := lerpf(r + 3.0, r + (10.0 if dim else 16.0), t)
+	c.draw_arc(at - Vector2(0, 2.0 * lift), radius, 0, TAU, 28, col, 1.2 if dim else 2.0, true)
 
 
-func _arm_join_pulses() -> void:
+## Consumes each join/capture/loss flag once. Reduce-motion skips the beat and still toasts.
+func _arm_join_pulses() -> bool:
 	var game = _game()
 	if game == null:
-		return
+		return false
 	if host != null and host.get("dim") != null and host.dim.visible:
-		return
+		return false
+	var armed := false
 	for sid in game.stations:
 		var st: Dictionary = game.stations[sid]
 		if not bool(st.get("join_pulse", false)):
 			continue
-		st["join_pulse"] = false
+		var kind := str(st.get("join_pulse_kind", "join"))
+		if kind != "join" and kind != "taken" and kind != "lost":
+			kind = "join"
+		st.erase("join_pulse")
+		st.erase("join_pulse_kind")
+		var line := ""
+		if game.has_method("join_toast_line"):
+			line = str(game.join_toast_line(str(sid), kind, _motion_off()))
+		if line != "":
+			join_toast = line
+			join_toasts.append(line)
+			if host != null and host.has_method("_toast"):
+				host._toast(line)
+		armed = true
 		if _motion_off():
 			continue
-		_join_left[str(sid)] = 0.5
+		_join_left[str(sid)] = JOIN_PULSE_S
+		if kind == "lost":
+			_join_dim[str(sid)] = true
+		else:
+			_join_dim.erase(str(sid))
+	return armed
+
+
+func _tick_join_pulses(delta: float) -> bool:
+	if _join_left.is_empty():
+		return false
+	var dead: Array = []
+	for sid in _join_left.keys():
+		var left := float(_join_left[sid]) - delta
+		if left <= 0.0:
+			dead.append(sid)
+		else:
+			_join_left[sid] = left
+	for sid in dead:
+		_join_left.erase(sid)
+		_join_dim.erase(sid)
+	return true
 
 
 func deal_pip_count(game, sid: String) -> int:

@@ -6323,7 +6323,36 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	_sync_perk_notices()
 	LeafletDust.clear_station(st)
 	NeedTick.clear_station(st)
+	_note_join_pulse(st, prev, fid, force)
 	return true
+
+
+## P51. One pin beat when a station joins the player, or the player takes it.
+## A station the player loses gets the dimmer beat. Nothing here touches hope, opinion, loot, or the dawn stack.
+func _note_join_pulse(st: Dictionary, prev: String, fid: String, force: bool) -> void:
+	var kind := ""
+	if fid == player:
+		kind = "taken" if force else "join"
+	elif prev == player:
+		kind = "lost"
+	if kind == "":
+		return
+	st["join_pulse"] = true
+	st["join_pulse_kind"] = kind
+
+
+## Map toast for that beat. Reduce-motion uses the compact gain line; a loss keeps its own sentence.
+func join_toast_line(sid: String, kind: String, compact: bool) -> String:
+	if compact and kind != "lost":
+		return Copy.t("join.reduce")
+	var place := _station_place(sid)
+	match kind:
+		"taken":
+			return Copy.fill("join.taken", {"station": place})
+		"lost":
+			return Copy.fill("join.lost", {"station": place})
+		_:
+			return Copy.fill("join.pulse", {"station": place})
 
 
 ## A station that comes over sends one load home the week it joins, so the capture is not only a new pin.

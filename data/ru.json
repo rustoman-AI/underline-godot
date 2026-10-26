@@ -1910,5 +1910,10 @@
   "Easing": "Смягчение",
   "That need is still soft.": "Эта нужда ещё мягкая.",
   "The ease wore off.": "Облегчение сошло.",
-  "Easing.": "Смягчение."
+  "Easing.": "Смягчение.",
+  "{station} stands with you.": "{station} встаёт рядом.",
+  "{station} is yours.": "{station} — ваша.",
+  "{station} fell.": "{station} пала.",
+  "When they join, the pin answers.": "Когда встают рядом — пин отвечает.",
+  "Joined.": "С нами."
 }
