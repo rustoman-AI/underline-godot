@@ -1826,6 +1826,26 @@
   "warm.first": {
     "en": "The ring remembers how they feel.",
     "ru": "Кольцо помнит, как они к вам."
+  },
+  "leaf.tip": {
+    "en": "Leaflets still up.",
+    "ru": "Листовки ещё висят."
+  },
+  "leaf.label": {
+    "en": "Leaflets",
+    "ru": "Листовки"
+  },
+  "leaf.first": {
+    "en": "Paper still on the platform.",
+    "ru": "На платформе ещё бумага."
+  },
+  "leaf.gone": {
+    "en": "The paper blew off.",
+    "ru": "Бумагу сдуло."
+  },
+  "leaf.reduce": {
+    "en": "Leaflets.",
+    "ru": "Листовки."
   }
 }
 

@@ -14,6 +14,7 @@ var _puff_times := {}
 const ArtPack = preload("res://ui/art_pack.gd")
 const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
+const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -193,6 +194,8 @@ var _deal_float: Label
 var _deal_float_tween: Tween
 var _warm_float: Label
 var _warm_float_tween: Tween
+var _leaf_float: Label
+var _leaf_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -341,6 +344,7 @@ func refresh() -> void:
 	_redraw()
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
+	_note_first_leaflet()
 
 
 func _redraw() -> void:
@@ -1640,9 +1644,11 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 			c.draw_arc(head, r * 0.72, 0, TAU, 24, Color(TAG_INK, 0.7), 1.0, true)
 			var s := r * 1.08
 			c.draw_texture_rect(mark, Rect2(head - Vector2(s, s) * 0.5, Vector2(s, s)), false)
-	## Base pin is already down. Warmth tints the existing ring; the P37 neighbor tick paints after it.
+	## Base pin is already down. Warmth, then the P37 neighbor tick, then the leaflet scrap.
+	## Deal pips paint later in _draw_ink so they stay readable over this chip.
 	_draw_warmth_ring(c, game, sid, st, at, r, lift)
 	_draw_border_tick(c, game, sid, at, r, lift)
+	_draw_leaflet_chip(c, game, sid, at, r, lift)
 	if sid == selected:
 		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
 		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
@@ -1866,17 +1872,22 @@ func _draw_map_chip(c: CanvasItem, name: String, at: Vector2, lift: float) -> vo
 		c.draw_texture_rect(mark, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
 
 
-func _draw_leaflet_chip(c: CanvasItem, game, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
-	var until := int(st.get("leaflet_until", 0))
-	if until <= int(game.week):
+## Static scrap. No flutter in either motion setting. Art, else the propaganda icon at quarter pin size.
+func _draw_leaflet_chip(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not LeafletDust.shows(game, sid):
 		return
-	var alpha := 0.55 if until - int(game.week) == 1 else 1.0
-	var pos := at + Vector2(r * 0.55, -r * 0.95) - Vector2(0, 2.0 * lift)
-	c.draw_circle(pos, 9.0, Color(TAG_PAPER, alpha))
-	c.draw_arc(pos, 9.0, 0, TAU, 20, Color(Color("e2a63a"), alpha), 1.0, true)
-	var icon := ArtPack.icon_texture("propaganda", 14.0)
+	var crowded := DealMarks.pip_count(game, sid) >= 1
+	var pos := LeafletDust.slot(at, r, crowded) - Vector2(0, 2.0 * lift)
+	var sz := LeafletDust.chip_px(r)
+	var icon := ArtPack.icon_texture("leaflet_chip", sz)
+	if icon == null:
+		icon = ArtPack.icon_texture("propaganda", sz)
 	if icon != null:
-		c.draw_texture_rect(icon, Rect2(pos - Vector2(7, 7), Vector2(14, 14)), false, Color(0.35, 0.22, 0.14, 0.95 * alpha))
+		c.draw_texture_rect(icon, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
+		return
+	var box := Rect2(pos - Vector2(sz, sz * 0.72) * 0.5, Vector2(sz, sz * 0.72))
+	c.draw_rect(box, LeafletDust.PAPER)
+	c.draw_rect(box, LeafletDust.INK, false, 1.0)
 
 
 func _draw_join_pulse(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
@@ -1944,6 +1955,67 @@ func warm_lines(game, sid: String) -> PackedStringArray:
 
 func note_pin_warmth(game) -> String:
 	return PinWarmth.note(game)
+
+
+func leaf_lines(game, sid: String, compact: bool) -> PackedStringArray:
+	return LeafletDust.lines(game, sid, compact)
+
+
+func note_leaflet_dust(game) -> String:
+	return LeafletDust.note(game)
+
+
+func _note_first_leaflet() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := note_leaflet_dust(_game())
+	if line == "":
+		return
+	_show_leaf_float(line)
+
+
+func _show_leaf_float(line: String) -> void:
+	if _leaf_float == null:
+		_leaf_float = Label.new()
+		_leaf_float.z_index = 8
+		_leaf_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_leaf_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_leaf_float.add_theme_font_size_override("font_size", 18)
+		_leaf_float.add_theme_color_override("font_color", LeafletDust.INK)
+		_leaf_float.add_theme_constant_override("outline_size", 6)
+		_leaf_float.add_theme_color_override("font_outline_color", Color(LeafletDust.PAPER, 0.92))
+		add_child(_leaf_float)
+	_leaf_float.text = line
+	_leaf_float.modulate.a = 1.0
+	_leaf_float.visible = true
+	if _leaf_float_tween != null and _leaf_float_tween.is_valid():
+		_leaf_float_tween.kill()
+	_place_leaf_float()
+	if not is_inside_tree():
+		return
+	_leaf_float_tween = create_tween()
+	if _motion_off():
+		_leaf_float_tween.tween_interval(4.2)
+	else:
+		var rise := _leaf_float.position.y - 18.0
+		_leaf_float_tween.tween_property(_leaf_float, "position:y", rise, 2.4)
+		_leaf_float_tween.parallel().tween_property(_leaf_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_leaf_float_tween.tween_callback(func() -> void:
+		if _leaf_float != null:
+			_leaf_float.visible = false)
+
+
+func _place_leaf_float() -> void:
+	if _leaf_float == null or not _leaf_float.visible:
+		return
+	_leaf_float.custom_minimum_size = Vector2(420, 28)
+	_leaf_float.size = Vector2(420, 28)
+	var y := 78.0
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	_leaf_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
 
 
 func _note_first_pin_warmth() -> void:
@@ -3505,6 +3577,8 @@ func _tip(sid: String) -> String:
 	for extra in deal_mark_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
 	for extra in warm_lines(game, sid):
+		lines.append(str(extra))
+	for extra in leaf_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
 	return "\n".join(lines)
 
