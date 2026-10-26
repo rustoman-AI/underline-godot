@@ -1234,5 +1234,238 @@
   "good.junk.sheet": {
     "en": "A blueprint every 6 weeks.",
     "ru": "Чертёж раз в 6 недель."
+  },
+  "listening.name": {
+    "en": "Listening Post",
+    "ru": "Пост прослушки"
+  },
+  "listening.desc": {
+    "en": "A quiet room off the Radio. Pipe taps and patient ears. One order a week.",
+    "ru": "Тихая комната рядом с Радиорубкой. Отводы от труб и терпеливые уши. Один приказ в неделю."
+  },
+  "listening.listen_status": {
+    "en": "Listening. Rival intents stay visible. Rumors land closer to true.",
+    "ru": "Слушаем. Чужие намерения не прячутся. Слухи ближе к правде."
+  },
+  "listening.probe": {
+    "en": "Probe",
+    "ru": "Зонд"
+  },
+  "listening.probe_tip": {
+    "en": "3 tokens · 1 order. Intel on a known station. Blown 15%.",
+    "ru": "3 жетона · 1 приказ. Разведка по известной станции. Срыв 15%."
+  },
+  "listening.tap": {
+    "en": "Tap",
+    "ru": "Отвод"
+  },
+  "listening.tap_tip": {
+    "en": "2 food · 1 order. Skim a good or preview their plan. Blown 25%. Opinion bite.",
+    "ru": "2 еды · 1 приказ. Снять товар или увидеть их план. Срыв 25%. Бьёт по мнению."
+  },
+  "listening.blown": {
+    "en": "Cover blown. They heard the tap at {station}.",
+    "ru": "Прикрытие сорвано. Они услышали отвод у {station}."
+  },
+  "listening.blown_dawn": {
+    "en": "Listening Post offline one week. Hope took a hit.",
+    "ru": "Пост прослушки выключен на неделю. Надежда просела."
+  },
+  "listening.probe_reveal": {
+    "en": "{faction} at {station}: opinion {opinion}.",
+    "ru": "{faction} у {station}: мнение {opinion}."
+  },
+  "listening.tap_skim": {
+    "en": "Tap skimmed +1 {good}.",
+    "ru": "Отвод снял +1 {good}."
+  },
+  "listening.tap_plan": {
+    "en": "Tap caught their plan: {plan}.",
+    "ru": "Отвод поймал их план: {plan}."
+  },
+  "listening.wired_tip": {
+    "en": "Wired · Probe mark, two weeks",
+    "ru": "На проводе · метка зонда, две недели"
+  },
+  "listening.offline": {
+    "en": "Listening Post offline.",
+    "ru": "Пост прослушки выключен."
+  },
+  "listening.unstaffed": {
+    "en": "No one at the Listening Post.",
+    "ru": "На посту прослушки никого."
+  },
+  "listening.need_radio": {
+    "en": "Needs a staffed Radio room online.",
+    "ru": "Нужна работающая укомплектованная Радиорубка."
+  },
+  "listening.upgrade.pipe_taps": {
+    "en": "Pipe taps — quieter Probe. Blown less often.",
+    "ru": "Отводы от труб — зонд тише. Срыв реже."
+  },
+  "listening.upgrade.dead_drop": {
+    "en": "Dead drop — quieter still. Blown rarer.",
+    "ru": "Тайник — ещё тише. Срыв ещё реже."
+  },
+  "listening.toast_probe_queued": {
+    "en": "Probe queued · {station}",
+    "ru": "Зонд в очереди · {station}"
+  },
+  "listening.toast_tap_queued": {
+    "en": "Tap queued · {faction}",
+    "ru": "Отвод в очереди · {faction}"
+  },
+  "listening.radio_helper": {
+    "en": "Listening Post covers intents",
+    "ru": "Пост прослушки закрывает намерения"
+  },
+  "listening.intel_line": {
+    "en": "Intel {n}/3",
+    "ru": "Разведка {n}/3"
+  },
+  "listening.need_intel": {
+    "en": "Need intel 2",
+    "ru": "Нужна разведка 2"
+  },
+  "staff.listening.assign_1": {
+    "en": "Posted to the Listening Post.",
+    "ru": "Поставили на пост прослушки."
+  },
+  "staff.listening.assign_2": {
+    "en": "Ears on the pipes. One order a week.",
+    "ru": "Уши на трубах. Один приказ в неделю."
+  },
+  "staff.listening.assign_3": {
+    "en": "Quiet shift. They write what the pipes say.",
+    "ru": "Тихая смена. Пишут, что говорят трубы."
+  },
+  "staff.listening.assign_4": {
+    "en": "At the taps. Waiting for a wrong silence.",
+    "ru": "У отводов. Ждут неправильной тишины."
+  },
+  "staff.listening.assign_5": {
+    "en": "Radio next door. They listen through the wall.",
+    "ru": "Радиорубка рядом. Слушают сквозь стену."
+  },
+  "staff.listening.assign_6": {
+    "en": "No chatter on this post. Only marks in the log.",
+    "ru": "На этом посту без болтовни. Только пометки в журнале."
+  },
+  "staff.listening.idle_1": {
+    "en": "Still listening. Nothing new in the pipes.",
+    "ru": "Всё ещё слушают. В трубах ничего нового."
+  },
+  "staff.listening.idle_2": {
+    "en": "The post is quiet. That is the work.",
+    "ru": "На посту тихо. В этом и работа."
+  },
+  "staff.listening.who.Fran": {
+    "en": "Fran sits with the headset and does not look up.",
+    "ru": "Фрэн сидит в наушниках и не поднимает глаз."
+  },
+  "staff.listening.who.Jonah": {
+    "en": "Jonah takes the quiet post without argument.",
+    "ru": "Джона занимает тихий пост без споров."
+  },
+  "staff.listening.who.Inez": {
+    "en": "Inez checks the pipe taps twice before she sits.",
+    "ru": "Инес дважды проверяет отводы, прежде чем сесть."
+  },
+  "staff.listening.who.Paul": {
+    "en": "Paul keeps the log neat. He hates a blank hour.",
+    "ru": "Пол ведёт журнал аккуратно. Ненавидит пустой час."
+  },
+  "staff.listening.who.Tess": {
+    "en": "Tess listens like the brick still has paint on it.",
+    "ru": "Тесс слушает так, будто на кирпиче ещё краска."
+  },
+  "station.status_running": {
+    "en": "Running",
+    "ru": "Работает"
+  },
+  "station.status_understaffed": {
+    "en": "Understaffed",
+    "ru": "Не хватает людей"
+  },
+  "station.status_need": {
+    "en": "Need {n} more",
+    "ru": "Нужно ещё {n}"
+  },
+  "station.status_power": {
+    "en": "Power starved",
+    "ru": "Нет питания"
+  },
+  "station.status_offline": {
+    "en": "Offline",
+    "ru": "Выключена"
+  },
+  "station.status_switched": {
+    "en": "Switched off",
+    "ru": "Отключена"
+  },
+  "station.tip_understaffed": {
+    "en": "Understaffed",
+    "ru": "Не хватает людей"
+  },
+  "station.tip_switched": {
+    "en": "Switched off",
+    "ru": "Отключена"
+  },
+  "station.tip_building": {
+    "en": "Building {room}, {weeks} left",
+    "ru": "Строим {room}, осталось {weeks}"
+  },
+  "station.tip_damaged": {
+    "en": "Damaged — output cut",
+    "ru": "Повреждена — выработка срезана"
+  },
+  "station.toast_switch_off": {
+    "en": "Switched off · saves {n} power",
+    "ru": "Отключена · экономит {n} энергии"
+  },
+  "station.toast_switch_on": {
+    "en": "Room running again",
+    "ru": "Комната снова работает"
+  },
+  "station.toast_demolish": {
+    "en": "Pulled down · {room}",
+    "ru": "Снесли · {room}"
+  },
+  "assign.toast_on": {
+    "en": "Assigned {name} → {room}",
+    "ru": "Назначили {name} → {room}"
+  },
+  "assign.toast_off": {
+    "en": "Unassigned {name}",
+    "ru": "Сняли {name}"
+  },
+  "assign.tip_skill": {
+    "en": "Room wants {skill} · {name} has {n}",
+    "ru": "Комнате нужен {skill} · у {name} {n}"
+  },
+  "assign.tip_empty": {
+    "en": "Empty seat · wants {skill}",
+    "ru": "Пустое место · нужен {skill}"
+  },
+  "assign.tip_empty_any": {
+    "en": "Empty seat · choose a resident",
+    "ru": "Пустое место · выберите жителя"
+  },
+  "skill.labor": {
+    "en": "labor",
+    "ru": "труд"
+  },
+  "skill.tech": {
+    "en": "tech",
+    "ru": "техника"
+  },
+  "skill.care": {
+    "en": "care",
+    "ru": "уход"
+  },
+  "skill.talk": {
+    "en": "talk",
+    "ru": "разговор"
   }
 }
+

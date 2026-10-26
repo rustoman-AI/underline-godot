@@ -32,6 +32,7 @@ const ROOM_COLOR := {
 	"infirmary": Color("a85a62"),
 	"meeting_hall": Color("7a6496"),
 	"radio": Color("3f74a0"),
+	"listening_post": Color("2f8f62"),
 }
 const URGENT_WEEKS := 2
 const STOCK_KEYS := ["air", "food", "power", "materials", "tokens", "influence"]
@@ -214,6 +215,7 @@ var guide_step := -1
 var guide_skips := 0
 var toast_label: Label
 var toast_fade: Tween
+var blown_flash: TextureRect
 var undo_toast: PanelContainer
 var delta_hold_until := 0
 var news_open := false
@@ -2803,6 +2805,8 @@ func room_title(room) -> String:
 ## "Mushroom beds: Food +75%, power use 2 -> 1." Built from the tier output bonus and balance.json upgrade_fx,
 ## so the card says exactly what the sim does.
 func _upgrade_what(id: String) -> String:
+	if id == "pipe_taps" or id == "dead_drop":
+		return "listening.upgrade.%s" % id
 	var type := ""
 	for key in game.catalog.rooms:
 		if game.catalog.rooms[key].get("upgrades", []).has(id):
@@ -3352,8 +3356,11 @@ func _drop_person(person_id: String, uid: String) -> void:
 		yard.shake_cell = Vector2i(-1, -1)
 		yard.shake_reason = ""
 		yard.shake_px = 0.0
+	var assigned := _assign_toast_line(person_id, uid)
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
+	if assigned != "":
+		_toast(assigned)
 
 
 ## Who leaves a full room when `person_id` is dropped on it. Empty when no swap makes sense.
@@ -3531,6 +3538,10 @@ func _show_room(uid: String) -> void:
 			sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			card_body.add_child(sub)
 	_room_header(detail)
+	if str(detail.type) == "listening_post":
+		_listening_card(uid)
+	elif str(detail.type) == "radio" and game.listening_active():
+		_body("listening.radio_helper")
 	if blocked:
 		var warn := _label(str(detail.get("disaster_note", "")), 17)
 		warn.add_theme_color_override("font_color", Color("8a2f22"))
@@ -3561,6 +3572,38 @@ func _show_room(uid: String) -> void:
 		card_body.add_child(_button("Laws", _show_laws))
 	_room_push(uid)
 	_room_switch(uid)
+
+
+func _listening_card(uid: String) -> void:
+	_body(game.listening_card_key())
+	var idle := game.listening_idle_line()
+	if idle != "":
+		_body_ready(idle)
+	for sid in game.listening_probe_targets():
+		var place := game.station_text(str(sid), "community")
+		var probe := _button("listening.probe", _queue_listening.bind(uid, "probe", str(sid), ""))
+		probe.text = "%s · %s · %d%%" % [Copy.t("listening.probe"), place, game.listening_blown_pct("probe")]
+		var why := game.order_block("probe", str(sid))
+		probe.disabled = why != ""
+		probe.tooltip_text = why if why != "" else Copy.t("listening.probe_tip")
+		card_body.add_child(probe)
+	for fid in game.listening_tap_targets():
+		var tap := _button("listening.tap", _queue_listening.bind(uid, "tap", "", str(fid)))
+		tap.text = "%s · %s · %d%%" % [Copy.t("listening.tap"), Copy.t(game._fname(str(fid))), game.listening_blown_pct("tap")]
+		var why := game.order_block("tap", str(fid))
+		tap.disabled = why != ""
+		tap.tooltip_text = why if why != "" else Copy.t("listening.tap_tip")
+		card_body.add_child(tap)
+
+
+func _queue_listening(uid: String, kind: String, sid: String, fid: String) -> void:
+	var action := {"order": kind}
+	if kind == "probe":
+		action["station"] = sid
+	else:
+		action["faction"] = fid
+	if game.queue_order(action):
+		_show_room(uid)
 
 
 func _room_icon(type: String, px: int) -> Glyph:
@@ -3653,10 +3696,8 @@ func _room_header(detail: Dictionary) -> void:
 		why.add_theme_color_override("font_color", PAPER_MUTED)
 		why.set_meta("yield_line", str(out.key))
 		card_body.add_child(why)
-	if bool(game._room(str(detail.uid)).get("switched_off", false)):
-		_body("Switched off. The crew went back to the platform.")
-	elif bool(detail.offline):
-		_body("Offline.")
+	for line in _room_status_lines(detail):
+		_body_ready(line)
 
 
 func _seat_row(uid: String, detail: Dictionary) -> void:
@@ -3753,10 +3794,12 @@ func _seat_filled(uid: String, member: Dictionary, skill_name: String) -> Contro
 	who.mouse_filter = Control.MOUSE_FILTER_PASS
 	box.add_child(who)
 	if skill_name != "":
-		var skill := _label("%s %d" % [Copy.skill(skill_name, false), int(member.skill)], 14)
+		var skill := _label("%s %d" % [_skill_word(skill_name), int(member.skill)], 14)
 		skill.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		skill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		skill.add_theme_color_override("font_color", PAPER_MUTED)
+		skill.tooltip_text = _skill_tip(skill_name, str(member.name), int(member.skill))
+		skill.mouse_filter = Control.MOUSE_FILTER_STOP
 		box.add_child(skill)
 	var off := _button("Unassign", _unassign.bind(str(member.id), uid))
 	off.custom_minimum_size = Vector2(0, 28)
@@ -3777,7 +3820,16 @@ func _seat_empty(uid: String, open: bool) -> Control:
 	slot.custom_minimum_size = Vector2(120, 150)
 	slot.ink = PAPER_EDGE
 	slot.open = open
-	slot.tooltip_text = Copy.t("Choose who works here") if open else Copy.t("Room is off")
+	var wanted := ""
+	var seated = game._room(uid)
+	if seated != null:
+		wanted = str(game.catalog.rooms[str(seated.type)].get("skill", ""))
+	if not open:
+		slot.tooltip_text = Copy.t("Room is off")
+	elif wanted != "":
+		slot.tooltip_text = Copy.fill("assign.tip_empty", {"skill": _skill_word(wanted)})
+	else:
+		slot.tooltip_text = Copy.t("assign.tip_empty_any")
 	if open:
 		slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		slot.picked.connect(_open_picker.bind(uid))
@@ -3916,6 +3968,95 @@ func _room_switch(uid: String) -> void:
 		_body(str(info.reason))
 
 
+## SX5 status. Quarters and the platform stay quiet. Switched off wins over the offline flag it sets.
+func _room_status_lines(detail: Dictionary) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	var type := str(detail.get("type", ""))
+	var room = game._room(str(detail.get("uid", "")))
+	if room == null:
+		return lines
+	var quiet := type == "quarters" or type == "platform"
+	var have := int(room.staff.size())
+	var need := int(detail.get("crew_need", 0))
+	if int(detail.get("block_width", 1)) > 1:
+		have = int(detail.get("block_staff", have))
+	var key := ""
+	if bool(room.get("switched_off", false)):
+		key = "station.status_switched"
+	elif bool(room.get("offline", false)) or int(room.get("disabled", 0)) > 0:
+		key = "station.status_offline"
+	elif bool(room.get("browned", false)) or dark_now.has(str(room.uid)) or power_loss.has(str(room.uid)):
+		key = "station.status_power"
+	elif not quiet and need > 0 and have < need:
+		key = "station.status_understaffed"
+	elif not quiet:
+		key = "station.status_running"
+	if key != "":
+		lines.append(Copy.t(key))
+	if key == "station.status_understaffed":
+		lines.append(Copy.fill("station.status_need", {"n": need - have}))
+	if float(room.get("efficiency", 1.0)) < 0.999:
+		lines.append(Copy.t("station.tip_damaged"))
+	return lines
+
+
+func _room_hover_tip(room: Dictionary) -> String:
+	var detail: Dictionary = game.room_detail(str(room.get("uid", "")))
+	if detail.is_empty():
+		return ""
+	var lines := _room_status_lines(detail)
+	if lines.is_empty():
+		return ""
+	var tip := lines[0]
+	if tip == Copy.t("station.status_switched"):
+		tip = Copy.t("station.tip_switched")
+	elif tip == Copy.t("station.status_understaffed"):
+		tip = Copy.t("station.tip_understaffed")
+	if lines.size() > 1 and lines[1] != Copy.t("station.tip_damaged"):
+		tip = "%s · %s" % [tip, lines[1]]
+	if lines[lines.size() - 1] == Copy.t("station.tip_damaged") and tip != Copy.t("station.tip_damaged"):
+		tip = "%s · %s" % [tip, lines[lines.size() - 1]]
+	return tip
+
+
+func _skill_word(skill_name: String) -> String:
+	var key := "skill.%s" % skill_name
+	var word := Copy.t(key)
+	if word == key:
+		return Copy.skill(skill_name, false)
+	return word
+
+
+func _skill_tip(skill_name: String, person_name: String, value: int) -> String:
+	return Copy.fill("assign.tip_skill", {"skill": _skill_word(skill_name), "name": person_name, "n": value})
+
+
+func _assign_toast_line(person_id: String, uid: String) -> String:
+	var person: Dictionary = game.people.get(person_id, {})
+	var room = game._room(uid)
+	if person.is_empty() or room == null:
+		return ""
+	var line := Copy.fill("assign.toast_on", {
+		"name": Copy.person(str(person.get("name", ""))),
+		"room": Copy.t(str(game.catalog.rooms[str(room.type)].name)),
+	})
+	var effect: Dictionary = Brief.marginal(game, uid, person_id)
+	var key := str(effect.get("key", ""))
+	var delta := int(effect.get("delta", 0))
+	if key != "" and key != "hope" and delta != 0:
+		var res := Copy.res(key)
+		res = res.substr(0, 1).to_lower() + res.substr(1)
+		line += " · %+d %s/wk" % [delta, res]
+	return line
+
+
+func _unassign_toast_line(person_id: String) -> String:
+	var person: Dictionary = game.people.get(person_id, {})
+	if person.is_empty():
+		return ""
+	return Copy.fill("assign.toast_off", {"name": Copy.person(str(person.get("name", "")))})
+
+
 ## The room's current state first; the button next to it says what pressing it does.
 func _switch_state(on: bool, saves: int) -> String:
 	if on:
@@ -3926,8 +4067,13 @@ func _switch_state(on: bool, saves: int) -> String:
 
 
 func _switch_room(uid: String, on: bool) -> void:
+	var saves := int(game.switch_preview(uid).get("saves", 0))
 	if game.apply({"kind": "switch", "room": uid, "on": on}):
 		_refresh()
+		if on:
+			_toast(Copy.t("station.toast_switch_on"))
+		else:
+			_toast(Copy.fill("station.toast_switch_off", {"n": saves}))
 	_show_room(uid)
 
 
@@ -3979,14 +4125,20 @@ func _assign_person(person_id: String, uid: String) -> void:
 		notice = str(info.reason)
 		_show_room(uid)
 		return
+	var assigned := _assign_toast_line(person_id, uid)
 	game.apply({"kind": "assign", "person": person_id, "room": uid})
 	_refresh()
+	if assigned != "":
+		_toast(assigned)
 	_show_room(uid)
 
 
 func _unassign(person_id: String, uid: String) -> void:
+	var released := _unassign_toast_line(person_id)
 	game.apply({"kind": "unassign", "person": person_id})
 	_refresh()
+	if released != "":
+		_toast(released)
 	_show_room(uid)
 
 
@@ -4117,6 +4269,13 @@ func _law_blurb(defin: Dictionary) -> String:
 	return " ".join(bits)
 
 
+func _blown_toast(text: String) -> bool:
+	if text == Copy.t("listening.blown_dawn"):
+		return true
+	var stem := Copy.t("listening.blown").split("{station}")[0]
+	return stem != "" and text.begins_with(stem)
+
+
 func _toast(text: String, hold: float = 1.8) -> void:
 	if toast_label == null:
 		toast_label = _label("", 16, true)
@@ -4125,19 +4284,55 @@ func _toast(text: String, hold: float = 1.8) -> void:
 		toast_label.add_theme_constant_override("outline_size", 6)
 		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		add_child(toast_label)
+	var blown := _blown_toast(text)
+	if blown:
+		_arm_blown_flash()
+	elif blown_flash != null:
+		blown_flash.visible = false
 	toast_label.text = text
-	toast_label.position = Vector2(16.0, (hud.size.y if hud != null else 72.0) + 8.0)
+	var icon_w := 36.0 if blown else 0.0
+	toast_label.position = Vector2(16.0 + icon_w, (hud.size.y if hud != null else 72.0) + 8.0)
 	toast_label.visible = true
 	toast_label.modulate.a = 1.0
+	if blown_flash != null and blown:
+		blown_flash.position = Vector2(8.0, toast_label.position.y - 18.0)
+		blown_flash.modulate.a = 1.0
+		blown_flash.visible = true
 	if toast_fade != null and toast_fade.is_valid():
 		toast_fade.kill()
 	toast_fade = create_tween()
 	var fade := toast_fade
 	fade.tween_interval(hold)
 	fade.tween_property(toast_label, "modulate:a", 0.0, 0.35)
+	if blown_flash != null and blown:
+		fade.parallel().tween_property(blown_flash, "modulate:a", 0.0, 0.35)
 	fade.tween_callback(func() -> void:
 		if toast_label != null:
-			toast_label.visible = false)
+			toast_label.visible = false
+		if blown_flash != null:
+			blown_flash.visible = false)
+
+
+func _arm_blown_flash() -> void:
+	if blown_flash != null:
+		return
+	blown_flash = TextureRect.new()
+	blown_flash.texture = ArtPack.load_texture("res://assets/overlays/blown_flash.webp")
+	blown_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	blown_flash.z_index = 31
+	blown_flash.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	blown_flash.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	blown_flash.custom_minimum_size = Vector2(64, 64)
+	blown_flash.size = Vector2(64, 64)
+	var mark := TextureRect.new()
+	mark.texture = ArtPack.icon_texture("blown", 32.0)
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mark.position = Vector2(16, 16)
+	mark.size = Vector2(32, 32)
+	blown_flash.add_child(mark)
+	add_child(blown_flash)
 
 
 ## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.
@@ -6581,6 +6776,11 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 
 
 func _do_confirm(action: Dictionary) -> void:
+	var pulled := ""
+	if str(action.get("kind", "")) == "demolish":
+		var gone = game._room(str(action.get("room", "")))
+		if gone != null:
+			pulled = Copy.t(str(game.catalog.rooms[str(gone.type)].name))
 	if action.is_empty() or not game.apply(action):
 		Sound.play("error")
 		footer.text = Copy.t("That did not happen.")
@@ -6600,6 +6800,8 @@ func _do_confirm(action: Dictionary) -> void:
 			_toast(Copy.t("push.toast_ok").replace("{room}", room_name), 3.2)
 	_close_card()
 	_refresh()
+	if pulled != "":
+		_toast(Copy.fill("station.toast_demolish", {"room": pulled}))
 	_action_voice(kind, str(action.get("law", "")))
 
 
@@ -7053,6 +7255,12 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 		text.add_child(line)
 	text.add_child(_makes_line(type, defin))
 	text.add_child(_cost_line(info, defin, building))
+	if type == "listening_post" and str(info.get("reason", "")) != "":
+		var why := _label("", 14)
+		why.text = str(info.reason)
+		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.add_child(why)
 	if not enabled:
 		var lock := Glyph.new()
 		lock.kind = "lock"
@@ -7147,6 +7355,9 @@ func _makes_line(type: String, defin: Dictionary) -> HBoxContainer:
 		glyph = "influence"
 	elif type == "radio":
 		words = Copy.t("2 tokens a week. Reveals intents.")
+	elif type == "listening_post":
+		words = "listening.desc"
+		glyph = "listen"
 	elif type == "infirmary":
 		words = Copy.t("Clears sickness")
 		glyph = "quarantine"
@@ -10892,6 +11103,7 @@ class Yard extends Control:
 		"meeting_hall": "res://assets/rooms/room_meeting_hall.webp",
 		"platform": "res://assets/rooms/room_platform.webp",
 		"radio": "res://assets/rooms/room_radio.webp",
+		"listening_post": "res://assets/rooms/room_listening_post.webp",
 	}
 	const TIER_ART := "res://assets/rooms/upgrades/room_%s_t%d.png"
 	const POSE_ART := {
@@ -10911,6 +11123,7 @@ class Yard extends Control:
 		"workshop": Color(0.95, 0.55, 0.22, 0.16),
 		"meeting_hall": Color(0.72, 0.58, 0.95, 0.16),
 		"radio": Color(0.55, 0.78, 1.0, 0.18),
+		"listening_post": Color(0.35, 0.95, 0.55, 0.22),
 		"platform": Color(1.0, 0.72, 0.40, 0.14),
 	}
 	# Backdrop image: tunnel rail, and how much of each side is the mouth.
@@ -10929,6 +11142,10 @@ class Yard extends Control:
 	var poses := {}
 	var figure_scale_px := 660.0
 	var lamp_glow: Texture2D
+	var probe_wash: Texture2D
+	var offline_wash: Texture2D
+	var offline_wash_256: Texture2D
+	var grey_plates := {}
 	var cell_rock: Texture2D
 	var cell_dug: Texture2D
 	## Room separation, kept light (Underline_Props_Pack_Light): one slim steel column on every line between cells,
@@ -11103,6 +11320,12 @@ class Yard extends Control:
 				continue
 			art_aspect = float(tex.get_width()) / float(tex.get_height())
 			art[type] = tex
+		var alt := ArtPack.load_texture("res://assets/rooms/room_listening_post_alt.webp")
+		if alt != null:
+			art["listening_post_alt"] = alt
+		probe_wash = ArtPack.load_texture("res://assets/overlays/room_probe.webp")
+		offline_wash = ArtPack.load_texture("res://assets/overlays/room_offline.webp")
+		offline_wash_256 = ArtPack.load_texture("res://assets/overlays/room_offline_256.webp")
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
 		sep_pillar = ArtPack.load_texture("res://assets/separators/sep_slim_steel_column.webp")
 		edge_beam = ArtPack.load_texture("res://assets/edges/edge_ceiling_beam_albedo.png")
@@ -11708,12 +11931,22 @@ class Yard extends Control:
 			draw_rect(rect, Color(0.08, 0.07, 0.06))
 			var tier_tex: Texture2D = tier_art(room_type, int(room.upgrade)) if room != null else null
 			var texture = tier_tex if tier_tex != null else art.get(room_type, null)
+			if room_type == "listening_post" and tier_tex == null:
+				texture = _listening_plate()
+			var shut := room != null and int(room.get("disabled", 0)) > 0
+			var plate := rect
 			if texture != null:
-				_blit_room(texture, rect)
+				plate = _blit_room(_grey_plate(texture) if shut else texture, rect)
+			if shut:
+				var wash := _offline_wash(plate)
+				if wash != null:
+					draw_texture_rect(wash, plate, false)
+			elif room_type == "listening_post" and station.game.listening_probe_live() and probe_wash != null:
+				draw_texture_rect(probe_wash, _art_rect(room_type, rect), false)
 			_draw_props(rect, room_type)
 			var salt := level * 6 + cell
 			var weak: bool = room != null and (bool(room.get("browned", false)) or station.dark_now.has(str(room.uid)) or station.power_loss.has(str(room.uid)))
-			var off: bool = room != null and bool(room.get("offline", false))
+			var off: bool = room != null and (bool(room.get("offline", false)) or shut)
 			_draw_lamp_glow(rect, room_type, salt, weak, off)
 			if room != null and not off and not weak and room_type in ["generator", "air_filter"]:
 				_draw_steam(rect, room_type, salt)
@@ -11826,10 +12059,10 @@ class Yard extends Control:
 			scale = target / maxf(float(texture.get_height()), 1.0)
 		return scale
 
-	func _blit_room(texture: Texture2D, rect: Rect2) -> void:
+	func _blit_room(texture: Texture2D, rect: Rect2) -> Rect2:
 		var tex := texture.get_size()
 		if tex.x < 1.0 or tex.y < 1.0:
-			return
+			return rect
 		var aspect := tex.x / tex.y
 		var cell_aspect := rect.size.x / maxf(rect.size.y, 1.0)
 		var dest := rect
@@ -11841,6 +12074,29 @@ class Yard extends Control:
 			dest = Rect2(rect.position.x, rect.position.y + (rect.size.y - h) * 0.5, rect.size.x, h)
 		draw_rect(rect, Color(0.1, 0.08, 0.06))
 		draw_texture_rect(texture, dest, false)
+		return dest
+
+	## Disabled week (Listening Post blown, or any room_disabled): the same plate, grey, under the tape wash.
+	func _grey_plate(texture: Texture2D) -> Texture2D:
+		if grey_plates.has(texture):
+			var cached = grey_plates[texture]
+			return cached if cached is Texture2D else texture
+		var image := texture.get_image()
+		if image == null or image.is_empty():
+			grey_plates[texture] = false
+			return texture
+		image = image.duplicate()
+		if image.get_format() != Image.FORMAT_RGBA8:
+			image.convert(Image.FORMAT_RGBA8)
+		image.adjust_bcs(1.0, 1.0, 0.0)
+		var grey := ImageTexture.create_from_image(image)
+		grey_plates[texture] = grey
+		return grey
+
+	func _offline_wash(dest: Rect2) -> Texture2D:
+		if dest.size.x <= 256.0 and offline_wash_256 != null:
+			return offline_wash_256
+		return offline_wash
 
 	func _lamp(level: int, cell: int) -> float:
 		var t := Time.get_ticks_msec() / 1000.0
@@ -11883,6 +12139,8 @@ class Yard extends Control:
 				return "Plat"
 			"radio":
 				return "Radio"
+			"listening_post":
+				return "Listen"
 			_:
 				return full
 
@@ -12291,7 +12549,7 @@ class Yard extends Control:
 		var building: Dictionary = station.game.build
 		if not building.is_empty() and int(building.level) == level and int(building.cell) == cell:
 			var name := Copy.t(str(station.game.catalog.rooms[str(building.type)].name))
-			return Copy.t("Building %s, %s left") % [name, Words.count(int(building.left), "week")]
+			return Copy.fill("station.tip_building", {"room": name, "weeks": int(building.left)})
 		match kind:
 			"hidden":
 				return Copy.t("Solid rock")
@@ -12333,6 +12591,18 @@ class Yard extends Control:
 			tier_cache[path] = tex if tex != null else false
 		var found = tier_cache[path]
 		return found if found is Texture2D else null
+
+	func _listening_plate() -> Texture2D:
+		var base: Texture2D = art.get("listening_post", null)
+		if station == null or station.game == null:
+			return base
+		if station.game.listening_probe_live():
+			return base
+		if station.game.listening_active() and int(station.game.week) % 2 == 1:
+			var alt: Texture2D = art.get("listening_post_alt", null)
+			if alt != null:
+				return alt
+		return base
 
 	func _art_rect(room_type: String, rect: Rect2) -> Rect2:
 		var texture: Texture2D = art.get(room_type, null)
@@ -12677,10 +12947,15 @@ class Yard extends Control:
 		var spot: Dictionary = station.game.cells["%d:%d" % [hover.x, hover.y]]
 		var kind := _kind(spot)
 		var room_type := ""
+		var found: Dictionary = {}
 		if kind == "room":
-			var found: Dictionary = station.game._room(str(spot.room))
+			found = station.game._room(str(spot.room))
 			room_type = str(found.get("type", ""))
 		var tip := _cell_action(hover.x, hover.y, kind, room_type)
+		if kind == "room" and not found.is_empty():
+			var status: String = station._room_hover_tip(found)
+			if status != "":
+				tip = status if tip == "" else "%s · %s" % [tip, status]
 		if tip == "":
 			return
 		var world := _rect(geo, hover.x, hover.y)

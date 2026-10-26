@@ -1621,6 +1621,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 			c.draw_texture_rect(warn, Rect2(at + Vector2(r * 0.6, -r - 14.0), Vector2(16, 16)), false)
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
+	_draw_listening_chips(c, game, sid, st, at, r, lift)
 
 
 ## One week of pressure is a 270° arc. Two or more close the ring (Assault's gate is still low_weeks >= 2).
@@ -1781,6 +1782,27 @@ func _draw_sympathy_ring(c: CanvasItem, game, st: Dictionary, at: Vector2, r: fl
 		return
 	var band := _sympathy_band(int(st.sympathy))
 	c.draw_arc(at - Vector2(0, 2.0 * lift), r + 2.5, 0, TAU, 28, Color(band, 0.92), 2.0, true)
+
+
+func _draw_listening_chips(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
+	var probing := str(game.flags.get("listening_probe_sid", "")) == sid
+	var wired := int(st.get("wired_until", 0)) > int(game.week)
+	if probing:
+		_draw_map_chip(c, "probing", at + Vector2(r * 0.55, -r * 0.95), lift)
+	if wired:
+		var shift := Vector2(-r * 0.85, -r * 0.7) if probing else Vector2(r * 0.55, -r * 0.95)
+		_draw_map_chip(c, "wired", at + shift, lift)
+
+
+func _draw_map_chip(c: CanvasItem, name: String, at: Vector2, lift: float) -> void:
+	var pos := at - Vector2(0, 2.0 * lift)
+	var sz := 18.0
+	var tint := ArtPack.load_texture("res://assets/map/chips/%s_tint.webp" % name)
+	var mark := ArtPack.load_texture("res://assets/map/chips/%s.webp" % name)
+	if tint != null:
+		c.draw_texture_rect(tint, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
+	if mark != null:
+		c.draw_texture_rect(mark, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
 
 
 func _draw_leaflet_chip(c: CanvasItem, game, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
@@ -3268,6 +3290,12 @@ func _tip(sid: String) -> String:
 			continue
 		if str(intent.get("station", "")) == sid:
 			lines.append(game._intent_text(intent))
+	if str(game.flags.get("listening_probe_sid", "")) == sid:
+		lines.append(Copy.t("listening.probe"))
+	if int(st.get("wired_until", 0)) > int(game.week):
+		lines.append(Copy.t("listening.wired_tip"))
+	if int(st.get("intel", 0)) > 0:
+		lines.append(Copy.fill("listening.intel_line", {"n": int(st.intel)}))
 	return "\n".join(lines)
 
 
@@ -3625,6 +3653,8 @@ func _fill_sheet_body(sid: String) -> void:
 		if conflict != "":
 			details.add_child(_lab(conflict, 14, false))
 		details.add_child(_lab("%s: %s" % [Copy.t("Owner"), Copy.t(_owner_name(game, str(st.owner)))], 14, false))
+		if bool(st.get("known", false)):
+			details.add_child(_lab(Copy.fill("listening.intel_line", {"n": int(st.get("intel", 0))}), 14, false))
 		details.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
 		if int(st.unrest) > 0:
 			details.add_child(_lab("%s: %s" % [Copy.t("Unrest"), str(int(st.unrest))], 14, false))

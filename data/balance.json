@@ -179,5 +179,9 @@
     "flushing_count": 3,
     "flushing_weeks": 3,
     "flushing_synod": 10
-  }
+  },
+  "probe_tokens": 3,
+  "probe_blown": 0.15,
+  "tap_blown": 0.25,
+  "blown_opinion": -12
 }
