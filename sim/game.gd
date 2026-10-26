@@ -62,6 +62,11 @@ var telegraphed: Array = []
 var demands: Array = []
 var pending: Array = []
 var dig := {}
+## Yard pile clear, same brigade as dig. Empty when nobody is clearing.
+var clear := {}
+## Last finished clear, for the one-shot dust overlay. Not saved.
+var clear_burst := {}
+var clear_burst_seq := 0
 var build := {}
 var expedition := {}
 var active_season := {}
@@ -372,6 +377,8 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_build(str(action.get("type", "")), int(action.get("level", -1)), int(action.get("cell", -1)))
 		"dig":
 			ok = _apply_dig_action(action)
+		"clear":
+			ok = _apply_clear(int(action.get("level", -1)), int(action.get("cell", -1)))
 		"upgrade":
 			ok = _apply_upgrade(str(action.get("room", "")))
 		"strip":
@@ -436,6 +443,8 @@ func _journal_context(kind: String, action: Dictionary) -> Dictionary:
 		"build":
 			return {"type": str(action.get("type", ""))}
 		"dig":
+			return {"level": int(action.get("level", -1)), "cell": int(action.get("cell", -1))}
+		"clear":
 			return {"level": int(action.get("level", -1)), "cell": int(action.get("cell", -1))}
 		"upgrade", "demolish":
 			var room = _room(str(action.get("room", "")))
@@ -975,7 +984,7 @@ func build_possible(type: String) -> bool:
 
 
 func dig_possible(for_space: bool) -> bool:
-	if not dig.is_empty():
+	if not dig.is_empty() or not clear.is_empty():
 		return false
 	if int(stock.materials) < dig_material_cost():
 		return false
@@ -1027,6 +1036,7 @@ func _dawn() -> void:
 		_log(ultimatum, true)
 	_roll_rumor()
 	_audience_dawn()
+	_drip_piles()
 
 
 func _rival_phase() -> void:
@@ -2722,12 +2732,16 @@ func _apply_weekly_laws() -> void:
 
 
 func _decay_filters() -> void:
+	var skip := int(flags.get("filter_skip", 0)) > 0
+	if skip:
+		flags.erase("filter_skip")
 	for room in rooms:
 		if room.type != "air_filter":
 			continue
 		var upkeep := filter_upkeep(room)
-		if int(stock.materials) >= upkeep:
-			stock.materials = int(stock.materials) - upkeep
+		if skip or int(stock.materials) >= upkeep:
+			if not skip:
+				stock.materials = int(stock.materials) - upkeep
 			room.efficiency = clampf(float(room.efficiency) - float(bal.filter_decay) + float(bal.filter_restore), 0.25, 1.0)
 		else:
 			room.efficiency = clampf(float(room.efficiency) - float(bal.filter_neglect), 0.25, 1.0)
@@ -2810,6 +2824,9 @@ func dig_preview(level: int, cell: int) -> Dictionary:
 	if not _beside_dug(spot):
 		info.reason = Copy.t("Solid rock. Dig from a cell that touches an open one.")
 		return info
+	if not clear.is_empty():
+		info.reason = Copy.t("clear.busy")
+		return info
 	if not dig.is_empty():
 		info.reason = Copy.t("A crew is already digging.")
 		return info
@@ -2834,6 +2851,9 @@ func build_preview(type: String, level: int, cell: int) -> Dictionary:
 	info.power = int(defin.get("power", 0))
 	info.name = str(defin.name)
 	var key := _ck(level, cell)
+	if cells.has(key) and str(cells[key].get("pile", "")) != "":
+		info.reason = Copy.t("clear.blocked_build")
+		return info
 	if not cells.has(key) or not _cell_buildable(cells[key]):
 		info.reason = Copy.t("That cell is not an open, empty floor.")
 		return info
@@ -3588,6 +3608,12 @@ func _advance_jobs() -> void:
 			var crew: Array = dig.get("workers", []).duplicate()
 			_finish_dig()
 			_restore_posts(crew)
+	if not clear.is_empty():
+		clear.left = int(clear.left) - 1
+		if int(clear.left) <= 0:
+			var crew: Array = clear.get("workers", []).duplicate()
+			_finish_clear()
+			_restore_posts(crew)
 
 
 ## "requires": "digging" holds while a crew is digging and the week after it breaks through, when the new
@@ -3631,7 +3657,299 @@ func _finish_dig() -> void:
 			if _has_trait(people[hit], "Claustrophobic"):
 				people[hit].absent = 2
 				_add_hope(-3, "trait")
+	_offer_rubble(cell)
 	dig = {}
+
+
+## DEC-C1. Weeks, crew, tool mats, yield band, and sick chance. Charter trims weeks; drill heads do not.
+const PILE_CAP := 3
+const PILE := {
+	"rubble": {"weeks": 1, "crew": 2, "materials": 0, "lo": 4, "hi": 6, "risk": 8},
+	"scrap": {"weeks": 1, "crew": 2, "materials": 1, "lo": 7, "hi": 9, "risk": 8},
+	"coal": {"weeks": 2, "crew": 2, "materials": 0, "lo": 5, "hi": 7, "risk": 12},
+}
+
+
+func pile_count() -> int:
+	var n := 0
+	for key in cells:
+		if str(cells[key].get("pile", "")) != "":
+			n += 1
+	return n
+
+
+## First cell carrying this pile kind, or any pile when kind is empty.
+func pile_spot(kind: String = "") -> Dictionary:
+	for key in cells:
+		var cell: Dictionary = cells[key]
+		var pile := str(cell.get("pile", ""))
+		if pile == "" or (kind != "" and pile != kind):
+			continue
+		return cell
+	return {}
+
+
+func clear_weeks(kind: String) -> int:
+	var row: Dictionary = PILE.get(kind, {})
+	var turns := int(row.get("weeks", 1))
+	if _law_on("engineers_charter"):
+		turns = maxi(1, turns - int(catalog.laws.engineers_charter.get("dig_faster", 1)))
+	return maxi(1, turns)
+
+
+func clear_preview(level: int, cell: int) -> Dictionary:
+	var info := {
+		"ok": false,
+		"reason": "",
+		"weeks": 0,
+		"turns": 0,
+		"workers": 2,
+		"materials": 0,
+		"kind": "",
+		"risk_pct": 0,
+		"risk_hope": false,
+	}
+	var key := _ck(level, cell)
+	if not cells.has(key):
+		info.reason = Copy.t("No such cell.")
+		return info
+	var spot: Dictionary = cells[key]
+	var kind := str(spot.get("pile", ""))
+	if kind == "" or not PILE.has(kind):
+		info.reason = Copy.t("Already open.")
+		return info
+	var row: Dictionary = PILE[kind]
+	info.kind = kind
+	info.weeks = clear_weeks(kind)
+	info.turns = int(info.weeks)
+	info.workers = int(row.crew)
+	info.materials = int(row.materials)
+	info.risk_pct = int(row.risk)
+	info.risk_hope = kind == "coal"
+	if not dig.is_empty():
+		info.reason = Copy.t("clear.dig_busy")
+		return info
+	if not clear.is_empty():
+		info.reason = Copy.t("clear.busy")
+		return info
+	var reasons: PackedStringArray = []
+	if int(info.materials) > 0 and int(stock.materials) < int(info.materials):
+		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(int(info.materials), "material"), Words.count(int(stock.materials), "material")])
+	if _free_count() < int(info.workers):
+		reasons.append(Copy.t("Needs %s free. %s are free.") % [Words.count(int(info.workers), "person", "people"), Words.count(_free_count(), "person", "people")])
+	info.reason = " ".join(reasons)
+	info.ok = reasons.is_empty()
+	return info
+
+
+func _apply_clear(level: int, cell: int) -> bool:
+	var info := clear_preview(level, cell)
+	if not bool(info.ok):
+		return false
+	var workers := _pull_workers(int(info.workers), "labor")
+	if workers.size() < int(info.workers):
+		return false
+	if int(info.materials) > 0:
+		stock.materials = int(stock.materials) - int(info.materials)
+	clear = {
+		"level": level,
+		"cell": cell,
+		"left": int(info.weeks),
+		"workers": workers,
+		"kind": str(info.kind),
+	}
+	decisions += 1
+	_log("CLEAR %s L%d C%d (%d turns)" % [str(info.kind), level, cell, int(info.weeks)])
+	return true
+
+
+func _finish_clear() -> void:
+	var kind := str(clear.get("kind", ""))
+	var level := int(clear.get("level", 0))
+	var cell_i := int(clear.get("cell", 0))
+	var workers: Array = clear.get("workers", []).duplicate()
+	var key := _ck(level, cell_i)
+	if cells.has(key):
+		cells[key].erase("pile")
+	var row: Dictionary = PILE.get(kind, {})
+	var gained := _pile_yield(kind, level, cell_i)
+	stock.materials = int(stock.materials) + gained
+	var rest := kind == "coal" and _has_air_filter()
+	if rest:
+		flags["filter_skip"] = 1
+	var toast_key := "clear.toast_coal" if rest else "clear.toast_mats"
+	notices.append(Copy.clip(Copy.fill(toast_key, {"n": str(gained)}), 72))
+	if not bool(flags.get("cleared_once", false)):
+		flags["cleared_once"] = true
+		_note_moment("clear", {}, 1)
+	_pile_risk(kind, workers, level, cell_i, int(row.get("risk", 0)))
+	clear = {}
+	clear_burst_seq += 1
+	clear_burst = {"level": level, "cell": cell_i, "seq": clear_burst_seq}
+	_log("CLEAR done %s +%d" % [kind, gained])
+
+
+func _pile_risk(kind: String, workers: Array, level: int, cell_i: int, risk: int) -> void:
+	var claustro := false
+	for id in workers:
+		if people.has(str(id)) and _has_trait(people[str(id)], "Claustrophobic"):
+			claustro = true
+	if kind == "coal" and claustro:
+		_add_hope(-1, "trait")
+	if workers.is_empty() or _clear_roll(level * 100 + cell_i + 1) >= risk:
+		return
+	var hit := str(workers[posmod(_clear_roll(level * 100 + cell_i + 3), workers.size())])
+	if not people.has(hit):
+		return
+	people[hit].sick = maxi(int(people[hit].sick), 1)
+	var bark := Copy.t("clear.hurt")
+	notices.append(Copy.clip(bark, 72))
+	_log(bark, true)
+
+
+func _pile_yield(kind: String, level: int, cell_i: int) -> int:
+	var row: Dictionary = PILE.get(kind, {})
+	var lo := int(row.get("lo", 0))
+	var hi := int(row.get("hi", lo))
+	var span := maxi(1, hi - lo + 1)
+	return lo + posmod(_clear_roll(level * 100 + cell_i + 2), span)
+
+
+## Stable 0–99. Does not draw from the week rng, so dig accidents stay on their old stream.
+func _clear_roll(salt: int) -> int:
+	return posmod(int(seed) * 31 + int(week) * 17 + salt * 13, 100)
+
+
+func _has_air_filter() -> bool:
+	for room in rooms:
+		if str(room.type) == "air_filter":
+			return true
+	return false
+
+
+func _offer_rubble(cell: Dictionary) -> void:
+	if not bool(cell.get("dug", false)) or str(cell.get("room", "")) != "":
+		return
+	if str(cell.get("pile", "")) != "" or bool(cell.get("flooded", false)):
+		return
+	if str(cell.get("find", "")) != "":
+		return
+	if pile_count() >= PILE_CAP:
+		return
+	var salt := int(cell.level) * 100 + int(cell.cell)
+	if _clear_roll(salt) >= 20:
+		return
+	var spot := _spawn_spot(cell)
+	if spot.is_empty():
+		return
+	spot["pile"] = "rubble"
+
+
+## Week 1 starts one room: the bot's single project, and the floor a player taps.
+const WEEK1_FLOOR_TAKES := 1
+
+
+## A later pile's floor. The new dig floor is kept when it is allowed. Preferred week-1 floors are used only when no other empty floor exists.
+func _spawn_spot(prefer: Dictionary = {}) -> Dictionary:
+	var open := _empty_dug_spots()
+	if open.is_empty():
+		return {}
+	var held := {}
+	for cell in _preferred_early_floors():
+		held[_ck(int(cell.level), int(cell.cell))] = true
+	var others: Array = []
+	for cell in open:
+		if not held.has(_ck(int(cell.level), int(cell.cell))):
+			others.append(cell)
+	var pool: Array = others if not others.is_empty() else open
+	if not prefer.is_empty():
+		var want := _ck(int(prefer.level), int(prefer.cell))
+		for cell in pool:
+			if _ck(int(cell.level), int(cell.cell)) == want:
+				return cell
+	return pool[0]
+
+
+## Empty floors in the order `_first_build_cell()` would hand them out: lowest level, first in grid order.
+func _build_floor_order() -> Array:
+	var pool := _open_floors(true)
+	var order: Array = []
+	while not pool.is_empty():
+		var best_i := 0
+		var best_level := 99
+		for i in pool.size():
+			var level := int(pool[i].level)
+			if level < best_level:
+				best_level = level
+				best_i = i
+		order.append(pool[best_i])
+		pool.remove_at(best_i)
+	return order
+
+
+## Floors week 1 would build on: every empty floor at the lowest level, then the next
+## floors in that same order if week 1 would take more than that tier.
+func _preferred_early_floors() -> Array:
+	var order := _build_floor_order()
+	if order.is_empty():
+		return []
+	var lowest := int(order[0].level)
+	var preferred: Array = []
+	for cell in order:
+		if int(cell.level) != lowest:
+			break
+		preferred.append(cell)
+	var i := preferred.size()
+	while preferred.size() < WEEK1_FLOOR_TAKES and i < order.size():
+		preferred.append(order[i])
+		i += 1
+	return preferred
+
+
+func _open_floors(ignore_piles: bool) -> Array:
+	var rows: Array = []
+	for key in cells:
+		var cell: Dictionary = cells[key]
+		if not bool(cell.dug) or str(cell.room) != "" or bool(cell.get("flooded", false)) or bool(cell.get("walled", false)):
+			continue
+		if not ignore_piles and str(cell.get("pile", "")) != "":
+			continue
+		rows.append(cell)
+	return rows
+
+
+## Empty dug floor with no room and no pile. Level 2 first, then the rest in grid order.
+func _empty_dug_spots() -> Array:
+	var rows: Array = []
+	for key in cells:
+		var cell: Dictionary = cells[key]
+		if not bool(cell.dug) or str(cell.room) != "" or str(cell.get("pile", "")) != "":
+			continue
+		if bool(cell.get("flooded", false)):
+			continue
+		rows.append(cell)
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var pa := 0 if int(a.level) == 2 else 1
+		var pb := 0 if int(b.level) == 2 else 1
+		if pa != pb:
+			return pa < pb
+		if int(a.level) != int(b.level):
+			return int(a.level) < int(b.level)
+		return int(a.cell) < int(b.cell)
+	)
+	return rows
+
+
+## Weeks 4, 10 and 16: one coal or scrap if the yard has fewer than two piles and food is not in crisis.
+func _drip_piles() -> void:
+	if week < 4 or week > 20 or posmod(week - 4, 6) != 0:
+		return
+	if pile_count() >= 2 or food_buffer_weeks() < 1.0:
+		return
+	var spot := _spawn_spot()
+	if spot.is_empty():
+		return
+	spot["pile"] = "coal" if _clear_roll(week * 9 + 4) < 50 else "scrap"
 
 
 func _dig_cost(level: int) -> Dictionary:
@@ -6668,6 +6986,8 @@ func _locked_ids() -> Array:
 	var ids: Array = []
 	if not dig.is_empty():
 		ids.append_array(dig.workers)
+	if not clear.is_empty():
+		ids.append_array(clear.workers)
 	if not build.is_empty():
 		ids.append_array(build.workers)
 	ids.append_array(soldier_ids())
@@ -6799,6 +7119,8 @@ func _remove_resident(id: String, notice := false, cause := "", how := "died", p
 	residents = keep
 	if not dig.is_empty():
 		dig.workers = _without(dig.workers, id)
+	if not clear.is_empty():
+		clear.workers = _without(clear.workers, id)
 	if not build.is_empty():
 		build.workers = _without(build.workers, id)
 	_sync_guard()
@@ -10194,6 +10516,8 @@ func _room(uid: String):
 func _cell_buildable(cell: Dictionary) -> bool:
 	if not cell.dug or str(cell.room) != "" or cell.flooded or cell.walled:
 		return false
+	if str(cell.get("pile", "")) != "":
+		return false
 	if not build.is_empty() and int(build.level) == int(cell.level) and int(build.cell) == int(cell.cell):
 		return false
 	return true
@@ -10781,7 +11105,7 @@ const PERSIST := [
 	"stock", "salvage", "hope", "discontent", "residents", "people", "cells", "rooms",
 	"laws_on", "law_lock", "council", "stations", "tunnels", "squads",
 	"opinions", "ambition", "at_war", "trade_on", "telegraphed", "demands",
-	"pending", "dig", "build", "expedition", "active_season", "artifacts",
+	"pending", "dig", "clear", "build", "expedition", "active_season", "artifacts",
 	"pumped", "flood_guard", "quarantine", "synod", "floor_met", "orders_left", "decisions",
 	"hope_zero", "next_person", "demand_seq", "log", "errors", "stats",
 	"food_buffers", "growth_bank", "hope_week", "hope_history", "hope_totals",
@@ -10807,7 +11131,8 @@ const PERSIST := [
 ## Version 11 added the truce lock from tunnel combat; older saves start with none.
 ## Version 12 added the map rumor; older saves start with none.
 ## Version 13 added the salvage board; older saves start with none.
-const SAVE_SCHEMA := 13
+## Version 14 added the yard clear job. Older saves start with nobody clearing.
+const SAVE_SCHEMA := 14
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -10843,6 +11168,8 @@ const V10_ADDED := ["combat_lock"]
 const V11_ADDED := ["rumor"]
 ## Fields a version 1 to 12 save may lack: no salvage board yet.
 const V12_ADDED := ["salvage"]
+## Fields a version 1 to 13 save may lack: no pile crew out yet.
+const V13_ADDED := ["clear"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -10900,7 +11227,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -11021,7 +11348,7 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 		for id in room.staff:
 			if not state.people.has(str(id)):
 				return "room %s staffed by unknown %s" % [room.uid, id]
-	for job in [state.dig, state.build]:
+	for job in [state.dig, state.clear, state.build]:
 		for id in job.get("workers", []):
 			if not state.people.has(str(id)):
 				return "worker %s unknown" % id
@@ -11269,6 +11596,8 @@ func chronicle_line(moment: Dictionary) -> String:
 			vars[str(key)] = str(fields[key])
 		vars["week"] = str(int(moment.get("week", week)))
 		return Copy.fill(combat_key, vars)
+	if kind == "clear":
+		return Copy.t("clear.chronicle")
 	for row in catalog.epilogues.get("chronicle", []):
 		if str(row.get("kind", "")) != kind:
 			continue

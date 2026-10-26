@@ -350,8 +350,42 @@ static func textures() -> Dictionary:
 		"res://assets/icons/status/salvage_open_24.png": preload("res://assets/icons/status/salvage_open_24.png"),
 		"res://assets/icons/status/blueprint_ready.png": preload("res://assets/icons/status/blueprint_ready.png"),
 		"res://assets/icons/status/blueprint_ready_24.png": preload("res://assets/icons/status/blueprint_ready_24.png"),
+		"res://assets/props/pile_rubble.webp": preload("res://assets/props/pile_rubble.webp"),
+		"res://assets/props/pile_scrap.webp": preload("res://assets/props/pile_scrap.webp"),
+		"res://assets/props/pile_coal.webp": preload("res://assets/props/pile_coal.webp"),
+		"res://assets/props/pile_rubble_512.webp": preload("res://assets/props/pile_rubble_512.webp"),
+		"res://assets/props/pile_scrap_512.webp": preload("res://assets/props/pile_scrap_512.webp"),
+		"res://assets/props/pile_coal_512.webp": preload("res://assets/props/pile_coal_512.webp"),
+		"res://assets/overlays/clear_dust.webp": preload("res://assets/overlays/clear_dust.webp"),
 	}
 	return _textures
+
+
+## Cell overlays for yard piles. The 210-wide set is the one drawn on a cell; _512 is the room-scale sit.
+const PILE_ART := {
+	"rubble": "res://assets/props/pile_rubble.webp",
+	"scrap": "res://assets/props/pile_scrap.webp",
+	"coal": "res://assets/props/pile_coal.webp",
+}
+const PILE_ART_LARGE := {
+	"rubble": "res://assets/props/pile_rubble_512.webp",
+	"scrap": "res://assets/props/pile_scrap_512.webp",
+	"coal": "res://assets/props/pile_coal_512.webp",
+}
+const CLEAR_DUST := "res://assets/overlays/clear_dust.webp"
+
+
+static func pile_texture(kind: String, large: bool = false) -> Texture2D:
+	var path := str((PILE_ART_LARGE if large else PILE_ART).get(kind, ""))
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	return load_texture(path)
+
+
+static func clear_dust_texture() -> Texture2D:
+	if not ResourceLoader.exists(CLEAR_DUST):
+		return null
+	return load_texture(CLEAR_DUST)
 
 
 static func adopt_icons() -> void:
