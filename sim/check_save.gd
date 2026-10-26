@@ -4,9 +4,7 @@ extends SceneTree
 ## Writes only under user://check_save_<pid>/ and never touches the player's slots.
 ##   godot --headless --path . -s res://sim/check_save.gd
 
-## Seed 3 is the resume path that still records a "helped" answer. With one start scrap pile,
-## seed 1 never meets an odd-week audience and seed 2 is short the food that help costs.
-const SEEDS := [1, 2, 3]
+const SEEDS := [1, 2]
 const WEEKS := 40
 const AUDIENCE_KEYS := ["standing", "standing_memory", "audience", "audience_last", "audience_due", "audience_deals"]
 

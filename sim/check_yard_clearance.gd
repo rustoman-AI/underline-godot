@@ -116,40 +116,25 @@ func _preferred_keys(game: Game) -> PackedStringArray:
 	return keys
 
 
-func _open_unpiled(game: Game) -> int:
-	var n := 0
-	for cell in game._build_floor_order():
-		if str(cell.get("pile", "")) == "":
-			n += 1
-	return n
+func _plant(game: Game, level: int, cell: int, kind: String) -> Dictionary:
+	var spot: Dictionary = game.cells["%d:%d" % [level, cell]]
+	spot["pile"] = kind
+	return spot
 
 
 func _start_piles() -> void:
 	var game := _game()
-	var rows := _piles(game)
-	var on_empty := true
-	var kind := ""
-	for cell in rows:
-		kind = str(cell.pile)
-		if not bool(cell.dug) or str(cell.room) != "" or bool(cell.flooded):
-			on_empty = false
-	var preferred := _preferred_keys(game)
-	var open := _open_unpiled(game)
-	# Both stock floors are preferred, so the scrap sits on the later one and week 1 still has 2:0.
-	var keeps_first := rows.size() == 1 and preferred.size() >= 2 and _cell_key(rows[0]) == str(preferred[preferred.size() - 1]) and not _pile_keys(game).has(str(preferred[0]))
-	_expect(rows.size() == 1 and kind == "scrap" and on_empty and open >= 1 and keeps_first and game.build_slots() >= 1,
-		"Start is one scrap pile and at least one floor stays open",
-		"piles %s kind %s preferred %s open %d slots %d" % [_pile_keys(game), kind, preferred, open, game.build_slots()])
-	var blocked := true
-	var reason := ""
-	for cell in rows:
-		var info: Dictionary = game.build_preview("quarters", int(cell.level), int(cell.cell))
-		reason = str(info.reason)
-		if bool(info.ok) or reason != Copy.t("clear.blocked_build") or game._cell_buildable(cell):
-			blocked = false
-	_expect(blocked, "Build is refused on a piled cell", "blocked=%s reason=%s" % [blocked, reason])
-	_placement_avoids_preferred()
-	_placement_falls_back()
+	var open := game._cell_buildable(game.cells["2:0"]) and game._cell_buildable(game.cells["2:1"])
+	_expect(game.pile_count() == 0 and open and game.build_slots() >= 2,
+		"A new run starts with no piles",
+		"piles %s slots %d" % [_pile_keys(game), game.build_slots()])
+	var spot := _plant(game, 2, 1, "scrap")
+	var info: Dictionary = game.build_preview("quarters", 2, 1)
+	_expect(not bool(info.ok) and str(info.reason) == Copy.t("clear.blocked_build") and not game._cell_buildable(spot),
+		"Build is refused on a piled cell",
+		"ok=%s reason=%s" % [info.ok, info.reason])
+	_spawn_avoids_preferred()
+	_spawn_falls_back()
 
 
 func _clear_piles(game: Game) -> void:
@@ -157,51 +142,53 @@ func _clear_piles(game: Game) -> void:
 		game.cells[key].erase("pile")
 
 
-func _placement_avoids_preferred() -> void:
+func _spawn_avoids_preferred() -> void:
 	var game := _game()
-	_clear_piles(game)
 	for key in ["0:3", "0:5"]:
 		var cell: Dictionary = game.cells[key]
 		cell.dug = true
 		cell.room = ""
 		cell.find = ""
 		cell.flooded = false
-	game._seed_start_piles()
+	game.week = 4
+	game._drip_piles()
 	var preferred := _preferred_keys(game)
 	var piles := _pile_keys(game)
-	var scrap_off := piles.size() == 1 and piles.has("2:0") and str(game.cells["2:0"].pile) == "scrap" and not piles.has("0:3") and not piles.has("0:5")
-	_expect(preferred.has("0:3") and preferred.has("0:5") and not preferred.has("2:0") and scrap_off and game.build_slots() >= 2 and _open_unpiled(game) >= 1,
-		"With lower floors open, the one scrap pile stays off them",
-		"preferred %s piles %s slots %d" % [preferred, piles, game.build_slots()])
-
-
-func _placement_falls_back() -> void:
-	var game := _game()
-	_clear_piles(game)
-	for key in game.cells:
-		if key != "2:0" and key != "2:1":
-			game.cells[key].dug = false
-	game.cells["2:0"].dug = true
-	game.cells["2:0"].room = ""
-	game.cells["2:1"].dug = true
-	game.cells["2:1"].room = ""
-	game._seed_start_piles()
-	var preferred := _preferred_keys(game)
-	var piles := _pile_keys(game)
-	_expect(preferred.size() == 2 and piles.size() == 1 and piles.has(str(preferred[preferred.size() - 1])) and not piles.has(str(preferred[0])) and str(game.cells[str(preferred[preferred.size() - 1])].pile) == "scrap" and _open_unpiled(game) >= 1,
-		"When every floor is preferred, scrap takes the later one and the earliest stays clear",
+	var off := piles.size() == 1 and (piles.has("2:0") or piles.has("2:1")) and not piles.has("0:3") and not piles.has("0:5")
+	_expect(preferred.has("0:3") and preferred.has("0:5") and not preferred.has("2:0") and off,
+		"With lower floors open, the drip stays off them",
 		"preferred %s piles %s" % [preferred, piles])
 	_clear_piles(game)
-	game.cells["2:1"].dug = false
-	game._seed_start_piles()
-	_expect(game.pile_count() == 0 and _open_unpiled(game) == 1,
-		"A lone open floor stays empty",
-		"piles %s open %d" % [_pile_keys(game), _open_unpiled(game)])
+	var bare: Dictionary = game.cells["0:3"]
+	var hits := 0
+	var stuck := false
+	for w in 100:
+		game.week = w + 1
+		_clear_piles(game)
+		game._offer_rubble(bare)
+		if game.pile_count() == 0:
+			continue
+		hits += 1
+		if str(bare.get("pile", "")) != "" or not (str(game.cells["2:0"].get("pile", "")) == "rubble" or str(game.cells["2:1"].get("pile", "")) == "rubble"):
+			stuck = true
+	_expect(hits == 20 and not stuck,
+		"Dig-finish rubble still rolls 20 of 100 and stays off the preferred floor",
+		"hits %d stuck %s" % [hits, stuck])
+
+
+func _spawn_falls_back() -> void:
+	var game := _game()
+	game.week = 4
+	game._drip_piles()
+	var piles := _pile_keys(game)
+	_expect(game.pile_count() == 1 and (piles.has("2:0") or piles.has("2:1")),
+		"When every open floor is preferred, the drip still places one pile",
+		"piles %s" % piles)
 
 
 func _clear_grants_mats() -> void:
 	var game := _game()
-	var spot: Dictionary = game.pile_spot("scrap")
+	var spot: Dictionary = _plant(game, 2, 1, "scrap")
 	var before := int(game.stock.materials)
 	var papers := int(game.artifacts.papers)
 	var ok := game.apply({"kind": "clear", "level": int(spot.level), "cell": int(spot.cell)})
@@ -229,7 +216,7 @@ func _clear_grants_mats() -> void:
 
 func _mutual_exclusion() -> void:
 	var game := _game()
-	var scrap: Dictionary = game.pile_spot("scrap")
+	var scrap: Dictionary = _plant(game, 2, 1, "scrap")
 	_expect(game.apply({"kind": "clear", "level": int(scrap.level), "cell": int(scrap.cell)}),
 		"A clear job can start", "clear did not start")
 	var dig: Dictionary = game.dig_preview(0, 2)
@@ -263,8 +250,7 @@ func _coal_and_charter() -> void:
 	_expect(int(game.station_fx("dig_turns")) == -1 and game.clear_weeks("coal") == 2 and game.clear_weeks("scrap") == 1,
 		"Drill heads do not shorten a clear",
 		"dig_turns %s coal %d" % [game.station_fx("dig_turns"), game.clear_weeks("coal")])
-	var spot: Dictionary = game.pile_spot("scrap")
-	spot["pile"] = "coal"
+	var spot: Dictionary = _plant(game, 2, 1, "coal")
 	var ids: Array = []
 	for person in game.residents:
 		ids.append(str(person.id))
@@ -309,6 +295,8 @@ func _rubble_after_dig() -> void:
 	var bare: Dictionary = game.cells["0:3"]
 	bare.dug = true
 	bare.find = ""
+	game.cells["2:0"].room = "held"
+	game.cells["2:1"].room = "held"
 	var hits := 0
 	for w in 100:
 		game.week = w + 1
@@ -316,7 +304,9 @@ func _rubble_after_dig() -> void:
 		game._offer_rubble(bare)
 		if str(bare.get("pile", "")) == "rubble":
 			hits += 1
-	_expect(hits == 20, "An empty dig leaves rubble on 20 of 100 rolls", "hits %d" % hits)
+	game.cells["2:0"].room = ""
+	game.cells["2:1"].room = ""
+	_expect(hits == 20, "An empty dig leaves rubble on 20 of 100 rolls when that floor is the only one", "hits %d" % hits)
 	for key in game.cells:
 		game.cells[key].erase("pile")
 	var placed := 0
@@ -364,6 +354,7 @@ func _drip() -> void:
 
 func _save_migrates() -> void:
 	var game := _game()
+	_plant(game, 2, 1, "scrap")
 	var data := game.export_state()
 	data["schema"] = 11
 	data.erase("clear")
@@ -390,9 +381,7 @@ func _careful_band() -> void:
 			lost += 1
 			print("  careful seed %d over %s week %s" % [run_seed, row.get("over", ""), row.get("week", "")])
 	var pct := 100.0 * float(lost) / float(seeds)
-	# Spec target is 15–35% (5–10 of 30). One start scrap leaves 2:0 open, so week 1
-	# builds quarters and the scrap on 2:1 stays (careful clears scrap only under
-	# 10 materials). Measured 23/30. Yield, tool cost, and the start mix were not retuned.
-	_expect(lost == 23,
-		"Careful loss %.1f%% (%d/%d); spec band 15–35%% missed, knobs left alone" % [pct, lost, seeds],
-		"careful lost %d/%d (%.1f%%), measured 23/30 with one start scrap" % [lost, seeds, pct])
+	# Measured 6/30 (20%). Spec band is 15–35% (5–10 of 30). No start pile.
+	_expect(lost >= 5 and lost <= 10,
+		"Careful loss band %.1f%% (%d/%d)" % [pct, lost, seeds],
+		"careful lost %d/%d (%.1f%%), need 5–10 of 30" % [lost, seeds, pct])

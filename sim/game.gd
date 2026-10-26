@@ -3839,31 +3839,35 @@ func _offer_rubble(cell: Dictionary) -> void:
 	var salt := int(cell.level) * 100 + int(cell.cell)
 	if _clear_roll(salt) >= 20:
 		return
-	cell["pile"] = "rubble"
+	var spot := _spawn_spot(cell)
+	if spot.is_empty():
+		return
+	spot["pile"] = "rubble"
 
 
 ## Week 1 starts one room: the bot's single project, and the floor a player taps.
 const WEEK1_FLOOR_TAKES := 1
 
 
-## One scrap heap. Never the only open floor, and not a preferred week-1 floor when another floor exists.
-func _seed_start_piles() -> void:
-	var order := _build_floor_order()
-	if order.size() < 2:
-		return
-	var preferred := _preferred_early_floors()
+## A later pile's floor. The new dig floor is kept when it is allowed. Preferred week-1 floors are used only when no other empty floor exists.
+func _spawn_spot(prefer: Dictionary = {}) -> Dictionary:
+	var open := _empty_dug_spots()
+	if open.is_empty():
+		return {}
 	var held := {}
-	for cell in preferred:
+	for cell in _preferred_early_floors():
 		held[_ck(int(cell.level), int(cell.cell))] = true
-	var spot: Dictionary = {}
-	for cell in order:
-		if held.has(_ck(int(cell.level), int(cell.cell))):
-			continue
-		spot = cell
-		break
-	if spot.is_empty():
-		spot = preferred[preferred.size() - 1]
-	spot["pile"] = "scrap"
+	var others: Array = []
+	for cell in open:
+		if not held.has(_ck(int(cell.level), int(cell.cell))):
+			others.append(cell)
+	var pool: Array = others if not others.is_empty() else open
+	if not prefer.is_empty():
+		var want := _ck(int(prefer.level), int(prefer.cell))
+		for cell in pool:
+			if _ck(int(cell.level), int(cell.cell)) == want:
+				return cell
+	return pool[0]
 
 
 ## Empty floors in the order `_first_build_cell()` would hand them out: lowest level, first in grid order.
@@ -3942,10 +3946,10 @@ func _drip_piles() -> void:
 		return
 	if pile_count() >= 2 or food_buffer_weeks() < 1.0:
 		return
-	var spots := _empty_dug_spots()
-	if spots.is_empty():
+	var spot := _spawn_spot()
+	if spot.is_empty():
 		return
-	spots[0]["pile"] = "coal" if _clear_roll(week * 9 + 4) < 50 else "scrap"
+	spot["pile"] = "coal" if _clear_roll(week * 9 + 4) < 50 else "scrap"
 
 
 func _dig_cost(level: int) -> Dictionary:
@@ -10148,7 +10152,6 @@ func _init_grid() -> void:
 		var room_type := str(open.room)
 		if room_type != "":
 			_place_room(room_type, int(open.level), int(open.cell))
-	_seed_start_piles()
 
 
 func _ideology(tag: String) -> String:
