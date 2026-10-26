@@ -226,6 +226,14 @@ var home_float: Label
 var home_float_tween: Tween
 ## End turn refreshes before the dawn card opens. Hold the float until that card is up or gone.
 var home_hold_float := false
+## P44 sticky yard badge. One plate, not a soft dawn chip.
+var away_badge: PanelContainer
+var away_badge_label: Label
+var away_badge_body: Label
+var away_badge_icon: TextureRect
+var away_float: Label
+var away_float_until := 0
+var away_float_fade: Tween
 var undo_toast: PanelContainer
 ## P42 dawn rail-noise chip (bottom-left yard) and the once-per-run platform float.
 var rail_chip: PanelContainer
@@ -977,6 +985,7 @@ func _process(_delta: float) -> void:
 		hint_next = Time.get_ticks_msec() + 200
 		_tick_hints()
 	_pulse_alarms()
+	_tick_away_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -1082,6 +1091,7 @@ func _build() -> void:
 
 	side = _side_panel()
 	add_child(side)
+	_build_away_badge()
 
 	footer = _label("", 14)
 	footer.visible = false
@@ -1658,6 +1668,7 @@ func _place_chrome() -> void:
 	_place_ahead()
 	if yard != null:
 		yard.on_resize()
+	_sync_away_badge()
 
 
 func _show_ahead(show: bool) -> void:
@@ -2036,6 +2047,7 @@ func _refresh() -> void:
 		pending_button.visible = game.over == "" and not game.white_pending.is_empty()
 	_sync_waiting()
 	_offer_pending()
+	_sync_away_badge()
 
 
 func _fill_people() -> void:
@@ -5066,8 +5078,11 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	toast_label.visible = true
 	toast_label.modulate.a = 1.0
 	var icon_w := 36.0 if blown else 0.0
-	var origin := Vector2(16.0 + icon_w, (hud.size.y if hud != null else 72.0) + 8.0)
+	var toast_y := (hud.size.y if hud != null else 72.0) + 8.0
 	var on_map := showing_network
+	if not on_map and away_badge != null and away_badge.visible:
+		toast_y = away_badge.position.y + away_badge.get_combined_minimum_size().y + 6.0
+	var origin := Vector2(16.0 + icon_w, toast_y)
 	if on_map:
 		if toast_plate == null:
 			toast_plate = PanelContainer.new()
@@ -5133,6 +5148,139 @@ func _arm_blown_flash() -> void:
 	mark.size = Vector2(32, 32)
 	blown_flash.add_child(mark)
 	add_child(blown_flash)
+
+
+## People/order plate under the beam. One badge. No idle bob. Text stays when motion is off.
+func _build_away_badge() -> void:
+	away_badge = PanelContainer.new()
+	away_badge.name = "AwayBadge"
+	away_badge.visible = false
+	away_badge.z_index = 8
+	away_badge.mouse_filter = Control.MOUSE_FILTER_STOP
+	away_badge.set_meta("away_badge", true)
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("3a3126")
+	face.border_color = Color("e2a63a")
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.content_margin_left = 8
+	face.content_margin_right = 10
+	face.content_margin_top = 4
+	face.content_margin_bottom = 4
+	away_badge.add_theme_stylebox_override("panel", face)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	away_badge.add_child(row)
+	away_badge_icon = TextureRect.new()
+	away_badge_icon.custom_minimum_size = Vector2(22, 22)
+	away_badge_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	away_badge_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	away_badge_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(away_badge_icon)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(col)
+	away_badge_label = _label("", 11, true, false)
+	away_badge_label.add_theme_color_override("font_color", Color("e2a63a"))
+	away_badge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(away_badge_label)
+	away_badge_body = _label("", 15, false, false)
+	away_badge_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(away_badge_body)
+	add_child(away_badge)
+	away_float = _label("", 18, true, false)
+	away_float.name = "AwayFloat"
+	away_float.visible = false
+	away_float.z_index = 12
+	away_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	away_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	away_float.add_theme_constant_override("outline_size", 6)
+	away_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	add_child(away_float)
+
+
+func _away_yard_open() -> bool:
+	if at_menu or showing_network:
+		return false
+	if hub_layer != null and hub_layer.visible:
+		return false
+	return true
+
+
+func _place_away_badge() -> void:
+	if away_badge == null:
+		return
+	var top := hud.size.y if hud != null else 72.0
+	away_badge.position = Vector2(16.0, top + 8.0)
+	if away_float == null or not away_float.visible:
+		return
+	var w := maxf(away_float.size.x, away_float.get_combined_minimum_size().x)
+	var play_top := top + 48.0
+	var play_bot := size.y - chrome_bottom
+	away_float.position = Vector2((size.x - w) * 0.5, lerpf(play_top, play_bot, 0.38))
+
+
+func _sync_away_badge() -> void:
+	if away_badge == null or game == null:
+		return
+	var view: Dictionary = game.party_away_view()
+	var show: bool = bool(view.get("show", false)) and _away_yard_open()
+	away_badge.visible = show
+	if not show:
+		_hide_away_float()
+		return
+	var reduce := _motion_off()
+	away_badge_label.text = Copy.t("away.badge_label")
+	away_badge_body.text = game.party_away_line(reduce)
+	away_badge.tooltip_text = Copy.t("away.tip")
+	var icon := ArtPack.icon_texture("away_boots", 22.0)
+	away_badge_icon.texture = icon
+	away_badge_icon.visible = icon != null
+	away_badge.rotation = 0.0
+	away_badge.scale = Vector2.ONE
+	if bool(view.get("first", false)):
+		_show_away_float()
+		game.party_mark_heard_away()
+	_place_away_badge()
+
+
+func _show_away_float() -> void:
+	if away_float == null:
+		return
+	away_float.text = Copy.t("away.first")
+	away_float.visible = true
+	away_float.modulate.a = 1.0
+	away_float.rotation = 0.0
+	if away_float_fade != null and away_float_fade.is_valid():
+		away_float_fade.kill()
+	if _motion_off():
+		away_float_until = Time.get_ticks_msec() + 3200
+		return
+	away_float_until = 0
+	away_float_fade = create_tween()
+	away_float_fade.tween_interval(2.6)
+	away_float_fade.tween_property(away_float, "modulate:a", 0.0, 0.4)
+	away_float_fade.tween_callback(func() -> void:
+		if away_float != null:
+			away_float.visible = false)
+
+
+func _hide_away_float() -> void:
+	away_float_until = 0
+	if away_float_fade != null and away_float_fade.is_valid():
+		away_float_fade.kill()
+	if away_float != null:
+		away_float.visible = false
+
+
+func _tick_away_float() -> void:
+	if away_float == null or not away_float.visible:
+		return
+	_place_away_badge()
+	if away_float_until > 0 and Time.get_ticks_msec() >= away_float_until:
+		_hide_away_float()
 
 
 ## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.

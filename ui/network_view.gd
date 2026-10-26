@@ -1636,6 +1636,8 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
+	if str(sid) == str(game.capital_id):
+		_draw_away_pip(c, game, at, r, lift)
 
 
 ## One week of pressure is a 270° arc. Two or more close the ring (Assault's gate is still low_weeks >= 2).
@@ -1760,6 +1762,21 @@ func _add_siege_lines(parent: Node, game, sid: String) -> void:
 		var line := _lab(str(siege.visit), 15, false)
 		line.set_meta("siege_line", true)
 		parent.add_child(line)
+
+
+## Small mirror of the yard away badge on the home pin. Same show/hide read; the pin shape stays as it was.
+func _draw_away_pip(c: CanvasItem, game, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not game.has_method("party_away_view"):
+		return
+	var view: Dictionary = game.party_away_view()
+	if not bool(view.get("show", false)):
+		return
+	var pos := at + Vector2(-r * 0.85, -r * 0.85) - Vector2(0, 2.0 * lift)
+	c.draw_circle(pos, 7.0, Color("24180e"))
+	c.draw_arc(pos, 7.0, 0, TAU, 16, Color("c9a050"), 1.4, true)
+	var icon := ArtPack.icon_texture("away_boots", 14.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(pos - Vector2(6, 6), Vector2(12, 12)), false)
 
 
 func _sympathy_band(sympathy: int) -> Color:
