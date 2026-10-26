@@ -36,6 +36,8 @@ func _init() -> void:
 		failed = true
 	if not _check_draw():
 		failed = true
+	if not _check_icon():
+		failed = true
 	if not _check_balance():
 		failed = true
 	if failed:
@@ -591,6 +593,9 @@ func _check_draw() -> bool:
 	if chip.find("NeedTick.slot") < 0 or chip.find("NeedTick.tick_points") < 0:
 		print("Draw: FAIL slot")
 		return false
+	if chip.find("icon_texture(\"need_tick\", 24.0)") < 0:
+		print("Draw: FAIL pin art")
+		return false
 	if chip.find("sin(") >= 0 or chip.find("_anim_t") >= 0 or chip.find("create_tween") >= 0 or chip.find("bounce") >= 0:
 		print("Draw: FAIL pin motion")
 		return false
@@ -598,6 +603,9 @@ func _check_draw() -> bool:
 	var box := _body(src, "func _ease_tick_box(")
 	if paint.find("sin(") >= 0 or paint.find("create_tween") >= 0 or paint.find("_anim_t") >= 0:
 		print("Draw: FAIL row motion")
+		return false
+	if paint.find("icon_texture(\"need_tick\", 24.0)") < 0 or paint.find("NeedTick.tick_points") < 0:
+		print("Draw: FAIL row art")
 		return false
 	if box.find("NeedTick.tip") < 0 or box.find("NeedTick.caption") < 0 or box.find("+0.2") >= 0 or box.find("create_tween") >= 0:
 		print("Draw: FAIL row copy")
@@ -666,6 +674,51 @@ func _check_draw() -> bool:
 		print("Draw: FAIL gone in sim")
 		return false
 	print("Draw: ok")
+	return true
+
+
+func _check_icon() -> bool:
+	var want := "d321fbd6e4c1410fee0a65c81cc1bd8f"
+	var paths := [
+		"res://assets/icons/status/need_tick_24.png",
+		"res://assets/icons/map/need_tick_24.png",
+	]
+	for path in paths:
+		if not FileAccess.file_exists(path):
+			print("Icon: FAIL missing ", path)
+			return false
+		if FileAccess.get_md5(path) != want:
+			print("Icon: FAIL md5 ", path, " ", FileAccess.get_md5(path))
+			return false
+	var pack := FileAccess.get_file_as_string("res://ui/art_pack.gd")
+	if pack.find("need_tick_24.png") < 0 or pack.find("\"need_tick\"") < 0:
+		print("Icon: FAIL art pack")
+		return false
+	var names := _body(pack, "static func _icon_names(")
+	var small := _body(pack, "static func icon_texture(")
+	if names.find("\"need_tick\"") < 0:
+		print("Icon: FAIL name")
+		return false
+	if small.find("name + \"_24\"") < 0 or small.find("px <= 32.0") < 0:
+		print("Icon: FAIL _24 preference")
+		return false
+	for path in paths:
+		if not ResourceLoader.exists(path):
+			print("Icon: FAIL import ", path)
+			return false
+		var tex: Resource = ResourceLoader.load(path)
+		if not (tex is Texture2D) or (tex as Texture2D).get_width() != 24 or (tex as Texture2D).get_height() != 24:
+			print("Icon: FAIL plate ", path)
+			return false
+	var large := "res://assets/icons/status/need_tick.png"
+	if not ResourceLoader.exists(large):
+		print("Icon: FAIL import ", large)
+		return false
+	var big: Resource = ResourceLoader.load(large)
+	if not (big is Texture2D) or (big as Texture2D).get_width() != 256:
+		print("Icon: FAIL 256 plate")
+		return false
+	print("Icon: ok")
 	return true
 
 

@@ -1894,13 +1894,17 @@ func _draw_leaflet_chip(c: CanvasItem, game, sid: String, at: Vector2, r: float,
 	c.draw_rect(box, LeafletDust.INK, false, 1.0)
 
 
-## Static check beside the pin. No bounce in either motion setting. Sits off the brass pip row.
+## Static check beside the pin. Art at 24px, else the vector tick. Sits off the brass pip row.
 func _draw_need_tick(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
 	if game == null or not NeedTick.shows(game, sid):
 		return
 	var crowded := DealMarks.pip_count(game, sid) >= 1
 	var pos := NeedTick.slot(at, r, crowded) - Vector2(0, 2.0 * lift)
 	var sz := NeedTick.mark_px(r)
+	var icon := ArtPack.icon_texture("need_tick", 24.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
+		return
 	var pts := NeedTick.tick_points(pos - Vector2(sz, sz) * 0.5, sz)
 	if pts.size() < 3:
 		return
@@ -4304,6 +4308,10 @@ func _paint_ease_tick(mark: Control, ink: Color) -> void:
 	var s := minf(mark.size.x, mark.size.y)
 	if s < 2.0:
 		s = 16.0
+	var icon := ArtPack.icon_texture("need_tick", 24.0)
+	if icon != null:
+		mark.draw_texture_rect(icon, Rect2(Vector2.ZERO, Vector2(s, s)), false)
+		return
 	var pts := NeedTick.tick_points(Vector2.ZERO, s)
 	if pts.size() < 3 or NeedTick.bounces():
 		return
