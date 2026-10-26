@@ -1886,6 +1886,26 @@
   "need.reduce": {
     "en": "Easing.",
     "ru": "Смягчение."
+  },
+  "join.pulse": {
+    "en": "{station} stands with you.",
+    "ru": "{station} встаёт рядом."
+  },
+  "join.taken": {
+    "en": "{station} is yours.",
+    "ru": "{station} — ваша."
+  },
+  "join.lost": {
+    "en": "{station} fell.",
+    "ru": "{station} пала."
+  },
+  "join.first": {
+    "en": "When they join, the pin answers.",
+    "ru": "Когда встают рядом — пин отвечает."
+  },
+  "join.reduce": {
+    "en": "Joined.",
+    "ru": "С нами."
   }
 }
 
