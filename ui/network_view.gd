@@ -204,6 +204,8 @@ var _leaf_float: Label
 var _leaf_float_tween: Tween
 var _need_float: Label
 var _need_float_tween: Tween
+var _focus_float: Label
+var _focus_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -2155,6 +2157,173 @@ func _place_need_float() -> void:
 	_need_float.position = Vector2(maxf(8.0, visit.size.x * 0.5 - 210.0), 52.0)
 
 
+## Owned outpost, not the capital. Foreign, unknown, and the capital get no focus picker.
+func focus_picker_shown(game, sid: String) -> bool:
+	if game == null or sid == "" or not game.stations.has(sid):
+		return false
+	if str(sid) == str(game.capital_id):
+		return false
+	var st: Dictionary = game.stations[sid]
+	return str(st.get("owner", "")) == str(game.player)
+
+
+func _focus_now(st: Dictionary) -> String:
+	var focus := str(st.get("focus", ""))
+	if not FOCUS_ORDER.has(focus):
+		return "food"
+	return focus
+
+
+## One click on the visit or station sheet. Same write as the bot order (`_order_focus`).
+## Does not spend a council order, queue for dawn, or open a confirm.
+func pick_station_focus(sid: String, focus: String) -> bool:
+	var game = _game()
+	if game == null or not focus_picker_shown(game, sid) or not FOCUS_ORDER.has(focus):
+		return false
+	var stored := str(game.stations[sid].get("focus", ""))
+	if stored == focus:
+		return true
+	if not game._order_focus(sid, focus):
+		return false
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.fill("focus.set", {"name": Copy.t("focus." + focus)}))
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	refresh()
+	if visit != null and visit.visible:
+		_fill_visit(sid)
+	elif selected != "":
+		_fill_sheet(sid)
+	return true
+
+
+func _add_focus_picker(game, sid: String, parent: Node) -> void:
+	if not focus_picker_shown(game, sid):
+		return
+	var current := _focus_now(game.stations[sid])
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.set_meta("focus_row", sid)
+	var current_label := _lab(Copy.fill("focus.current", {"name": Copy.t("focus." + current)}), 15, true)
+	current_label.set_meta("focus_current", current)
+	box.add_child(current_label)
+	var tip := _lab(Copy.t("focus.tip"), 13, false)
+	tip.set_meta("focus_tip", true)
+	box.add_child(tip)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.set_meta("focus_choices", true)
+	for focus in FOCUS_ORDER:
+		var button := Button.new()
+		var on := str(focus) == current
+		button.text = Copy.t("focus." + str(focus))
+		button.clip_text = true
+		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size = Vector2(0, 36)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		button.tooltip_text = Copy.t("focus.tip")
+		button.set_meta("focus_choice", str(focus))
+		button.set_meta("focus_selected", on)
+		_style_focus_choice(button, on)
+		button.pressed.connect(pick_station_focus.bind(sid, str(focus)))
+		row.add_child(button)
+	box.add_child(row)
+	parent.add_child(box)
+
+
+## Quiet paper choice. The selected face and the idle face are the same size, so a pick does not bounce.
+func _style_focus_choice(button: Button, on: bool) -> void:
+	var face := StyleBoxFlat.new()
+	face.set_corner_radius_all(3)
+	face.set_content_margin_all(6)
+	var ink := Color("2b2118")
+	var cream := Color("efe6d2")
+	if _on_paper:
+		face.bg_color = Color("2b2118") if on else Color("efe8d6")
+		face.border_color = Color("e2a63a") if on else Color("8a6a44")
+		ink = cream if on else Color("2b2118")
+	else:
+		face.bg_color = Color("efe4c8") if on else Color("3a3126")
+		face.border_color = Color("e2a63a") if on else Color("8a6a44")
+		ink = Color("2b2118") if on else cream
+	face.set_border_width_all(2 if on else 1)
+	for state in ["normal", "hover", "pressed", "focus", "hover_pressed"]:
+		button.add_theme_stylebox_override(state, face.duplicate())
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+		button.add_theme_color_override(key, ink)
+	button.add_theme_font_size_override("font_size", 14)
+
+
+## First owned-outpost visit of a run. The flag is saved with the game. Capital never teaches.
+func _note_station_focus(sid: String) -> void:
+	if not is_inside_tree() or visit == null or not visit.visible:
+		return
+	var game = _game()
+	if not focus_picker_shown(game, sid):
+		return
+	if bool(game.flags.get("seen_station_focus", false)):
+		return
+	game.flags["seen_station_focus"] = true
+	_show_focus_float(Copy.t("focus.first"))
+
+
+func _show_focus_float(line: String) -> void:
+	if visit == null:
+		return
+	if _focus_float == null:
+		_focus_float = Label.new()
+		_focus_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_focus_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_focus_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_focus_float.add_theme_font_size_override("font_size", 18)
+		_focus_float.add_theme_color_override("font_color", Color("efe6d2"))
+		_focus_float.add_theme_constant_override("outline_size", 6)
+		_focus_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_focus_float.set_meta("focus_float", true)
+		_focus_float.z_index = 8
+		add_child(_focus_float)
+	_focus_float.text = line
+	_focus_float.modulate.a = 1.0
+	_focus_float.visible = true
+	_focus_float.set_meta("focus_float_static", _motion_off())
+	if _focus_float_tween != null and _focus_float_tween.is_valid():
+		_focus_float_tween.kill()
+	_place_focus_float()
+	if not is_inside_tree():
+		return
+	_focus_float_tween = create_tween()
+	if _motion_off():
+		_focus_float_tween.tween_interval(4.2)
+	else:
+		_focus_float_tween.tween_interval(2.4)
+		_focus_float_tween.tween_property(_focus_float, "modulate:a", 0.0, 0.8)
+	_focus_float_tween.tween_callback(func() -> void:
+		if _focus_float != null:
+			_focus_float.visible = false)
+
+
+func _place_focus_float() -> void:
+	if _focus_float == null or not _focus_float.visible or visit == null:
+		return
+	var w := clampf(visit.size.x - 48.0, 280.0, 520.0)
+	_focus_float.custom_minimum_size = Vector2(w, 0)
+	_focus_float.size = Vector2(w, 48)
+	var y := visit.position.y + 96.0
+	if _need_float != null and _need_float.visible:
+		y = maxf(y, visit.position.y + _need_float.position.y + 36.0)
+	_focus_float.position = Vector2(maxf(8.0, visit.position.x + visit.size.x * 0.5 - w * 0.5), y)
+
+
+func _hide_focus_float() -> void:
+	if _focus_float_tween != null and _focus_float_tween.is_valid():
+		_focus_float_tween.kill()
+	if _focus_float != null:
+		_focus_float.visible = false
+
+
 func _note_first_pin_warmth() -> void:
 	if not visible or not is_inside_tree():
 		return
@@ -2993,8 +3162,8 @@ func _after_governor() -> void:
 	refresh()
 
 
-## The focus menu under a held station's chips: one row per focus with what it would ship home, the current one
-## ticked. Picking a row is the same order as the focus buttons on the station card.
+## The focus menu under a held station's chips: one row per focus with what it would ship, the current one
+## ticked. Same four ids as the visit picker. The numbers are the existing shipment preview.
 func open_focus_menu(sid: String, screen_at: Vector2) -> void:
 	var game = _game()
 	if game == null or not game.stations.has(sid):
@@ -3007,9 +3176,6 @@ func open_focus_menu(sid: String, screen_at: Vector2) -> void:
 	var current := str(st.get("focus", "food"))
 	var settling := int(game.outpost_yield(sid).get("upkeep_materials", 0)) > 0
 	_focus_menu.add_separator(str(game.station_text(sid, "community")))
-	var labels := {}
-	for row in order_rows(game, true, sid):
-		labels[str(row[0]).trim_prefix("focus:")] = str(row[1])
 	for i in FOCUS_ORDER.size():
 		var focus: String = FOCUS_ORDER[i]
 		var flow: Dictionary = game.outpost_yield(sid, focus, true)
@@ -3017,7 +3183,7 @@ func open_focus_menu(sid: String, screen_at: Vector2) -> void:
 		for key in YIELD_KEYS:
 			if int(flow.get(key, 0)) > 0:
 				bits.append("+%d %s" % [int(flow[key]), Copy.res(key)])
-		var text := Copy.t(str(labels.get(focus, _focus_word(focus))))
+		var text := Copy.t("focus." + focus)
 		if not bits.is_empty():
 			text += "   " + ", ".join(bits)
 		_focus_menu.add_check_item(text, i)
@@ -4088,6 +4254,7 @@ func _fill_sheet_body(sid: String) -> void:
 		var trade := _trade_line(st)
 		if trade != "":
 			details.add_child(_lab(trade, 14, false))
+	_add_focus_picker(game, sid, _sheet_body)
 	_add_actions(sid, own, _sheet_body, details)
 	_add_fold(_sheet_body, details)
 
@@ -4803,11 +4970,7 @@ func _focus_word(focus: String) -> String:
 func order_rows(game, own: bool, sid: String = "") -> Array:
 	if own:
 		var rows: Array = []
-		if sid != "" and sid != str(game.capital_id):
-			rows.append(["focus:food", "Send food home"])
-			rows.append(["focus:air", "Send air home"])
-			rows.append(["focus:defense", "Fortify"])
-			rows.append(["focus:influence", "Spread our name"])
+		## Focus is the visit and station-sheet picker, not a council-order button.
 		rows.append(["move", "Garrison"])
 		rows.append(["patrol", "Patrol"])
 		if sid == "" or sid == str(game.capital_id):
@@ -5116,6 +5279,7 @@ func _size_visit() -> void:
 	if visit_sheet != null:
 		visit_sheet.custom_minimum_size.x = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
 	_place_need_float()
+	_place_focus_float()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -5137,6 +5301,7 @@ func close_visit() -> void:
 	_visit_sid = ""
 	if _need_float != null:
 		_need_float.visible = false
+	_hide_focus_float()
 	if visit != null:
 		visit.visible = false
 	if sheet != null and selected != "":
@@ -5229,8 +5394,10 @@ func _fill_visit(sid: String) -> void:
 	var art: String = game.station_text(sid, "art")
 	if art != "":
 		details.add_child(_lab(art, 14, false))
+	_add_focus_picker(game, sid, _visit_body)
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
+	_note_station_focus(sid)
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().

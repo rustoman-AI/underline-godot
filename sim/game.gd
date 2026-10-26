@@ -6384,9 +6384,7 @@ func focus_block(sid: String, focus: String) -> String:
 func set_outpost_focus(sid: String, focus: String) -> bool:
 	if focus_block(sid, focus) != "":
 		return false
-	stations[sid].focus = focus
-	_log("ORDER %s focuses on %s" % [stations[sid].name, focus])
-	return true
+	return _order_focus(sid, focus)
 
 
 ## What a held station ships home at next dawn: the same flow _deliver_outposts pays, one week older.
@@ -12519,6 +12517,11 @@ func party_away_dawn_chip() -> bool:
 
 ## Always false. P48 cot count is sticky yard chrome, never a soft dawn chip.
 func sick_cots_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P52 focus is a visit-sheet choice, never a soft dawn chip.
+func station_focus_dawn_chip() -> bool:
 	return false
 
 

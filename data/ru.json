@@ -1915,5 +1915,9 @@
   "{station} is yours.": "{station} — ваша.",
   "{station} fell.": "{station} пала.",
   "When they join, the pin answers.": "Когда встают рядом — пин отвечает.",
-  "Joined.": "С нами."
+  "Joined.": "С нами.",
+  "Focus: {name}": "Уклон: {name}",
+  "This outpost leans here.": "Эта застава клонится сюда.",
+  "Outposts can lean food, air, defense, or influence.": "Заставы могут клониться к еде, воздуху, обороне или влиянию.",
+  "Focus set to {name}.": "Уклон — {name}."
 }
