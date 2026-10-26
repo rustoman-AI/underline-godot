@@ -174,24 +174,39 @@
     {"id": "stall", "label": "Give cable instead and ask for time (the Exchange is displeased)", "cost": {"materials": 6}, "opinion_exchange": -2},
     {"id": "default", "label": "Say the station has nothing to give (the Exchange may stop trading with you)", "opinion_exchange": -8, "discontent": 1}
   ]},
-  {"id": "stores_turn", "title": "The stores are sweating", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Kim", "text": "Kim opens the food store and the air inside is warm and sweet. The top row of sacks is going bad and will not keep another week.", "choices": [
-    {"id": "feast", "label": "Cook all of it tonight", "food": -6, "hope": 2, "discontent": -1},
-    {"id": "pick", "label": "Sort it by hand and eat the bruised part", "food": -3, "sick": 1},
-    {"id": "salt", "label": "Buy salt from the Exchange to save it", "cost": {"tokens": 4}, "opinion_exchange": 2}
+  {"id": "stores_turn", "banner": "hunger", "tag": "hunger", "title": {"en": "The stores are sweating", "ru": "Склад потеет"}, "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Bait", "text": {"en": "Bait opens the food store and the air inside is warm and sweet. The top row of sacks is turning. It will not keep another week.", "ru": "Наживка открывает продсклад, а оттуда тянет тёплым и сладким. Верхний ряд мешков пошёл. Ещё неделю не пролежит."}, "choices": [
+    {"id": "feast", "label": {"en": "Cook all of it tonight", "ru": "Сварить всё сегодня же"}, "food": -6, "hope": 2, "discontent": -1},
+    {"id": "pick", "label": {"en": "Sort it by hand and eat the edges", "ru": "Перебрать руками, подпорченное доесть"}, "food": -3, "sick": 1},
+    {"id": "salt", "label": {"en": "Buy salt off the Exchange", "ru": "Купить соль у Биржи"}, "cost": {"tokens": 4}, "opinion_exchange": 2}
   ]},
-  {"id": "diesel", "title": "The last drum rings hollow", "sasha": true, "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "who": "Mina", "text": "Mina knocks on the last fuel drum and it rings high. The generator will run tonight, but not at full power unless it gets something to burn.", "choices": [
-    {"id": "scrap", "label": "Feed it workshop scrap", "cost": {"materials": 6}},
-    {"id": "drum", "label": "Buy a drum from the Exchange", "cost": {"tokens": 8}, "opinion_exchange": 2},
-    {"id": "dim", "label": "Run it at half power this week and dim the lamps", "gen_down": true, "discontent": 1, "hope": -1}
+  {"id": "diesel", "banner": "dark", "tag": "dark", "title": {"en": "The last drum rings hollow", "ru": "Последняя бочка звенит пусто"}, "sasha": true, "major": false, "min_week": 6, "weight": 2, "cooldown": 8, "who": "Salty Maggie", "text": {"en": "Salty Maggie knocks on the last fuel drum and it rings high. The generator will run tonight, but not at full.", "ru": "Солёная Мэгги стучит по последней бочке с соляркой, и та звенит высоко. Генератор сегодня поработает, но не в полную силу."}, "choices": [
+    {"id": "scrap", "label": {"en": "Feed it workshop scrap", "ru": "Скормить ему лом из мастерской"}, "cost": {"materials": 6}},
+    {"id": "drum", "label": {"en": "Buy a drum off the Exchange", "ru": "Купить бочку у Биржи"}, "cost": {"tokens": 8}, "opinion_exchange": 2},
+    {"id": "dim", "label": {"en": "Run it at half and dim the lamps", "ru": "Пустить вполсилы и притушить свет"}, "gen_down": true, "discontent": 1, "hope": -1}
   ]},
-  {"id": "ration_coat", "title": "A ration in Drew's coat", "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Chris", "text": "Chris caught Drew leaving the kitchen with a ration inside his coat. Drew says it was for Ann, who has been too sick to stand in the queue for two days. The whole platform saw it.", "choices": [
-    {"id": "dock", "label": "Dock Drew's ration for a week", "discontent": -1, "hope": -1},
-    {"id": "feed", "label": "Let it go and bring Ann her bowl", "cost": {"food": 2}, "hope": 1, "discontent": 1},
-    {"id": "vote", "label": "Let the platform decide", "cost": {"influence": 2}, "discontent": -2}
+  {"id": "ration_coat", "banner": "cough", "tag": "cough", "title": {"en": "A ration in Barnum's coat", "ru": "Паёк за пазухой у Барнума"}, "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Old Man Coney", "text": {"en": "Old Man Coney caught Barnum leaving the kitchen with a ration inside his coat. Barnum says it was for Sylvia, who has been too sick to stand in line for two days. The whole platform saw it.", "ru": "Старик Кони поймал Барнума на выходе из кухни с пайком за пазухой. Барнум говорит, что нёс его Сильвии: она второй день не может выстоять очередь. Это видела вся платформа."}, "choices": [
+    {"id": "dock", "label": {"en": "Dock Barnum's share for a week", "ru": "Урезать Барнуму паёк на неделю"}, "discontent": -1, "hope": -1},
+    {"id": "feed", "label": {"en": "Let it go and bring Sylvia her bowl", "ru": "Простить и носить Сильвии еду в койку"}, "cost": {"food": 2}, "hope": 1, "discontent": 1},
+    {"id": "vote", "label": {"en": "Let the platform decide", "ru": "Пусть решает платформа"}, "cost": {"influence": 2}, "discontent": -2}
   ]},
   {"id": "armband", "title": "The man without an armband", "major": false, "min_week": 9, "weight": 2, "cooldown": 99, "who": "Owen", "text": "Owen found a Directorate man asleep behind the generator. He took off his armband before he lay down. He asks not to be sent back to Captain Rhee.", "choices": [
     {"id": "hide", "label": "Give him a bunk and a new name (the Directorate is displeased)", "people": 1, "opinion_directorate": -4, "hope": 1},
     {"id": "return", "label": "Hand him back to the Directorate (the Directorate is pleased)", "opinion_directorate": 4, "hope": -2},
     {"id": "north", "label": "Feed him and point him north (the Directorate is displeased)", "cost": {"food": 2}, "opinion_directorate": -2}
+  ]},
+  {"id": "two_portions", "banner": "two_portions", "tag": "hunger", "title": {"en": "Two portions short", "ru": "Не хватает двух порций"}, "who": "Bait", "text": {"en": "The bowls will not reach the end of the line. Someone eats full, or everyone eats less, or Bait goes to the Dead Pier for what the sea still holds.", "ru": "Мисок не хватит до конца очереди. Кто-то поест досыта, или все поедят меньше, или Наживка пойдёт на Мёртвый пирс за тем, что море ещё отдаёт."}, "major": true, "weight": 0, "chain_only": false, "trigger": {"food_weeks_lt": 1}, "choices": [
+    {"id": "workers", "label": {"en": "Feed the workers first", "ru": "Сначала накормить рабочих"}},
+    {"id": "share", "label": {"en": "Share equally", "ru": "Делить поровну"}},
+    {"id": "pier", "label": {"en": "Send Bait to the Dead Pier", "ru": "Послать Наживку на Мёртвый пирс"}, "map": true}
+  ]},
+  {"id": "breathers_price", "banner": "breathers_price", "tag": "dark", "title": {"en": "The Breathers' price", "ru": "Цена Дышащих"}, "text": {"en": "Bowling Green will sell air, but not for kindness. They want hands, tokens, or a night you will not admit to.", "ru": "Боулинг-Грин продаст воздух, но не из доброты. Им нужны руки, жетоны — или ночь, в которой вы не признаетесь."}, "major": true, "weight": 0, "chain_only": false, "trigger": {"air_weeks_lt": 1, "station_known": "bowling"}, "choices": [
+    {"id": "lend", "label": {"en": "Lend two residents for four weeks", "ru": "Отдать двоих жителей на четыре недели"}},
+    {"id": "pay", "label": {"en": "Pay in tokens", "ru": "Заплатить жетонами"}},
+    {"id": "night", "label": {"en": "Take it at night", "ru": "Взять ночью"}, "map": true}
+  ]},
+  {"id": "the_list", "banner": "the_list", "tag": "cough", "title": {"en": "The list", "ru": "Список"}, "who": "Ruth", "text": {"en": "The cough has a list now. Seal them below, open every bed, or send three sick to the Slowwalkers at Flushing and hope the Synod still answers.", "ru": "У кашля теперь есть список. Запечатать их внизу, открыть все койки — или отправить троих больных к Медленным ходокам во Флашинг и надеяться, что Синод ещё отвечает."}, "major": true, "weight": 0, "chain_only": false, "trigger": {"season": "cough", "sick_gte": 3}, "choices": [
+    {"id": "seal", "label": {"en": "Seal the lower level", "ru": "Запечатать нижний ярус"}},
+    {"id": "open", "label": {"en": "Open the infirmary to all", "ru": "Открыть медпункт для всех"}},
+    {"id": "flushing", "label": {"en": "Send three sick to Flushing", "ru": "Отправить троих больных во Флашинг"}, "map": true}
   ]}
 ]

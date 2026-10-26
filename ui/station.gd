@@ -5978,7 +5978,7 @@ func _intent_row(lines: PackedStringArray) -> void:
 		card_body.add_child(row)
 
 
-func _event_banner(ev: Dictionary) -> TextureRect:
+func _event_banner(ev: Dictionary) -> Control:
 	var use := ArtPack.resolve_event_banner(ev)
 	if use == "":
 		return null
@@ -5986,18 +5986,39 @@ func _event_banner(ev: Dictionary) -> TextureRect:
 	var tex := ArtPack.load_texture(path)
 	if tex == null:
 		return null
-	var banner := TextureRect.new()
-	banner.texture = tex
 	## The art is 2.4:1, so the banner takes the card's width at that ratio and shows the whole picture.
 	var wide := card_body.custom_minimum_size.x
 	if wide <= 0.0:
 		wide = minf(size.x - 48.0, 680.0) - 36.0
-	banner.custom_minimum_size = Vector2(0, roundf(wide / 2.4))
-	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	banner.set_meta("banner", true)
-	return banner
+	var height := roundf(wide / 2.4)
+	var plate := TextureRect.new()
+	plate.texture = tex
+	plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rim: Texture2D = null
+	if bool(ev.get("major", false)) and game != null and game._state_dilemma(ev):
+		rim = ArtPack.dilemma_frame()
+	if rim == null:
+		plate.custom_minimum_size = Vector2(0, height)
+		plate.set_meta("banner", true)
+		return plate
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(0, height)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.clip_contents = true
+	wrap.set_meta("banner", true)
+	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(plate)
+	var frame := TextureRect.new()
+	frame.texture = rim
+	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_child(frame)
+	return wrap
 
 
 func _morning_lines() -> PackedStringArray:

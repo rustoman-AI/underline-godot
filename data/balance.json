@@ -156,5 +156,28 @@
   "push_mult": 2.0,
   "push_risk": 0.15,
   "push_stack": 0.10,
-  "push_cap": 0.55
+  "push_cap": 0.55,
+  "dilemma_cooldown": 2,
+  "dilemmas": {
+    "workers_hope": -2,
+    "workers_discontent": 2,
+    "share_output": 0.85,
+    "share_weeks": 2,
+    "pier_food": 12,
+    "pier_injured": 1,
+    "air_gain": 12,
+    "pay_tokens": 25,
+    "lend_people": 2,
+    "lend_weeks": 4,
+    "lend_stay": 0.2,
+    "lend_opinion": 0,
+    "steal_opinion": -30,
+    "seal_deaths": 1,
+    "seal_hope": -4,
+    "open_sick": 2,
+    "open_synod": 8,
+    "flushing_count": 3,
+    "flushing_weeks": 3,
+    "flushing_synod": 10
+  }
 }

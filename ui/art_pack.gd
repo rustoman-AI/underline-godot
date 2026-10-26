@@ -46,6 +46,14 @@ static func load_font(path: String, cyrillic: bool = false) -> Font:
 const MOOD_PLATES := ["dark", "quarrel", "hunger", "scrap", "tools", "sleep", "chapel", "labor"]
 
 
+const DILEMMA_FRAME := "res://assets/overlays/dilemma_frame.webp"
+
+
+## Brass rim for a major state-dilemma card. The center is transparent.
+static func dilemma_frame() -> Texture2D:
+	return load_texture(DILEMMA_FRAME)
+
+
 static func has_event_art(event_id: String) -> bool:
 	if event_id == "":
 		return false
@@ -282,6 +290,10 @@ static func textures() -> Dictionary:
 		"res://assets/map/stamps/stamp_gift.webp": preload("res://assets/map/stamps/stamp_gift.webp"),
 		"res://assets/map/stamps/stamp_aid.webp": preload("res://assets/map/stamps/stamp_aid.webp"),
 		"res://assets/map/stamps/stamp_pay.webp": preload("res://assets/map/stamps/stamp_pay.webp"),
+		"res://assets/events/two_portions.webp": preload("res://assets/events/two_portions.webp"),
+		"res://assets/events/breathers_price.webp": preload("res://assets/events/breathers_price.webp"),
+		"res://assets/events/the_list.webp": preload("res://assets/events/the_list.webp"),
+		"res://assets/overlays/dilemma_frame.webp": preload("res://assets/overlays/dilemma_frame.webp"),
 	}
 	return _textures
 

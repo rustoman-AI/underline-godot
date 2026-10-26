@@ -83,6 +83,10 @@ static func room_yield(game, room: Dictionary, key: String, dark: Dictionary = {
 		var push_mult := float(game.bal.get("push_mult", 2.0))
 		n = int(round(float(n) * push_mult))
 		out.steps.append(["push", push_mult])
+	n = int(game.share_cut(n))
+	var cut := float(game.output_cut())
+	if cut < 0.999:
+		out.steps.append(["share", cut])
 	out.amount = n
 	return out
 
