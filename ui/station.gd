@@ -159,8 +159,6 @@ var drawer_open := false
 var tray: HBoxContainer
 var people_button: Button
 var on_paper := false
-## Labels go through Copy.t. Shot tools can turn this off to keep source strings.
-var translate := true
 var turn_clear := false
 var card_fit_queued := false
 var card_fit_tries := 0
