@@ -1,7 +1,7 @@
 extends SceneTree
 
-## P67 release polish. Visual only: order faces, the map pick ring, and event plates
-## that already have a file named for the event.
+## P67 release polish. Visual only: order faces, the map pick ring, event plates
+## that already have a file named for the event, sheet chrome, focus chips, and the yard toast plate.
 ##   godot --headless --path . -s res://sim/check_polish.gd
 
 const OWN_ART := [
@@ -28,6 +28,12 @@ func _init() -> void:
 	if not _check_orders(catalog):
 		failed = true
 	if not _check_ring():
+		failed = true
+	if not _check_sheet_chrome():
+		failed = true
+	if not _check_focus_chrome():
+		failed = true
+	if not _check_toast_plate():
 		failed = true
 	if failed:
 		print("POLISH FAIL")
@@ -151,3 +157,102 @@ func _check_ring() -> bool:
 		return false
 	print("Ring: brass pick sits between pressure and claim")
 	return true
+
+
+func _check_sheet_chrome() -> bool:
+	var view := NetworkView.new()
+	var live := Button.new()
+	view._paint_sheet_button(live, true)
+	var locked := Button.new()
+	locked.disabled = true
+	view._paint_sheet_button(locked, false)
+	var bad: PackedStringArray = []
+	var normal: StyleBoxFlat = live.get_theme_stylebox("normal")
+	var hover: StyleBoxFlat = live.get_theme_stylebox("hover")
+	var pressed: StyleBoxFlat = live.get_theme_stylebox("pressed")
+	if normal.bg_color.is_equal_approx(hover.bg_color) or hover.bg_color.is_equal_approx(pressed.bg_color):
+		bad.append("hover/press")
+	if not _stable_box(normal, hover) or not _stable_box(normal, pressed):
+		bad.append("bounce")
+	if not live.get_theme_color("font_color").is_equal_approx(view._order_ink(true)):
+		bad.append("ink")
+	if live.mouse_default_cursor_shape != Control.CURSOR_POINTING_HAND:
+		bad.append("cursor")
+	var dim: StyleBoxFlat = locked.get_theme_stylebox("disabled")
+	if dim.bg_color.is_equal_approx(normal.bg_color):
+		bad.append("locked face")
+	if not locked.get_theme_color("font_disabled_color").is_equal_approx(view._order_ink(false)):
+		bad.append("locked ink")
+	if locked.mouse_default_cursor_shape != Control.CURSOR_ARROW:
+		bad.append("locked cursor")
+	if not bad.is_empty():
+		print("Sheet: FAIL ", ", ".join(bad))
+		return false
+	print("Sheet: Visit and Recruit share the order face")
+	return true
+
+
+func _check_focus_chrome() -> bool:
+	var view := NetworkView.new()
+	var bad: PackedStringArray = []
+	for paper in [true, false]:
+		view._on_paper = paper
+		var idle := Button.new()
+		var picked := Button.new()
+		view._style_focus_choice(idle, false)
+		view._style_focus_choice(picked, true)
+		var tag := "paper" if paper else "dark"
+		var normal: StyleBoxFlat = idle.get_theme_stylebox("normal")
+		var hover: StyleBoxFlat = idle.get_theme_stylebox("hover")
+		var pressed: StyleBoxFlat = idle.get_theme_stylebox("pressed")
+		if normal.bg_color.is_equal_approx(hover.bg_color) or hover.bg_color.is_equal_approx(pressed.bg_color):
+			bad.append(tag + " idle fill")
+		for state in ["hover", "pressed", "focus"]:
+			var box: StyleBoxFlat = idle.get_theme_stylebox(state)
+			if not _stable_box(normal, box) or box.get_border_width(SIDE_LEFT) != 1 or box.get_content_margin(SIDE_LEFT) != 6:
+				bad.append(tag + " " + state)
+		var picked_normal: StyleBoxFlat = picked.get_theme_stylebox("normal")
+		var picked_hover: StyleBoxFlat = picked.get_theme_stylebox("hover")
+		if picked_normal.bg_color.is_equal_approx(normal.bg_color):
+			bad.append(tag + " selected")
+		if picked_normal.bg_color.is_equal_approx(picked_hover.bg_color):
+			bad.append(tag + " selected hover")
+		if not _stable_box(normal, picked_normal):
+			bad.append(tag + " pick bounce")
+		if not picked.get_theme_color("font_color").is_equal_approx(picked.get_theme_color("font_hover_color")):
+			bad.append(tag + " ink")
+	if not bad.is_empty():
+		print("Focus: FAIL ", ", ".join(bad))
+		return false
+	print("Focus: hover and press move the fill, not the size")
+	return true
+
+
+func _check_toast_plate() -> bool:
+	var st = load("res://ui/station.gd").new()
+	var motion := Settings.reduce_motion
+	Settings.reduce_motion = true
+	st.showing_network = false
+	st._toast("Order sent. The result comes at next dawn.")
+	var bad := ""
+	if st.toast_plate == null or not st.toast_plate.visible:
+		bad = "no plate"
+	elif st.toast_label == null or st.toast_label.get_parent() != st.toast_plate:
+		bad = "label"
+	elif st.toast_plate.z_index >= 20:
+		bad = "layer"
+	elif int(st.toast_label.get_theme_constant("outline_size")) != 0:
+		bad = "outline"
+	Settings.reduce_motion = motion
+	st.queue_free()
+	if bad != "":
+		print("Toast: FAIL ", bad)
+		return false
+	print("Toast: yard plate sits under the modal")
+	return true
+
+
+func _stable_box(a: StyleBoxFlat, b: StyleBoxFlat) -> bool:
+	return a.get_content_margin(SIDE_LEFT) == b.get_content_margin(SIDE_LEFT) \
+		and a.get_content_margin(SIDE_TOP) == b.get_content_margin(SIDE_TOP) \
+		and a.get_border_width(SIDE_LEFT) == b.get_border_width(SIDE_LEFT)

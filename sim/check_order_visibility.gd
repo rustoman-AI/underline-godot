@@ -314,10 +314,18 @@ func _check_plate() -> bool:
 		print("Plate: FAIL map plate")
 		Settings.reduce_motion = motion
 		return false
+	if st.toast_plate.z_index >= 20:
+		print("Plate: FAIL map layer")
+		Settings.reduce_motion = motion
+		return false
 	st.showing_network = false
 	st._toast("Order sent. The result comes at next dawn.")
-	if st.toast_plate.visible or st.toast_label.get_parent() != st:
+	if st.toast_plate == null or not st.toast_plate.visible or st.toast_label.get_parent() != st.toast_plate:
 		print("Plate: FAIL station toast")
+		Settings.reduce_motion = motion
+		return false
+	if st.toast_plate.z_index >= 20:
+		print("Plate: FAIL station layer")
 		Settings.reduce_motion = motion
 		return false
 	Settings.reduce_motion = motion

@@ -2262,27 +2262,42 @@ func _add_focus_picker(game, sid: String, parent: Node) -> void:
 	parent.add_child(box)
 
 
-## Quiet paper choice. The selected face and the idle face are the same size, so a pick does not bounce.
+## Quiet paper choice. Every state shares one margin and a 1px border, so a pick does not bounce. Only the fill moves.
 func _style_focus_choice(button: Button, on: bool) -> void:
-	var face := StyleBoxFlat.new()
-	face.set_corner_radius_all(3)
-	face.set_content_margin_all(6)
 	var ink := Color("2b2118")
 	var cream := Color("efe6d2")
+	var rest := Color("3a3126")
+	var border := Color("8a6a44")
 	if _on_paper:
-		face.bg_color = Color("2b2118") if on else Color("efe8d6")
-		face.border_color = Color("e2a63a") if on else Color("8a6a44")
+		rest = Color("2b2118") if on else Color("efe8d6")
+		border = Color("e2a63a") if on else Color("8a6a44")
 		ink = cream if on else Color("2b2118")
 	else:
-		face.bg_color = Color("efe4c8") if on else Color("3a3126")
-		face.border_color = Color("e2a63a") if on else Color("8a6a44")
+		rest = Color("efe4c8") if on else Color("3a3126")
+		border = Color("e2a63a") if on else Color("8a6a44")
 		ink = Color("2b2118") if on else cream
-	face.set_border_width_all(2 if on else 1)
-	for state in ["normal", "hover", "pressed", "focus", "hover_pressed"]:
-		button.add_theme_stylebox_override(state, face.duplicate())
+	var light := rest.get_luminance() > 0.45
+	var hover := rest.darkened(0.10) if light else rest.lightened(0.18)
+	var pressed := rest.darkened(0.18) if light else rest.darkened(0.08)
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_stylebox_override("normal", _focus_face(rest, border))
+	button.add_theme_stylebox_override("hover", _focus_face(hover, border))
+	button.add_theme_stylebox_override("pressed", _focus_face(pressed, border))
+	button.add_theme_stylebox_override("focus", _focus_face(rest, border))
+	button.add_theme_stylebox_override("hover_pressed", _focus_face(pressed, border))
 	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
 		button.add_theme_color_override(key, ink)
 	button.add_theme_font_size_override("font_size", 14)
+
+
+func _focus_face(bg: Color, border: Color) -> StyleBoxFlat:
+	var face := StyleBoxFlat.new()
+	face.bg_color = bg
+	face.border_color = border
+	face.set_border_width_all(1)
+	face.set_content_margin_all(6)
+	face.set_corner_radius_all(3)
+	return face
 
 
 ## First owned-outpost visit of a run. The flag is saved with the game. Capital never teaches.
@@ -4214,6 +4229,7 @@ func _fill_council() -> void:
 			var cancel := Button.new()
 			cancel.text = Copy.t("Cancel order")
 			cancel.pressed.connect(_cancel_seat.bind(role))
+			_paint_sheet_button(cancel, true)
 			stack.add_child(cancel)
 		row.add_child(stack)
 		photo.add_child(row)
@@ -4234,6 +4250,7 @@ func _fill_sheet_body(sid: String) -> void:
 	var back := Button.new()
 	back.text = Copy.t("Back to the map")
 	back.pressed.connect(close_sheet)
+	_paint_sheet_button(back, true)
 	_sheet_body.add_child(back)
 	var game = _game()
 	if game == null or not game.stations.has(sid):
@@ -4393,6 +4410,16 @@ func _paint_order_button(button: Button, enabled: bool) -> void:
 	button.add_theme_stylebox_override("pressed", _order_face(false, true, enabled))
 	button.add_theme_stylebox_override("disabled", _order_face(false, false, false))
 	button.add_theme_stylebox_override("focus", _order_face(false, false, enabled))
+
+
+## Visit, Back, Party, Cancel, Recruit and Release. Same dark brass face as Send envoy.
+func _paint_sheet_button(button: Button, enabled := true) -> void:
+	_paint_order_button(button, enabled)
+	var ink := _order_ink(enabled)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(key, ink)
+	button.add_theme_color_override("font_disabled_color", _order_ink(false))
+	button.mouse_default_cursor_shape = Control.CURSOR_ARROW if not enabled else Control.CURSOR_POINTING_HAND
 
 
 ## An order's price at the right of its button: a number and the resource's icon per cost, or "No cost".
@@ -4941,6 +4968,7 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 		open_b.tooltip_text = Copy.t("Close the map and return to your own station.") if home else Copy.t("See the station up close: its people, leader and needs. Spends nothing.")
 		open_b.set_meta("visit_station", sid)
 		open_b.pressed.connect(_open_station.bind(sid))
+		_paint_sheet_button(open_b, true)
 		parent.add_child(open_b)
 	if game_now == null:
 		return
@@ -5005,6 +5033,7 @@ func _add_guard(game, parent: Node) -> void:
 	recruit.disabled = why != ""
 	recruit.tooltip_text = why if why != "" else Copy.t("%s leaves their work and joins the guard.") % str(game.recruit_preview())
 	recruit.pressed.connect(_guard_action.bind("recruit"))
+	_paint_sheet_button(recruit, why == "")
 	row.add_child(recruit)
 	var dismiss := Button.new()
 	dismiss.text = Copy.t("Release")
@@ -5012,6 +5041,7 @@ func _add_guard(game, parent: Node) -> void:
 	dismiss.disabled = why_d != ""
 	dismiss.tooltip_text = why_d if why_d != "" else Copy.t("One soldier goes back to work.")
 	dismiss.pressed.connect(_guard_action.bind("dismiss"))
+	_paint_sheet_button(dismiss, why_d == "")
 	row.add_child(dismiss)
 
 
@@ -5173,6 +5203,7 @@ func _party_line(parent: Node) -> void:
 	var open_party := Button.new()
 	open_party.text = Copy.t("party.open") % [roster.members.size(), int(roster.max_size)]
 	open_party.pressed.connect(_open_party)
+	_paint_sheet_button(open_party, true)
 	parent.add_child(open_party)
 
 
@@ -5323,9 +5354,9 @@ func _build_visit() -> void:
 	visit_close.text = Copy.t("Back to map")
 	visit_close.custom_minimum_size = Vector2(120, 36)
 	visit_close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	visit_close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	visit_close.tooltip_text = "Esc"
 	visit_close.pressed.connect(close_visit)
+	_paint_sheet_button(visit_close, true)
 	header.add_child(visit_close)
 	column.add_child(header)
 	var scroll := ScrollContainer.new()
