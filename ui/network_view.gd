@@ -206,6 +206,10 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var legend_button: Button
+var legend_panel: PanelContainer
+var legend_rows: VBoxContainer
+var _order_tip_panel: PanelContainer
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -232,6 +236,7 @@ func _ready() -> void:
 	_sprites.setup(_unit_layer)
 	_paper = _map_tex("res://assets/map/paper.webp")
 	_build_zoom_bar()
+	_build_legend()
 	_build_sheet()
 	_build_council()
 	_build_visit()
@@ -3744,6 +3749,12 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
+		if button.button_index == MOUSE_BUTTON_LEFT and button.pressed and legend_panel != null and legend_panel.visible:
+			var local := button.position
+			var on_panel := legend_panel.get_rect().has_point(local)
+			var on_key := legend_button != null and legend_button.get_rect().has_point(local)
+			if not on_panel and not on_key:
+				_close_legend()
 		if button.button_index == MOUSE_BUTTON_WHEEL_UP and button.pressed:
 			_wheel_zoom(button.position, 1.12)
 			accept_event()
@@ -4017,6 +4028,7 @@ func _place_panels() -> void:
 	if _zoom_bar != null:
 		_zoom_bar.reset_size()
 		_zoom_bar.position = Vector2(FIT_PAD + 4.0, _chrome_top() - _zoom_bar.size.y)
+	_place_legend()
 
 
 ## Just above the station's bottom buttons.
@@ -4272,7 +4284,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	if notes == null:
 		notes = parent
 	var game = _game()
-	var button := Button.new()
+	var button := OrderTipButton.new()
 	button.text = ""
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	var row := HBoxContainer.new()
@@ -5289,6 +5301,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if visit != null and visit.is_visible_in_tree():
 		close_visit()
 		get_viewport().set_input_as_handled()
+		return
+	if legend_panel != null and legend_panel.visible:
+		_close_legend()
+		get_viewport().set_input_as_handled()
 
 
 func open_visit(sid: String) -> void:
@@ -5636,3 +5652,288 @@ func _unit_route_bays(points: PackedVector2Array, first: String, last: String, k
 		out.append(points[i])
 	out.append(_unit_station_bay(last, -end_dir, _unit_width(kind), 0))
 	return out
+
+
+## Quiet Map key. Labels for marks this build already draws. No new pin, no tween.
+func _build_legend() -> void:
+	legend_button = Button.new()
+	legend_button.name = "MapKey"
+	legend_button.text = "?"
+	legend_button.focus_mode = Control.FOCUS_NONE
+	legend_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	legend_button.custom_minimum_size = Vector2(44, 44)
+	legend_button.tooltip_text = Copy.t("legend.open")
+	legend_button.pressed.connect(_toggle_legend)
+	for state in ["normal", "hover", "pressed"]:
+		legend_button.add_theme_stylebox_override(state, _legend_face(state == "pressed", state == "hover"))
+	for colour in ["font_color", "font_hover_color", "font_pressed_color"]:
+		legend_button.add_theme_color_override(colour, TAG_INK)
+	legend_button.z_index = 16
+	add_child(legend_button)
+	legend_panel = PanelContainer.new()
+	legend_panel.name = "MapKeyPanel"
+	legend_panel.visible = false
+	legend_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	legend_panel.z_index = 17
+	legend_panel.add_theme_stylebox_override("panel", _legend_face(false, false))
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+	column.custom_minimum_size = Vector2(280, 0)
+	legend_panel.add_child(column)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var title := Label.new()
+	title.name = "LegendTitle"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", TAG_INK)
+	head.add_child(title)
+	var close := Button.new()
+	close.name = "LegendClose"
+	close.focus_mode = Control.FOCUS_NONE
+	close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	close.custom_minimum_size = Vector2(72, 32)
+	close.pressed.connect(_close_legend)
+	for state in ["normal", "hover", "pressed"]:
+		close.add_theme_stylebox_override(state, _legend_face(state == "pressed", state == "hover"))
+	for colour in ["font_color", "font_hover_color", "font_pressed_color"]:
+		close.add_theme_color_override(colour, TAG_INK)
+	head.add_child(close)
+	column.add_child(head)
+	legend_rows = VBoxContainer.new()
+	legend_rows.name = "LegendRows"
+	legend_rows.add_theme_constant_override("separation", 6)
+	column.add_child(legend_rows)
+	add_child(legend_panel)
+	_rename_legend()
+
+
+func _legend_face(pressed: bool, hover: bool) -> StyleBoxFlat:
+	var face := StyleBoxFlat.new()
+	face.bg_color = TAG_PAPER.darkened(0.12 if pressed else 0.0).lightened(0.06 if hover else 0.0)
+	face.border_color = Color(TAG_INK, 0.85)
+	face.set_border_width_all(1)
+	face.set_content_margin_all(8)
+	face.content_margin_left = 12
+	face.content_margin_right = 12
+	face.shadow_color = Color(0, 0, 0, 0.35)
+	face.shadow_size = 3
+	face.shadow_offset = Vector2(1, 2)
+	return face
+
+
+func _rename_legend() -> void:
+	if legend_button != null:
+		legend_button.tooltip_text = Copy.t("legend.open")
+	if legend_panel == null:
+		return
+	var title := legend_panel.find_child("LegendTitle", true, false) as Label
+	if title != null:
+		title.text = Copy.t("legend.title")
+	var close := legend_panel.find_child("LegendClose", true, false) as Button
+	if close != null:
+		close.text = Copy.t("legend.close")
+
+
+func _place_legend() -> void:
+	if legend_button == null:
+		return
+	legend_button.reset_size()
+	var x := FIT_PAD + 4.0
+	var y := _chrome_top() - legend_button.size.y
+	if _zoom_bar != null and _zoom_bar.visible:
+		_zoom_bar.reset_size()
+		x = _zoom_bar.position.x + _zoom_bar.size.x + 8.0
+		y = _zoom_bar.position.y
+	legend_button.position = Vector2(x, y)
+	if legend_panel == null or not legend_panel.visible:
+		return
+	legend_panel.reset_size()
+	var panel_y := y - legend_panel.size.y - 8.0
+	legend_panel.position = Vector2(FIT_PAD + 4.0, maxf(8.0, panel_y))
+
+
+func _toggle_legend() -> void:
+	if legend_panel != null and legend_panel.visible:
+		_close_legend()
+	else:
+		_open_legend()
+
+
+func _open_legend() -> void:
+	_fill_legend()
+	if legend_panel != null:
+		legend_panel.visible = true
+	_place_legend()
+
+
+func _close_legend() -> void:
+	if legend_panel != null:
+		legend_panel.visible = false
+
+
+func _fill_legend() -> void:
+	_rename_legend()
+	if legend_rows == null:
+		return
+	while legend_rows.get_child_count() > 0:
+		var child := legend_rows.get_child(0)
+		legend_rows.remove_child(child)
+		child.queue_free()
+	for key in legend_row_keys():
+		var row := HBoxContainer.new()
+		row.set_meta("legend_row", key)
+		row.add_theme_constant_override("separation", 8)
+		var swatch := LegendSwatch.new()
+		swatch.mark = key
+		swatch.custom_minimum_size = Vector2(18, 18)
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(swatch)
+		var lab := Label.new()
+		lab.text = Copy.t("legend." + key)
+		lab.add_theme_font_size_override("font_size", 14)
+		lab.add_theme_color_override("font_color", TAG_INK)
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lab)
+		legend_rows.add_child(row)
+
+
+## Separate rows. A mark that this build does not draw stays hidden. Never one merged pip.
+func legend_row_keys() -> PackedStringArray:
+	var out := PackedStringArray()
+	for key in ["warmth", "deals", "pressure", "goods", "leaflet", "need", "focus", "flow", "rumor"]:
+		if legend_mark_drawn(key):
+			out.append(key)
+	return out
+
+
+func legend_mark_drawn(key: String) -> bool:
+	match key:
+		"warmth":
+			return has_method("_draw_warmth_ring")
+		"deals":
+			return has_method("_draw_deal_pips")
+		"pressure":
+			return has_method("_draw_pressure_ring")
+		"goods":
+			return has_method("_draw_good_pip")
+		"leaflet":
+			return has_method("_draw_leaflet_chip")
+		"need":
+			return has_method("_draw_need_tick")
+		"focus":
+			return has_method("_draw_focus_letter")
+		"flow":
+			return has_method("_draw_flow_tick")
+		"rumor":
+			return has_method("_draw_rumor")
+		_:
+			return false
+
+
+## Dark plate while Network is open. Same helper as the station tooltip. Not a third style.
+func _order_tip_plate() -> StyleBoxFlat:
+	if host != null and host.has_method("_tip_plate_style"):
+		return host._tip_plate_style()
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
+	plate.set_border_width_all(1)
+	plate.set_content_margin_all(8)
+	return plate
+
+
+func _show_order_tip_shot(kind: String, sid: String) -> void:
+	var game = _game()
+	if game == null:
+		return
+	var why := ""
+	why = game.order_block(kind, sid)
+	var text := _order_tip(game, kind, sid, why)
+	if _order_tip_panel == null:
+		_order_tip_panel = PanelContainer.new()
+		_order_tip_panel.name = "OrderTipPlate"
+		_order_tip_panel.z_index = 30
+		_order_tip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_order_tip_panel)
+	while _order_tip_panel.get_child_count() > 0:
+		var old := _order_tip_panel.get_child(0)
+		_order_tip_panel.remove_child(old)
+		old.queue_free()
+	_order_tip_panel.add_theme_stylebox_override("panel", _order_tip_plate())
+	var lab := Label.new()
+	lab.text = text
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.custom_minimum_size = Vector2(280, 0)
+	lab.add_theme_color_override("font_color", Color("efe6d2"))
+	lab.add_theme_font_size_override("font_size", 16)
+	_order_tip_panel.add_child(lab)
+	_order_tip_panel.visible = true
+	_order_tip_panel.position = Vector2(36, 180)
+
+
+class LegendSwatch extends Control:
+	var mark := ""
+	const Warmth := preload("res://sim/pin_warmth.gd")
+	const Deals := preload("res://sim/deal_marks.gd")
+	const Leaflet := preload("res://sim/leaflet_dust.gd")
+	const Need := preload("res://sim/need_tick.gd")
+
+	func _draw() -> void:
+		var mid := size * 0.5
+		match mark:
+			"warmth":
+				draw_arc(mid, 6.0, 0.0, TAU, 24, Warmth.WARM, 2.0, true)
+			"deals":
+				for i in 3:
+					draw_circle(Vector2(3.5 + float(i) * 5.0, mid.y), 2.2, Deals.BRASS)
+			"pressure":
+				draw_arc(mid, 6.0, -PI * 0.85, PI * 0.35, 16, Color("e2a63a"), 2.2, true)
+			"goods":
+				draw_circle(mid, 6.0, Color("2b2118"))
+				draw_circle(mid, 4.4, Color("efe4c8"))
+			"leaflet":
+				var box := Rect2(mid - Vector2(5, 4), Vector2(10, 8))
+				draw_rect(box, Leaflet.PAPER)
+				draw_rect(box, Leaflet.INK, false, 1.0)
+			"need":
+				draw_line(Vector2(4, 10), Vector2(8, 14), Need.CHALK, 1.6, true)
+				draw_line(Vector2(8, 14), Vector2(14, 4), Need.CHALK, 1.6, true)
+			"focus":
+				draw_circle(mid, 6.5, Color("efe4c8"))
+				draw_arc(mid, 6.5, 0.0, TAU, 16, Color("2b2118"), 1.0, true)
+			"flow":
+				draw_circle(mid, 5.0, Deals.BRASS)
+				draw_arc(mid, 5.0, 0.0, TAU, 16, Color("2b2118"), 1.0, true)
+			"rumor":
+				draw_circle(mid, 6.0, Color("efe4c8"))
+				draw_circle(mid + Vector2(-1.5, -1.0), 1.2, Color("2b2118"))
+			_:
+				draw_circle(mid, 4.0, Color("2b2118"))
+
+
+class OrderTipButton extends Button:
+	func _make_custom_tooltip(for_text: String) -> Object:
+		var panel := PanelContainer.new()
+		var plate: StyleBoxFlat = null
+		var node: Node = self
+		while node != null:
+			if node.has_method("_order_tip_plate"):
+				plate = node._order_tip_plate()
+				break
+			node = node.get_parent()
+		if plate == null:
+			plate = StyleBoxFlat.new()
+			plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+			plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
+			plate.set_border_width_all(1)
+			plate.set_content_margin_all(8)
+		panel.add_theme_stylebox_override("panel", plate)
+		var lab := Label.new()
+		lab.text = for_text
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.custom_minimum_size = Vector2(280, 0)
+		lab.add_theme_color_override("font_color", Color("efe6d2"))
+		lab.add_theme_font_size_override("font_size", 16)
+		panel.add_child(lab)
+		return panel
