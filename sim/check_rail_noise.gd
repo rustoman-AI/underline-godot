@@ -273,30 +273,39 @@ func _check_icon() -> bool:
 		"res://assets/icons/map/noise_rail.png",
 		"res://assets/icons/map/noise_rail_24.png",
 	]
-	var present := false
-	for path in paths:
-		if ResourceLoader.exists(path):
-			present = true
 	var registered := FileAccess.get_file_as_string("res://ui/art_pack.gd")
 	if not registered.contains('"noise_rail"'):
 		print("Icon: FAIL noise_rail is not registered")
 		return false
-	if present:
-		print("Icon: noise_rail file present")
-	else:
-		print("Icon: absent, text chip")
+	var folders := registered.split("static func _load_icon", true, 1)
+	if folders.size() < 2 or folders[1].find("status/") > folders[1].find("map/") or folders[1].find("status/") < 0:
+		print("Icon: FAIL status icon is not preferred")
+		return false
+	for path in paths:
+		if not ResourceLoader.exists(path):
+			print("Icon: FAIL missing ", path)
+			return false
+	print("Icon: status+map noise_rail present")
 	return true
 
 
-## Tray and listening cans are wired only when the files are already in the prop set.
-## PROPS stays empty while the painted rooms carry their own props. No new prop system.
+## Designer-locked props live under props/common and are preloaded. Yard.PROPS stays empty:
+## the painted rooms still carry their own props, and there is no props/common hook to fill.
 func _check_props() -> bool:
-	var tray := "res://assets/props/prop_infirmary_tray.webp"
-	var cans := "res://assets/props/prop_listening_cans.webp"
-	if ResourceLoader.exists(tray) or ResourceLoader.exists(cans):
-		print("Props: FAIL files exist and are not wired")
+	var tray := "res://assets/props/common/prop_infirmary_tray.webp"
+	var cans := "res://assets/props/common/prop_listening_cans.webp"
+	var pack := FileAccess.get_file_as_string("res://ui/art_pack.gd")
+	var station := FileAccess.get_file_as_string("res://ui/station.gd")
+	if not ResourceLoader.exists(tray) or not ResourceLoader.exists(cans):
+		print("Props: FAIL missing common props")
 		return false
-	print("Props: absent, not wired")
+	if not pack.contains(tray) or not pack.contains(cans):
+		print("Props: FAIL not preloaded")
+		return false
+	if not station.contains("const PROPS := {}"):
+		print("Props: FAIL gameplay wire")
+		return false
+	print("Props: on disk, preloaded, not wired")
 	return true
 
 
