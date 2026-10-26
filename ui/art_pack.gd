@@ -467,6 +467,9 @@ static func _icon_names(kind: String) -> PackedStringArray:
 		## The _24 pair is preferred at 24px. A missing file still leaves the paper chip as text.
 		"noise_rail":
 			return PackedStringArray(["noise_rail"])
+		## P47. status/ is searched before map/. The hand-pixel _24 is the pin scrap.
+		"leaflet_chip":
+			return PackedStringArray(["leaflet_chip"])
 		_:
 			return PackedStringArray([kind])
 

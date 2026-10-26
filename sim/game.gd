@@ -1,6 +1,7 @@
 class_name Game
 extends RefCounted
 const Brief = preload("res://sim/brief.gd")
+const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
@@ -319,6 +320,7 @@ func end_week() -> void:
 		_seal_score()
 		return
 	week += 1
+	LeafletDust.settle_all(self)
 	decisions = 0
 	_dawn()
 	_vo_watch()
@@ -4332,8 +4334,10 @@ func _order_propaganda(sid: String) -> bool:
 	var joined := false
 	if after_sym >= 100:
 		joined = _capture(sid, player, false)
-	if after_sym >= 70:
-		st.leaflet_until = int(week) + 2
+	## Leaflet dust is propaganda-only. Envoy, deal, and drift never arm it.
+	if after_sym >= 70 and not joined:
+		LeafletDust.arm(self, sid)
+	LeafletDust.settle(self, sid)
 	if joined:
 		st.join_pulse = true
 	_stamp_soft_note(st, sid, "propaganda", before_sym, after_sym, gain, "", 0.0, 0.0, int(st.get("deals", 0)), joined)
@@ -4360,6 +4364,7 @@ func _order_envoy(sid: String) -> bool:
 	if joined:
 		st.join_pulse = true
 	_stamp_soft_note(st, sid, "envoy", before_sym, after_sym, gain, need_id, need_before, need_after, int(st.get("deals", 0)), joined)
+	LeafletDust.settle(self, sid)
 	return true
 
 
@@ -4385,6 +4390,7 @@ func _order_deal(sid: String) -> bool:
 	if joined:
 		st.join_pulse = true
 	_stamp_soft_note(st, sid, "deal", before_sym, before_sym, 0, need_id, need_before, need_after, int(st.deals), joined)
+	LeafletDust.settle(self, sid)
 	return true
 
 
@@ -6309,6 +6315,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_log("The yard has fallen.", true)
 		_seal_score()
 	_sync_perk_notices()
+	LeafletDust.clear_station(st)
 	return true
 
 
