@@ -12,6 +12,7 @@ var _puffs := {}
 var _puff_times := {}
 
 const ArtPack = preload("res://ui/art_pack.gd")
+const DealMarks = preload("res://sim/deal_marks.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -29,6 +30,11 @@ const TAG_BADGE_SMALL := 16.0
 const TAG_BADGE_LARGE := 20.0
 const GRAPHITE := Color(0.19, 0.18, 0.17, 0.78)
 const ORDER_RED := Color("a0281e")
+## P45 deal marks. Brass only — never ORDER_RED. Numbers live on DealMarks.
+const DEAL_BRASS := Color("e2a63a")
+const DEAL_PIP_R := 2.8
+const PASSAGE_DOT := 1.8
+const PASSAGE_STEP := 11.0
 ## Pressure ring: faction colour at 70% opacity, tight under the pin. One week leaves a quarter open; two closes it.
 const PRESSURE_ALPHA := 0.7
 const PRESSURE_AMBER := Color("e2a63a")
@@ -182,6 +188,8 @@ var _ink_layer: Control
 var _layout := {}
 var _lift := {}
 var _join_left := {}
+var _deal_float: Label
+var _deal_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -328,6 +336,7 @@ func refresh() -> void:
 	if selected != "":
 		_fill_sheet(selected)
 	_redraw()
+	_note_first_deal_marks()
 
 
 func _redraw() -> void:
@@ -1157,6 +1166,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_leaders(c)
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
+	_draw_deal_pips(c, game)
 	_draw_line_badges(c, game)
 	_plan_yields(game)
 	_draw_tags(c, game)
@@ -1876,22 +1886,104 @@ func _arm_join_pulses() -> void:
 		_join_left[str(sid)] = 0.5
 
 
+func deal_pip_count(game, sid: String) -> int:
+	return DealMarks.pip_count(game, sid)
+
+
+func deal_pip_slot(at: Vector2, pin_r: float, index: int) -> Vector2:
+	return DealMarks.pip_slot(at, pin_r, index)
+
+
+func deal_pip_line(game, sid: String, compact: bool) -> String:
+	return DealMarks.pip_line(game, sid, compact)
+
+
+func passage_thread(game, sid: String) -> bool:
+	return DealMarks.shows_thread(game, sid)
+
+
+func passage_ink() -> Color:
+	return DealMarks.passage_ink()
+
+
+func deal_pips_pulse() -> bool:
+	return DealMarks.pips_pulse()
+
+
+func deal_mark_lines(game, sid: String, compact: bool) -> PackedStringArray:
+	return DealMarks.mark_lines(game, sid, compact)
+
+
+func note_deal_marks(game) -> String:
+	return DealMarks.note(game)
+
+
+func _note_first_deal_marks() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := note_deal_marks(_game())
+	if line == "":
+		return
+	_show_deal_float(line)
+
+
+func _show_deal_float(line: String) -> void:
+	if _deal_float == null:
+		_deal_float = Label.new()
+		_deal_float.z_index = 8
+		_deal_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_deal_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_deal_float.add_theme_font_size_override("font_size", 18)
+		_deal_float.add_theme_color_override("font_color", DEAL_BRASS)
+		_deal_float.add_theme_constant_override("outline_size", 6)
+		_deal_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		add_child(_deal_float)
+	_deal_float.text = line
+	_deal_float.modulate.a = 1.0
+	_deal_float.visible = true
+	if _deal_float_tween != null and _deal_float_tween.is_valid():
+		_deal_float_tween.kill()
+	_place_deal_float()
+	if not is_inside_tree():
+		return
+	_deal_float_tween = create_tween()
+	if _motion_off():
+		_deal_float_tween.tween_interval(4.2)
+	else:
+		var rise := _deal_float.position.y - 18.0
+		_deal_float_tween.tween_property(_deal_float, "position:y", rise, 2.4)
+		_deal_float_tween.parallel().tween_property(_deal_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_deal_float_tween.tween_callback(func() -> void:
+		if _deal_float != null:
+			_deal_float.visible = false)
+
+
+func _place_deal_float() -> void:
+	if _deal_float == null or not _deal_float.visible:
+		return
+	_deal_float.custom_minimum_size = Vector2(420, 28)
+	_deal_float.size = Vector2(420, 28)
+	_deal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), 78.0)
+
+
 func _draw_deal_pips(c: CanvasItem, game) -> void:
+	var tex := ArtPack.icon_texture("deal_pip", 24.0)
 	for sid in _layout:
-		var st: Dictionary = game.stations[sid]
-		var deals := int(st.get("deals", 0))
-		if deals < 1:
+		var filled := deal_pip_count(game, str(sid))
+		if filled < 1:
 			continue
 		var info: Dictionary = _layout[sid]
 		var at: Vector2 = info.at
 		var r := float(info.r)
-		var filled := clampi(deals, 0, 3)
 		for i in 3:
-			var p := at + Vector2((float(i) - 1.0) * 7.0, r + 8.0)
+			var p := deal_pip_slot(at, r, i)
 			if i < filled:
-				c.draw_circle(p, 2.8, Color("e2a63a"))
+				c.draw_circle(p, DEAL_PIP_R, DEAL_BRASS)
+				if tex != null:
+					var s := DEAL_PIP_R * 2.0
+					c.draw_texture_rect(tex, Rect2(p - Vector2(s, s) * 0.5, Vector2(s, s)), false)
 			else:
-				c.draw_arc(p, 2.8, 0, TAU, 16, Color(GRAPHITE, 0.5), 1.0, true)
+				c.draw_arc(p, DEAL_PIP_R, 0, TAU, 16, Color(GRAPHITE, 0.5), 1.0, true)
 
 
 func _draw_passage_edges(c: CanvasItem, game) -> void:
@@ -1900,13 +1992,9 @@ func _draw_passage_edges(c: CanvasItem, game) -> void:
 		return
 	var k := 1.0 / _map_scale()
 	var yard := _map_spot(home)
-	var brass := Color("e2a63a")
-	brass.a = 0.85
+	var brass := passage_ink()
 	for sid in game.stations:
-		if str(sid) == home:
-			continue
-		var st: Dictionary = game.stations[sid]
-		if not bool(st.get("passage", false)) or _secret(st) or not bool(st.get("known", false)):
+		if not passage_thread(game, str(sid)):
 			continue
 		var a := _map_spot(str(sid))
 		var length := a.distance_to(yard)
@@ -1914,8 +2002,8 @@ func _draw_passage_edges(c: CanvasItem, game) -> void:
 			continue
 		var t := 0.0
 		while t <= length:
-			c.draw_circle(a.lerp(yard, t / length), 1.8 * k, brass)
-			t += 11.0 * k
+			c.draw_circle(a.lerp(yard, t / length), PASSAGE_DOT * k, brass)
+			t += PASSAGE_STEP * k
 
 
 func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
@@ -3329,6 +3417,8 @@ func _tip(sid: String) -> String:
 		lines.append(Copy.t("listening.wired_tip"))
 	if int(st.get("intel", 0)) > 0:
 		lines.append(Copy.fill("listening.intel_line", {"n": int(st.intel)}))
+	for extra in deal_mark_lines(game, sid, _motion_off()):
+		lines.append(str(extra))
 	return "\n".join(lines)
 
 
