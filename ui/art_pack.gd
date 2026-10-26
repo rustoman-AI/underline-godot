@@ -369,6 +369,11 @@ static func textures() -> Dictionary:
 		## P42 props. No props/common gameplay hook; preload is the export registration.
 		"res://assets/props/common/prop_infirmary_tray.webp": preload("res://assets/props/common/prop_infirmary_tray.webp"),
 		"res://assets/props/common/prop_listening_cans.webp": preload("res://assets/props/common/prop_listening_cans.webp"),
+		## P49. Draws ask at 24px, so the hand-pixel plate is the one in the export. The 256 is the fallback plate.
+		"res://assets/icons/status/need_tick_24.png": preload("res://assets/icons/status/need_tick_24.png"),
+		"res://assets/icons/map/need_tick_24.png": preload("res://assets/icons/map/need_tick_24.png"),
+		"res://assets/icons/status/need_tick.png": preload("res://assets/icons/status/need_tick.png"),
+		"res://assets/icons/map/need_tick.png": preload("res://assets/icons/map/need_tick.png"),
 
 	}
 	return _textures
@@ -475,6 +480,9 @@ static func _icon_names(kind: String) -> PackedStringArray:
 		## P47. status/ is searched before map/. The hand-pixel _24 is the pin scrap.
 		"leaflet_chip":
 			return PackedStringArray(["leaflet_chip"])
+		## P49. Same search order. Callers pass 24 so the hand-pixel plate wins over the 256.
+		"need_tick":
+			return PackedStringArray(["need_tick"])
 		_:
 			return PackedStringArray([kind])
 

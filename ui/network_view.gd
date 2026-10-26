@@ -15,6 +15,7 @@ const ArtPack = preload("res://ui/art_pack.gd")
 const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
+const NeedTick = preload("res://sim/need_tick.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -196,6 +197,8 @@ var _warm_float: Label
 var _warm_float_tween: Tween
 var _leaf_float: Label
 var _leaf_float_tween: Tween
+var _need_float: Label
+var _need_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -1644,11 +1647,12 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 			c.draw_arc(head, r * 0.72, 0, TAU, 24, Color(TAG_INK, 0.7), 1.0, true)
 			var s := r * 1.08
 			c.draw_texture_rect(mark, Rect2(head - Vector2(s, s) * 0.5, Vector2(s, s)), false)
-	## Base pin is already down. Warmth, then the P37 neighbor tick, then the leaflet scrap.
-	## Deal pips paint later in _draw_ink so they stay readable over this chip.
+	## Base pin is already down. Warmth, then the P37 neighbor tick, then the leaflet scrap,
+	## then the need tick. Deal pips paint later in _draw_ink so they stay readable over both.
 	_draw_warmth_ring(c, game, sid, st, at, r, lift)
 	_draw_border_tick(c, game, sid, at, r, lift)
 	_draw_leaflet_chip(c, game, sid, at, r, lift)
+	_draw_need_tick(c, game, sid, at, r, lift)
 	if sid == selected:
 		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
 		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
@@ -1890,6 +1894,24 @@ func _draw_leaflet_chip(c: CanvasItem, game, sid: String, at: Vector2, r: float,
 	c.draw_rect(box, LeafletDust.INK, false, 1.0)
 
 
+## Static check beside the pin. Art at 24px, else the vector tick. Sits off the brass pip row.
+func _draw_need_tick(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not NeedTick.shows(game, sid):
+		return
+	var crowded := DealMarks.pip_count(game, sid) >= 1
+	var pos := NeedTick.slot(at, r, crowded) - Vector2(0, 2.0 * lift)
+	var sz := NeedTick.mark_px(r)
+	var icon := ArtPack.icon_texture("need_tick", 24.0)
+	if icon != null:
+		c.draw_texture_rect(icon, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
+		return
+	var pts := NeedTick.tick_points(pos - Vector2(sz, sz) * 0.5, sz)
+	if pts.size() < 3:
+		return
+	c.draw_line(pts[0], pts[1], NeedTick.CHALK, 1.6, true)
+	c.draw_line(pts[1], pts[2], NeedTick.CHALK, 1.6, true)
+
+
 func _draw_join_pulse(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
 	if not _join_left.has(sid):
 		return
@@ -1965,6 +1987,14 @@ func note_leaflet_dust(game) -> String:
 	return LeafletDust.note(game)
 
 
+func need_lines(game, sid: String, compact: bool) -> PackedStringArray:
+	return NeedTick.lines(game, sid, compact)
+
+
+func note_need_tick(game) -> String:
+	return NeedTick.note(game)
+
+
 func _note_first_leaflet() -> void:
 	if not visible or not is_inside_tree():
 		return
@@ -2016,6 +2046,60 @@ func _place_leaf_float() -> void:
 	if _warm_float != null and _warm_float.visible:
 		y += 34.0
 	_leaf_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+
+
+## First need tick of a run, and only once the visit sheet for that station is open.
+func _note_first_need(sid: String) -> void:
+	if not is_inside_tree() or visit == null or not visit.visible:
+		return
+	var game = _game()
+	if game == null or not NeedTick.shows(game, sid):
+		return
+	var line := note_need_tick(game)
+	if line == "":
+		return
+	_show_need_float(line)
+
+
+func _show_need_float(line: String) -> void:
+	if visit == null:
+		return
+	if _need_float == null:
+		_need_float = Label.new()
+		_need_float.z_index = 4
+		_need_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_need_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_need_float.add_theme_font_size_override("font_size", 18)
+		_need_float.add_theme_color_override("font_color", NeedTick.CHALK)
+		_need_float.add_theme_constant_override("outline_size", 6)
+		_need_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		visit.add_child(_need_float)
+	_need_float.text = line
+	_need_float.modulate.a = 1.0
+	_need_float.visible = true
+	if _need_float_tween != null and _need_float_tween.is_valid():
+		_need_float_tween.kill()
+	_place_need_float()
+	if not is_inside_tree():
+		return
+	_need_float_tween = create_tween()
+	if _motion_off():
+		_need_float_tween.tween_interval(4.2)
+	else:
+		var rise := _need_float.position.y - 18.0
+		_need_float_tween.tween_property(_need_float, "position:y", rise, 2.4)
+		_need_float_tween.parallel().tween_property(_need_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_need_float_tween.tween_callback(func() -> void:
+		if _need_float != null:
+			_need_float.visible = false)
+
+
+func _place_need_float() -> void:
+	if _need_float == null or not _need_float.visible or visit == null:
+		return
+	_need_float.custom_minimum_size = Vector2(420, 28)
+	_need_float.size = Vector2(420, 28)
+	_need_float.position = Vector2(maxf(8.0, visit.size.x * 0.5 - 210.0), 52.0)
 
 
 func _note_first_pin_warmth() -> void:
@@ -3580,6 +3664,8 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in leaf_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	for extra in need_lines(game, sid, _motion_off()):
+		lines.append(str(extra))
 	return "\n".join(lines)
 
 
@@ -4191,7 +4277,46 @@ func _need_bar(need_id: String, fill: float, sid: String = "") -> Control:
 			bar.value_changed.connect(func(v: float): num.text = str(int(round(v))))
 			var tw := bar.create_tween()
 			tw.tween_property(bar, "value", target, MARK_S)
+	var game = _game()
+	if game != null and NeedTick.shows_need(game, sid, need_id):
+		row.add_child(_ease_tick_box(not _on_paper))
 	return row
+
+
+## Soft check beside the eased need. Static in both motion settings. No numeric delta.
+func _ease_tick_box(chalk: bool) -> Control:
+	var compact := _motion_off()
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	box.tooltip_text = NeedTick.tip(compact)
+	box.set_meta("need_tick", true)
+	box.add_theme_constant_override("separation", 4)
+	var mark := Control.new()
+	mark.custom_minimum_size = Vector2(16, 16)
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ink := NeedTick.CHALK if chalk else NeedTick.INK
+	mark.draw.connect(_paint_ease_tick.bind(mark, ink))
+	box.add_child(mark)
+	var words := _lab(NeedTick.caption(compact), 13, false)
+	words.autowrap_mode = TextServer.AUTOWRAP_OFF
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(words)
+	return box
+
+
+func _paint_ease_tick(mark: Control, ink: Color) -> void:
+	var s := minf(mark.size.x, mark.size.y)
+	if s < 2.0:
+		s = 16.0
+	var icon := ArtPack.icon_texture("need_tick", 24.0)
+	if icon != null:
+		mark.draw_texture_rect(icon, Rect2(Vector2.ZERO, Vector2(s, s)), false)
+		return
+	var pts := NeedTick.tick_points(Vector2.ZERO, s)
+	if pts.size() < 3 or NeedTick.bounces():
+		return
+	mark.draw_line(pts[0], pts[1], ink, 1.6, true)
+	mark.draw_line(pts[1], pts[2], ink, 1.6, true)
 
 
 func _lab(text: String, px: int, display: bool) -> Label:
@@ -4937,6 +5062,7 @@ func _build_visit() -> void:
 func _size_visit() -> void:
 	if visit_sheet != null:
 		visit_sheet.custom_minimum_size.x = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
+	_place_need_float()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -4956,6 +5082,8 @@ func open_visit(sid: String) -> void:
 
 func close_visit() -> void:
 	_visit_sid = ""
+	if _need_float != null:
+		_need_float.visible = false
 	if visit != null:
 		visit.visible = false
 	if sheet != null and selected != "":
@@ -5041,6 +5169,7 @@ func _fill_visit(sid: String) -> void:
 		details.add_child(_lab(who, 15, false))
 	details.add_child(_lab("%s: %d" % [Copy.t("Loyalty"), int(st.loyalty)], 15, false))
 	_add_needs(st, details, sid)
+	_note_first_need(sid)
 	var trade := _trade_line(st)
 	if trade != "":
 		details.add_child(_lab(trade, 15, false))
