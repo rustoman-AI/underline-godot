@@ -1885,5 +1885,11 @@
   "Something heavy on the next rail.": "На соседних рельсах что-то тяжёлое.",
   "A rival party on your border": "Чужой отряд на вашей границе",
   "Noise": "Шум",
-  "The next rail went quiet.": "Соседние рельсы затихли."
+  "The next rail went quiet.": "Соседние рельсы затихли.",
+  "Party home · from {station}": "Отряд дома · с {station}",
+  "Party home · from the line": "Отряд дома · с линии",
+  "Boots on the home platform.": "Ботинки на домашней платформе.",
+  "Your party is back at Coney.": "Ваш отряд снова на Кони.",
+  "Homecoming": "Возвращение",
+  "Party home.": "Отряд дома."
 }

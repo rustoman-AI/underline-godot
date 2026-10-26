@@ -218,6 +218,14 @@ var toast_plate: PanelContainer
 var toast_fade: Tween
 var blown_flash: TextureRect
 var salvage_float: Control
+## P43 dawn chip (paper strip under the top bar) and the once-per-run platform float.
+var dawn_chip: PanelContainer
+var dawn_chip_label: Label
+var dawn_chip_icon: TextureRect
+var home_float: Label
+var home_float_tween: Tween
+## End turn refreshes before the dawn card opens. Hold the float until that card is up or gone.
+var home_hold_float := false
 var undo_toast: PanelContainer
 ## P42 dawn rail-noise chip (bottom-left yard) and the once-per-run platform float.
 var rail_chip: PanelContainer
@@ -1080,6 +1088,7 @@ func _build() -> void:
 	footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(footer)
 	_build_rail_noise()
+	_build_dawn_chip()
 	_build_source_panel()
 
 	_build_overlay()
@@ -1642,6 +1651,8 @@ func _place_chrome() -> void:
 		footer.offset_top = -margin - 22.0
 		footer.offset_bottom = -margin
 	_place_rail_noise()
+	_place_dawn_chip(hud_h)
+	_place_home_float()
 	_place_drawer()
 	_place_card()
 	_place_ahead()
@@ -2017,6 +2028,7 @@ func _refresh() -> void:
 	turn_clear = game.over == "" and game.pending.is_empty() and game.forecasts().is_empty() and game.revolt_warning().is_empty()
 	_fill_people()
 	yard.queue_redraw()
+	_sync_homecoming()
 	if not _sticky_note(footer.text):
 		footer.text = ""
 		footer.visible = false
@@ -2543,12 +2555,15 @@ func _end_turn() -> void:
 		_sync_rail_noise()
 	if game.over == "" and not shot_mode:
 		SaveGame.write_auto(game)
+	home_hold_float = true
 	_refresh()
+	home_hold_float = false
 	if game.over == "":
 		_show_dawn()
 		_play_night()
 	else:
 		_show_ending()
+	_try_home_float()
 
 
 ## Between weeks: the screen goes dark over the morning card, the new week is named, and dawn comes up on the
@@ -4901,6 +4916,139 @@ func _finish_rail_noise(token: int) -> void:
 	if token != rail_token:
 		return
 	_hide_rail_noise()
+
+## Cream paper strip, same family as the rumor / border / rail dawn chips. No sticky "Homecoming" label.
+func _build_dawn_chip() -> void:
+	dawn_chip = PanelContainer.new()
+	dawn_chip.visible = false
+	dawn_chip.z_index = 6
+	dawn_chip.mouse_filter = Control.MOUSE_FILTER_STOP
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("efe4c8")
+	face.border_color = Color("b89a6a")
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.content_margin_left = 10
+	face.content_margin_right = 12
+	face.content_margin_top = 4
+	face.content_margin_bottom = 4
+	dawn_chip.add_theme_stylebox_override("panel", face)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dawn_chip.add_child(row)
+	dawn_chip_icon = TextureRect.new()
+	dawn_chip_icon.custom_minimum_size = Vector2(18, 18)
+	dawn_chip_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dawn_chip_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dawn_chip_icon.visible = false
+	dawn_chip_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(dawn_chip_icon)
+	dawn_chip_label = _label("", 15, true, false)
+	dawn_chip_label.add_theme_color_override("font_color", Color("24180e"))
+	dawn_chip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(dawn_chip_label)
+	add_child(dawn_chip)
+
+
+func _sync_homecoming() -> void:
+	if game == null or dawn_chip == null:
+		return
+	var line := game.home_chip_line(_motion_off())
+	var show := line != "" and not showing_network
+	dawn_chip.visible = show
+	if show:
+		dawn_chip_label.text = line
+		dawn_chip.tooltip_text = Copy.t("home.tip")
+		var icon := ArtPack.icon_texture("home_boots", 24.0)
+		dawn_chip_icon.visible = icon != null
+		if icon != null:
+			dawn_chip_icon.texture = icon
+	elif home_float != null and int(game.flags.get("home_shown", -1)) != game.week:
+		home_float.visible = false
+	_try_home_float()
+	var bar_h := 72.0
+	if hud != null:
+		bar_h = hud.offset_bottom
+	_place_dawn_chip(bar_h)
+
+
+func _place_dawn_chip(hud_h: float) -> void:
+	if dawn_chip == null or not dawn_chip.visible:
+		return
+	var w := minf(560.0, maxf(240.0, dawn_chip.get_combined_minimum_size().x))
+	dawn_chip.anchor_left = 0.0
+	dawn_chip.anchor_right = 0.0
+	dawn_chip.anchor_top = 0.0
+	dawn_chip.anchor_bottom = 0.0
+	dawn_chip.offset_left = maxf(8.0, (size.x - w) * 0.5)
+	dawn_chip.offset_right = dawn_chip.offset_left + w
+	dawn_chip.offset_top = hud_h + 8.0
+	dawn_chip.offset_bottom = hud_h + 40.0
+
+
+func _try_home_float() -> void:
+	if home_hold_float or game == null or showing_network:
+		return
+	if not bool(game.flags.get("home_float", false)):
+		return
+	if dim != null and dim.visible:
+		return
+	_show_home_float()
+
+
+## Soft yard line over the platform. Text only when reduce-motion is on. No shake, no modal, no camera pan.
+func _show_home_float() -> void:
+	if game == null:
+		return
+	if home_float == null:
+		home_float = _label("", 18, true, false)
+		home_float.z_index = 8
+		home_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		home_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		home_float.add_theme_constant_override("outline_size", 6)
+		home_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		add_child(home_float)
+	home_float.text = Copy.t("home.first")
+	home_float.modulate.a = 1.0
+	home_float.visible = true
+	game.flags["home_float"] = false
+	if home_float_tween != null and home_float_tween.is_valid():
+		home_float_tween.kill()
+	_place_home_float()
+	home_float_tween = create_tween()
+	var fade := home_float_tween
+	if _motion_off():
+		fade.tween_interval(4.2)
+	else:
+		var rise := home_float.position.y - 22.0
+		fade.tween_property(home_float, "position:y", rise, 2.6)
+		fade.parallel().tween_property(home_float, "modulate:a", 0.0, 2.6).set_delay(1.1)
+	fade.tween_callback(func() -> void:
+		if home_float != null:
+			home_float.visible = false)
+
+
+func _place_home_float() -> void:
+	if home_float == null or not home_float.visible or game == null:
+		return
+	if home_float_tween != null and home_float_tween.is_valid() and home_float_tween.is_running():
+		return
+	var at := Vector2(size.x * 0.5, size.y * 0.42)
+	if yard != null:
+		var level := 1
+		var cell := 0
+		for room in game.rooms:
+			if str(room.type) == "platform":
+				level = int(room.level)
+				cell = int(room.cell)
+				break
+		var rect := yard.cell_screen(level, cell)
+		if rect.size.x > 2.0:
+			at = Vector2(rect.get_center().x, rect.position.y + 6.0)
+	home_float.custom_minimum_size = Vector2(360, 28)
+	home_float.position = Vector2(at.x - 180.0, at.y)
+	home_float.size = Vector2(360, 28)
 
 
 func _toast(text: String, hold: float = 1.8) -> void:
@@ -7609,6 +7757,7 @@ func _close_card() -> void:
 	if room_open != "":
 		room_open = ""
 		_sync_room_sound()
+	_try_home_float()
 
 
 func _yard_hover(level: int, cell: int) -> void:
