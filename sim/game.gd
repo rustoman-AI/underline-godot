@@ -3842,11 +3842,77 @@ func _offer_rubble(cell: Dictionary) -> void:
 	cell["pile"] = "rubble"
 
 
+## Week 1 starts one room: the bot's single project, and the floor a player taps.
+const WEEK1_FLOOR_TAKES := 1
+
+
 func _seed_start_piles() -> void:
-	var spots := _empty_dug_spots()
+	var order := _build_floor_order()
+	var preferred := _preferred_early_floors()
+	var held := {}
+	for cell in preferred:
+		held[_ck(int(cell.level), int(cell.cell))] = true
+	var spots: Array = []
+	for cell in order:
+		if held.has(_ck(int(cell.level), int(cell.cell))):
+			continue
+		spots.append(cell)
+	if spots.size() < 2:
+		for cell in preferred:
+			spots.append(cell)
+			if spots.size() >= 2:
+				break
 	var mix := ["rubble", "scrap"]
 	for i in mini(mix.size(), spots.size()):
 		spots[i]["pile"] = mix[i]
+
+
+## Empty floors in the order `_first_build_cell()` would hand them out: lowest level, first in grid order.
+func _build_floor_order() -> Array:
+	var pool := _open_floors(true)
+	var order: Array = []
+	while not pool.is_empty():
+		var best_i := 0
+		var best_level := 99
+		for i in pool.size():
+			var level := int(pool[i].level)
+			if level < best_level:
+				best_level = level
+				best_i = i
+		order.append(pool[best_i])
+		pool.remove_at(best_i)
+	return order
+
+
+## Floors week 1 would build on: every empty floor at the lowest level, then the next
+## floors in that same order if week 1 would take more than that tier.
+func _preferred_early_floors() -> Array:
+	var order := _build_floor_order()
+	if order.is_empty():
+		return []
+	var lowest := int(order[0].level)
+	var preferred: Array = []
+	for cell in order:
+		if int(cell.level) != lowest:
+			break
+		preferred.append(cell)
+	var i := preferred.size()
+	while preferred.size() < WEEK1_FLOOR_TAKES and i < order.size():
+		preferred.append(order[i])
+		i += 1
+	return preferred
+
+
+func _open_floors(ignore_piles: bool) -> Array:
+	var rows: Array = []
+	for key in cells:
+		var cell: Dictionary = cells[key]
+		if not bool(cell.dug) or str(cell.room) != "" or bool(cell.get("flooded", false)) or bool(cell.get("walled", false)):
+			continue
+		if not ignore_piles and str(cell.get("pile", "")) != "":
+			continue
+		rows.append(cell)
+	return rows
 
 
 ## Empty dug floor with no room and no pile. Level 2 first, then the rest in grid order.

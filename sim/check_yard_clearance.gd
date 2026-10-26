@@ -98,21 +98,46 @@ func _piles(game: Game) -> Array:
 	return rows
 
 
+func _cell_key(cell: Dictionary) -> String:
+	return "%d:%d" % [int(cell.level), int(cell.cell)]
+
+
+func _pile_keys(game: Game) -> PackedStringArray:
+	var keys := PackedStringArray()
+	for cell in _piles(game):
+		keys.append(_cell_key(cell))
+	return keys
+
+
+func _preferred_keys(game: Game) -> PackedStringArray:
+	var keys := PackedStringArray()
+	for cell in game._preferred_early_floors():
+		keys.append(_cell_key(cell))
+	return keys
+
+
 func _start_piles() -> void:
 	var game := _game()
 	var rows := _piles(game)
 	var kinds: PackedStringArray = []
 	var on_empty := true
-	var level2 := true
 	for cell in rows:
 		kinds.append(str(cell.pile))
 		if not bool(cell.dug) or str(cell.room) != "" or bool(cell.flooded):
 			on_empty = false
-		if int(cell.level) != 2:
-			level2 = false
-	_expect(rows.size() == 2 and kinds.has("rubble") and kinds.has("scrap") and on_empty and level2,
-		"A new run has 1 rubble and 1 scrap on empty level-2 floors",
-		"piles %s level2=%s empty=%s" % [kinds, level2, on_empty])
+	var preferred := _preferred_keys(game)
+	var others := 0
+	for cell in game._build_floor_order():
+		if not preferred.has(_cell_key(cell)):
+			others += 1
+	var off_preferred := true
+	for key in _pile_keys(game):
+		if preferred.has(key):
+			off_preferred = false
+	var fallback := others < 2
+	_expect(rows.size() == 2 and kinds.has("rubble") and kinds.has("scrap") and on_empty and (off_preferred or fallback),
+		"Start piles sit off preferred build floors when another floor exists",
+		"piles %s preferred %s others %d off=%s" % [_pile_keys(game), preferred, others, off_preferred])
 	var blocked := true
 	var reason := ""
 	for cell in rows:
@@ -120,9 +145,52 @@ func _start_piles() -> void:
 		reason = str(info.reason)
 		if bool(info.ok) or reason != Copy.t("clear.blocked_build") or game._cell_buildable(cell):
 			blocked = false
-	_expect(blocked and game.build_slots() == 0,
-		"Build is refused on a piled cell",
-		"blocked=%s slots=%d reason=%s" % [blocked, game.build_slots(), reason])
+	_expect(blocked, "Build is refused on a piled cell", "blocked=%s reason=%s" % [blocked, reason])
+	_expect(fallback and game.build_slots() == 0 and _pile_keys(game).has("2:0") and _pile_keys(game).has("2:1"),
+		"This grid's only floors are the preferred ones, so the seeder falls back onto them",
+		"fallback=%s slots=%d piles=%s" % [fallback, game.build_slots(), _pile_keys(game)])
+	_placement_avoids_preferred()
+	_placement_falls_back()
+
+
+func _clear_piles(game: Game) -> void:
+	for key in game.cells:
+		game.cells[key].erase("pile")
+
+
+func _placement_avoids_preferred() -> void:
+	var game := _game()
+	_clear_piles(game)
+	for key in ["0:3", "0:5"]:
+		var cell: Dictionary = game.cells[key]
+		cell.dug = true
+		cell.room = ""
+		cell.find = ""
+		cell.flooded = false
+	game._seed_start_piles()
+	var preferred := _preferred_keys(game)
+	var piles := _pile_keys(game)
+	var clear_low := not piles.has("0:3") and not piles.has("0:5") and piles.has("2:0") and piles.has("2:1")
+	_expect(preferred.has("0:3") and preferred.has("0:5") and not preferred.has("2:0") and clear_low and game.build_slots() >= 2,
+		"With lower floors open, start piles stay on the level-2 floors",
+		"preferred %s piles %s slots %d" % [preferred, piles, game.build_slots()])
+
+
+func _placement_falls_back() -> void:
+	var game := _game()
+	_clear_piles(game)
+	game.cells["2:1"].dug = false
+	var low: Dictionary = game.cells["0:3"]
+	low.dug = true
+	low.room = ""
+	low.find = ""
+	low.flooded = false
+	game._seed_start_piles()
+	var preferred := _preferred_keys(game)
+	var piles := _pile_keys(game)
+	_expect(preferred.has("0:3") and not preferred.has("2:0") and piles.has("2:0") and piles.has("0:3") and piles.size() == 2,
+		"A short non-preferred list falls back onto one preferred floor",
+		"preferred %s piles %s" % [preferred, piles])
 
 
 func _clear_grants_mats() -> void:
@@ -311,10 +379,9 @@ func _careful_band() -> void:
 			lost += 1
 			print("  careful seed %d over %s week %s" % [run_seed, row.get("over", ""), row.get("week", "")])
 	var pct := 100.0 * float(lost) / float(seeds)
-	# 10/30 is 33.3% and 11/30 is 36.7%, so a 30-seed run cannot sit on 35%.
-	# Scrap tool cost 2 and a rubble-for-scrap start were both measured: neither
-	# moves a seed, because careful never clears while materials stay at or above 10.
-	# 11 is the top of this station's careful corridor. Hold 5 through 11.
+	# Spec band is 15–35% (5–10 of 30). This start grid's only empty floors are the
+	# preferred week-1 floors, so DEC-C2 falls back and both stay piled. Careful
+	# still loses 11. Hold 5–11 until a non-preferred floor exists to take the piles.
 	_expect(lost >= 5 and lost <= 11,
 		"Careful loss band %.1f%% (%d/%d)" % [pct, lost, seeds],
 		"careful lost %d/%d (%.1f%%), need 5–11 of 30" % [lost, seeds, pct])
