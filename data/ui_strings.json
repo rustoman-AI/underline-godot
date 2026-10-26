@@ -1866,6 +1866,26 @@
   "sick.label": {
     "en": "Cots",
     "ru": "Койки"
+  },
+  "need.tick": {
+    "en": "Still easing.",
+    "ru": "Ещё смягчается."
+  },
+  "need.label": {
+    "en": "Easing",
+    "ru": "Смягчение"
+  },
+  "need.first": {
+    "en": "That need is still soft.",
+    "ru": "Эта нужда ещё мягкая."
+  },
+  "need.gone": {
+    "en": "The ease wore off.",
+    "ru": "Облегчение сошло."
+  },
+  "need.reduce": {
+    "en": "Easing.",
+    "ru": "Смягчение."
   }
 }
 

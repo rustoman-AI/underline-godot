@@ -2,6 +2,7 @@ class_name Game
 extends RefCounted
 const Brief = preload("res://sim/brief.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
+const NeedTick = preload("res://sim/need_tick.gd")
 const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
@@ -321,6 +322,7 @@ func end_week() -> void:
 		return
 	week += 1
 	LeafletDust.settle_all(self)
+	NeedTick.settle_all(self)
 	decisions = 0
 	_dawn()
 	_vo_watch()
@@ -4363,6 +4365,10 @@ func _order_envoy(sid: String) -> bool:
 		joined = _capture(sid, player, false)
 	if joined:
 		st.join_pulse = true
+	## Need tick is envoy-only, and only when this resolve actually raised a need.
+	if not joined:
+		NeedTick.arm(self, sid, need_id, need_before, need_after)
+	NeedTick.settle(self, sid)
 	_stamp_soft_note(st, sid, "envoy", before_sym, after_sym, gain, need_id, need_before, need_after, int(st.get("deals", 0)), joined)
 	LeafletDust.settle(self, sid)
 	return true
@@ -6316,6 +6322,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		_seal_score()
 	_sync_perk_notices()
 	LeafletDust.clear_station(st)
+	NeedTick.clear_station(st)
 	return true
 
 
