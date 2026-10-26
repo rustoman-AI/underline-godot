@@ -1897,5 +1897,8 @@
   "Passage open": "Проход открыт",
   "The pin keeps the handshake.": "Метка хранит рукопожатие.",
   "Deals stay on the pin.": "Сделки остаются на метке.",
-  "{n}/3": "{n}/3"
+  "{n}/3": "{n}/3",
+  "{band}": "{band}",
+  "Sympathy sits on the ring.": "Симпатия на кольце.",
+  "The ring remembers how they feel.": "Кольцо помнит, как они к вам."
 }

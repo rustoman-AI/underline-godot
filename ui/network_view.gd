@@ -13,6 +13,7 @@ var _puff_times := {}
 
 const ArtPack = preload("res://ui/art_pack.gd")
 const DealMarks = preload("res://sim/deal_marks.gd")
+const PinWarmth = preload("res://sim/pin_warmth.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -190,6 +191,8 @@ var _lift := {}
 var _join_left := {}
 var _deal_float: Label
 var _deal_float_tween: Tween
+var _warm_float: Label
+var _warm_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -337,6 +340,7 @@ func refresh() -> void:
 		_fill_sheet(selected)
 	_redraw()
 	_note_first_deal_marks()
+	_note_first_pin_warmth()
 
 
 func _redraw() -> void:
@@ -1636,6 +1640,9 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 			c.draw_arc(head, r * 0.72, 0, TAU, 24, Color(TAG_INK, 0.7), 1.0, true)
 			var s := r * 1.08
 			c.draw_texture_rect(mark, Rect2(head - Vector2(s, s) * 0.5, Vector2(s, s)), false)
+	## Base pin is already down. Warmth tints the existing ring; the P37 neighbor tick paints after it.
+	_draw_warmth_ring(c, game, sid, st, at, r, lift)
+	_draw_border_tick(c, game, sid, at, r, lift)
 	if sid == selected:
 		c.draw_arc(at, r + 5.0, 0, TAU, 32, GRAPHITE, 1.6, true)
 		c.draw_arc(at + Vector2(0.8, -0.5), r + 6.0, 0.4, TAU - 0.3, 30, Color(GRAPHITE, 0.4), 1.0, true)
@@ -1817,12 +1824,25 @@ func _band_key(sympathy: int) -> String:
 
 
 func _draw_sympathy_ring(c: CanvasItem, game, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
-	if str(st.get("owner", "")) == str(game.player):
+	_draw_warmth_ring(c, game, str(st.get("id", "")), st, at, r, lift)
+
+
+## One static ring on the existing pin. No pulse. Join uses the player faction accent.
+func _draw_warmth_ring(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not PinWarmth.shows(game, sid):
 		return
-	if not st.has("sympathy"):
-		return
-	var band := _sympathy_band(int(st.sympathy))
-	c.draw_arc(at - Vector2(0, 2.0 * lift), r + 2.5, 0, TAU, 28, Color(band, 0.92), 2.0, true)
+	var col := PinWarmth.color_of(game, st)
+	if PinWarmth.band_of(st) == "join":
+		col = _faction_color(game, str(game.player))
+	col.a = PinWarmth.RING_ALPHA
+	var center := at - Vector2(0, 2.0 * lift)
+	c.draw_arc(center, r + PinWarmth.RING_OUT, 0.0, TAU, PinWarmth.RING_SEGS, col, PinWarmth.RING_WIDTH, true)
+
+
+## P37's dashed amber neighbor tick belongs in this slot, after the warmth ring.
+## That pack is not on this branch, so the slot stays empty and does not invent a second ring.
+func _draw_border_tick(_c: CanvasItem, _game, _sid: String, _at: Vector2, _r: float, _lift: float) -> void:
+	pass
 
 
 func _draw_listening_chips(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
@@ -1916,6 +1936,65 @@ func deal_mark_lines(game, sid: String, compact: bool) -> PackedStringArray:
 
 func note_deal_marks(game) -> String:
 	return DealMarks.note(game)
+
+
+func warm_lines(game, sid: String) -> PackedStringArray:
+	return PinWarmth.lines(game, sid)
+
+
+func note_pin_warmth(game) -> String:
+	return PinWarmth.note(game)
+
+
+func _note_first_pin_warmth() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := note_pin_warmth(_game())
+	if line == "":
+		return
+	_show_warm_float(line)
+
+
+func _show_warm_float(line: String) -> void:
+	if _warm_float == null:
+		_warm_float = Label.new()
+		_warm_float.z_index = 8
+		_warm_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_warm_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_warm_float.add_theme_font_size_override("font_size", 18)
+		_warm_float.add_theme_color_override("font_color", PinWarmth.WARM)
+		_warm_float.add_theme_constant_override("outline_size", 6)
+		_warm_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		add_child(_warm_float)
+	_warm_float.text = line
+	_warm_float.modulate.a = 1.0
+	_warm_float.visible = true
+	if _warm_float_tween != null and _warm_float_tween.is_valid():
+		_warm_float_tween.kill()
+	_place_warm_float()
+	if not is_inside_tree():
+		return
+	_warm_float_tween = create_tween()
+	if _motion_off():
+		_warm_float_tween.tween_interval(4.2)
+	else:
+		var rise := _warm_float.position.y - 18.0
+		_warm_float_tween.tween_property(_warm_float, "position:y", rise, 2.4)
+		_warm_float_tween.parallel().tween_property(_warm_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_warm_float_tween.tween_callback(func() -> void:
+		if _warm_float != null:
+			_warm_float.visible = false)
+
+
+func _place_warm_float() -> void:
+	if _warm_float == null or not _warm_float.visible:
+		return
+	_warm_float.custom_minimum_size = Vector2(420, 28)
+	_warm_float.size = Vector2(420, 28)
+	var y := 78.0
+	if _deal_float != null and _deal_float.visible:
+		y = 112.0
+	_warm_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
 
 
 func _note_first_deal_marks() -> void:
@@ -2017,6 +2096,9 @@ func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
 	var fs := int(clampf(r * 1.25, 12.0, 40.0))
 	var w := font.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	c.draw_string(font, at + Vector2(-w * 0.5, fs * 0.36), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
+	var game = _game()
+	if game != null and game.stations.has(sid):
+		_draw_warmth_ring(c, game, sid, game.stations[sid], at, r, 0.0)
 
 
 func _ready_fonts() -> void:
@@ -3400,9 +3482,12 @@ func _tip(sid: String) -> String:
 		if bool(st.get("hidden", false)):
 			return Copy.t("Hidden station")
 		## C6 alias for the future border whisper (border.tip_unknown). The tip only.
+		var pending: PackedStringArray = []
 		if game.borders_player(sid):
-			return Copy.t("map.tip_unknown_border")
-		return ""
+			pending.append(Copy.t("map.tip_unknown_border"))
+		for extra in warm_lines(game, sid):
+			pending.append(str(extra))
+		return "\n".join(pending)
 	var lines: PackedStringArray = [game.station_text(sid, "community")]
 	for extra in siege_copy(game, sid).hover:
 		lines.append(str(extra))
@@ -3418,6 +3503,8 @@ func _tip(sid: String) -> String:
 	if int(st.get("intel", 0)) > 0:
 		lines.append(Copy.fill("listening.intel_line", {"n": int(st.intel)}))
 	for extra in deal_mark_lines(game, sid, _motion_off()):
+		lines.append(str(extra))
+	for extra in warm_lines(game, sid):
 		lines.append(str(extra))
 	return "\n".join(lines)
 
