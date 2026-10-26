@@ -3846,25 +3846,24 @@ func _offer_rubble(cell: Dictionary) -> void:
 const WEEK1_FLOOR_TAKES := 1
 
 
+## One scrap heap. Never the only open floor, and not a preferred week-1 floor when another floor exists.
 func _seed_start_piles() -> void:
 	var order := _build_floor_order()
+	if order.size() < 2:
+		return
 	var preferred := _preferred_early_floors()
 	var held := {}
 	for cell in preferred:
 		held[_ck(int(cell.level), int(cell.cell))] = true
-	var spots: Array = []
+	var spot: Dictionary = {}
 	for cell in order:
 		if held.has(_ck(int(cell.level), int(cell.cell))):
 			continue
-		spots.append(cell)
-	if spots.size() < 2:
-		for cell in preferred:
-			spots.append(cell)
-			if spots.size() >= 2:
-				break
-	var mix := ["rubble", "scrap"]
-	for i in mini(mix.size(), spots.size()):
-		spots[i]["pile"] = mix[i]
+		spot = cell
+		break
+	if spot.is_empty():
+		spot = preferred[preferred.size() - 1]
+	spot["pile"] = "scrap"
 
 
 ## Empty floors in the order `_first_build_cell()` would hand them out: lowest level, first in grid order.
