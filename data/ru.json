@@ -1879,5 +1879,11 @@
   "Crew hauled the pile off the floor.": "Бригада утащила кучу с пола.",
   "Someone took a bad cut on the pile.": "Кто-то сильно порезался на куче.",
   "Risk · {pct}% one worker sick": "Риск · {pct}% — один работник заболеет",
-  "Risk · 12% sick · hope −1 if Claustrophobic on crew": "Риск · 12% болезнь · надежда −1, если в бригаде Клаустрофоб"
+  "Risk · 12% sick · hope −1 if Claustrophobic on crew": "Риск · 12% болезнь · надежда −1, если в бригаде Клаустрофоб",
+  "Rail noise · {station}": "Шум рельсов · {station}",
+  "Rail noise · Unknown": "Шум рельсов · Неизвестно",
+  "Something heavy on the next rail.": "На соседних рельсах что-то тяжёлое.",
+  "A rival party on your border": "Чужой отряд на вашей границе",
+  "Noise": "Шум",
+  "The next rail went quiet.": "Соседние рельсы затихли."
 }

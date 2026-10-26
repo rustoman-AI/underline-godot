@@ -455,6 +455,10 @@ static func _icon_names(kind: String) -> PackedStringArray:
 			return PackedStringArray(["warning", "hold"])
 		"wired", "wired_tint", "probing", "probing_tint":
 			return PackedStringArray([kind])
+		## P42. status/ and map/ both resolve in _load_icon (png or webp, plus the _24 pair).
+		## Missing files return null; the dawn chip keeps rumor/border text chrome.
+		"noise_rail":
+			return PackedStringArray(["noise_rail"])
 		_:
 			return PackedStringArray([kind])
 

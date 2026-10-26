@@ -774,6 +774,181 @@ func borders_player(sid: String) -> bool:
 	return false
 
 
+## P37 Border Whisper is not on this branch. Stub of its 1-hop rule: every station that
+## touches the player's line through an open tunnel and is not already player-owned.
+## P37 can replace this body. Rail noise only reads the list. No rings, no orient card.
+func border_stations() -> Array:
+	var out: Array = []
+	for sid in stations:
+		var id := str(sid)
+		if str(stations[id].get("owner", "")) == player:
+			continue
+		if borders_player(id):
+			out.append(id)
+	out.sort()
+	return out
+
+
+## 0 unknown, 1+ known. `known` counts as intel 1. A numeric `intel` field counts as itself.
+func station_intel(sid: String) -> int:
+	if not stations.has(sid):
+		return 0
+	var st: Dictionary = stations[sid]
+	var rank := int(st.get("intel", 0))
+	if bool(st.get("known", false)):
+		rank = maxi(rank, 1)
+	return rank
+
+
+## True while this rival party is already mid-assault on the player, so P20/P25 owns the scream.
+## Set squad.mid_assault for the week their chrome is up, and clear it when that week ends.
+## A fight onto player ground stamps assault_player_week; the dawn of that fight and the next skip noise.
+## A provoked squad merely standing on the border is not an assault. The capital hold-short is not one either.
+func party_mid_assault(fid: String) -> bool:
+	if fid == "" or fid == player or not squads.has(fid):
+		return false
+	var sq: Dictionary = squads[fid]
+	if bool(sq.get("mid_assault", false)):
+		return true
+	var fought := int(sq.get("assault_player_week", -99))
+	return fought == week or fought == week - 1
+
+
+## The rival party the yard would hear, before dawn-chip priority. Empty when nobody qualifies.
+## Largest party, then fewest hops to Coney (the player's capital). Same hop count breaks on station id.
+func rail_noise_candidate() -> Dictionary:
+	var borders := {}
+	for sid in border_stations():
+		borders[str(sid)] = true
+	var best := {}
+	var best_size := -1
+	var best_hops := 9999
+	for fid in squads:
+		var id := str(fid)
+		if id == player or party_mid_assault(id):
+			continue
+		var sq: Dictionary = squads[fid]
+		if bool(sq.get("away", false)):
+			continue
+		var sid := str(sq.get("station", ""))
+		if not borders.has(sid):
+			continue
+		var size := int(sq.get("size", 0))
+		if size <= 0:
+			continue
+		var hops := _hops(sid, capital_id)
+		var station_id := str(best.get("station", ""))
+		var prefer := best.is_empty() or size > best_size or (size == best_size and hops < best_hops) or (size == best_size and hops == best_hops and sid < station_id)
+		if not prefer:
+			continue
+		best_size = size
+		best_hops = hops
+		var known := station_intel(sid) >= 1
+		var place := ""
+		if known:
+			place = station_text(sid, "community")
+			if place == "":
+				place = str(stations[sid].get("name", sid))
+		best = {
+			"kind": "rail",
+			"faction": id,
+			"station": sid,
+			"size": size,
+			"hops": hops,
+			"known": known,
+			"place": place,
+			"key": "noise.rail" if known else "noise.rail_unknown",
+		}
+	return best
+
+
+## P28 sets flags.rumor_dawn on the dawn a rumor chip should win.
+## P37 sets flags.border_dawn_new on the dawn border.dawn_new should win.
+## Both stay unset on this branch. First match wins; the others wait for a later dawn.
+func _rumor_dawn_due() -> bool:
+	return bool(flags.get("rumor_dawn", false))
+
+
+func _border_dawn_new_due() -> bool:
+	return bool(flags.get("border_dawn_new", false))
+
+
+func _pick_dawn_soft_chip() -> Dictionary:
+	if _rumor_dawn_due():
+		return {"kind": "rumor", "key": "rumor.dawn"}
+	if _border_dawn_new_due():
+		return {"kind": "border_new", "key": "border.dawn_new"}
+	return rail_noise_candidate()
+
+
+## This dawn's one soft chip. After present_dawn_soft_chip(), the same week returns that latch.
+func dawn_soft_chip() -> Dictionary:
+	if int(flags.get("dawn_soft_week", -1)) == week:
+		return _latched_dawn_soft()
+	return _pick_dawn_soft_chip()
+
+
+func _latched_dawn_soft() -> Dictionary:
+	var kind := str(flags.get("dawn_soft_kind", ""))
+	if kind == "":
+		return {}
+	return {
+		"kind": kind,
+		"key": str(flags.get("dawn_soft_key", "")),
+		"station": str(flags.get("dawn_soft_station", "")),
+		"place": str(flags.get("dawn_soft_place", "")),
+		"faction": str(flags.get("dawn_soft_faction", "")),
+		"known": bool(flags.get("dawn_soft_known", false)),
+		"fresh": false,
+		"first": false,
+	}
+
+
+## Takes this dawn's one soft chip and latches it. The first rail chip of a run sets flags.heard_rail.
+func present_dawn_soft_chip() -> Dictionary:
+	if int(flags.get("dawn_soft_week", -1)) == week:
+		var again := _latched_dawn_soft()
+		again["fresh"] = false
+		again["first"] = false
+		return again
+	var chip := _pick_dawn_soft_chip()
+	flags["dawn_soft_week"] = week
+	flags["dawn_soft_kind"] = str(chip.get("kind", ""))
+	flags["dawn_soft_key"] = str(chip.get("key", ""))
+	flags["dawn_soft_station"] = str(chip.get("station", ""))
+	flags["dawn_soft_place"] = str(chip.get("place", ""))
+	flags["dawn_soft_faction"] = str(chip.get("faction", ""))
+	flags["dawn_soft_known"] = bool(chip.get("known", false))
+	if str(chip.get("kind", "")) == "rumor":
+		flags.erase("rumor_dawn")
+	elif str(chip.get("kind", "")) == "border_new":
+		flags.erase("border_dawn_new")
+	chip = chip.duplicate(true)
+	chip["fresh"] = true
+	chip["first"] = false
+	if str(chip.get("kind", "")) == "rail" and not bool(flags.get("heard_rail", false)):
+		flags["heard_rail"] = true
+		chip["first"] = true
+	return chip
+
+
+## Player-facing line for a soft chip. Rail uses the community name when the station is known.
+func dawn_soft_line(chip: Dictionary) -> String:
+	var key := str(chip.get("key", ""))
+	if key == "noise.rail":
+		var place := str(chip.get("place", ""))
+		var sid := str(chip.get("station", ""))
+		if sid != "" and stations.has(sid) and station_intel(sid) >= 1:
+			var live := station_text(sid, "community")
+			if live == "":
+				live = str(stations[sid].get("name", sid))
+			place = live
+		return Copy.fill("noise.rail", {"station": place})
+	if key == "":
+		return ""
+	return Copy.t(key)
+
+
 func sympathy_preview(sid: String) -> int:
 	if not stations.has(sid):
 		return 0
@@ -5915,6 +6090,8 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 	if not player_move and nxt == capital_id and (week <= max_weeks or int(ambition.get(str(sq.faction), 0)) < 100):
 		_log("%s holds short of %s" % [sq.name, stations[nxt].name])
 		return false
+	if not player_move and owner == player:
+		sq["assault_player_week"] = week
 	var win := _battle(sq, nxt)
 	if win:
 		_press_loyalty(stations[nxt], str(sq.faction))
