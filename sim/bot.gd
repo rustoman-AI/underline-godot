@@ -584,6 +584,10 @@ func _project(game: Game) -> Dictionary:
 	var retry := _retry_build(game)
 	if not retry.is_empty():
 		return retry
+	if game.food_buffer_weeks() < float(game.bal.growth_buffer):
+		var fit := _careful_tier0(game)
+		if not fit.is_empty():
+			return fit
 	if game.can_quarantine() and _sick(game) >= 2:
 		return {"kind": "quarantine"}
 	if game.room_count("hydroponics") < 1 and game.build_possible("hydroponics"):
@@ -643,6 +647,8 @@ func _project_expander(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "radio"}
 	if game.week >= 14 and int(game.stock.materials) >= 22 and game._has_radio() and game.room_count("listening_post") == 0 and game.build_possible("listening_post"):
 		return {"kind": "build", "type": "listening_post"}
+	if int(game.stock.materials) >= 12 and bool(game.strip_preview().get("ok", false)):
+		return {"kind": "strip"}
 	if game.dig_possible(false):
 		return {"kind": "dig", "space": false}
 	if game.dig_possible(true):
@@ -956,6 +962,20 @@ func _cynicism(choice: Dictionary) -> int:
 			if int(rel[fid]) < 0:
 				score += -int(rel[fid]) / 5
 	return score
+
+
+## Tier 0 only, and only while the pantry is still thin. Tier 1 waits on a blueprint the careful steward does not chase.
+func _careful_tier0(game: Game) -> Dictionary:
+	if game.food_buffer_weeks() >= float(game.bal.growth_buffer):
+		return {}
+	for id in ["grow_lamps", "charcoal", "dynamo", "bunks", "drill_heads"]:
+		var uid := game.salvage_fit_uid(str(id))
+		if uid == "":
+			continue
+		var info: Dictionary = game.upgrade_preview(uid)
+		if bool(info.get("ok", false)) and int(info.get("tier", 0)) == 0:
+			return {"kind": "upgrade", "room": uid}
+	return {}
 
 
 func _retry_build(game: Game) -> Dictionary:

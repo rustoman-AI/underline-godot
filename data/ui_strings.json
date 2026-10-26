@@ -1466,6 +1466,162 @@
   "skill.talk": {
     "en": "talk",
     "ru": "разговор"
+  },
+  "salvage.title": {
+    "en": "Salvage",
+    "ru": "Утиль"
+  },
+  "salvage.tier0": {
+    "en": "Tier 0",
+    "ru": "Уровень 0"
+  },
+  "salvage.tier1": {
+    "en": "Tier 1",
+    "ru": "Уровень 1"
+  },
+  "salvage.tier2": {
+    "en": "Tier 2",
+    "ru": "Уровень 2"
+  },
+  "salvage.strip": {
+    "en": "Strip scrap",
+    "ru": "Разобрать лом"
+  },
+  "salvage.strip_tip": {
+    "en": "Workshop · 4 materials · once / 3 weeks · +1 blueprint",
+    "ru": "Мастерская · 4 материала · раз в 3 недели · +1 чертёж"
+  },
+  "salvage.gained_strip": {
+    "en": "Blueprint from scrap.",
+    "ru": "Чертёж из лома."
+  },
+  "salvage.gained_raid": {
+    "en": "Blueprint from the raid.",
+    "ru": "Чертёж с набега."
+  },
+  "salvage.gained_junk": {
+    "en": "Blueprint from the junk flow.",
+    "ru": "Чертёж из потока утиля."
+  },
+  "salvage.fitted": {
+    "en": "Fitted {name}",
+    "ru": "Поставили: {name}"
+  },
+  "salvage.locked": {
+    "en": "Need a blueprint.",
+    "ru": "Нужен чертёж."
+  },
+  "salvage.blueprints": {
+    "en": "Blueprints",
+    "ru": "Чертежи"
+  },
+  "salvage.need_listening": {
+    "en": "Needs Listening Post",
+    "ru": "Нужен пост прослушки"
+  },
+  "salvage.need_blueprint": {
+    "en": "Need a blueprint.",
+    "ru": "Нужен чертёж."
+  },
+  "salvage.node.grow_lamps": {
+    "en": "grow lamps",
+    "ru": "лампы роста"
+  },
+  "salvage.node.charcoal": {
+    "en": "charcoal",
+    "ru": "уголь"
+  },
+  "salvage.node.dynamo": {
+    "en": "dynamo",
+    "ru": "динамо"
+  },
+  "salvage.node.drill_heads": {
+    "en": "drill heads",
+    "ru": "буровые головки"
+  },
+  "salvage.node.bunks": {
+    "en": "bunks",
+    "ru": "нары"
+  },
+  "salvage.node.mushroom_beds": {
+    "en": "mushroom beds",
+    "ru": "грибные грядки"
+  },
+  "salvage.node.pressure_seals": {
+    "en": "pressure seals",
+    "ru": "уплотнения"
+  },
+  "salvage.node.substation": {
+    "en": "substation",
+    "ru": "подстанция"
+  },
+  "salvage.node.armor": {
+    "en": "armor",
+    "ru": "броня"
+  },
+  "salvage.node.quarantine_ward": {
+    "en": "quarantine ward",
+    "ru": "изолятор"
+  },
+  "salvage.node.antenna": {
+    "en": "antenna",
+    "ru": "антенна"
+  },
+  "salvage.node.pipe_taps": {
+    "en": "pipe taps",
+    "ru": "отводы от труб"
+  },
+  "staff.salvage.assign_1": {
+    "en": "Sent to strip scrap.",
+    "ru": "Отправили разбирать лом."
+  },
+  "staff.salvage.assign_2": {
+    "en": "Workshop table. Blueprints come hard.",
+    "ru": "Стол в мастерской. Чертежи даются трудно."
+  },
+  "staff.salvage.assign_3": {
+    "en": "Hands in the junk pile. Eyes for what still fits.",
+    "ru": "Руки в куче утиля. Глаза — на то, что ещё встанет."
+  },
+  "staff.salvage.assign_4": {
+    "en": "Salvage desk. They sort what the raids bring back.",
+    "ru": "Стол утиля. Сортируют то, что приносят с набегов."
+  },
+  "staff.salvage.strip_1": {
+    "en": "Stripped a useful plate from the scrap.",
+    "ru": "Сняли с лома полезную пластину."
+  },
+  "staff.salvage.strip_2": {
+    "en": "Hours over cold metal. Something worth drawing.",
+    "ru": "Часы над холодным металлом. Что-то стоит начертить."
+  },
+  "staff.salvage.strip_3": {
+    "en": "The scrap gave up a line. Blueprint chalked.",
+    "ru": "Лом отдал линию. Чертёж наметили мелом."
+  },
+  "staff.salvage.fit_1": {
+    "en": "Fitted. The yard feels it hold.",
+    "ru": "Поставили. Двор чувствует, как держит."
+  },
+  "staff.salvage.fit_2": {
+    "en": "Bolted in. No speech. Just the wrench.",
+    "ru": "Закрутили. Без речей. Только ключ."
+  },
+  "staff.salvage.fit_3": {
+    "en": "Another piece found a home on the board.",
+    "ru": "Ещё одна деталь нашла место на доске."
+  },
+  "staff.salvage.who.Pete": {
+    "en": "Pete takes the strip shift. He knows which belts still sing.",
+    "ru": "Пит берёт смену на разбор. Знает, какие ремни ещё поют."
+  },
+  "staff.salvage.who.Benny": {
+    "en": "Benny sorts scrap like names on a board — nothing left blank.",
+    "ru": "Бенни сортирует лом, как имена на доске — ничего пустого."
+  },
+  "staff.salvage.who.June": {
+    "en": "June fits quiet. She does not celebrate a bolt.",
+    "ru": "Джун ставит тихо. Болт не празднует."
   }
 }
 

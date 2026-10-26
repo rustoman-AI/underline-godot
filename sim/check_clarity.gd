@@ -1025,6 +1025,8 @@ func _upgrade_view() -> void:
 		if tier == 2:
 			break
 		game.stock.materials = 99
+		if tier >= 1:
+			game.stock.blueprints = 1
 		var gains: Array = st.upgrade_gains(uid)
 		st._confirm_upgrade(uid)
 		var head := _find_meta(st.card_body, "upgrade_title")
@@ -1045,6 +1047,8 @@ func _upgrade_view() -> void:
 			return
 		if int(game.stock.materials) != 99 - price:
 			bad.append("Price tier %d: the upgrade took %d materials, want %d" % [tier, 99 - int(game.stock.materials), price])
+		if tier >= 1 and int(game.stock.blueprints) != 0:
+			bad.append("U3 tier %d: the blueprint was not spent" % tier)
 		st._sync_numbers()
 		for row in gains:
 			var now: int = st._room_amount(uid, str(row.key))
