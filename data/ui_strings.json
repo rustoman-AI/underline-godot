@@ -1698,6 +1698,30 @@
   "clear.risk_coal": {
     "en": "Risk · 12% sick · hope −1 if Claustrophobic on crew",
     "ru": "Риск · 12% болезнь · надежда −1, если в бригаде Клаустрофоб"
+  },
+  "noise.rail": {
+    "en": "Rail noise · {station}",
+    "ru": "Шум рельсов · {station}"
+  },
+  "noise.rail_unknown": {
+    "en": "Rail noise · Unknown",
+    "ru": "Шум рельсов · Неизвестно"
+  },
+  "noise.first": {
+    "en": "Something heavy on the next rail.",
+    "ru": "На соседних рельсах что-то тяжёлое."
+  },
+  "noise.tip": {
+    "en": "A rival party on your border",
+    "ru": "Чужой отряд на вашей границе"
+  },
+  "noise.chip_label": {
+    "en": "Noise",
+    "ru": "Шум"
+  },
+  "noise.gone": {
+    "en": "The next rail went quiet.",
+    "ru": "Соседние рельсы затихли."
   }
 }
 

@@ -162,6 +162,8 @@ static func textures() -> Dictionary:
 		"res://assets/rooms/room_air_filter.webp": preload("res://assets/rooms/room_air_filter.webp"),
 		"res://assets/rooms/room_workshop.webp": preload("res://assets/rooms/room_workshop.webp"),
 		"res://assets/rooms/room_infirmary.webp": preload("res://assets/rooms/room_infirmary.webp"),
+		"res://assets/rooms/room_listening_post.webp": preload("res://assets/rooms/room_listening_post.webp"),
+		"res://assets/rooms/room_listening_post_alt.webp": preload("res://assets/rooms/room_listening_post_alt.webp"),
 		"res://assets/rooms/room_meeting_hall.webp": preload("res://assets/rooms/room_meeting_hall.webp"),
 		"res://assets/rooms/room_platform.webp": preload("res://assets/rooms/room_platform.webp"),
 		"res://assets/rooms/room_radio.webp": preload("res://assets/rooms/room_radio.webp"),
@@ -302,8 +304,6 @@ static func textures() -> Dictionary:
 		"res://assets/events/toll_last.webp": preload("res://assets/events/toll_last.webp"),
 		"res://assets/events/stores_turn.webp": preload("res://assets/events/stores_turn.webp"),
 		"res://assets/events/ration_coat.webp": preload("res://assets/events/ration_coat.webp"),
-		"res://assets/rooms/room_listening_post.webp": preload("res://assets/rooms/room_listening_post.webp"),
-		"res://assets/rooms/room_listening_post_alt.webp": preload("res://assets/rooms/room_listening_post_alt.webp"),
 		"res://assets/overlays/room_probe.webp": preload("res://assets/overlays/room_probe.webp"),
 		"res://assets/overlays/room_offline.webp": preload("res://assets/overlays/room_offline.webp"),
 		"res://assets/overlays/room_offline_256.webp": preload("res://assets/overlays/room_offline_256.webp"),
@@ -357,6 +357,10 @@ static func textures() -> Dictionary:
 		"res://assets/props/pile_scrap_512.webp": preload("res://assets/props/pile_scrap_512.webp"),
 		"res://assets/props/pile_coal_512.webp": preload("res://assets/props/pile_coal_512.webp"),
 		"res://assets/overlays/clear_dust.webp": preload("res://assets/overlays/clear_dust.webp"),
+		## P42 props. No props/common gameplay hook; preload is the export registration.
+		"res://assets/props/common/prop_infirmary_tray.webp": preload("res://assets/props/common/prop_infirmary_tray.webp"),
+		"res://assets/props/common/prop_listening_cans.webp": preload("res://assets/props/common/prop_listening_cans.webp"),
+
 	}
 	return _textures
 
@@ -455,6 +459,10 @@ static func _icon_names(kind: String) -> PackedStringArray:
 			return PackedStringArray(["warning", "hold"])
 		"wired", "wired_tint", "probing", "probing_tint":
 			return PackedStringArray([kind])
+		## P42. _load_icon searches status/ before map/, so the dawn chip takes the status glyph.
+		## The _24 pair is preferred at 24px. A missing file still leaves the paper chip as text.
+		"noise_rail":
+			return PackedStringArray(["noise_rail"])
 		_:
 			return PackedStringArray([kind])
 

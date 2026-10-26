@@ -219,6 +219,19 @@ var toast_fade: Tween
 var blown_flash: TextureRect
 var salvage_float: Control
 var undo_toast: PanelContainer
+## P42 dawn rail-noise chip (bottom-left yard) and the once-per-run platform float.
+var rail_chip: PanelContainer
+var rail_chip_label: Label
+var rail_icon: TextureRect
+var rail_float: PanelContainer
+var rail_float_label: Label
+var rail_chip_live := false
+var rail_float_live := false
+var rail_hold_ms := 0
+var rail_last_ms := 0
+var rail_fading := false
+var rail_token := 0
+var rail_fade: Tween
 var delta_hold_until := 0
 var news_open := false
 var _soft_gap_warned := false
@@ -949,6 +962,7 @@ func _who_row(who: String) -> void:
 
 func _process(_delta: float) -> void:
 	_watch_log()
+	_tick_rail_noise()
 	_tick_radio()
 	_tick_voice()
 	if Time.get_ticks_msec() >= hint_next:
@@ -1065,6 +1079,7 @@ func _build() -> void:
 	footer.visible = false
 	footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(footer)
+	_build_rail_noise()
 	_build_source_panel()
 
 	_build_overlay()
@@ -1626,6 +1641,7 @@ func _place_chrome() -> void:
 		footer.offset_right = -190.0
 		footer.offset_top = -margin - 22.0
 		footer.offset_bottom = -margin
+	_place_rail_noise()
 	_place_drawer()
 	_place_card()
 	_place_ahead()
@@ -1889,6 +1905,7 @@ func _refresh() -> void:
 	if game == null:
 		return
 	var notes: PackedStringArray = []
+	_sync_rail_noise()
 	while not game.notices.is_empty():
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
@@ -2522,6 +2539,8 @@ func _end_turn() -> void:
 	if game.over == "":
 		for uid in placed:
 			_staff_new_room(uid)
+	if game.over == "":
+		_sync_rail_noise()
 	if game.over == "" and not shot_mode:
 		SaveGame.write_auto(game)
 	_refresh()
@@ -4687,6 +4706,201 @@ func _toast_chain(lines: PackedStringArray) -> void:
 	toast_fade.tween_callback(func() -> void:
 		_toast_chain(rest)
 	)
+
+
+## Dawn rail noise sits on the yard, under the dawn card: one paper chip, and once a run a platform float.
+## No shake. Reduce-motion keeps the text still and skips the fade.
+func _build_rail_noise() -> void:
+	rail_chip = PanelContainer.new()
+	rail_chip.visible = false
+	rail_chip.z_index = 18
+	rail_chip.mouse_filter = Control.MOUSE_FILTER_STOP
+	rail_chip.add_theme_stylebox_override("panel", _rail_paper())
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	rail_chip.add_child(row)
+	rail_icon = TextureRect.new()
+	rail_icon.visible = false
+	rail_icon.custom_minimum_size = Vector2(24, 24)
+	rail_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rail_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rail_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rail_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(rail_icon)
+	rail_chip_label = _label("", 15, false, false)
+	rail_chip_label.add_theme_color_override("font_color", PAPER_INK)
+	rail_chip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rail_chip_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(rail_chip_label)
+	add_child(rail_chip)
+
+	rail_float = PanelContainer.new()
+	rail_float.visible = false
+	rail_float.z_index = 18
+	rail_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rail_float.add_theme_stylebox_override("panel", _rail_paper())
+	rail_float_label = _label("", 18, false, false)
+	rail_float_label.add_theme_color_override("font_color", PAPER_INK)
+	rail_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rail_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rail_float_label.custom_minimum_size = Vector2(320, 0)
+	rail_float_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rail_float_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rail_float.add_child(rail_float_label)
+	add_child(rail_float)
+
+
+func _rail_paper() -> StyleBoxFlat:
+	var style := _paper_style()
+	style.set_border_width_all(1)
+	style.set_content_margin_all(8)
+	style.set_corner_radius_all(3)
+	style.border_color = PAPER_EDGE
+	return style
+
+
+func _sync_rail_noise() -> void:
+	if game == null or rail_chip == null or at_menu or hold_dawn or game.over != "":
+		return
+	var chip: Dictionary = game.present_dawn_soft_chip()
+	if not bool(chip.get("fresh", false)):
+		return
+	if str(chip.get("kind", "")) != "rail":
+		_hide_rail_noise()
+		return
+	_show_rail_noise(game.dawn_soft_line(chip), bool(chip.get("first", false)))
+
+
+func _show_rail_noise(text: String, first: bool) -> void:
+	rail_token += 1
+	if rail_fade != null and rail_fade.is_valid():
+		rail_fade.kill()
+	rail_fading = false
+	rail_hold_ms = 0
+	rail_last_ms = 0
+	rail_chip_label.text = text
+	rail_chip.tooltip_text = Copy.t("noise.tip")
+	var tex := ArtPack.icon_texture("noise_rail", 24.0)
+	rail_icon.texture = tex
+	rail_icon.visible = tex != null
+	rail_chip.modulate.a = 1.0
+	rail_chip_live = true
+	rail_float_live = first
+	if first:
+		rail_float_label.text = Copy.t("noise.first")
+		rail_float.modulate.a = 1.0
+	rail_float.visible = false
+	rail_chip.visible = false
+	_place_rail_noise()
+
+
+func _hide_rail_noise() -> void:
+	rail_token += 1
+	rail_chip_live = false
+	rail_float_live = false
+	rail_fading = false
+	rail_hold_ms = 0
+	rail_last_ms = 0
+	if rail_fade != null and rail_fade.is_valid():
+		rail_fade.kill()
+	if rail_chip != null:
+		rail_chip.visible = false
+		rail_chip.modulate.a = 1.0
+	if rail_float != null:
+		rail_float.visible = false
+		rail_float.modulate.a = 1.0
+
+
+func _place_rail_noise() -> void:
+	if rail_chip == null:
+		return
+	var short := size.y < 520.0
+	var margin := 8.0 if short else 12.0
+	var tool_h := 48.0 if short else 68.0
+	rail_chip.reset_size()
+	var chip_size := rail_chip.get_combined_minimum_size()
+	chip_size.x = clampf(chip_size.x, 120.0, minf(460.0, size.x - margin * 2.0))
+	chip_size.y = maxf(chip_size.y, 32.0)
+	rail_chip.anchor_left = 0.0
+	rail_chip.anchor_right = 0.0
+	rail_chip.anchor_top = 1.0
+	rail_chip.anchor_bottom = 1.0
+	rail_chip.offset_left = margin
+	rail_chip.offset_right = margin + chip_size.x
+	rail_chip.offset_bottom = -(margin + tool_h + 8.0)
+	rail_chip.offset_top = rail_chip.offset_bottom - chip_size.y
+	if rail_float == null:
+		return
+	rail_float.reset_size()
+	var float_size := rail_float.get_combined_minimum_size()
+	var w := clampf(maxf(float_size.x, 320.0), 280.0, minf(520.0, size.x - 48.0))
+	var h := maxf(float_size.y, 44.0)
+	rail_float.anchor_left = 0.5
+	rail_float.anchor_right = 0.5
+	rail_float.anchor_top = 0.5
+	rail_float.anchor_bottom = 0.5
+	rail_float.offset_left = -w * 0.5
+	rail_float.offset_right = w * 0.5
+	var y := size.y * 0.12
+	rail_float.offset_top = y
+	rail_float.offset_bottom = y + h
+
+
+## The hold runs only while the yard is uncovered. The dawn card and the map pause it.
+## Reduce-motion hides the text in place. Otherwise the paper fades. Nothing shakes.
+func _tick_rail_noise() -> void:
+	if not rail_chip_live and not rail_float_live:
+		return
+	var now := Time.get_ticks_msec()
+	var covered := (dim != null and dim.visible) or showing_network or (hub_layer != null and hub_layer.visible)
+	if covered:
+		rail_chip.visible = false
+		rail_float.visible = false
+		rail_last_ms = now
+		return
+	rail_chip.visible = rail_chip_live
+	rail_float.visible = rail_float_live
+	if rail_fading:
+		rail_last_ms = now
+		return
+	if rail_last_ms == 0:
+		rail_last_ms = now
+	rail_hold_ms += now - rail_last_ms
+	rail_last_ms = now
+	if rail_hold_ms < 6500:
+		return
+	_fade_rail_noise()
+
+
+func _fade_rail_noise() -> void:
+	if rail_fading:
+		return
+	rail_fading = true
+	rail_token += 1
+	var token := rail_token
+	if _motion_off():
+		_finish_rail_noise(token)
+		return
+	if rail_fade != null and rail_fade.is_valid():
+		rail_fade.kill()
+	rail_fade = create_tween()
+	var started := false
+	if rail_chip_live and rail_chip != null:
+		rail_fade.tween_property(rail_chip, "modulate:a", 0.0, 0.4)
+		started = true
+	if rail_float_live and rail_float != null:
+		if started:
+			rail_fade.parallel().tween_property(rail_float, "modulate:a", 0.0, 0.4)
+		else:
+			rail_fade.tween_property(rail_float, "modulate:a", 0.0, 0.4)
+	rail_fade.tween_callback(_finish_rail_noise.bind(token))
+
+
+func _finish_rail_noise(token: int) -> void:
+	if token != rail_token:
+		return
+	_hide_rail_noise()
 
 
 func _toast(text: String, hold: float = 1.8) -> void:
