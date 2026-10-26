@@ -1722,6 +1722,30 @@
   "noise.gone": {
     "en": "The next rail went quiet.",
     "ru": "Соседние рельсы затихли."
+  },
+  "home.back": {
+    "en": "Party home · from {station}",
+    "ru": "Отряд дома · с {station}"
+  },
+  "home.back_unknown": {
+    "en": "Party home · from the line",
+    "ru": "Отряд дома · с линии"
+  },
+  "home.first": {
+    "en": "Boots on the home platform.",
+    "ru": "Ботинки на домашней платформе."
+  },
+  "home.tip": {
+    "en": "Your party is back at Coney.",
+    "ru": "Ваш отряд снова на Кони."
+  },
+  "home.chip_label": {
+    "en": "Homecoming",
+    "ru": "Возвращение"
+  },
+  "home.reduce": {
+    "en": "Party home.",
+    "ru": "Отряд дома."
   }
 }
 

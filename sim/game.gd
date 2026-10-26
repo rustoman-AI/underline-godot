@@ -1212,6 +1212,7 @@ func _dawn() -> void:
 	_roll_rumor()
 	_audience_dawn()
 	_drip_piles()
+	_offer_home_chip()
 
 
 func _rival_phase() -> void:
@@ -5558,7 +5559,9 @@ func _order_move(dest: String) -> bool:
 		return false
 	var path := _path(str(sq.station), dest)
 	stock.food = int(stock.food) - move_food(dest)
-	return _step_squad(sq, str(path[1]), true)
+	var stepped := _step_squad(sq, str(path[1]), true)
+	_note_party_home()
+	return stepped
 
 
 func _order_focus(sid: String, focus: String) -> bool:
@@ -7324,11 +7327,14 @@ func _sync_guard() -> void:
 		return
 	var sq: Dictionary = squads[player]
 	var n := soldier_count()
+	var before := str(sq.get("station", ""))
 	sq.size = n
 	if not sq.has("roster"):
 		sq.max_size = n
 	if n == 0 and not bool(sq.get("away", false)):
 		sq.station = capital_id
+	if str(sq.get("station", "")) != before:
+		_note_party_home()
 
 
 ## Who joins the guard next: the best fighter outside the council, crews and sickbeds; idle people first on a tie.
@@ -12796,7 +12802,9 @@ func _order_patrol(dest: String) -> bool:
 		return false
 	var sq: Dictionary = squads[player]
 	var path := _path(str(sq.station), dest)
-	return _step_squad(sq, str(path[1]), true)
+	var stepped := _step_squad(sq, str(path[1]), true)
+	_note_party_home()
+	return stepped
 
 
 func _order_raid(dest: String, immediate: bool) -> bool:
@@ -12844,6 +12852,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 	if win:
 		opinion = Copy.t("combat.raid_cost") % [int(bal.get("raid_discontent", 2)), absi(int(bal.get("raid_opinion", -15)))]
 	_stamp_combat("raid", dest, win, false, fought.get("player", {}), hope0, dis0, opinion)
+	_note_party_home()
 	return true
 
 
@@ -12889,6 +12898,7 @@ func _order_assault(dest: String, _immediate: bool) -> bool:
 	if unbidden:
 		opinion = Copy.t("combat.unbidden") % absi(int(bal.get("unbidden_hope", -2)))
 	_stamp_combat("assault", dest, win, captured, fought.get("player", {}), hope0, dis0, opinion)
+	_note_party_home()
 	return true
 
 
@@ -13115,6 +13125,7 @@ func _tick_player_party() -> void:
 
 
 func _step_party_home(sq: Dictionary) -> void:
+	var before := str(sq.get("station", ""))
 	var home := str(sq.get("return_to", capital_id))
 	if home == "":
 		home = capital_id
@@ -13129,6 +13140,8 @@ func _step_party_home(sq: Dictionary) -> void:
 		sq.returning = false
 		sq.secure = 0
 		_sync_party(sq)
+		if str(sq.get("station", "")) != before:
+			_note_party_home()
 		return
 	var nxt := str(path[1])
 	if _edge_flooded(str(sq.station), nxt) and int(sq.get("ford", 0)) < 1:
@@ -13140,6 +13153,127 @@ func _step_party_home(sq: Dictionary) -> void:
 		sq.returning = false
 		sq.secure = 0
 	_sync_party(sq)
+	if str(sq.get("station", "")) != before:
+		_note_party_home()
+
+
+## P43 homecoming. One soft dawn chip when the player party steps back onto the capital
+## after having left (patrol, raid, assault, or a return walk). P28, P37 and P42 are not
+## on this branch. They outrank this chip by claiming the dawn: set flags.rumor_dawn,
+## flags.border_dawn_new or flags.rail_dawn to this week (a bool true claims until cleared).
+## Homecoming only reads those flags. flags.heard_home is the once-per-run platform float.
+func _note_party_home() -> void:
+	if not squads.has(player):
+		return
+	var sq: Dictionary = squads[player]
+	var here := str(sq.get("station", ""))
+	if here == "":
+		return
+	var prev := str(flags.get("home_pos", ""))
+	var seen := bool(flags.get("home_seen", false))
+	if here != capital_id:
+		flags["home_left"] = true
+		if not bool(flags.get("home_pending", false)):
+			flags["home_from"] = here
+	var arrived := seen and prev != "" and prev != capital_id and here == capital_id
+	flags["home_pos"] = here
+	flags["home_seen"] = true
+	if not arrived or not bool(flags.get("home_left", false)):
+		return
+	if _party_living_count(sq) <= 0:
+		return
+	if bool(flags.get("home_pending", false)):
+		return
+	flags["home_pending"] = true
+
+
+func _party_living_count(sq: Dictionary) -> int:
+	var roster = sq.get("roster", [])
+	if typeof(roster) != TYPE_ARRAY:
+		return 0
+	var n := 0
+	for id in roster:
+		if people.has(str(id)):
+			n += 1
+	return n
+
+
+## Known community, or an intel of at least 1. Otherwise the chip says "the line".
+func _home_station_known(sid: String) -> bool:
+	if sid == "" or not stations.has(sid):
+		return false
+	var st: Dictionary = stations[sid]
+	if bool(st.get("known", false)):
+		return true
+	return int(st.get("intel", 0)) >= 1
+
+
+func home_back_line() -> String:
+	var sid := str(flags.get("home_shown_from", ""))
+	if sid == "":
+		sid = str(flags.get("home_from", ""))
+	if not _home_station_known(sid):
+		return Copy.t("home.back_unknown")
+	var name := station_text(sid, "community")
+	if name == "":
+		return Copy.t("home.back_unknown")
+	return Copy.fill("home.back", {"station": name})
+
+
+## The dawn line for this week, or "" when homecoming is not the chip showing.
+## short is the reduce-motion line.
+func home_chip_line(short: bool = false) -> String:
+	if int(flags.get("home_shown", -1)) != week:
+		return ""
+	if short:
+		return Copy.t("home.reduce")
+	return home_back_line()
+
+
+## Week number claims this dawn only. Bool true claims until the owner clears it.
+func _dawn_flag_claims(key: String) -> bool:
+	if not flags.has(key):
+		return false
+	var v = flags[key]
+	match typeof(v):
+		TYPE_BOOL:
+			return bool(v)
+		TYPE_INT, TYPE_FLOAT:
+			return int(v) == week
+		_:
+			var text := str(v)
+			return text == str(week) or text == "true"
+	return false
+
+
+## Empty when homecoming may show. Otherwise the higher chip that owns this dawn.
+func _soft_dawn_blocker() -> String:
+	if _dawn_flag_claims("rumor_dawn"):
+		return "rumor"
+	if _dawn_flag_claims("border_dawn_new"):
+		return "border"
+	if _dawn_flag_claims("rail_dawn"):
+		return "rail"
+	return ""
+
+
+func _offer_home_chip() -> void:
+	_note_party_home()
+	if not bool(flags.get("home_pending", false)):
+		return
+	if int(flags.get("home_shown", -1)) == week:
+		return
+	if _soft_dawn_blocker() != "":
+		return
+	flags["home_pending"] = false
+	flags["home_shown"] = week
+	flags["home_dawn"] = week
+	flags["home_shown_from"] = str(flags.get("home_from", ""))
+	if not bool(flags.get("heard_home", false)):
+		flags["home_float"] = true
+		flags["heard_home"] = true
+	else:
+		flags["home_float"] = false
 
 
 func _note_fought(person: Dictionary, place: String) -> void:
