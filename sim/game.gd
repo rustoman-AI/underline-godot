@@ -12567,6 +12567,11 @@ func station_focus_dawn_chip() -> bool:
 	return false
 
 
+## Always false. P65 disabled-order tips are report-only and never join the soft dawn stack.
+func order_why_dawn_chip() -> bool:
+	return false
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true

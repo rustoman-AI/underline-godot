@@ -1,0 +1,49 @@
+{
+  "_note": "P65 Order Why. Disabled-order tip reasons only. Zero balance; not a dawn chip; no soft-order confirms; no gate/cost invent. Cite P63 approach.need for approach-specific — do not duplicate as why.approach. why.influence is not in this pack: leave the live influence tip until Texts expands it.",
+  "_roadmap": "P65",
+  "_owners": "Texts; Code first-blocker tip; UIUX button list + priority; Art none",
+  "_cite_approach": "approach.need (P63) — do not duplicate",
+  "_status": "Designer APPROVED / locked 2026-10-26. 10 why.* keys. why.influence gap left out.",
+  "by_key": {
+    "why.workers": {
+      "en": "Need free hands.",
+      "ru": "Нужны свободные руки."
+    },
+    "why.materials": {
+      "en": "Not enough materials.",
+      "ru": "Не хватает материалов."
+    },
+    "why.orders": {
+      "en": "No orders left this week.",
+      "ru": "На этой неделе приказов больше нет."
+    },
+    "why.blocked": {
+      "en": "Blocked right now.",
+      "ru": "Сейчас заблокировано."
+    },
+    "why.trade_opinion": {
+      "en": "Exchange will not trade yet.",
+      "ru": "Биржа пока не станет торговать."
+    },
+    "why.trade_on": {
+      "en": "Trade already running.",
+      "ru": "Торговля уже идёт."
+    },
+    "why.power": {
+      "en": "Not enough power.",
+      "ru": "Не хватает энергии."
+    },
+    "why.food": {
+      "en": "Not enough food.",
+      "ru": "Не хватает еды."
+    },
+    "why.party_away": {
+      "en": "The party is still out.",
+      "ru": "Отряд ещё вне."
+    },
+    "why.already": {
+      "en": "Already done.",
+      "ru": "Уже сделано."
+    }
+  }
+}
