@@ -1211,6 +1211,7 @@ func _dawn() -> void:
 ## Dawn after the raid haul is in stock. Events, the dawn log, and the soft chip run from here.
 func _dawn_after_orders() -> void:
 	_sync_perk_notices()
+	_flush_station_life_log()
 	orders_left = council.size()
 	for seat in council:
 		if governor_of(str(seat.id)) != "":
@@ -9213,6 +9214,7 @@ func _apply_event(action: Dictionary) -> bool:
 	else:
 		_apply_deltas(choice)
 		_apply_standing_choice(ev, choice)
+		_apply_station_life_flavor(ev, choice)
 	decisions += 1
 	if not keep:
 		return true
@@ -9440,6 +9442,27 @@ func _disable_room(type: String, weeks: int) -> void:
 			r.disabled = maxi(int(r.get("disabled", 0)), weeks)
 		_log("DISABLED %s %d" % [type, int(room.disabled)], true)
 		return
+
+
+## P62 silent_car follow. The quoted line waits for the next dawn log, and only if the
+## Listening Post is staffed when the choice is taken. No probe, no intel, no Blown.
+func _apply_station_life_flavor(ev: Dictionary, choice: Dictionary) -> void:
+	if str(ev.get("id", "")) != "silent_car" or str(choice.get("id", "")) != "follow":
+		return
+	if not listening_active():
+		return
+	var line := line_of(choice, "dawn_flavor")
+	if line == "":
+		return
+	flags["station_life_listen"] = line
+
+
+func _flush_station_life_log() -> void:
+	var line := str(flags.get("station_life_listen", ""))
+	if line == "":
+		return
+	flags.erase("station_life_listen")
+	_log(line, true)
 
 
 func _apply_deltas(choice: Dictionary) -> void:

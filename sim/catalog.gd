@@ -58,6 +58,7 @@ func load_all() -> bool:
 	pool_ru = add_events(_obj("events_pool.json"), base_ru)
 	leader_ru = add_events(_obj("events_leaders.json"), base_ru)
 	story_ru = add_events(_obj("events_story.json"), base_ru)
+	_install_station_life()
 	truth = _index(_obj("truth.json").get("fragments", []), "id")
 	endings = _obj("endings.json")
 	epilogues = _obj("epilogues.json")
@@ -220,6 +221,147 @@ func _arr(name: String) -> Array:
 	if error == "":
 		error = "%s is not a list" % name
 	return []
+
+
+## P62. Five station-life one-shots join the mid-week pool from the locked pack.
+## Numbers come from balance.station_life_scale. Text stays the pack's EN+RU.
+## effects_words → fields. A leading '-' is the drop. "dawn_flavor" copies the quoted log line.
+const STATION_LIFE_MAP := {
+	"chalk_marks": {
+		"leave": {"hope": "hope_small", "discontent": "discontent_small"},
+		"scrub": {"hope": "-hope_small", "discontent": "-discontent_small"},
+		"copy": {"cost": {"influence": "influence_small"}, "hope": "hope_small"},
+	},
+	"silent_car": {
+		"follow": {"cost": {"food": "food_small"}, "hope": "hope_small", "dawn_flavor": true},
+		"bar": {"discontent": "discontent_small"},
+		"ignore": {"hope": "-hope_small", "discontent": "discontent_small"},
+	},
+	"mold_cart": {
+		"replace": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"scrape": {"air": "-air_small", "discontent": "discontent_small"},
+		"boil": {"power": "-power_small"},
+	},
+	"shift_trade": {
+		"ban": {"discontent": "discontent_small"},
+		"tax": {"tokens": "tokens_small", "hope": "-hope_small", "discontent": "discontent_small"},
+		"cover": {"cost": {"tokens": "tokens_small"}, "discontent": "-discontent_small"},
+	},
+	"pickle_stamp": {
+		"eat": {"food": "food_small", "hope": "hope_small", "opinion_directorate": "-opinion_small"},
+		"return": {"opinion_directorate": "opinion_small"},
+		"hide": {"food": "food_small", "discontent": "discontent_small"},
+	},
+}
+
+
+func _install_station_life() -> void:
+	if error != "":
+		return
+	var data = _read("station_life_events.json")
+	if not (data is Dictionary):
+		if error == "":
+			error = "station_life_events.json is not an object"
+		return
+	var scale: Dictionary = balance.get("station_life_scale", {})
+	if scale.is_empty():
+		error = "station life: no station_life_scale"
+		return
+	var have := {}
+	for ev in events:
+		have[str(ev.get("id", ""))] = true
+	for raw in data.get("events", []):
+		if not (raw is Dictionary):
+			continue
+		var id := str(raw.get("id", ""))
+		if id == "" or have.has(id):
+			error = "station life: duplicate or blank id %s" % id
+			return
+		var built := _station_life_event(raw, scale)
+		if error != "":
+			return
+		events.append(built)
+		have[id] = true
+
+
+func _station_life_event(raw: Dictionary, scale: Dictionary) -> Dictionary:
+	var id := str(raw.get("id", ""))
+	var spec: Dictionary = STATION_LIFE_MAP.get(id, {})
+	if spec.is_empty():
+		error = "station life: no number map for %s" % id
+		return {}
+	var choices: Array = []
+	for raw_choice in raw.get("choices", []):
+		if not (raw_choice is Dictionary):
+			continue
+		var cid := str(raw_choice.get("id", ""))
+		if not spec.has(cid):
+			error = "station life: %s choice %s has no number map" % [id, cid]
+			return {}
+		var built := {"id": cid, "label": raw_choice.get("label", {})}
+		var fx: Dictionary = spec[cid]
+		for key in fx:
+			if str(key) == "dawn_flavor":
+				var quote := _station_life_quote(str(raw_choice.get("effects_words", "")))
+				if quote == "":
+					error = "station life: %s %s flavor quote missing" % [id, cid]
+					return {}
+				built["dawn_flavor"] = {"en": quote}
+				continue
+			if str(key) == "cost":
+				built["cost"] = _station_life_nums(fx.cost, scale, id, cid)
+				if error != "":
+					return {}
+				continue
+			var n := _station_life_one(scale, str(fx[key]))
+			if n == 0:
+				error = "station life: %s %s %s is 0" % [id, cid, str(key)]
+				return {}
+			built[str(key)] = n
+		choices.append(built)
+	if choices.is_empty():
+		error = "station life: %s has no choices" % id
+		return {}
+	return {
+		"id": id,
+		"title": raw.get("title", {}),
+		"text": raw.get("text", {}),
+		"who": str(raw.get("who", "")),
+		"major": false,
+		"min_week": int(raw.get("min_week", 1)),
+		"weight": int(raw.get("weight", 2)),
+		"cooldown": 8,
+		"station_life": true,
+		"choices": choices,
+	}
+
+
+func _station_life_nums(spec: Dictionary, scale: Dictionary, id: String, cid: String) -> Dictionary:
+	var out := {}
+	for key in spec:
+		var n := _station_life_one(scale, str(spec[key]))
+		if n == 0:
+			error = "station life: %s %s cost %s is 0" % [id, cid, str(key)]
+			return {}
+		out[str(key)] = n
+	return out
+
+
+func _station_life_one(scale: Dictionary, name: String) -> int:
+	var neg := name.begins_with("-")
+	var key := name.trim_prefix("-")
+	var n := int(scale.get(key, 0))
+	return -n if neg else n
+
+
+func _station_life_quote(words: String) -> String:
+	var open := words.find("\"")
+	if open < 0:
+		return ""
+	var close := words.find("\"", open + 1)
+	if close <= open:
+		return ""
+	return words.substr(open + 1, close - open - 1)
 
 
 func _index(rows: Array, key: String) -> Dictionary:
