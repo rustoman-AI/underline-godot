@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_named():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_named():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +434,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_named():
+		await _named_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -766,6 +768,10 @@ func _want_checks() -> bool:
 
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
+
+
+func _want_named() -> bool:
+	return _dev_args().has("--named-lives")
 
 
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
@@ -2411,6 +2417,8 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	var name_label := _label(Copy.person(str(person.name)), 15)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_line.add_child(name_label)
+	if game.is_known(person):
+		name_line.add_child(_known_tag())
 	if _story_state(id) == "new":
 		var dot := _label("•", 15, true)
 		dot.add_theme_color_override("font_color", Color("e2a63a"))
@@ -6297,7 +6305,8 @@ func _paint_dawn() -> void:
 	Sound.play("card_open")
 	var ev: Dictionary = game.front_event()
 	note_incident(ev)
-	_open_card(game.line_of(ev, "title"), false, "Event")
+	var kicker := "" if str(ev.get("burial_id", "")) != "" else "Event"
+	_open_card(game.line_of(ev, "title"), false, kicker)
 	var banner := _event_banner(ev)
 	if banner != null:
 		card_body.add_child(banner)
@@ -6343,7 +6352,7 @@ func _paint_dawn() -> void:
 				why = Copy.t("That cost cannot be paid.")
 		card_body.add_child(pick)
 		var words := _choice_words(game.choice_effects(choice))
-		if words != "":
+		if words != "" and str(ev.get("burial_id", "")) == "":
 			card_body.add_child(_effect_line(words))
 		if game.choice_locked(choice) or why != "":
 			pick.disabled = true
@@ -9106,7 +9115,7 @@ func _show_person(person_id: String) -> void:
 	if not _claim(ModalDeck.AMBIENT, "person", _show_person.bind(person_id)):
 		return
 	var person: Dictionary = game.people[person_id]
-	_open_card(_resident_name(person))
+	_open_card(_resident_name(person), true, Copy.t("named.known") if game.is_known(person) else "")
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.add_child(_portrait_box(person_id, 64))
@@ -9123,6 +9132,11 @@ func _show_person(person_id: String) -> void:
 	text.add_child(_label(_where(person_id), 14))
 	row.add_child(text)
 	card_body.add_child(row)
+	if not game.cast_bio_locked(person):
+		_section("Before the Silence", game.life_line(person, "before"))
+		_section("Keepsake", game.life_line(person, "keepsake"))
+	_memory_block(person)
+	_journal_block(person)
 	if bool(person.get("core", false)) or not _story(person_id).is_empty():
 		var lore_id := game.cast_id_of(person)
 		var caption := Copy.t("Dossier")
@@ -9301,6 +9315,8 @@ func _show_dossier(person_id: String) -> void:
 	var who := _label(_resident_name(person), 22, true)
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(who)
+	if game.is_known(person):
+		row.add_child(_known_tag())
 	card_body.add_child(row)
 	var title := _person_title(person)
 	if title != "":
@@ -9325,9 +9341,11 @@ func _show_dossier(person_id: String) -> void:
 		_section("Look", _dossier_line(person, "look"))
 		_section("Bio", _dossier_line(person, "bio"))
 		_section("Hook", _dossier_line(person, "hook"))
+		_memory_block(person)
+		_journal_block(person)
 	else:
-		_section("Before the Silence", game.profile_line(person, "before"))
-		_section("Keepsake", game.profile_line(person, "keepsake"))
+		_section("Before the Silence", game.life_line(person, "before"))
+		_section("Keepsake", game.life_line(person, "keepsake"))
 		_heading("Album")
 		var album: Array = person.get("album", [])
 		if album.is_empty():
@@ -9335,27 +9353,50 @@ func _show_dossier(person_id: String) -> void:
 		else:
 			for image_id in album:
 				_body(str(image_id))
-		_heading(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100))
-		var track := ColorRect.new()
-		track.color = Color(1, 1, 1, 0.14)
-		track.custom_minimum_size = Vector2(0, 8)
-		var fill := ColorRect.new()
-		fill.color = Color("e2a63a")
-		fill.set_anchors_preset(Control.PRESET_FULL_RECT)
-		fill.anchor_right = clampf(float(person.get("memory", 0)) / 100.0, 0.0, 1.0)
-		fill.offset_right = 0.0
-		track.add_child(fill)
-		card_body.add_child(track)
-		_heading("Events")
-		var events: Array = person.get("story_events", [])
-		if events.is_empty():
-			_placeholder("", "No events yet.")
-		else:
-			for event_id in events:
-				_body(Copy.t(str(event_id)))
+		_memory_block(person)
+		_journal_block(person)
 	if has_lore and dossier_tab == "profile":
 		_story_text(person_id)
 	card_body.add_child(_button("Back", _show_person.bind(person_id)))
+
+
+## Brass name tag. Static: no bob, no pulse. Height ~22, radius 3, one pixel edge.
+func _known_tag() -> Control:
+	var plate := _card_tag(Copy.t("named.known"))
+	if plate.has_meta("card_tag"):
+		plate.remove_meta("card_tag")
+	plate.custom_minimum_size = Vector2(0, 22)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for child in plate.get_children():
+		if child is Control:
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return plate
+
+
+func _memory_block(person: Dictionary) -> void:
+	_heading(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100))
+	card_body.add_child(_progress_bar(clampf(float(person.get("memory", 0)) / 100.0, 0.0, 1.0), 220.0))
+
+
+func _journal_block(person: Dictionary) -> void:
+	_heading("Journal")
+	var events: Array = person.get("story_events", [])
+	if events.is_empty():
+		_placeholder("", "No events yet.")
+		return
+	var fem := game.sex_of(person) == "f"
+	var start := maxi(0, events.size() - 8)
+	for i in range(events.size() - 1, start - 1, -1):
+		var ev = events[i]
+		var line := ""
+		if ev is Dictionary:
+			line = game.journal_line(ev, fem)
+		else:
+			line = str(ev)
+		if line.strip_edges() == "":
+			continue
+		_body_ready("· " + line)
 
 
 ## A dossier section that is left out when it has no text.
@@ -9522,6 +9563,54 @@ func _hub_shots() -> void:
 	await _frame()
 	await _frame()
 	_save("hub_view")
+	get_tree().quit(0)
+
+
+## P67 screenshots: journal list, Known tag, death card with Bury and Ledger.
+func _named_shots() -> void:
+	shot_mode = true
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	Settings.people_free_only = false
+	for id in ["jonah", "inez", "mara", "ruth"]:
+		if not game.people.has(id):
+			continue
+		game._unassign(id)
+	var jonah: Dictionary = game.people["jonah"]
+	game._life_note(jonah, "injured", {})
+	game._life_note(jonah, "staffed_shortage", {"room": "Workshop"})
+	game._life_note(jonah, "named_dilemma", {})
+	jonah.memory = 55
+	game.people["inez"].memory = 48
+	game.people["mara"].memory = 12
+	game.people["ruth"].memory = 0
+	_show_person("jonah")
+	await _frame()
+	await _frame()
+	_save("p67_nl1_journal")
+	_close_card()
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save("p67_nl2_known_tag")
+	drawer_open = false
+	_place_drawer()
+	if yard != null:
+		yard.queue_redraw()
+	await _frame()
+	await _frame()
+	_save("p67_nl2_platform")
+	game.laws_on["ledger"] = true
+	game._remove_resident("jonah", true, "sickness", "died")
+	game._offer_burial()
+	event_mode = "dawn"
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("p67_nl3_death_card")
 	get_tree().quit(0)
 
 
@@ -14383,9 +14472,10 @@ class Yard extends Control:
 				break
 
 	func _draw_platform(rect: Rect2, _room: Dictionary) -> void:
+		var ids: Array = _idle_ids()
+		_draw_name_tokens(rect, ids)
 		if not poses.has("walking") and not poses.has("standing"):
 			return
-		var ids: Array = _idle_ids()
 		var shown := mini(2, ids.size())
 		var pose_name := "walking" if poses.has("walking") else "standing"
 		var looks := _figs_for_group(body_figs, ids.slice(0, shown))
@@ -14502,6 +14592,34 @@ class Yard extends Control:
 				x = lo
 				flip = true
 		_draw_anim("walk", body, x, foot_y, body_h, id, flip, frame)
+
+	## Static name row on the platform. Known sits under the name when memory ≥ 40. It does not move.
+	func _draw_name_tokens(rect: Rect2, ids: Array) -> void:
+		var n := mini(4, ids.size())
+		if n <= 0:
+			return
+		var font: Font = ThemeDB.fallback_font
+		if station.body_font != null:
+			font = station.body_font
+		var gap := rect.size.x / float(n)
+		for i in n:
+			var id := str(ids[i])
+			var person: Dictionary = station.game.people.get(id, {})
+			if person.is_empty():
+				continue
+			var name := str(station._resident_name(person))
+			var cx := rect.position.x + gap * (float(i) + 0.5)
+			var y := rect.position.y + 16.0
+			var name_size := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+			draw_string(font, Vector2(cx - name_size.x * 0.5, y), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("f4efe4"))
+			if not station.game.is_known(person):
+				continue
+			var tag := Copy.t("named.known")
+			var tag_size := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+			var plate := Rect2(cx - tag_size.x * 0.5 - 8.0, y + 4.0, tag_size.x + 16.0, 22.0)
+			draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
+			draw_rect(plate, Color("e2a63a"), false, 1.0)
+			draw_string(font, Vector2(plate.position.x + 8.0, plate.position.y + 15.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("f0c070"))
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))

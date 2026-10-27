@@ -68,6 +68,15 @@ func load_all() -> bool:
 	profiles = _obj("resident_profiles.json")
 	residents = _arr("residents.json")
 	names = _obj("names.json")
+	## P67 Named Lives. Locked pack wins for pasts, keepsakes, deaths and journals.
+	## Coney cast bios stay in characters_coney.json and are not copied here.
+	var lives := _obj("named_lives.json")
+	if error == "":
+		for key in ["pasts", "keepsakes", "deaths", "journals"]:
+			if not lives.has(key):
+				error = "named_lives.json missing %s" % key
+				break
+			names[key] = lives[key]
 	grid = _obj("start_grid.json")
 	communities = _obj("station_communities.json")
 	communities_en = _obj("station_communities_en.json")
