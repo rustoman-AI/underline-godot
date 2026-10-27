@@ -206,6 +206,10 @@ var creed := ""
 var notices: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
 var perk_float_due := {}
+## Dawn report toasts. Not a soft-dawn chip. The yard drains these once.
+var held_perk_events: Array = []
+## One yard meter to flash the first week a perk applies. The yard clears this.
+var perk_meter_pulse := {}
 ## Dawn-card line for a Listening Post order. Not saved.
 var listening_line := ""
 
@@ -232,6 +236,9 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	burials = []
 	creed = ""
 	notices = []
+	held_perk_events = []
+	perk_meter_pulse = {}
+	perk_float_due = {}
 	raid_share = {}
 	raid_share_hold = false
 	raid_share_profile = ""
@@ -6491,19 +6498,45 @@ func perk_sheet_line(sid: String) -> String:
 	var perk := station_perk(sid)
 	if perk.is_empty():
 		return ""
-	return Copy.t("perk." + str(perk.id))
+	return Copy.t("perk.line." + str(perk.id))
+
+
+## Sheet/visit perk while the player owns the station. Home has none.
+func perk_view(sid: String) -> Dictionary:
+	if not stations.has(sid) or str(stations[sid].owner) != player:
+		return {}
+	var perk := station_perk(sid)
+	if perk.is_empty():
+		return {}
+	return {"id": str(perk.id), "line_key": "perk.line." + str(perk.id)}
+
+
+## Weekly good on a station that produces one, flowing or not.
+func good_view(sid: String) -> Dictionary:
+	var good := station_good(sid)
+	if good.is_empty():
+		return {}
+	var key := str(good.get("name_key", ""))
+	if key == "":
+		key = "good.name." + str(good.id)
+	return {"id": str(good.id), "name_key": key, "flowing": good_flowing(sid)}
+
+
+func _good_name(good: Dictionary) -> String:
+	var key := str(good.get("name_key", ""))
+	if key == "":
+		key = "good.name." + str(good.get("id", ""))
+	var named := Copy.t(key)
+	return named if named != key else str(good.get("id", ""))
 
 
 func good_sheet_line(sid: String) -> String:
 	var good := station_good(sid)
 	if good.is_empty():
 		return ""
-	var name := Copy.t(str(good.name_key)) if str(good.name_key) != "" else Copy.t("good." + str(good.id) + ".name")
-	var sheet := Copy.t("good." + str(good.id) + ".sheet")
-	var line := "%s: %s. %s" % [Copy.t("good.label"), name, sheet]
-	if good_flowing(sid):
-		line += " " + Copy.fill("good.flowing", {"good": name})
-	return line
+	var name := _good_name(good)
+	var state := Copy.t("good.flowing") if good_flowing(sid) else Copy.t("good.not_flowing")
+	return "%s · %s" % [name, state]
 
 
 func _effect_sources() -> Array:
@@ -6706,10 +6739,7 @@ func _sync_perk_notices() -> void:
 			continue
 		flags[flag] = week
 		var perk: Dictionary = now[id]
-		notices.append(Copy.fill("perk.toast_held", {
-			"name": _perk_station_name(str(perk.station)),
-			"perk": Copy.t("perk.short." + str(id)),
-		}))
+		_push_perk_event("perk_gain", str(perk.station), str(id))
 		_queue_perk_float(perk)
 	var gone: Array = []
 	for key in flags.keys():
@@ -6721,11 +6751,29 @@ func _sync_perk_notices() -> void:
 			gone.append(id)
 	for id in gone:
 		flags.erase("perk_on:" + str(id))
-		var sid := _perk_station_of(str(id))
-		notices.append(Copy.fill("perk.toast_lost", {
-			"name": _perk_station_name(sid),
-			"perk": Copy.t("perk.short." + str(id)),
-		}))
+		_push_perk_event("perk_loss", _perk_station_of(str(id)), str(id))
+
+
+func _push_perk_event(kind: String, sid: String, perk_id: String) -> void:
+	var line := Copy.t("perk.short." + perk_id)
+	var key := "perk.toast_gain" if kind == "perk_gain" else "perk.toast_loss"
+	var text := Copy.clip(Copy.fill(key, {
+		"station": _perk_station_name(sid),
+		"line": line,
+	}), 72)
+	held_perk_events.append({
+		"kind": kind,
+		"station": _perk_station_name(sid),
+		"perk_id": perk_id,
+		"line": line,
+		"text": text,
+	})
+
+
+func _note_perk_pulse(key: String, delta: int) -> void:
+	if delta == 0 or not perk_meter_pulse.is_empty():
+		return
+	perk_meter_pulse = {"key": key, "delta": delta}
 
 
 func _queue_perk_float(perk: Dictionary) -> void:
@@ -6739,20 +6787,26 @@ func _queue_perk_float(perk: Dictionary) -> void:
 	food += int(fx.get("food_focus_bonus", 0))
 	if food != 0:
 		due["food"] = int(due.get("food", 0)) + food
+		_note_perk_pulse("food", food)
 	if fx.has("power_week"):
 		due["power"] = int(due.get("power", 0)) + int(fx.power_week)
+		_note_perk_pulse("power", int(fx.power_week))
 	if fx.has("token_week"):
 		due["tokens"] = int(due.get("tokens", 0)) + int(fx.token_week)
+		_note_perk_pulse("tokens", int(fx.token_week))
 	if fx.has("influence_week"):
 		due["influence"] = int(due.get("influence", 0)) + int(fx.influence_week)
+		_note_perk_pulse("influence", int(fx.influence_week))
 	if fx.has("discontent_week"):
 		due["discontent"] = int(due.get("discontent", 0)) + int(fx.discontent_week)
+		_note_perk_pulse("discontent", int(fx.discontent_week))
 	if fx.has("generator_mult"):
 		var plain := int(_tally(false, false, false, false, false).get("power", 0))
 		var boosted := int(_tally(false, false, false, false, true).get("power", 0))
 		var extra := boosted - plain
 		if extra != 0:
 			due["power"] = int(due.get("power", 0)) + extra
+			_note_perk_pulse("power", extra)
 	perk_float_due = due
 
 

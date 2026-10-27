@@ -93,7 +93,7 @@
       },
       "good": {
         "id": "water",
-        "name_key": "good.water.name",
+        "name_key": "good.name.water",
         "effects": {
           "cough_mult": 0.5,
           "fork_unlock": "quarantine_ward"
@@ -121,7 +121,7 @@
       },
       "good": {
         "id": "seeds",
-        "name_key": "good.seeds.name",
+        "name_key": "good.name.seeds",
         "effects": {
           "food_room_bonus": 1,
           "fork_unlock": "grow_lamps"
@@ -141,7 +141,7 @@
       "art": "Колесо обозрения и деревянные горки наверху, вагоны-дома в депо.",
       "good": {
         "id": "salt",
-        "name_key": "good.salt.name",
+        "name_key": "good.name.salt",
         "effects": {
           "spoil_mult": 0.5
         }
@@ -181,7 +181,7 @@
       },
       "good": {
         "id": "heat",
-        "name_key": "good.heat.name",
+        "name_key": "good.name.heat",
         "effects": {
           "power_week": 2,
           "sabotage_chance": 0.1,
@@ -255,8 +255,8 @@
       "conflict": "Кто держит фильтры, тот держит юг.",
       "art": "Старая ограда парка, здание таможни с колоннадой.",
       "good": {
-        "id": "air",
-        "name_key": "good.air.name",
+        "id": "air_coupons",
+        "name_key": "good.name.air_coupons",
         "effects": {
           "air_week": 4
         }
@@ -347,7 +347,7 @@
       },
       "good": {
         "id": "copper",
-        "name_key": "good.copper.name",
+        "name_key": "good.name.copper",
         "effects": {
           "materials_week": 3,
           "fork_unlock": [
@@ -377,7 +377,7 @@
       },
       "good": {
         "id": "pork",
-        "name_key": "good.pork.name",
+        "name_key": "good.name.pork",
         "effects": {
           "food_week": 6
         }
@@ -397,7 +397,7 @@
       "art": "Лабиринт лавок, горы хлама до потолка.",
       "good": {
         "id": "junk",
-        "name_key": "good.junk.name",
+        "name_key": "good.name.junk",
         "effects": {
           "blueprint_weeks": 6,
           "fork_unlock": "any_locked"

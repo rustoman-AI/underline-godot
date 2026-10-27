@@ -1194,6 +1194,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_tags(c, game)
 	_draw_yields(c, game)
 	_draw_governors(c, game)
+	_draw_good_pips(c, game)
 	_draw_flags(c, game)
 	_draw_playback(c, game)
 	_draw_soft_marks(c, game)
@@ -1671,7 +1672,6 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 		var warn := ArtPack.icon_texture("warning", 16.0)
 		if warn != null:
 			c.draw_texture_rect(warn, Rect2(at + Vector2(r * 0.6, -r - 14.0), Vector2(16, 16)), false)
-	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
 	if str(sid) == str(game.capital_id):
@@ -1893,6 +1893,9 @@ func _draw_leaflet_chip(c: CanvasItem, game, sid: String, at: Vector2, r: float,
 		return
 	var crowded := DealMarks.pip_count(game, sid) >= 1
 	var pos := LeafletDust.slot(at, r, crowded) - Vector2(0, 2.0 * lift)
+	## Tiny pins: keep the goods pip in the BR slot and lift the scrap 2 px.
+	if r < 10.0:
+		pos.y -= 2.0
 	var sz := LeafletDust.chip_px(r)
 	var icon := ArtPack.icon_texture("leaflet_chip", sz)
 	if icon == null:
@@ -2975,7 +2978,18 @@ const FOCUS_GOOD := {"food": "food", "air": "air", "defense": "materials", "infl
 const YIELD_KEYS := ["food", "materials", "air", "influence", "tokens"]
 const GOOD_ICON := {
 	"seeds": "food", "pork": "food", "salt": "food", "water": "air",
-	"copper": "materials", "junk": "materials", "air": "air", "heat": "power",
+	"copper": "materials", "junk": "materials", "air": "air", "air_coupons": "air", "heat": "power",
+}
+## P55 goods pip fills. air_coupons is its own id; water stays water.
+const GOOD_PIP := {
+	"seeds": Color("7dba6a"),
+	"pork": Color("7dba6a"),
+	"salt": Color("7dba6a"),
+	"copper": Color("c4a574"),
+	"junk": Color("c4a574"),
+	"water": Color("6f8494"),
+	"air_coupons": Color("6f8494"),
+	"heat": Color("e2a63a"),
 }
 const GOOD_TINT := {
 	"food": Color("d7a441"),
@@ -4229,12 +4243,12 @@ func _fill_sheet_body(sid: String) -> void:
 	var known := _known_for(game, sid)
 	if known != "":
 		_sheet_body.add_child(_lab(known, 14, false))
-	_add_perk_good(game, sid, _sheet_body)
 	var details := _details_box()
 	if own:
 		_add_own_facts(game, st, sid, _sheet_body, details)
 	else:
 		_sheet_body.add_child(_standing_row(game, st, sid))
+		_add_perk_good(game, sid, _sheet_body)
 		var who: String = game.station_text(sid, "who")
 		if who != "":
 			details.add_child(_lab(who, 14, false))
@@ -4773,36 +4787,73 @@ func _add_needs(st: Dictionary, parent: Node, sid: String = "") -> void:
 
 
 ## Perk one-liner and the good row. Shown on the station sheet and the visit card.
+## Perk is hidden when the station is not held. Good shows whenever the station has one.
 func _add_perk_good(game, sid: String, parent: Node) -> void:
-	var perk := str(game.perk_sheet_line(sid))
-	if perk != "":
-		var line := _lab("%s: %s" % [Copy.t("perk.label"), perk], 14, false)
+	var perk: Dictionary = game.perk_view(sid) if game.has_method("perk_view") else {}
+	if not perk.is_empty():
+		var label := _lab(Copy.t("perk.label"), 13, false)
+		label.set_meta("perk_label", sid)
+		parent.add_child(label)
+		var line_key := str(perk.get("line_key", ""))
+		var words := Copy.t(line_key) if line_key != "" else str(perk.get("line", ""))
+		var line := _lab(words, 15, true)
+		if host != null and host.get("body_font") != null:
+			line.add_theme_font_override("font", host.body_font)
 		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		line.set_meta("perk_line", sid)
 		parent.add_child(line)
-	var good := str(game.good_sheet_line(sid))
-	if good != "":
-		var line := _lab(good, 14, false)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.set_meta("good_line", sid)
-		parent.add_child(line)
+	var good: Dictionary = game.good_view(sid) if game.has_method("good_view") else {}
+	if good.is_empty():
+		return
+	var caption := _lab(Copy.t("good.label"), 13, false)
+	caption.set_meta("good_label", sid)
+	parent.add_child(caption)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.set_meta("good_line", sid)
+	row.add_child(_good_dot(str(good.get("id", ""))))
+	var name := Copy.t(str(good.get("name_key", "")))
+	var flow := Copy.t("good.flowing") if bool(good.get("flowing", false)) else Copy.t("good.not_flowing")
+	var text := _lab("%s · %s" % [name, flow], 15, true)
+	if host != null and host.get("body_font") != null:
+		text.add_theme_font_override("font", host.body_font)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(text)
+	parent.add_child(row)
 
 
-## A small resource pip on the pin while that station's good is coming in.
+func _good_dot(good_id: String) -> Control:
+	var dot := GoodPip.new()
+	dot.fill = GOOD_PIP.get(good_id, Color("7dba6a"))
+	return dot
+
+
+## Goods pips sit after deal pips and before flags. Unknown and secret pins stay bare.
+func _draw_good_pips(c: CanvasItem, game) -> void:
+	for sid in _layout:
+		var row: Dictionary = _layout[sid]
+		if not bool(row.get("known", false)):
+			continue
+		if not game.stations.has(sid):
+			continue
+		if _secret(game.stations[sid]):
+			continue
+		_draw_good_pip(c, game, str(sid), row.at, float(row.r), float(_lift.get(sid, 0.0)))
+
+
+## Static 10 px disc, bottom-right of the pin head, while the weekly good is flowing.
 func _draw_good_pip(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
 	if game == null or not game.good_flowing(sid):
 		return
 	var good: Dictionary = game.station_good(sid)
-	var icon_kind := str(GOOD_ICON.get(str(good.get("id", "")), "food"))
-	var pip := at + Vector2(r * 0.62, r * 0.55) - Vector2(0, 2.0 * lift)
-	c.draw_circle(pip, 8.0, Color(TAG_INK, 0.9))
-	c.draw_circle(pip, 6.5, Color(TAG_PAPER, 0.95))
-	var tex := ArtPack.icon_texture(icon_kind, 16.0)
-	var tint: Color = GOOD_TINT.get(icon_kind, TRADE_GOLD)
-	if tex != null:
-		c.draw_texture_rect(tex, Rect2(pip - Vector2(5, 5), Vector2(10, 10)), false, tint)
-	else:
-		c.draw_string(_font(), pip + Vector2(-3, 4), "+", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tint)
+	var fill: Color = GOOD_PIP.get(str(good.get("id", "")), Color("7dba6a"))
+	var head := at - Vector2(0, 2.0 * lift)
+	var pip := head + Vector2(r * 0.62, r * 0.55)
+	c.draw_circle(pip, 5.0, fill)
+	var edge := TAG_PAPER
+	edge.a = 0.9
+	c.draw_arc(pip, 5.0, 0.0, TAU, 24, edge, 1.0, true)
 
 
 ## "Known for: food, materials": a station's two biggest own goods (data, docs/STATION_GOODS_PLAN.md). Empty for the
@@ -4838,6 +4889,7 @@ func _add_own_facts(game, st: Dictionary, sid: String, parent: Node, details: No
 		_add_governor(game, st, str(sid), parent)
 	parent.add_child(_lab(_supply_text(game, sid), 14, false))
 	parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
+	_add_perk_good(game, str(sid), parent)
 	_add_needs(st, details, sid)
 
 
@@ -5375,6 +5427,8 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
+	if str(st.owner) == str(game.player):
+		column.add_child(_lab(_ships_text(game, st, sid), 15, false))
 	_add_perk_good(game, sid, column)
 	head.add_child(column)
 	_visit_body.add_child(head)
@@ -5636,3 +5690,18 @@ func _unit_route_bays(points: PackedVector2Array, first: String, last: String, k
 		out.append(points[i])
 	out.append(_unit_station_bay(last, -end_dir, _unit_width(kind), 0))
 	return out
+
+
+## 10 px goods tint for the sheet and visit row.
+class GoodPip extends Control:
+	var fill := Color("7dba6a")
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(10, 10)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		draw_circle(Vector2(5, 5), 5.0, fill)
+		var edge := Color("efe4c8")
+		edge.a = 0.9
+		draw_arc(Vector2(5, 5), 4.5, 0.0, TAU, 16, edge, 1.0)
