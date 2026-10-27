@@ -29,6 +29,8 @@ func _init() -> void:
 		failed = true
 	if not _check_bot(catalog):
 		failed = true
+	if not _check_dawn(catalog):
+		failed = true
 	if losses and not _check_losses(catalog):
 		failed = true
 	if failed:
@@ -69,21 +71,21 @@ func _check_strings() -> bool:
 		print("Strings: FAIL en tip")
 		return false
 	Copy.set_lang("ru")
-	if Copy.t("push.button") != "Нажать" or Copy.t("Push") != "Нажать":
+	if Copy.t("push.button") != "Выжать" or Copy.t("Push") != "Выжать":
 		print("Strings: FAIL ru button ", Copy.t("push.button"), " / ", Copy.t("Push"))
 		return false
 	var pairs := {
-		"push.disabled_room": "Эту комнату нажимать нельзя.",
-		"push.disabled_used": "На этой неделе уже нажимали.",
-		"push.confirm_title": "Нажать эту комнату?",
+		"push.disabled_room": "Эту комнату не выжать.",
+		"push.disabled_used": "На этой неделе уже выжимали.",
+		"push.confirm_title": "Выжать эту комнату?",
 		"push.incident.hydroponics": "Гидропоника: гниль. −4 еды.",
-		"push.incident.air_filter": "Воздушный фильтр: пожар у створки. Комната выключена на неделю, 1 ранен.",
+		"push.incident.air_filter": "Воздушный фильтр: пожар у створки. Комната встала на неделю, 1 ранен.",
 		"push.incident.generator": "Генератор: выброс. −8 энергии, 1 ранен.",
 		"push.incident.workshop": "Мастерская: авария. 1 ранен.",
 		"push.incident.meeting_hall": "Зал собраний: крик. Недовольство +4.",
-		"push.incident.generic": "Нажим сорвался. Что-то сломалось.",
+		"push.incident.generic": "Выжим сорвался. Что-то сломалось.",
 		"push.incident_known": "{name} пострадал{a}.",
-		"push.toast_ok": "{room}: нажали. Ночной выход удвоится.",
+		"push.toast_ok": "{room}: выжали. Ночной выход удвоится.",
 	}
 	for key in pairs:
 		if Copy.t(str(key)) != str(pairs[key]):
@@ -115,53 +117,57 @@ func _check_double(catalog: Catalog) -> bool:
 	var game := Game.new()
 	game.setup(catalog, 3, 40)
 	if game.over == "error":
-		print("Double: FAIL setup ", game.errors)
+		print("Apply: FAIL setup ", game.errors)
 		return false
 	var hydro = _room_of(game, "hydroponics")
 	var uid := str(hydro.uid)
 	var before: Dictionary = game._tally()
 	if int(before.food) <= 0:
-		print("Double: FAIL hydro makes no food")
+		print("Apply: FAIL hydro makes no food")
 		return false
 	var shown: Dictionary = game.push_preview(uid)
 	if not bool(shown.ok) or int(shown.pct) != game._push_pct(hydro):
-		print("Double: FAIL preview ", shown)
+		print("Apply: FAIL preview ", shown)
 		return false
 	if not game.apply({"kind": "push", "room": uid}):
-		print("Double: FAIL push refused")
+		print("Apply: FAIL push refused")
 		return false
 	if game._push_pct(hydro) != int(shown.pct):
-		print("Double: FAIL night percent %d != preview %d" % [game._push_pct(hydro), int(shown.pct)])
+		print("Apply: FAIL night percent %d != preview %d" % [game._push_pct(hydro), int(shown.pct)])
 		return false
 	var after: Dictionary = game._tally()
 	if int(after.food) != int(before.food) * 2:
-		print("Double: FAIL food %d -> %d" % [int(before.food), int(after.food)])
+		print("Apply: FAIL food %d -> %d" % [int(before.food), int(after.food)])
 		return false
 	if int(after.air) != int(before.air) or int(after.power) != int(before.power) or int(after.materials) != int(before.materials):
-		print("Double: FAIL other goods moved")
+		print("Apply: FAIL other goods moved")
 		return false
 	if game.apply({"kind": "push", "room": uid}):
-		print("Double: FAIL second push accepted")
+		print("Apply: FAIL second push accepted")
 		return false
 	var again: Dictionary = game.push_preview(uid)
 	if bool(again.ok) or str(again.reason) != Copy.t("push.disabled_used"):
-		print("Double: FAIL used reason ", again)
+		print("Apply: FAIL used reason ", again)
 		return false
 	if int(game._tally().food) != int(after.food):
-		print("Double: FAIL second tally changed food")
+		print("Apply: FAIL second tally changed food")
 		return false
-	for type in ["quarters", "infirmary", "radio"]:
+	for type in ["quarters", "infirmary", "radio", "platform"]:
 		var blocked := _spare(game, type)
 		var info: Dictionary = game.push_preview(str(blocked.uid))
 		if bool(info.ok) or str(info.reason) != Copy.t("push.disabled_room"):
-			print("Double: FAIL %s pushable " % type, info)
+			print("Disabled: FAIL %s" % type, info)
 			return false
+		if game.apply({"kind": "push", "room": str(blocked.uid)}):
+			print("Disabled: FAIL %s apply accepted" % type)
+			return false
+	print("Disabled: ok")
 	game.week += 1
 	var next: Dictionary = game.push_preview(uid)
 	if not bool(next.ok) or int(next.pct) != 25:
-		print("Double: FAIL next week %s" % str(next))
+		print("Apply: FAIL next week %s" % str(next))
 		return false
-	print("Double: ok")
+	print("Apply: ok")
 	return true
 
 
@@ -377,12 +383,20 @@ func _incident_hall(catalog: Catalog) -> bool:
 func _incident_generic(catalog: Catalog) -> bool:
 	var game := _fresh(catalog)
 	var room = _room_of(game, "platform")
+	if room == null:
+		room = _spare(game, "platform")
 	var food := int(game.stock.food)
 	var power := int(game.stock.power)
 	var dis := game.discontent
-	if not game.apply({"kind": "push", "room": str(room.uid)}):
-		print("Incidents: FAIL push platform")
+	var info: Dictionary = game.push_preview(str(room.uid))
+	if bool(info.ok) or str(info.reason) != Copy.t("push.disabled_room"):
+		print("Incidents: FAIL platform preview ", info)
 		return false
+	if game.apply({"kind": "push", "room": str(room.uid)}):
+		print("Incidents: FAIL platform push accepted")
+		return false
+	## The night still names an unknown pushed type. The player cannot apply that push.
+	room.push_weeks = [game.week]
 	game._resolve_pushes()
 	if int(game.stock.food) != food or int(game.stock.power) != power or game.discontent != dis:
 		print("Incidents: FAIL generic changed stocks")
@@ -390,6 +404,36 @@ func _incident_generic(catalog: Catalog) -> bool:
 	if not _pushed_line(game, "went wrong"):
 		print("Incidents: FAIL generic line")
 		return false
+	return true
+
+
+## Soft dawn stays rumor → border.dawn_new → rail → homecoming. Push is a room-card gamble, not a chip.
+func _check_dawn(catalog: Catalog) -> bool:
+	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
+		print("Dawn: FAIL stack ", Game.DAWN_SOFT_STACK)
+		return false
+	var src := FileAccess.get_file_as_string("res://sim/game.gd")
+	if src.find("DAWN_SOFT_STACK := [\"rumor\", \"border.dawn_new\", \"rail\", \"homecoming\"]") < 0:
+		print("Dawn: FAIL source stack")
+		return false
+	var game := Game.new()
+	game.setup(catalog, 5, 40)
+	var hydro = _room_of(game, "hydroponics")
+	if hydro == null or not game.apply({"kind": "push", "room": str(hydro.uid)}):
+		print("Dawn: FAIL setup push")
+		return false
+	game._resolve_pushes()
+	var chip: Dictionary = game.dawn_soft_chip()
+	var kind := str(chip.get("kind", ""))
+	var key := str(chip.get("key", ""))
+	if kind == "push" or key.begins_with("push."):
+		print("Dawn: FAIL push joined ", chip)
+		return false
+	for slot in game.dawn_soft_stack():
+		if str(slot).begins_with("push"):
+			print("Dawn: FAIL slot ", slot)
+			return false
+	print("Dawn: ok")
 	return true
 
 
@@ -451,6 +495,9 @@ func _check_losses(catalog: Catalog) -> bool:
 		if run_seed % 15 == 0:
 			print("  careful seed %d, lost %d" % [run_seed, lost])
 	var share := 100.0 * float(lost) / 60.0
+	print("careful %d/60 (%.1f%%)" % [lost, share])
+	if is_equal_approx(float(catalog.balance.push_stack), 0.08):
+		print("stack lowered to 0.08")
 	print("Careful lost %d of 60 (%.1f%%), first loss %s, pushes %d" % [lost, share, str(first) if lost > 0 else "none", pushes])
 	if pushes != 0:
 		print("Losses: FAIL careful pushed")

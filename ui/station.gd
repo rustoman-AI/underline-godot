@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_push():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_push():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +434,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_push():
+		await _push_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -766,6 +768,106 @@ func _want_checks() -> bool:
 
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
+
+
+func _want_push() -> bool:
+	return _dev_args().has("--push")
+
+
+## P69 room-card shots: brass Push + tip, dig confirm, toast_ok, incident dawn card, disabled room.
+func _push_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	_refresh()
+	await _frame()
+	var hydro := ""
+	var infirmary := ""
+	for room in game.rooms:
+		var type := str(room.type)
+		if type == "hydroponics" and hydro == "":
+			hydro = str(room.uid)
+		if type == "infirmary" and infirmary == "":
+			infirmary = str(room.uid)
+	if infirmary == "":
+		var spot: Dictionary = game._first_build_cell()
+		if not spot.is_empty():
+			game._place_room("infirmary", int(spot.level), int(spot.cell))
+			infirmary = "room_%d_%d_infirmary" % [int(spot.level), int(spot.cell)]
+	if hydro == "":
+		print("PUSH SHOT missing hydroponics")
+		get_tree().quit(1)
+		return
+	_show_room(hydro)
+	await _frame()
+	await _frame()
+	_scroll_push_into_view()
+	await _frame()
+	_save("p69_push_button")
+	_ask_push(hydro)
+	await _frame()
+	await _frame()
+	_save("p69_push_confirm")
+	_do_confirm({"kind": "push", "room": hydro})
+	await _frame()
+	await _frame()
+	_save("p69_push_toast")
+	game.bal = game.bal.duplicate(true)
+	game.bal.push_risk = 2.0
+	game.bal.push_cap = 2.0
+	game.bal.push_stack = 0.0
+	game._resolve_pushes()
+	game.week += 1
+	game.pending.clear()
+	if toast_label != null:
+		toast_label.visible = false
+	if toast_plate != null:
+		toast_plate.visible = false
+	_close_card()
+	_paint_dawn()
+	await _frame()
+	await _frame()
+	_save("p69_push_incident")
+	_close_card()
+	if infirmary == "":
+		print("PUSH SHOT missing infirmary")
+		get_tree().quit(1)
+		return
+	_show_room(infirmary)
+	await _frame()
+	await _frame()
+	_scroll_push_into_view()
+	await _frame()
+	_save("p69_push_disabled")
+	get_tree().quit()
+
+
+func _scroll_push_into_view() -> void:
+	if card_scroll == null or card_body == null:
+		return
+	var button := _find_meta(card_body, "push_button")
+	if button == null:
+		return
+	var y := button.position.y
+	card_scroll.scroll_vertical = int(maxi(0, int(y) - 72))
+
+
+func _find_meta(node: Node, key: String) -> Control:
+	if node is Control and node.has_meta(key):
+		return node
+	for child in node.get_children():
+		var found := _find_meta(child, key)
+		if found != null:
+			return found
+	return null
 
 
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
@@ -4007,6 +4109,7 @@ func _show_room(uid: String) -> void:
 	var up: Dictionary = game.upgrade_preview(uid)
 	if str(up.get("name", "")) != "" or str(up.get("reason", "")) != "":
 		card_body.add_child(_upgrade_card(uid, false))
+	_room_push(uid)
 	if str(detail.type) == "workshop":
 		_breach_craft_card()
 		card_body.add_child(_strip_card(false))
@@ -4014,7 +4117,6 @@ func _show_room(uid: String) -> void:
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
 		card_body.add_child(_button("Laws", _show_laws))
-	_room_push(uid)
 	_room_switch(uid)
 
 
@@ -4354,27 +4456,38 @@ func _seat_minus(uid: String) -> void:
 		_unassign(weakest, uid)
 
 
-## Push doubles this room for one night. The odds string is the same percent the night rolls.
+## Push doubles this room for one night. The tip percent is push_preview, never a UI guess.
 func _room_push(uid: String) -> void:
 	var info: Dictionary = game.push_preview(uid)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var ready := bool(info.get("ok", false)) and game.over == ""
 	var odds := str(info.get("reason", ""))
 	if bool(info.get("ok", false)):
-		odds = Copy.t("push.tip_ok") % int(info.pct)
-	var state := _label(odds, 16)
-	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(state)
-	var button := _button("Push", _ask_push.bind(uid))
-	button.disabled = not bool(info.get("ok", false)) or game.over != ""
+		odds = Copy.t("push.tip_ok") % int(info.get("pct", 0))
+	var button := _button("push.button", _ask_push.bind(uid))
+	button.disabled = not ready
 	button.tooltip_text = odds
-	button.custom_minimum_size = Vector2(140, 48)
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	row.add_child(button)
-	card_body.add_child(row)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.custom_minimum_size.y = maxi(56, button.custom_minimum_size.y)
+	button.set_meta("push_button", true)
+	if ready:
+		_style_push(button)
+	card_body.add_child(button)
+	var tip := _label(odds, 16)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tip.add_theme_color_override("font_color", PAPER_MUTED)
+	tip.set_meta("push_tip", true)
+	card_body.add_child(tip)
+
+
+## Paper fill, 1 px brass when the push can be taken. Disabled stays the ordinary paper button.
+func _style_push(button: Button) -> void:
+	for state in ["normal", "hover", "pressed", "disabled"]:
+		var face := _button_face(state == "pressed", state == "hover")
+		face.border_color = Color("e2a63a")
+		face.set_border_width_all(1)
+		button.add_theme_stylebox_override(state, face)
 
 
 func _ask_push(uid: String) -> void:
@@ -4383,7 +4496,7 @@ func _ask_push(uid: String) -> void:
 	var why := str(info.get("reason", ""))
 	if why != "":
 		lines.append(why)
-	_confirm(Copy.t("push.confirm_title"), lines, bool(info.get("ok", false)), {"kind": "push", "room": uid}, "Push", why)
+	_confirm("push.confirm_title", lines, bool(info.get("ok", false)), {"kind": "push", "room": uid}, "push.button", why)
 
 
 func _room_switch(uid: String) -> void:
@@ -8019,7 +8132,7 @@ func _do_confirm(action: Dictionary) -> void:
 		var pushed = game._room(str(action.get("room", "")))
 		if pushed != null:
 			var room_name := Copy.t(str(game.catalog.rooms[str(pushed.type)].name))
-			_toast(Copy.t("push.toast_ok").replace("{room}", room_name), 3.2)
+			_toast(Copy.clip(Copy.t("push.toast_ok").replace("{room}", room_name), 72), 3.2)
 	_close_card()
 	_refresh()
 	if pulled != "":
