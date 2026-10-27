@@ -4019,7 +4019,15 @@ func _show_room(uid: String) -> void:
 
 
 func _listening_card(uid: String) -> void:
-	_body(game.listening_card_key())
+	var key := game.listening_card_key()
+	var glyph := ""
+	if game.listening_probe_live():
+		glyph = "probing"
+	elif key == "listening.offline":
+		glyph = "blown"
+	elif key == "listening.listen_status":
+		glyph = "listen"
+	_status_line(glyph, key)
 	var idle := game.listening_idle_line()
 	if idle != "":
 		_body_ready(idle)
@@ -4030,6 +4038,7 @@ func _listening_card(uid: String) -> void:
 		var why := game.order_block("probe", str(sid))
 		probe.disabled = why != ""
 		probe.tooltip_text = why if why != "" else Copy.t("listening.probe_tip")
+		_pin_status_icon(probe, "probe")
 		card_body.add_child(probe)
 	for fid in game.listening_tap_targets():
 		var tap := _button("listening.tap", _queue_listening.bind(uid, "tap", "", str(fid)))
@@ -4037,6 +4046,7 @@ func _listening_card(uid: String) -> void:
 		var why := game.order_block("tap", str(fid))
 		tap.disabled = why != ""
 		tap.tooltip_text = why if why != "" else Copy.t("listening.tap_tip")
+		_pin_status_icon(tap, "tap")
 		card_body.add_child(tap)
 
 
@@ -4361,8 +4371,12 @@ func _room_push(uid: String) -> void:
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var odds := str(info.get("reason", ""))
-	if bool(info.get("ok", false)):
+	var preview_ok := bool(info.get("ok", false))
+	if preview_ok:
 		odds = Copy.t("push.tip_ok") % int(info.pct)
+		var mark := _push_risk_mark()
+		if mark != null:
+			row.add_child(mark)
 	var state := _label(odds, 16)
 	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -4371,8 +4385,11 @@ func _room_push(uid: String) -> void:
 	var button := _button("Push", _ask_push.bind(uid))
 	button.disabled = not bool(info.get("ok", false)) or game.over != ""
 	button.tooltip_text = odds
-	button.custom_minimum_size = Vector2(140, 48)
+	button.custom_minimum_size = Vector2(168, maxf(button.custom_minimum_size.y, 56.0))
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pin_status_icon(button, "push")
+	if not button.disabled:
+		_brass_enabled(button)
 	row.add_child(button)
 	card_body.add_child(row)
 
@@ -7986,8 +8003,14 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 	if not ready and why == "" and lines.size() > 0:
 		why = str(lines[lines.size() - 1])
 		shown = lines.slice(0, lines.size() - 1)
+	var push_tip := str(action.get("kind", "")) == "push"
+	var first_line := true
 	for line in shown:
-		_body(Copy.gloss(line))
+		if push_tip and first_line:
+			_push_tip_line(Copy.gloss(line))
+		else:
+			_body(Copy.gloss(line))
+		first_line = false
 	for line in muted:
 		_body_muted(line)
 	if ready:
@@ -8196,6 +8219,85 @@ func _body(text: String) -> void:
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_body.add_child(lab)
+
+
+## Status glyph at 24 beside the words. A missing texture is left out; the label stays.
+func _status_line(kind: String, text: String) -> void:
+	var tex := ArtPack.icon_texture(kind, 24.0) if kind != "" else null
+	if tex == null:
+		_body(text)
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var face := TextureRect.new()
+	face.texture = tex
+	face.custom_minimum_size = Vector2(24, 24)
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(face)
+	var lab := _label(text, 17)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lab)
+	card_body.add_child(row)
+
+
+## 32px risk mark beside a push percent. Missing texture leaves the words alone.
+func _push_risk_mark() -> TextureRect:
+	var path := "res://assets/overlays/push_risk.webp"
+	if not ResourceLoader.exists(path):
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null:
+		return null
+	var face := TextureRect.new()
+	face.texture = tex
+	face.custom_minimum_size = Vector2(32, 32)
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return face
+
+
+func _push_tip_line(text: String) -> void:
+	var mark := _push_risk_mark()
+	if mark == null:
+		_body(text)
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(mark)
+	var lab := _label(text, 17)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lab)
+	card_body.add_child(row)
+
+
+## Left-side 24 icon when ArtPack has one. No stand-in mark when it does not.
+func _pin_status_icon(button: Button, kind: String) -> void:
+	var tex := ArtPack.icon_texture(kind, 24.0)
+	if tex == null:
+		return
+	button.icon = tex
+	button.expand_icon = false
+	button.add_theme_constant_override("icon_max_width", 24)
+
+
+## 1 px brass on an enabled paper button. Disabled keeps the muted face.
+func _brass_enabled(button: Button) -> void:
+	for state in ["normal", "hover", "pressed"]:
+		var style := button.get_theme_stylebox(state)
+		var copy := style.duplicate() if style != null else StyleBoxFlat.new()
+		if copy is StyleBoxFlat:
+			copy.border_color = Color("e2a63a")
+			copy.set_border_width_all(1)
+			button.add_theme_stylebox_override(state, copy)
 
 
 func _body_muted(text: String) -> void:
@@ -12381,6 +12483,7 @@ class Yard extends Control:
 	var figure_scale_px := 660.0
 	var lamp_glow: Texture2D
 	var probe_wash: Texture2D
+	var push_wash: Texture2D
 	var offline_wash: Texture2D
 	var offline_wash_256: Texture2D
 	var grey_plates := {}
@@ -12570,6 +12673,9 @@ class Yard extends Control:
 		if alt != null:
 			art["listening_post_alt"] = alt
 		probe_wash = ArtPack.load_texture("res://assets/overlays/room_probe.webp")
+		var push_path := "res://assets/overlays/room_push.webp"
+		if ResourceLoader.exists(push_path):
+			push_wash = ArtPack.load_texture(push_path)
 		offline_wash = ArtPack.load_texture("res://assets/overlays/room_offline.webp")
 		offline_wash_256 = ArtPack.load_texture("res://assets/overlays/room_offline_256.webp")
 		cell_rock = ArtPack.load_texture("res://assets/cells/cell_rock.webp")
@@ -13188,9 +13294,9 @@ class Yard extends Control:
 			if shut:
 				var wash := _offline_wash(plate)
 				if wash != null:
-					draw_texture_rect(wash, plate, false)
+					draw_texture_rect(wash, plate, false, Color(1, 1, 1, 0.45))
 			elif room_type == "listening_post" and station.game.listening_probe_live() and probe_wash != null:
-				draw_texture_rect(probe_wash, _art_rect(room_type, rect), false)
+				draw_texture_rect(probe_wash, _art_rect(room_type, rect), false, Color(1, 1, 1, 0.35))
 			_draw_props(rect, room_type)
 			var salt := level * 6 + cell
 			var weak: bool = room != null and (bool(room.get("browned", false)) or station.dark_now.has(str(room.uid)) or station.power_loss.has(str(room.uid)))
@@ -13217,7 +13323,10 @@ class Yard extends Control:
 				draw_rect(rect.grow(-1.0), Color(station.BRASS, 0.9), false, 1.0 + float(int(room.upgrade)))
 			_draw_flash(rect, str(room.uid))
 			if int(room.get("push_tint_until", 0)) >= station.game.week:
-				draw_rect(rect, Color(0.05, 0.03, 0.02, 0.5))
+				if push_wash != null:
+					draw_texture_rect(push_wash, rect, false, Color(1, 1, 1, 0.30))
+				else:
+					draw_rect(rect, Color(0.05, 0.03, 0.02, 0.30))
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
 		if kind == "undug":
