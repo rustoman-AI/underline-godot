@@ -209,5 +209,17 @@
     "trait_absent_short": 2,
     "papers_step": 1,
     "people_one": 1
+  },
+  "station_life_scale": {
+    "_note": "P62 effects_words for chalk_marks, silent_car, mold_cart, shift_trade, pickle_stamp. Small steps only. shift_trade tax uses tokens_small and hope_small so the cut does not spike. Air and power stay on the same small step. Held / no-food lines omit the key.",
+    "hope_small": 1,
+    "discontent_small": 1,
+    "food_small": 2,
+    "materials_small": 2,
+    "tokens_small": 2,
+    "influence_small": 1,
+    "power_small": 2,
+    "air_small": 2,
+    "opinion_small": 2
   }
 }

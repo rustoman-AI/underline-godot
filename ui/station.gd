@@ -438,6 +438,44 @@ func _ready() -> void:
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
+	elif _dev_args().has("--station-life"):
+		await _station_life_shots()
+
+
+## Dev shots of the P62 one-shots on the existing event card. Not player chrome.
+func _station_life_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	for id in ["chalk_marks", "silent_car", "mold_cart"]:
+		game.pending.clear()
+		game.week_event_ids = {}
+		event_mode = "one"
+		game._present_event(game._event_by_id(id))
+		_show_dawn()
+		await _frame()
+		await _frame()
+		await _frame()
+		_save("station_life_%s" % id)
+		_close_card()
+	Copy.set_lang("ru")
+	game.pending.clear()
+	game.week_event_ids = {}
+	event_mode = "one"
+	game._present_event(game._event_by_id("pickle_stamp"))
+	_show_dawn()
+	await _frame()
+	await _frame()
+	await _frame()
+	_save("station_life_pickle_stamp_ru")
+	_close_card()
+	get_tree().quit(0)
 
 
 func _journal_shots() -> void:

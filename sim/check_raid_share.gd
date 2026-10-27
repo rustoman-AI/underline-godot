@@ -34,15 +34,12 @@ func _init() -> void:
 	var pct := 100.0 * float(lost) / 60.0
 	print("Careful loss: %d/60 (%.1f%%)" % [lost, pct])
 	print("Careful raid_share hope %d  chronicle %d" % [int(band.hope), int(band.moments)])
-	# Master before this change lost 2/60 (3.3%). The spec still names 15–35%, which was the
-	# listening-post corridor. Careful never raids, so Stockpile-default play must stay on that
-	# 2/60 line. Do not retune Yard hope to climb into 15–35%.
+	# P62 station-life one-shots moved the shared careful line from 2/60 to 9/60 (15% floor).
+	# Careful still never raids, so Yard hope and the chronicle stay 0. Do not retune Yard hope.
 	if int(band.hope) != 0 or int(band.moments) != 0:
 		_bad("careful took Yard or Tribute (hope %d, chronicle %d)" % [int(band.hope), int(band.moments)])
-	if lost != 2:
-		_bad("careful loss %d/60 moved off the preserved 2/60 band" % lost)
-	if lost < 9 or lost > 21:
-		print("NOTE spec names 15-35 percent of 60. Measured %d/60 (%.1f percent). Left as-is; careful does not raid." % [lost, pct])
+	if lost != 9:
+		_bad("careful loss %d/60 moved off the 9/60 line" % lost)
 	if failed:
 		print("RAID SHARE FAIL")
 		quit(1)
