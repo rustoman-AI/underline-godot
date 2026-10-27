@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_people_chips():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_people_chips():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -432,6 +432,8 @@ func _ready() -> void:
 		await _lore_shots()
 	elif _want_drawer():
 		await _drawer_shots()
+	elif _want_people_chips():
+		await _people_chip_shots()
 	elif _want_rooms():
 		await _rooms_shots()
 	elif _want_vo():
@@ -588,6 +590,10 @@ func _want_drawer() -> bool:
 	return _dev_args().has("--drawer")
 
 
+func _want_people_chips() -> bool:
+	return _dev_args().has("--people-chips")
+
+
 func _drawer_shots() -> void:
 	hold_dawn = false
 	await _settle(_shot_size())
@@ -665,6 +671,93 @@ func _drawer_shots() -> void:
 		await _frame()
 		_save("net_sheet_neighbor")
 	get_tree().quit()
+
+
+## Dev-only. Stages one Sick, one Away, one crew, and leaves room staff and the free list so the drawer shows every chip.
+func _people_chip_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	game.pending.clear()
+	hold_dawn = true
+	_stage_people_chip_shot()
+	_refresh()
+	_close_card()
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_scroll_people_to_chip("free")
+	await _frame()
+	_save("people_chips_free")
+	_scroll_people_to_chip("sick")
+	await _frame()
+	_save("people_chips_sick")
+	_scroll_people_to_chip("away")
+	await _frame()
+	_save("people_chips_away")
+	_scroll_people_to_chip("room")
+	await _frame()
+	_save("people_chips_room")
+	_scroll_people_to_chip("crew")
+	await _frame()
+	_save("people_chips_crew")
+	get_tree().quit()
+
+
+func _stage_people_chip_shot() -> void:
+	var free: Array = []
+	for person in game.residents:
+		var id := str(person.id)
+		if bool(person.get("soldier", false)) or _staff_room(id) != "":
+			continue
+		free.append(id)
+	if free.size() < 3:
+		return
+	var sick_id := str(free[0])
+	var away_id := str(free[1])
+	var crew_id := str(free[2])
+	game.people[sick_id].sick = 3
+	game.people[sick_id].absent = 0
+	game.people[away_id].sick = 0
+	game.people[away_id].absent = 2
+	game.dig = {"workers": [crew_id], "left": 1, "level": 0, "cell": 0}
+	_unassign_shot(crew_id)
+
+
+func _unassign_shot(id: String) -> void:
+	for room in game.rooms:
+		var keep: Array = []
+		for sid in room.staff:
+			if str(sid) != id:
+				keep.append(sid)
+		room.staff = keep
+
+
+func _scroll_people_to_chip(kind: String) -> void:
+	if people_scroll == null or people_box == null:
+		return
+	var chip := _find_people_chip(people_box, kind)
+	if chip == null:
+		return
+	var delta := chip.get_global_rect().position.y - people_scroll.get_global_rect().position.y
+	people_scroll.scroll_vertical = maxi(0, int(people_scroll.scroll_vertical + delta - 28.0))
+
+
+func _find_people_chip(node: Node, kind: String) -> Control:
+	if node is Control and str(node.name) == "PeopleChip" and str(node.get_meta("people_chip", "")) == kind:
+		return node
+	for child in node.get_children():
+		var found := _find_people_chip(child, kind)
+		if found != null:
+			return found
+	return null
 
 
 func _lore_shots() -> void:
@@ -2422,9 +2515,118 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	skill_label.add_theme_color_override("font_color", MUTED)
 	skill_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(skill_label)
+	line.alignment = BoxContainer.ALIGNMENT_CENTER
 	line.add_child(box)
+	line.add_child(_people_status_chip(id))
 	row.add_child(line)
 	return row
+
+
+## Right-aligned status chip. Sick beats Away, then a dig/build/clear crew, then the room, else Free.
+## Away uses person.absent and the same party-out read as the P44 yard bar. The chip never moves to that bar.
+## Static at every motion setting: no bob, no tween.
+const PEOPLE_CHIP_ROOM := 14
+
+
+func _people_chip(id: String) -> Dictionary:
+	var person: Dictionary = game.people[id]
+	if int(person.get("sick", 0)) > 0:
+		return _people_chip_row("sick", "people.chip_sick", "#c4544a", false, "")
+	if _people_chip_away(id):
+		return _people_chip_row("away", "people.chip_away", "#3a3126", false, "")
+	if _people_chip_on_crew(id):
+		return _people_chip_row("crew", "people.chip_crew", "#3a3126", false, "")
+	var room := _people_chip_room_name(id)
+	if room != "":
+		return _people_chip_row("room", "people.chip_room", "#3a3126", false, room)
+	return _people_chip_row("free", "people.chip_free", "muted", true, "")
+
+
+func _people_chip_row(kind: String, key: String, fill: String, muted: bool, room: String) -> Dictionary:
+	var text := Copy.fill(key, {"room": room}) if kind == "room" else Copy.t(key)
+	return {
+		"kind": kind,
+		"key": key,
+		"fill": fill,
+		"muted": muted,
+		"room": room,
+		"text": text,
+		"static": true,
+	}
+
+
+## Tunnel party / expedition: the same position check the P44 away bar uses, plus a person already marked absent.
+func _people_chip_away(id: String) -> bool:
+	if int(game.people[id].get("absent", 0)) > 0:
+		return true
+	if not game.squads.has(game.player):
+		return false
+	var sq: Dictionary = game.squads[game.player]
+	if not game._party_position_away(sq) or game._party_living_count(sq) <= 0:
+		return false
+	for wid in sq.get("roster", []):
+		if str(wid) == id:
+			return true
+	return false
+
+
+## Site crews only. The guard is not a dig/build crew and does not take this chip.
+func _people_chip_on_crew(id: String) -> bool:
+	for job in [game.dig, game.build, game.clear]:
+		if typeof(job) != TYPE_DICTIONARY:
+			continue
+		var crew: Dictionary = job
+		if crew.is_empty():
+			continue
+		for wid in crew.get("workers", []):
+			if str(wid) == id:
+				return true
+	return false
+
+
+func _people_chip_room_name(id: String) -> String:
+	for room in game.rooms:
+		for sid in room.staff:
+			if str(sid) == id:
+				return _people_chip_clip(room_title(room))
+	return ""
+
+
+func _people_chip_clip(line: String) -> String:
+	if line.length() <= PEOPLE_CHIP_ROOM:
+		return line
+	return line.substr(0, PEOPLE_CHIP_ROOM) + "…"
+
+
+func _people_status_chip(id: String) -> Control:
+	var chip := _people_chip(id)
+	var panel := PanelContainer.new()
+	panel.name = "PeopleChip"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	panel.custom_minimum_size = Vector2(72, 22)
+	panel.set_meta("people_chip", str(chip.kind))
+	panel.set_meta("people_chip_static", true)
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER if bool(chip.muted) else Color(str(chip.fill))
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 1
+	style.content_margin_bottom = 1
+	panel.add_theme_stylebox_override("panel", style)
+	var lab := _label(str(chip.text), 11, false, false)
+	lab.add_theme_color_override("font_color", MUTED if bool(chip.muted) else INK)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(lab)
+	return panel
 
 
 func _main_skill_text(person: Dictionary, prefer: String) -> String:
