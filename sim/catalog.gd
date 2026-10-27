@@ -41,6 +41,8 @@ var communities: Dictionary = {}
 ## English community, who, conflict and art per station id; the Russian text lives in `communities`.
 var communities_en: Dictionary = {}
 var geo: Dictionary = {}
+## P73 charges, promises, mandates, and ticker strings (data/charges.json).
+var charges_pack: Dictionary = {}
 var error: String = ""
 
 
@@ -72,6 +74,7 @@ func load_all() -> bool:
 	communities = _obj("station_communities.json")
 	communities_en = _obj("station_communities_en.json")
 	geo = _obj("map_geo.json")
+	charges_pack = _obj("charges.json")
 	var bad_goods := goods_problems()
 	if error == "" and not bad_goods.is_empty():
 		error = "station goods: " + "; ".join(bad_goods)
