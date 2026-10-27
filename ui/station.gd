@@ -3286,7 +3286,7 @@ func _ask_rally() -> void:
 	var why := game.rally_reason()
 	var lines: PackedStringArray = [Copy.t("The hall pulls the platform back from a revolt. Discontent %+d. Hope %+d.") % [int(game.bal.rally_discontent), int(game.bal.rally_hope)]]
 	if why != "":
-		lines.append(why)
+		lines.append(OrderWhy.show(game, "rally", why, {}))
 	_confirm("Hold a rally?", lines, why == "", {"kind": "rally"})
 
 
@@ -3402,7 +3402,7 @@ func _tap_cell(level: int, cell: int) -> void:
 			Copy.t("%s left.") % Words.count(int(game.dig.left), "week"),
 			Copy.t("%s on the crew.") % Words.count(game.dig.workers.size(), "person", "people"),
 		]
-		_confirm("Dig this cell?", digging, false, {"kind": "dig", "level": level, "cell": cell}, "Dig", _brigade_busy_reason())
+		_confirm("Dig this cell?", digging, false, {"kind": "dig", "level": level, "cell": cell}, "Dig", OrderWhy.show(game, "dig", _brigade_busy_reason(), {"level": level, "cell": cell}))
 		return
 	if not game.build.is_empty() and int(game.build.level) == level and int(game.build.cell) == cell:
 		var name := str(game.catalog.rooms[str(game.build.type)].name)
@@ -3417,6 +3417,8 @@ func _tap_cell(level: int, cell: int) -> void:
 			Words.count(int(info.materials), "material"),
 		]
 		var why := _brigade_busy_reason() if not game.dig.is_empty() else str(info.reason)
+		if not bool(info.ok):
+			why = OrderWhy.show(game, "dig", why, {"level": level, "cell": cell})
 		_confirm("Dig this cell?", lines, bool(info.ok), {"kind": "dig", "level": level, "cell": cell}, "Dig", why)
 		return
 	_show_build(level, cell)
@@ -3434,7 +3436,7 @@ func _tap_clear(level: int, cell: int, spot: Dictionary) -> void:
 			Copy.fill("clear.progress", {"n": str(int(game.clear.left))}),
 			Copy.t("%s on the crew.") % Words.count(game.clear.workers.size(), "person", "people"),
 		]
-		_confirm("clear.confirm", busy, false, {"kind": "clear", "level": level, "cell": cell}, "clear.go", Copy.t("clear.busy"))
+		_confirm("clear.confirm", busy, false, {"kind": "clear", "level": level, "cell": cell}, "clear.go", OrderWhy.show(game, "clear", Copy.t("clear.busy"), {"level": level, "cell": cell}))
 		return
 	var info := game.clear_preview(level, cell)
 	var lines: PackedStringArray = [
@@ -3450,7 +3452,10 @@ func _tap_clear(level: int, cell: int, spot: Dictionary) -> void:
 		muted.append(Copy.t("clear.risk_coal"))
 	elif int(info.risk_pct) > 0:
 		muted.append(Copy.fill("clear.risk", {"pct": str(int(info.risk_pct))}))
-	_confirm("clear.confirm", lines, bool(info.ok), {"kind": "clear", "level": level, "cell": cell}, "clear.go", str(info.reason), muted)
+	var why := ""
+	if not bool(info.ok):
+		why = OrderWhy.show(game, "clear", str(info.reason), {"level": level, "cell": cell})
+	_confirm("clear.confirm", lines, bool(info.ok), {"kind": "clear", "level": level, "cell": cell}, "clear.go", why, muted)
 
 
 func _drop_person(person_id: String, uid: String) -> void:
@@ -3605,8 +3610,13 @@ func _confirm_build(type: String, level: int, cell: int) -> void:
 	if bool(join.get("joins", false)) and str(join.get("bonus_line", "")) != "":
 		lines.append(str(join.bonus_line))
 	lines.append(Copy.t("Power use once it is running: %d.") % int(info.power))
-	if str(info.reason) != "":
-		lines.append(str(info.reason))
+	if bool(info.ok):
+		if str(info.reason) != "":
+			lines.append(str(info.reason))
+	else:
+		var why := OrderWhy.show(game, "build", str(info.get("reason", "")), {"level": level, "cell": cell, "type": type})
+		if why != "":
+			lines.append(why)
 	if yard != null:
 		yard.place_lock = true
 		yard.show_place(type, level, cell)
@@ -8491,13 +8501,16 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 		text.add_child(line)
 	text.add_child(_makes_line(type, defin))
 	text.add_child(_cost_line(info, defin, building))
-	if type == "listening_post" and str(info.get("reason", "")) != "":
-		var why := _label("", 14)
-		why.text = str(info.reason)
-		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		text.add_child(why)
 	if not enabled:
+		var built_why := OrderWhy.show(game, "build", str(info.get("reason", "")), {"level": level, "cell": cell, "type": type})
+		if built_why != "":
+			panel.tooltip_text = built_why
+		if type == "listening_post" and built_why != "":
+			var why := _label("", 14)
+			why.text = built_why
+			why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			text.add_child(why)
 		var lock := Glyph.new()
 		lock.kind = "lock"
 		lock.ink = PAPER_INK
