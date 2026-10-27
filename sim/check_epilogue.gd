@@ -366,7 +366,8 @@ func _check_score(catalog: Catalog) -> bool:
 	game.week = 10
 	game.hope = 7
 	game.stats.named_dead = 2
-	var expect := 10 * 10 + game.residents.size() * 2 + game.owned_count() * 15 + 7 - 2 * 5
+	## Stacked P72: a fresh run has no creed, so score_now adds 50. Mandate still adds nothing.
+	var expect := 10 * 10 + game.residents.size() * 2 + game.owned_count() * 15 + 7 - 2 * 5 + 50
 	if game.score_now() != expect:
 		print("Score: FAIL formula ", game.score_now(), " want ", expect)
 		ok = false
