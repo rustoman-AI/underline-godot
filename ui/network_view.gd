@@ -97,6 +97,25 @@ const BANNER_ROOMS := {
 	"southdepot": "platform",
 	"stadium": "meeting_hall",
 }
+## Playable stations.json ids share the community hub of the same place.
+## coney keeps the accepted Coney plate. southdepot is that plate's lore twin, so this map does not add one.
+const HUB_ALIAS := {
+	"coney": "hub_coney_island",
+	"botanic": "riverside",
+	"greenpoint": "mill",
+	"atlantic": "brickworks",
+	"jay": "library",
+	"high": "observatory",
+	"fulton": "quarry",
+	"bowling": "eastwater",
+	"wall": "trampark",
+	"chambers": "dockyard",
+	"canal": "clocktower",
+	"spring": "market",
+	"grand": "northgate",
+	"cityhall": "archive",
+	"southferry": "vault",
+}
 const PLATE := Color("1e1812")
 const HUB_MAX_H := 400.0
 ## The visit sheet never grows wider than this; the map shows dimmed on both sides of it.
@@ -5437,13 +5456,15 @@ func _hub_tex(game, st: Dictionary) -> Texture2D:
 	return ArtPack.load_texture(path) if path != "" else null
 
 
-## The picture a station shows: the capital's hub, the station's own hub art, else the room from BANNER_ROOMS;
-## "" when nothing fits.
+## The picture a station shows: the capital's hub, the station's own hub art, a playable-id alias
+## onto a community hub, else the room from BANNER_ROOMS; "" when nothing fits.
 func banner_path(game, sid: String) -> String:
 	var paths: PackedStringArray = []
 	if sid == str(game.capital_id):
 		paths.append("res://assets/hubs/hub_coney_island.webp")
 	paths.append("res://assets/hubs/%s.webp" % sid)
+	if HUB_ALIAS.has(sid):
+		paths.append("res://assets/hubs/%s.webp" % str(HUB_ALIAS[sid]))
 	if BANNER_ROOMS.has(sid):
 		paths.append("res://assets/rooms/room_%s.webp" % str(BANNER_ROOMS[sid]))
 	for path in paths:
