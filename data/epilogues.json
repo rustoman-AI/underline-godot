@@ -1,4 +1,42 @@
 {
+  "_note": "P68 Epilogue. Cite EPILOGUE_SPEC.md. Soft dawn: does NOT join. Content verdicts/judgments/fates/chronicle locked cite — do not redefine EN. Chrome by_key added 2026-10-26 for Code paste.",
+  "_roadmap": "P68",
+  "_owners": "Texts; Code _show_ending / check_epilogue.gd; UIUX 3-page end card; Art optional never blocks",
+  "_status": "Designer APPROVED / Code-ready — P68 chrome expand stamped 2026-10-26 (epilogue.score / chronicle_empty / next|back|close / page_verdict|page_chronicle|page_fates). Content 20/12/30/16 unchanged. Soft dawn does not join. Prefer Code after P67; stub fates OK. Merge Temur; evening grit 2026-10-26 (RU judgment papers). Late grit 2026-10-26 (RU verdicts). | Dawn grit 2026-10-27 (RU)",
+  "by_key": {
+    "epilogue.score": {
+      "en": "Score {n} · Best {best}",
+      "ru": "Счёт {n} · Лучший {best}"
+    },
+    "epilogue.chronicle_empty": {
+      "en": "Nothing the yard kept.",
+      "ru": "Двор ничего не сохранил."
+    },
+    "epilogue.next": {
+      "en": "Next",
+      "ru": "Дальше"
+    },
+    "epilogue.back": {
+      "en": "Back",
+      "ru": "Назад"
+    },
+    "epilogue.close": {
+      "en": "Close",
+      "ru": "Закрыть"
+    },
+    "epilogue.page_verdict": {
+      "en": "Verdict",
+      "ru": "Приговор"
+    },
+    "epilogue.page_chronicle": {
+      "en": "Chronicle",
+      "ru": "Летопись"
+    },
+    "epilogue.page_fates": {
+      "en": "Fates",
+      "ru": "Судьбы"
+    }
+  },
   "verdicts": {
     "time": {
       "watch": {
@@ -15,7 +53,7 @@
       },
       "none": {
         "en": "Forty weeks. The Depot kept its own counsel.",
-        "ru": "Сорок недель. Депо держало своё слово."
+        "ru": "Сорок недель. Депо держало свои мысли при себе."
       }
     },
     "revolt": {
@@ -79,7 +117,7 @@
       },
       "chapel": {
         "en": "The capital was lost. The Covenant did not hold the gate.",
-        "ru": "Столица потеряна. Завет ворота не удержал."
+        "ru": "Столица потеряна. Завет не удержал ворота."
       },
       "market": {
         "en": "The capital was lost. No price bought it back.",
@@ -87,7 +125,7 @@
       },
       "none": {
         "en": "The capital was lost. The Depot had nowhere left to stand.",
-        "ru": "Столица потеряна. Депо негде было стоять."
+        "ru": "Столица потеряна. Депо некуда было встать."
       }
     }
   },
@@ -125,7 +163,7 @@
     {
       "id": "covenant",
       "en": "You kept the Covenant and the hope floor. The Ex-drivers never forgave it. Whose faith was it?",
-      "ru": "Вы держали Завет и пол надежды. Бывшие машинисты так и не простили. Чья это была вера?"
+      "ru": "Вы держали Завет и порог надежды. Бывшие водители так и не простили. Чья это была вера?"
     },
     {
       "id": "price",
@@ -135,7 +173,7 @@
     {
       "id": "cough_list",
       "en": "Three sick went to Flushing and did not all come back. Was the list kinder than the seal?",
-      "ru": "Трое больных ушли во Флашинг — и вернулись не все. Был ли список мягче, чем печать?"
+      "ru": "Трое больных ушли во Флашинг — и вернулись не все. Был ли список мягче печати?"
     },
     {
       "id": "held_stations",
@@ -145,12 +183,12 @@
     {
       "id": "floor_papers",
       "en": "You chased the Floor and the papers. The bunkers did not give them freely. What did you leave behind?",
-      "ru": "Вы гнались за Этажом и страницами. Бункеры отдавали их недаром. Что вы оставили позади?"
+      "ru": "Вы гнались за Этажом и бумагами. Бункеры отдавали их недаром. Что вы оставили позади?"
     },
     {
       "id": "quiet_survive",
       "en": "No creed. No line. Forty weeks of work and quiet losses. Was keeping your hands clean enough?",
-      "ru": "Без кредо. Без черты. Сорок недель работы и тихих потерь. Хватило ли чистых рук?"
+      "ru": "Без кредо. Без черты. Сорок недель работы и тихих потерь. Хватило ли держать руки чистыми?"
     }
   ],
   "fates": [
@@ -257,12 +295,12 @@
     {
       "id": "stayed_sick",
       "en": "{name} worked sick through week {week}. The cough took them after.",
-      "ru": "{name} работал{a} больным до {week}-й недели. Потом забрал кашель."
+      "ru": "{name} работал{a} с болезнью до {week}-й недели. Потом забрал кашель."
     },
     {
       "id": "refuge_taken",
       "en": "{name} came in at the gate and stayed until the end.",
-      "ru": "{name} пришёл{a} у ворот и остался{a} до конца."
+      "ru": "{name} вошёл{a} у ворот и остался{a} до конца."
     },
     {
       "id": "child_grew",
