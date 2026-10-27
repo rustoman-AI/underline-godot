@@ -1,0 +1,19 @@
+{
+  "_note": "P74 night-run sites. Anchored to existing stations so pins reuse the map. intel 0 hidden, 1 rumored, 2+ known. clean_line danger +1 from week 20. Loot counts are items; medkits cost 3 backpack units.",
+  "sites": [
+    {"id": "riverside_ruins", "kind": "ruins", "station": "riverside", "danger": 1, "intel": 2, "clean_line": true, "yield": {"food": 4, "materials": 2, "medkits": 0, "intel": 1}},
+    {"id": "brickworks_platform", "kind": "dead_platform", "station": "brickworks", "danger": 2, "intel": 2, "clean_line": true, "yield": {"food": 2, "materials": 4, "medkits": 1, "intel": 1}},
+    {"id": "eastwater_platform", "kind": "dead_platform", "station": "eastwater", "danger": 2, "intel": 1, "clean_line": true, "yield": {"food": 2, "materials": 3, "medkits": 1, "intel": 1}},
+    {"id": "quarry_ruins", "kind": "ruins", "station": "quarry", "danger": 1, "intel": 0, "clean_line": false, "yield": {"food": 3, "materials": 3, "medkits": 0, "intel": 1}},
+    {"id": "mill_ruins", "kind": "ruins", "station": "mill", "danger": 1, "intel": 0, "clean_line": false, "yield": {"food": 5, "materials": 1, "medkits": 0, "intel": 1}},
+    {"id": "garden_ruins", "kind": "ruins", "station": "garden", "danger": 1, "intel": 0, "clean_line": false, "yield": {"food": 4, "materials": 1, "medkits": 0, "intel": 1}},
+    {"id": "archive_outer", "kind": "bunker_outer", "station": "archive", "danger": 3, "intel": 0, "clean_line": false, "yield": {"food": 1, "materials": 2, "medkits": 1, "intel": 2}},
+    {"id": "vault_outer", "kind": "bunker_outer", "station": "vault", "danger": 3, "intel": 0, "clean_line": false, "yield": {"food": 1, "materials": 3, "medkits": 1, "intel": 2}},
+    {"id": "oldcommand_outer", "kind": "bunker_outer", "station": "oldcommand", "danger": 3, "intel": 0, "clean_line": false, "yield": {"food": 1, "materials": 2, "medkits": 1, "intel": 2}},
+    {"id": "signal_outer", "kind": "bunker_outer", "station": "signal", "danger": 2, "intel": 0, "clean_line": false, "yield": {"food": 1, "materials": 2, "medkits": 1, "intel": 2}},
+    {"id": "harbor_steal", "kind": "neighbor", "station": "harbor", "danger": 2, "intel": 1, "clean_line": false, "yield": {"food": 3, "materials": 2, "medkits": 0, "intel": 1}},
+    {"id": "trampark_steal", "kind": "neighbor", "station": "trampark", "danger": 2, "intel": 0, "clean_line": false, "yield": {"food": 2, "materials": 2, "medkits": 1, "intel": 1}},
+    {"id": "chapel_steal", "kind": "neighbor", "station": "chapel", "danger": 2, "intel": 0, "clean_line": false, "yield": {"food": 3, "materials": 1, "medkits": 1, "intel": 1}},
+    {"id": "northgate_steal", "kind": "neighbor", "station": "northgate", "danger": 3, "intel": 0, "clean_line": false, "yield": {"food": 2, "materials": 2, "medkits": 1, "intel": 2}}
+  ]
+}

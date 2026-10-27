@@ -308,6 +308,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		belt_down = false
 		workshop_down = false
 		gen_down = false
+	NightRuns.boot(self)
 	if errors.is_empty():
 		telegraphed = _plan_intents()
 		_dawn()
@@ -580,6 +581,8 @@ func report() -> Dictionary:
 		"check_red_success": int(stats.get("check_red_success", 0)),
 		"check_retried": int(stats.get("check_retried", 0)),
 		"check_retry_passed": int(stats.get("check_retry_passed", 0)),
+		"night_deaths": int(flags.get("night_runs", {}).get("deaths", 0)) if flags.get("night_runs", null) is Dictionary else 0,
+		"night_runs": int(flags.get("night_runs", {}).get("runs", 0)) if flags.get("night_runs", null) is Dictionary else 0,
 	}
 
 
@@ -1248,6 +1251,8 @@ func _dawn_after_orders() -> void:
 	_audience_dawn()
 	_drip_piles()
 	_offer_home_chip()
+	## P74 dawn resolve card. Not a soft-dawn chip.
+	NightRuns.dawn(self)
 
 
 func _rival_phase() -> void:
@@ -5628,10 +5633,15 @@ func _order_expedition() -> bool:
 	squads[player].away = true
 	expedition = {"left": 3, "tunnel": "to_ferry"}
 	_log("ORDER expedition to South Ferry", true)
-	# P7 night runs should call _note_night_run. The expedition is the outing that exists today.
+	## The one-shot South Ferry march stays. Repeatable night runs are NightRuns.
 	for pid in _squad_names(2):
 		_note_night_run(str(pid))
 	return true
+
+
+## P74 night-run view. The ferry expedition is not this.
+func runs() -> Dictionary:
+	return NightRuns.view(self)
 
 
 func _order_approach() -> bool:
@@ -9204,6 +9214,12 @@ func _apply_event(action: Dictionary) -> bool:
 			choice = c
 	if choice.is_empty() or choice_locked(choice) or not choice_offered(choice) or not _afford(choice.get("cost", {})):
 		return false
+	if bool(ev.get("night_run", false)):
+		NightRuns.apply_choice(self, ev, choice)
+		pending.pop_front()
+		decisions += 1
+		_log("NIGHT %s" % str(choice.get("id", "")), true)
+		return true
 	_pay(choice.get("cost", {}))
 	var keep := true
 	if choice.has("check"):
@@ -12749,6 +12765,8 @@ func party_toggle(person_id: String) -> String:
 		roster.erase(person_id)
 		_sync_party(sq)
 		return ""
+	if NightRuns.on_run(self, person_id):
+		return Copy.t("run.rumor.party_conflict")
 	var person: Dictionary = people[person_id]
 	if _is_child(person):
 		return Copy.t("order.party_empty")
