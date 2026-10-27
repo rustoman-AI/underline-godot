@@ -1,0 +1,26 @@
+{
+  "_note": "P58 Passage Flow. Thin goods-on-edge read. Zero balance; not a dawn chip; no toll or route copy; no fake delta. Cite good.name.* for {good}. flow.quiet omitted MVP.",
+  "_roadmap": "P58",
+  "_owners": "Texts; Code edge tick + gate; UIUX tick on thread; Art optional flow_tick_24",
+  "_placeholders": [
+    "{good}"
+  ],
+  "_omit_mvp": [
+    "flow.quiet"
+  ],
+  "by_key": {
+    "flow.tip": {
+      "en": "Goods ride the passage.",
+      "ru": "Товар идёт по проходу."
+    },
+    "flow.good": {
+      "en": "{good}",
+      "ru": "{good}"
+    },
+    "flow.first": {
+      "en": "Goods ride the open passage.",
+      "ru": "Товар идёт по открытому проходу."
+    }
+  },
+  "_status": "Designer APPROVED / locked 2026-10-26 — P58 Passage Flow"
+}
