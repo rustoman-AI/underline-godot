@@ -925,7 +925,7 @@
   },
   "push.button": {
     "en": "Push",
-    "ru": "Нажать"
+    "ru": "Выжать"
   },
   "push.confirm_body": {
     "en": "Output doubles tonight. Incident risk ~%d%%.",
@@ -933,19 +933,19 @@
   },
   "push.confirm_title": {
     "en": "Push this room?",
-    "ru": "Нажать эту комнату?"
+    "ru": "Выжать эту комнату?"
   },
   "push.disabled_room": {
     "en": "This room cannot be pushed.",
-    "ru": "Эту комнату нажимать нельзя."
+    "ru": "Эту комнату не выжать."
   },
   "push.disabled_used": {
     "en": "Already pushed this week.",
-    "ru": "На этой неделе уже нажимали."
+    "ru": "На этой неделе уже выжимали."
   },
   "push.incident.air_filter": {
     "en": "Air filter: gate fire. Room off 1 week, 1 injured.",
-    "ru": "Воздушный фильтр: пожар у створки. Комната выключена на неделю, 1 ранен."
+    "ru": "Воздушный фильтр: пожар у створки. Комната встала на неделю, 1 ранен."
   },
   "push.incident.generator": {
     "en": "Generator: blowout. Lost 8 power, 1 injured.",
@@ -953,7 +953,7 @@
   },
   "push.incident.generic": {
     "en": "Push went wrong. Something broke.",
-    "ru": "Нажим сорвался. Что-то сломалось."
+    "ru": "Выжим сорвался. Что-то сломалось."
   },
   "push.incident.hydroponics": {
     "en": "Hydroponics: rot. Lost 4 food.",
@@ -977,7 +977,7 @@
   },
   "push.toast_ok": {
     "en": "{room} pushed. Output doubles tonight.",
-    "ru": "{room}: нажали. Ночной выход удвоится."
+    "ru": "{room}: выжали. Ночной выход удвоится."
   },
   "order.toast_cancel": {
     "en": "Order cancelled · {role}",

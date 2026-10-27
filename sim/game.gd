@@ -7,7 +7,8 @@ const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
 const HOPE_ZERO_WEEKS := 3
-const PUSH_BLOCKED := ["infirmary", "radio", "quarters"]
+## Hydroponics, air filter, generator, workshop, meeting hall. Infirmary, radio, quarters, and the platform never push.
+const PUSH_ROOMS := ["hydroponics", "air_filter", "generator", "workshop", "meeting_hall"]
 const PUSH_WINDOW := 4
 ## Salvage Board (DEC-S2). Tier is the blueprint gate. Step is the room upgrade level this node fits.
 ## Materials stay on the room's existing upgrade cost. No new balance.json numbers.
@@ -1538,18 +1539,11 @@ func radio_grant() -> int:
 
 ## --- push a room (one night, one room) ---
 
-## A room with its own output. Infirmary, radio and quarters never push.
+## One of the five producing rooms. Infirmary, radio, quarters, and the platform never push.
 func room_pushable(room) -> bool:
 	if not (room is Dictionary):
 		return false
-	var type := str(room.get("type", ""))
-	if type in PUSH_BLOCKED or not catalog.rooms.has(type):
-		return false
-	var base: Dictionary = catalog.rooms[type].get("base", {})
-	for key in base:
-		if float(base[key]) > 0.0:
-			return true
-	return false
+	return str(room.get("type", "")) in PUSH_ROOMS
 
 
 func room_pushed(room) -> bool:
