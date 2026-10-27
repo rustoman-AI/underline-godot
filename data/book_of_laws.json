@@ -1,0 +1,920 @@
+{
+  "_note": "P72 Book of Laws (historic P15 / DEC-3 → P72). Spec: /workspace/BOOK_OF_LAWS_P72_SPEC.md. Cite Design Review DEC-3; P67 Named Lives Ledger/Burial (cite only — do not rewrite named_lives); P65 Order Why disabled-tip pattern (do not reopen OW chrome); flat data/laws.json 9-law list → rewrite tree. Soft dawn: NONE (week-6 creed card = event/dawn card family ≠ soft dawn chip). Tone: dry metro grit — book of rules, not a sermon UI. Floor RU N/A. No balance invents beyond SPEC words. Chrome keys aligned 2026-10-26 to UI A1–A5 (law.* not laws.*).",
+  "_roadmap": "P72",
+  "_owners": "Texts; Code laws tree + can_enact/_apply_law; UIUX book Adaptation|Creed; Art optional creed seals (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P72 Book of Laws stamped 2026-10-26 (_designer APPROVED; chrome aligned). Soft dawn NONE. Night grit 2026-10-26 (RU). Late grit 2026-10-26 (RU week6/line/quarantine). | Dawn grit 2026-10-27 (RU)",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P67 named_lives.json — Ledger / Bury death-card strings (do not rewrite)",
+    "P65 order_why.json — disabled tip pattern only (do not reopen chrome)",
+    "underline-lfs/data/laws.json — historic flat 9 (engineers_charter…ledger) absorbed into tree"
+  ],
+  "tree": {
+    "adaptation_rows": [
+      {
+        "row": "food",
+        "label": {
+          "en": "Food",
+          "ru": "Еда"
+        },
+        "sides": [
+          "rationing",
+          "soup_line"
+        ]
+      },
+      {
+        "row": "work",
+        "label": {
+          "en": "Work",
+          "ru": "Труд"
+        },
+        "sides": [
+          "double_shifts",
+          "night_shift"
+        ],
+        "requires_row": "food"
+      },
+      {
+        "row": "sickness",
+        "label": {
+          "en": "Sickness",
+          "ru": "Болезнь"
+        },
+        "sides": [
+          "triage",
+          "quarantine"
+        ],
+        "requires_row": "work"
+      },
+      {
+        "row": "dead",
+        "label": {
+          "en": "The dead",
+          "ru": "Мёртвые"
+        },
+        "sides": [
+          "ledger",
+          "burial_tunnel"
+        ],
+        "requires_row": "sickness",
+        "cite": "P67 Named Lives Ledger/Burial death-card strings — do not rewrite named_lives pack"
+      }
+    ],
+    "creed_branches": [
+      {
+        "branch": "watch",
+        "label_key": "creed.watch",
+        "steps": [
+          "curfew",
+          "conscription",
+          "informers",
+          "timetable"
+        ],
+        "line": "timetable"
+      },
+      {
+        "branch": "chapel",
+        "label_key": "creed.chapel",
+        "steps": [
+          "sermons",
+          "chapel_shift",
+          "penance",
+          "covenant"
+        ],
+        "line": "covenant"
+      },
+      {
+        "branch": "market",
+        "label_key": "creed.market",
+        "steps": [
+          "open_market",
+          "tunnel_tax",
+          "token_wages",
+          "everything_has_a_price"
+        ],
+        "line": "everything_has_a_price"
+      }
+    ],
+    "depot_root": "engineers_charter",
+    "line_influence_cost": 10,
+    "meeting_cooldown_weeks": 3
+  },
+  "laws": [
+    {
+      "id": "engineers_charter",
+      "tab": "depot",
+      "row": null,
+      "branch": null,
+      "step": 0,
+      "line": false,
+      "requires": null,
+      "locks": null,
+      "existing": true,
+      "name": {
+        "en": "Engineers' Charter",
+        "ru": "Устав инженеров"
+      },
+      "blurb": {
+        "en": "Depot root. Dig a little faster. Stays if no creed locks in.",
+        "ru": "Корень депо. Копаем чуть быстрее. Остаётся, если кредо не закрепилось."
+      }
+    },
+    {
+      "id": "rationing",
+      "tab": "adapt",
+      "row": "food",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "A",
+      "requires": null,
+      "locks": [
+        "soup_line"
+      ],
+      "existing": true,
+      "name": {
+        "en": "Rationing",
+        "ru": "Пайки"
+      },
+      "blurb": {
+        "en": "Bowls shrink. Food goes further. Hope dips each week.",
+        "ru": "Миска худеет. Еда тянется дольше. Надежда падает каждую неделю."
+      }
+    },
+    {
+      "id": "soup_line",
+      "tab": "adapt",
+      "row": "food",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "B",
+      "requires": null,
+      "locks": [
+        "rationing"
+      ],
+      "existing": false,
+      "name": {
+        "en": "Soup line",
+        "ru": "Суповая очередь"
+      },
+      "blurb": {
+        "en": "One cook. Food need softens. Discontent eases a notch each week.",
+        "ru": "Один повар. Нужда в еде мягче. Недовольство чуть сдаёт каждую неделю."
+      }
+    },
+    {
+      "id": "double_shifts",
+      "tab": "adapt",
+      "row": "work",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "A",
+      "requires_row": "food",
+      "locks": [
+        "night_shift"
+      ],
+      "existing": true,
+      "name": {
+        "en": "Double shifts",
+        "ru": "Двойные смены"
+      },
+      "blurb": {
+        "en": "Output climbs. Sick chance climbs with it. The belt does not sleep.",
+        "ru": "Выход растёт. Растёт и шанс заболеть. Лента не спит."
+      }
+    },
+    {
+      "id": "night_shift",
+      "tab": "adapt",
+      "row": "work",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "B",
+      "requires_row": "food",
+      "locks": [
+        "double_shifts"
+      ],
+      "existing": false,
+      "name": {
+        "en": "Night shift",
+        "ru": "Ночная смена"
+      },
+      "blurb": {
+        "en": "Rooms with an Insomniac work harder after dark. Enacting costs a discontent spike.",
+        "ru": "Комнаты с Бессонником работают жёстче после отбоя. Введение бьёт недовольством."
+      }
+    },
+    {
+      "id": "triage",
+      "tab": "adapt",
+      "row": "sickness",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "A",
+      "requires_row": "work",
+      "locks": [
+        "quarantine"
+      ],
+      "existing": false,
+      "name": {
+        "en": "Triage",
+        "ru": "Сортировка"
+      },
+      "blurb": {
+        "en": "Infirmary cures one more. Cough: one named death per four sick.",
+        "ru": "Лазарет лечит на одного больше. Кашель: одна именная смерть на четверых больных."
+      }
+    },
+    {
+      "id": "quarantine",
+      "tab": "adapt",
+      "row": "sickness",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "B",
+      "requires_row": "work",
+      "locks": [
+        "triage"
+      ],
+      "existing": false,
+      "name": {
+        "en": "Quarantine all",
+        "ru": "Всеобщий карантин"
+      },
+      "blurb": {
+        "en": "Spread halves. Output dips while three or more are sick.",
+        "ru": "Зараза вдвое реже. Выход падает, пока больных трое и больше."
+      }
+    },
+    {
+      "id": "ledger",
+      "tab": "adapt",
+      "row": "dead",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "A",
+      "requires_row": "sickness",
+      "locks": [
+        "burial_tunnel"
+      ],
+      "existing": true,
+      "cite": "P67 Named Lives — death card Ledger choice",
+      "name": {
+        "en": "The Ledger of the Dead",
+        "ru": "Гроссбух мёртвых"
+      },
+      "blurb": {
+        "en": "Names go in the book. Mats from what they leave. Cite P67 death card.",
+        "ru": "Имена — в книгу. Маты с того, что осталось. См. карточку смерти P67."
+      }
+    },
+    {
+      "id": "burial_tunnel",
+      "tab": "adapt",
+      "row": "dead",
+      "branch": null,
+      "step": 1,
+      "line": false,
+      "side": "B",
+      "requires_row": "sickness",
+      "locks": [
+        "ledger"
+      ],
+      "existing": false,
+      "cite": "P67 Named Lives — Bury on death card; dig level-3 cell",
+      "name": {
+        "en": "Burial tunnel",
+        "ru": "Погребальный ход"
+      },
+      "blurb": {
+        "en": "Six mats and a dug level-three cell. Each burial: hope up one. Cite P67 Bury.",
+        "ru": "Шесть матов и вырытая камера третьего яруса. Каждые похороны: надежда +1. См. P67 Похоронить."
+      }
+    },
+    {
+      "id": "curfew",
+      "tab": "creed",
+      "row": null,
+      "branch": "watch",
+      "step": 1,
+      "line": false,
+      "requires": null,
+      "locks_branches_on_enact": [
+        "chapel",
+        "market"
+      ],
+      "existing": true,
+      "name": {
+        "en": "Curfew",
+        "ru": "Комендантский час"
+      },
+      "blurb": {
+        "en": "Lights out early. Discontent eases. Influence thins. Watch opens.",
+        "ru": "Свет гасят рано. Недовольство тише. Влияние жиже. Дозор открыт."
+      }
+    },
+    {
+      "id": "conscription",
+      "tab": "creed",
+      "row": null,
+      "branch": "watch",
+      "step": 2,
+      "line": false,
+      "requires": "curfew",
+      "existing": true,
+      "name": {
+        "en": "Conscription",
+        "ru": "Призыв"
+      },
+      "blurb": {
+        "en": "Squad thicker. Enacting hurts. The list has new names each week.",
+        "ru": "Отряд плотнее. Введение бьёт. В списке каждую неделю новые имена."
+      }
+    },
+    {
+      "id": "informers",
+      "tab": "creed",
+      "row": null,
+      "branch": "watch",
+      "step": 3,
+      "line": false,
+      "requires": "conscription",
+      "existing": false,
+      "name": {
+        "en": "Informers",
+        "ru": "Доносчики"
+      },
+      "blurb": {
+        "en": "Revolt warning one week earlier. Discontent softens. One resident mood sinks each week.",
+        "ru": "Предупреждение о бунте на неделю раньше. Недовольство мягче. Настроение одного жителя падает каждую неделю."
+      }
+    },
+    {
+      "id": "timetable",
+      "tab": "creed",
+      "row": null,
+      "branch": "watch",
+      "step": 4,
+      "line": true,
+      "requires": "informers",
+      "existing": false,
+      "name": {
+        "en": "Timetable",
+        "ru": "Расписание"
+      },
+      "blurb": {
+        "en": "Permanent line. No revolt while the squad is home and hope holds. Each week discontent is high, one named resident goes down the line.",
+        "ru": "Постоянная линия. Бунта нет, пока отряд дома и надежда держится. Каждую неделю при высоком недовольстве один именной уходит вниз по линии."
+      },
+      "line_text": {
+        "en": "The Timetable does not bend. While the squad sleeps under our roof and hope holds the floor, revolt stays quiet. When discontent runs hot, one named name walks the line down. Hope pays. This does not unwrite.",
+        "ru": "Расписание не гнётся. Пока отряд спит под нашей крышей и надежда держится, бунт молчит. Когда недовольство кипит — один именной идёт вниз по линии. Надежда платит. Это не переписывается."
+      }
+    },
+    {
+      "id": "sermons",
+      "tab": "creed",
+      "row": null,
+      "branch": "chapel",
+      "step": 1,
+      "line": false,
+      "requires": null,
+      "locks_branches_on_enact": [
+        "watch",
+        "market"
+      ],
+      "existing": true,
+      "name": {
+        "en": "Sermons",
+        "ru": "Проповеди"
+      },
+      "blurb": {
+        "en": "Hope climbs. Synod notices. Devout sleep a little easier.",
+        "ru": "Надежда растёт. Синод замечает. Набожным чуть легче спать."
+      }
+    },
+    {
+      "id": "chapel_shift",
+      "tab": "creed",
+      "row": null,
+      "branch": "chapel",
+      "step": 2,
+      "line": false,
+      "requires": "sermons",
+      "existing": false,
+      "name": {
+        "en": "Chapel shift",
+        "ru": "Церковная смена"
+      },
+      "blurb": {
+        "en": "Hope each week. Output softens. Hands leave the belt for the aisle.",
+        "ru": "Надежда каждую неделю. Выход мягче. Руки уходят с ленты в часовню."
+      }
+    },
+    {
+      "id": "penance",
+      "tab": "creed",
+      "row": null,
+      "branch": "chapel",
+      "step": 3,
+      "line": false,
+      "requires": "chapel_shift",
+      "existing": false,
+      "name": {
+        "en": "Penance",
+        "ru": "Покаяние"
+      },
+      "blurb": {
+        "en": "Once a week: trade two discontent for one hope.",
+        "ru": "Раз в неделю: два недовольства за одну надежду."
+      }
+    },
+    {
+      "id": "covenant",
+      "tab": "creed",
+      "row": null,
+      "branch": "chapel",
+      "step": 4,
+      "line": true,
+      "requires": "penance",
+      "existing": false,
+      "name": {
+        "en": "Covenant",
+        "ru": "Завет"
+      },
+      "blurb": {
+        "en": "Permanent line. Sermons stay. Hope will not fall through the floor. Synod pact. Ex-drivers sour; Directorate cools.",
+        "ru": "Постоянная линия. Проповеди остаются. Надежда не падает ниже порога. Пакт с Синодом. Бывшие водители киснут; Директорат холодеет."
+      },
+      "line_text": {
+        "en": "The Covenant binds the platform. Sermons do not leave. Hope keeps a floor. The Synod counts us among its own. Ex-drivers and the Directorate will not forgive it. This does not unwrite.",
+        "ru": "Завет вяжет платформу. Проповеди не уходят. У надежды есть порог. Синод считает нас своими. Бывшие водители и Директорат этого не простят. Это не переписывается."
+      }
+    },
+    {
+      "id": "open_market",
+      "tab": "creed",
+      "row": null,
+      "branch": "market",
+      "step": 1,
+      "line": false,
+      "requires": null,
+      "locks_branches_on_enact": [
+        "watch",
+        "chapel"
+      ],
+      "existing": true,
+      "name": {
+        "en": "Open market",
+        "ru": "Открытый рынок"
+      },
+      "blurb": {
+        "en": "Tokens move. Enacting costs a discontent spike. Exchange smiles.",
+        "ru": "Жетоны ходят. Введение бьёт недовольством. Биржа довольна."
+      }
+    },
+    {
+      "id": "tunnel_tax",
+      "tab": "creed",
+      "row": null,
+      "branch": "market",
+      "step": 2,
+      "line": false,
+      "requires": "open_market",
+      "existing": true,
+      "name": {
+        "en": "Tunnel tax",
+        "ru": "Туннельный налог"
+      },
+      "blurb": {
+        "en": "Tokens each week. Neighbors remember the toll on the gate.",
+        "ru": "Жетоны каждую неделю. Соседи помнят пошлину у ворот."
+      }
+    },
+    {
+      "id": "token_wages",
+      "tab": "creed",
+      "row": null,
+      "branch": "market",
+      "step": 3,
+      "line": false,
+      "requires": "tunnel_tax",
+      "existing": false,
+      "name": {
+        "en": "Token wages",
+        "ru": "Жетонная плата"
+      },
+      "blurb": {
+        "en": "One token per resident per week softens discontent. Unpaid weeks bite hard.",
+        "ru": "Жетон на жителя в неделю смягчает недовольство. Недели без платы кусаются."
+      }
+    },
+    {
+      "id": "everything_has_a_price",
+      "tab": "creed",
+      "row": null,
+      "branch": "market",
+      "step": 4,
+      "line": true,
+      "requires": "token_wages",
+      "existing": false,
+      "name": {
+        "en": "Everything has a price",
+        "ru": "У всего есть цена"
+      },
+      "blurb": {
+        "en": "Permanent line. Sell a resident. Buy a migrant. Buy hope once a week. Devout and Ex-drivers sour.",
+        "ru": "Постоянная линия. Продать жителя. Купить переселенца. Купить надежду раз в неделю. Набожные и бывшие водители киснут."
+      },
+      "line_text": {
+        "en": "Everything has a price on this platform. A resident can be sold. A migrant bought. Hope purchased once a week — for those who can pay. Devout and Ex-drivers will not forget the ledger. This does not unwrite.",
+        "ru": "На этой платформе у всего есть цена. Жителя можно продать. Переселенца — купить. Надежду — раз в неделю, для тех кто платит. Набожные и бывшие водители гроссбух не забудут. Это не переписывается."
+      }
+    }
+  ],
+  "by_key": {
+    "law.tab_adapt": {
+      "en": "Adaptation",
+      "ru": "Приспособление"
+    },
+    "law.tab_creed": {
+      "en": "Creed",
+      "ru": "Кредо"
+    },
+    "law.week6": {
+      "en": "The platform asks what we stand for.",
+      "ru": "Платформа спрашивает, за что мы стоим."
+    },
+    "law.week6_title": {
+      "en": "What we stand for",
+      "ru": "За что мы стоим"
+    },
+    "law.week6_body": {
+      "en": "Week six. The meeting hall is full. Adaptation has kept us alive. Now the platform wants a creed — or none, and the Engineers' Charter holds the root.",
+      "ru": "Шестая неделя. Зал собраний полон. Приспособление нас продержало. Теперь платформа хочет кредо — или никакого, и корень останется за Уставом инженеров."
+    },
+    "law.line_confirm": {
+      "en": "This line is permanent. Enact?",
+      "ru": "Эта линия постоянна. Ввести?"
+    },
+    "law.line_confirm_title": {
+      "en": "Permanent line",
+      "ru": "Постоянная линия"
+    },
+    "law.line_need_influence": {
+      "en": "Needs 10 influence.",
+      "ru": "Нужно 10 влияния."
+    },
+    "law.cooldown": {
+      "en": "Meeting hall cooling down — {n} weeks.",
+      "ru": "Зал собраний остывает — {n} нед."
+    },
+    "law.need_hall": {
+      "en": "Needs a staffed meeting hall.",
+      "ru": "Нужен укомплектованный зал собраний."
+    },
+    "law.need_row": {
+      "en": "Enact a law from the row above first.",
+      "ru": "Сначала введите закон из ряда выше."
+    },
+    "law.branch_locked": {
+      "en": "Another creed already holds the book.",
+      "ru": "Другое кредо уже держит книгу."
+    },
+    "law.fork_taken": {
+      "en": "The other fork on this row is already law.",
+      "ru": "Другая развилка этого ряда уже закон."
+    },
+    "law.enact": {
+      "en": "Enact",
+      "ru": "Ввести"
+    },
+    "law.repeal": {
+      "en": "Repeal",
+      "ru": "Отменить"
+    },
+    "creed.watch": {
+      "en": "Watch",
+      "ru": "Дозор"
+    },
+    "creed.chapel": {
+      "en": "Chapel",
+      "ru": "Часовня"
+    },
+    "creed.market": {
+      "en": "Market",
+      "ru": "Рынок"
+    },
+    "creed.none": {
+      "en": "No creed",
+      "ru": "Без кредо"
+    },
+    "creed.watch_tip": {
+      "en": "Directorate leans in. Exchange cools. Order over warmth.",
+      "ru": "Директорат ближе. Биржа холодеет. Порядок важнее тепла."
+    },
+    "creed.chapel_tip": {
+      "en": "Synod leans in. Penn cools. Faith over freight.",
+      "ru": "Синод ближе. Пенн холодеет. Вера важнее груза."
+    },
+    "creed.market_tip": {
+      "en": "Exchange leans in. Directorate cools. Price over creed.",
+      "ru": "Биржа ближе. Директорат холодеет. Цена важнее кредо."
+    },
+    "creed.none_tip": {
+      "en": "Engineers' Charter stays Depot root. Epilogue remembers the Depot.",
+      "ru": "Устав инженеров остаётся корнем депо. Эпилог помнит Депо."
+    },
+    "law.name.engineers_charter": {
+      "en": "Engineers' Charter",
+      "ru": "Устав инженеров"
+    },
+    "law.blurb.engineers_charter": {
+      "en": "Depot root. Dig a little faster. Stays if no creed locks in.",
+      "ru": "Корень депо. Копаем чуть быстрее. Остаётся, если кредо не закрепилось."
+    },
+    "law.name.rationing": {
+      "en": "Rationing",
+      "ru": "Пайки"
+    },
+    "law.blurb.rationing": {
+      "en": "Bowls shrink. Food goes further. Hope dips each week.",
+      "ru": "Миска худеет. Еда тянется дольше. Надежда падает каждую неделю."
+    },
+    "law.name.soup_line": {
+      "en": "Soup line",
+      "ru": "Суповая очередь"
+    },
+    "law.blurb.soup_line": {
+      "en": "One cook. Food need softens. Discontent eases a notch each week.",
+      "ru": "Один повар. Нужда в еде мягче. Недовольство чуть сдаёт каждую неделю."
+    },
+    "law.name.double_shifts": {
+      "en": "Double shifts",
+      "ru": "Двойные смены"
+    },
+    "law.blurb.double_shifts": {
+      "en": "Output climbs. Sick chance climbs with it. The belt does not sleep.",
+      "ru": "Выход растёт. Растёт и шанс заболеть. Лента не спит."
+    },
+    "law.name.night_shift": {
+      "en": "Night shift",
+      "ru": "Ночная смена"
+    },
+    "law.blurb.night_shift": {
+      "en": "Rooms with an Insomniac work harder after dark. Enacting costs a discontent spike.",
+      "ru": "Комнаты с Бессонником работают жёстче после отбоя. Введение бьёт недовольством."
+    },
+    "law.name.triage": {
+      "en": "Triage",
+      "ru": "Сортировка"
+    },
+    "law.blurb.triage": {
+      "en": "Infirmary cures one more. Cough: one named death per four sick.",
+      "ru": "Лазарет лечит на одного больше. Кашель: одна именная смерть на четверых больных."
+    },
+    "law.name.quarantine": {
+      "en": "Quarantine all",
+      "ru": "Всеобщий карантин"
+    },
+    "law.blurb.quarantine": {
+      "en": "Spread halves. Output dips while three or more are sick.",
+      "ru": "Зараза вдвое реже. Выход падает, пока больных трое и больше."
+    },
+    "law.name.ledger": {
+      "en": "The Ledger of the Dead",
+      "ru": "Гроссбух мёртвых"
+    },
+    "law.blurb.ledger": {
+      "en": "Names go in the book. Mats from what they leave. Cite P67 death card.",
+      "ru": "Имена — в книгу. Маты с того, что осталось. См. карточку смерти P67."
+    },
+    "law.name.burial_tunnel": {
+      "en": "Burial tunnel",
+      "ru": "Погребальный ход"
+    },
+    "law.blurb.burial_tunnel": {
+      "en": "Six mats and a dug level-three cell. Each burial: hope up one. Cite P67 Bury.",
+      "ru": "Шесть матов и вырытая камера третьего яруса. Каждые похороны: надежда +1. См. P67 Похоронить."
+    },
+    "law.name.curfew": {
+      "en": "Curfew",
+      "ru": "Комендантский час"
+    },
+    "law.blurb.curfew": {
+      "en": "Lights out early. Discontent eases. Influence thins. Watch opens.",
+      "ru": "Свет гасят рано. Недовольство тише. Влияние жиже. Дозор открыт."
+    },
+    "law.name.conscription": {
+      "en": "Conscription",
+      "ru": "Призыв"
+    },
+    "law.blurb.conscription": {
+      "en": "Squad thicker. Enacting hurts. The list has new names each week.",
+      "ru": "Отряд плотнее. Введение бьёт. В списке каждую неделю новые имена."
+    },
+    "law.name.informers": {
+      "en": "Informers",
+      "ru": "Доносчики"
+    },
+    "law.blurb.informers": {
+      "en": "Revolt warning one week earlier. Discontent softens. One resident mood sinks each week.",
+      "ru": "Предупреждение о бунте на неделю раньше. Недовольство мягче. Настроение одного жителя падает каждую неделю."
+    },
+    "law.name.timetable": {
+      "en": "Timetable",
+      "ru": "Расписание"
+    },
+    "law.blurb.timetable": {
+      "en": "Permanent line. No revolt while the squad is home and hope holds. Each week discontent is high, one named resident goes down the line.",
+      "ru": "Постоянная линия. Бунта нет, пока отряд дома и надежда держится. Каждую неделю при высоком недовольстве один именной уходит вниз по линии."
+    },
+    "law.line_text.timetable": {
+      "en": "The Timetable does not bend. While the squad sleeps under our roof and hope holds the floor, revolt stays quiet. When discontent runs hot, one named name walks the line down. Hope pays. This does not unwrite.",
+      "ru": "Расписание не гнётся. Пока отряд спит под нашей крышей и надежда держится, бунт молчит. Когда недовольство кипит — один именной идёт вниз по линии. Надежда платит. Это не переписывается."
+    },
+    "law.name.sermons": {
+      "en": "Sermons",
+      "ru": "Проповеди"
+    },
+    "law.blurb.sermons": {
+      "en": "Hope climbs. Synod notices. Devout sleep a little easier.",
+      "ru": "Надежда растёт. Синод замечает. Набожным чуть легче спать."
+    },
+    "law.name.chapel_shift": {
+      "en": "Chapel shift",
+      "ru": "Церковная смена"
+    },
+    "law.blurb.chapel_shift": {
+      "en": "Hope each week. Output softens. Hands leave the belt for the aisle.",
+      "ru": "Надежда каждую неделю. Выход мягче. Руки уходят с ленты в часовню."
+    },
+    "law.name.penance": {
+      "en": "Penance",
+      "ru": "Покаяние"
+    },
+    "law.blurb.penance": {
+      "en": "Once a week: trade two discontent for one hope.",
+      "ru": "Раз в неделю: два недовольства за одну надежду."
+    },
+    "law.name.covenant": {
+      "en": "Covenant",
+      "ru": "Завет"
+    },
+    "law.blurb.covenant": {
+      "en": "Permanent line. Sermons stay. Hope will not fall through the floor. Synod pact. Ex-drivers sour; Directorate cools.",
+      "ru": "Постоянная линия. Проповеди остаются. Надежда не падает ниже порога. Пакт с Синодом. Бывшие водители киснут; Директорат холодеет."
+    },
+    "law.line_text.covenant": {
+      "en": "The Covenant binds the platform. Sermons do not leave. Hope keeps a floor. The Synod counts us among its own. Ex-drivers and the Directorate will not forgive it. This does not unwrite.",
+      "ru": "Завет вяжет платформу. Проповеди не уходят. У надежды есть порог. Синод считает нас своими. Бывшие водители и Директорат этого не простят. Это не переписывается."
+    },
+    "law.name.open_market": {
+      "en": "Open market",
+      "ru": "Открытый рынок"
+    },
+    "law.blurb.open_market": {
+      "en": "Tokens move. Enacting costs a discontent spike. Exchange smiles.",
+      "ru": "Жетоны ходят. Введение бьёт недовольством. Биржа довольна."
+    },
+    "law.name.tunnel_tax": {
+      "en": "Tunnel tax",
+      "ru": "Туннельный налог"
+    },
+    "law.blurb.tunnel_tax": {
+      "en": "Tokens each week. Neighbors remember the toll on the gate.",
+      "ru": "Жетоны каждую неделю. Соседи помнят пошлину у ворот."
+    },
+    "law.name.token_wages": {
+      "en": "Token wages",
+      "ru": "Жетонная плата"
+    },
+    "law.blurb.token_wages": {
+      "en": "One token per resident per week softens discontent. Unpaid weeks bite hard.",
+      "ru": "Жетон на жителя в неделю смягчает недовольство. Недели без платы кусаются."
+    },
+    "law.name.everything_has_a_price": {
+      "en": "Everything has a price",
+      "ru": "У всего есть цена"
+    },
+    "law.blurb.everything_has_a_price": {
+      "en": "Permanent line. Sell a resident. Buy a migrant. Buy hope once a week. Devout and Ex-drivers sour.",
+      "ru": "Постоянная линия. Продать жителя. Купить переселенца. Купить надежду раз в неделю. Набожные и бывшие водители киснут."
+    },
+    "law.line_text.everything_has_a_price": {
+      "en": "Everything has a price on this platform. A resident can be sold. A migrant bought. Hope purchased once a week — for those who can pay. Devout and Ex-drivers will not forget the ledger. This does not unwrite.",
+      "ru": "На этой платформе у всего есть цена. Жителя можно продать. Переселенца — купить. Надежду — раз в неделю, для тех кто платит. Набожные и бывшие водители гроссбух не забудут. Это не переписывается."
+    },
+    "law.tab_adaptation": {
+      "en": "Adaptation",
+      "ru": "Приспособление"
+    },
+    "law.week6_open": {
+      "en": "Open the Creed",
+      "ru": "Открыть кредо"
+    },
+    "law.week6_later": {
+      "en": "Later",
+      "ru": "Позже"
+    },
+    "law.enact_tip": {
+      "en": "Pass this law. Next sitting in {n} weeks.",
+      "ru": "Принять этот закон. Следующее заседание через {n} нед."
+    },
+    "law.influence_short": {
+      "en": "Not enough influence.",
+      "ru": "Не хватает влияния."
+    },
+    "law.locked_path": {
+      "en": "Locked — another creed was chosen.",
+      "ru": "Закрыто — выбрано другое кредо."
+    },
+    "law.requires_row": {
+      "en": "Needs a law from the row above.",
+      "ru": "Нужен закон из ряда выше."
+    },
+    "law.creed_locked_week": {
+      "en": "Creed opens at week 6.",
+      "ru": "Кредо открывается на 6-й неделе."
+    },
+    "creed.none_hint": {
+      "en": "No creed — Depot holds.",
+      "ru": "Без кредо — держит Депо."
+    },
+    "law.week6_card": {
+      "en": "What we stand for",
+      "ru": "За что мы стоим"
+    },
+    "law.in_force": {
+      "en": "In force.",
+      "ru": "Действует."
+    },
+    "law.row.food": {
+      "en": "Food",
+      "ru": "Еда"
+    },
+    "law.row.work": {
+      "en": "Work",
+      "ru": "Труд"
+    },
+    "law.row.sickness": {
+      "en": "Sickness",
+      "ru": "Болезнь"
+    },
+    "law.row.dead": {
+      "en": "The dead",
+      "ru": "Мёртвые"
+    },
+    "law.trade_sell": {
+      "en": "Sell a resident.",
+      "ru": "Продать жителя."
+    },
+    "law.trade_migrant": {
+      "en": "Buy a migrant.",
+      "ru": "Купить переселенца."
+    },
+    "law.trade_hope": {
+      "en": "Buy hope once a week.",
+      "ru": "Купить надежду раз в неделю."
+    }
+  },
+  "meta": {
+    "existing_absorbed": 9,
+    "new_laws": 12,
+    "line_laws": 3,
+    "week6_card_keys": [
+      "law.week6",
+      "law.week6_title",
+      "law.week6_body"
+    ],
+    "ui_chrome_keys": [
+      "law.tab_adapt",
+      "law.tab_creed",
+      "law.line_confirm",
+      "law.line_confirm_title",
+      "law.line_need_influence",
+      "law.cooldown",
+      "law.need_hall",
+      "law.need_row",
+      "law.branch_locked",
+      "law.fork_taken",
+      "law.enact",
+      "law.repeal",
+      "creed.watch",
+      "creed.chapel",
+      "creed.market",
+      "creed.none",
+      "creed.watch_tip",
+      "creed.chapel_tip",
+      "creed.market_tip",
+      "creed.none_tip"
+    ]
+  },
+  "_designer": "APPROVED"
+}

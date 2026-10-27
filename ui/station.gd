@@ -179,6 +179,11 @@ var hints_late := false
 const CARD_CLICK_GUARD_MS := 350
 ## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
 var card_roomy := false
+## Book of Laws. Adaptation is the default leaf. Creed opens from the week-6 card.
+var laws_tab := "adapt"
+var laws_open_after := false
+var law_art := {}
+var book_host: Control = null
 var portraits: Array = []
 var portrait_names: Array = []
 ## Playtest: consent, how-to and crash cards sit on their own layer above the menu.
@@ -375,7 +380,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_laws():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +396,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_laws():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +439,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_laws():
+		await _laws_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -766,6 +773,105 @@ func _want_checks() -> bool:
 
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
+
+
+func _want_laws() -> bool:
+	return _dev_args().has("--laws")
+
+
+## Book of Laws stills. Writes /opt/cursor/artifacts/p72_*.png.
+func _laws_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_laws_staff_hall()
+	game.week = 4
+	game.law_lock = 0
+	game.pending.clear()
+	laws_tab = "adapt"
+	_show_laws()
+	await _laws_paint()
+	_save_artifact("p72_book_shell")
+	if game.apply({"kind": "law", "law": "rationing"}):
+		game.law_lock = 0
+	_show_laws()
+	await _laws_paint()
+	_save_artifact("p72_adaptation_forks")
+	game.week = 6
+	game.law_lock = 0
+	for step in ["curfew", "conscription", "informers"]:
+		game.law_lock = 0
+		game.apply({"kind": "law", "law": step})
+	game.law_lock = 0
+	game.stock.influence = maxi(int(game.stock.influence), 12)
+	laws_tab = "creed"
+	_show_laws()
+	await _laws_paint()
+	_save_artifact("p72_creed_branches")
+	var defin: Dictionary = game.catalog.laws.timetable
+	_ask_line("timetable", defin, game.enact_reason("timetable"))
+	await _laws_paint()
+	_save_artifact("p72_line_confirm")
+	_close_card()
+	game.pending.clear()
+	game.audience.clear()
+	game.order_reports.clear()
+	game.week = 6
+	game.flags.erase("law_week6")
+	game._offer_week6_creed()
+	hold_dawn = false
+	_show_dawn()
+	await _laws_paint()
+	_save_artifact("p72_week6_card")
+	get_tree().quit()
+
+
+func _laws_staff_hall() -> void:
+	if game._room_ready("meeting_hall"):
+		game.law_lock = 0
+		return
+	var spot := Vector2i(-1, -1)
+	for key in game.cells:
+		var cell: Dictionary = game.cells[key]
+		if not bool(cell.get("dug", false)) or str(cell.get("room", "")) != "":
+			continue
+		if bool(cell.get("flooded", false)) or str(cell.get("pile", "")) != "":
+			continue
+		spot = Vector2i(int(cell.level), int(cell.cell))
+		break
+	if spot.x < 0:
+		return
+	game._place_room("meeting_hall", spot.x, spot.y)
+	var who := ""
+	for person in game.residents:
+		if game._is_child(person):
+			continue
+		who = str(person.id)
+		break
+	for room in game.rooms:
+		if str(room.type) == "meeting_hall" and who != "":
+			room.staff = [who]
+	game.law_lock = 0
+
+
+func _laws_paint() -> void:
+	for _i in 8:
+		await _frame()
+
+
+func _save_artifact(shot_name: String) -> void:
+	var dir := "/opt/cursor/artifacts"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var img := get_viewport().get_texture().get_image()
+	var path := dir + "/%s.png" % shot_name
+	var err := img.save_png(path)
+	print("ARTIFACT %s %dx%d err %s" % [path, img.get_width(), img.get_height(), err])
 
 
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
@@ -3293,10 +3399,27 @@ func _ask_rally() -> void:
 func _ask_law(law_id: String) -> void:
 	var defin: Dictionary = game.catalog.laws[law_id]
 	var why := game.enact_reason(law_id)
-	var lines: PackedStringArray = [_law_blurb(defin)]
+	if bool(defin.get("line", false)):
+		_ask_line(law_id, defin, why)
+		return
+	var lines: PackedStringArray = [_law_body(defin)]
+	lines.append(Copy.fill("law.enact_tip", {"n": int(game.bal.law_cooldown)}))
 	if why != "":
 		lines.append(why)
-	_confirm(Copy.t(str(defin.name)) + "?", lines, why == "", {"kind": "law", "law": law_id})
+	_confirm(_law_title(defin) + "?", lines, why == "", {"kind": "law", "law": law_id}, Copy.t("law.enact"))
+
+
+## Dig-shaped confirm (P69 / P56 cite). Full line text, permanent, 10 influence.
+func _ask_line(law_id: String, defin: Dictionary, why: String) -> void:
+	var lines: PackedStringArray = [Copy.t("law.line_confirm_title"), _law_title(defin)]
+	var text_key := "law.line_text." + law_id
+	if Copy.keys.has(text_key):
+		lines.append(Copy.t(text_key))
+	lines.append(Copy.t("law.line_confirm"))
+	var muted := PackedStringArray()
+	if why == Copy.t("law.influence_short"):
+		muted.append("law.line_need_influence")
+	_confirm(_law_title(defin), lines, why == "", {"kind": "law", "law": law_id}, Copy.t("law.enact"), why, muted)
 
 
 func _ask_repeal(law_id: String) -> void:
@@ -4646,26 +4769,17 @@ func _show_laws() -> void:
 	if not _claim(ModalDeck.AMBIENT, "laws", _show_laws):
 		return
 	_open_card("Laws")
+	card_roomy = true
+	_fit_card()
 	if not game._room_ready("meeting_hall"):
 		_body(Copy.t("Staff the meeting hall. The hall can pass one law, then it waits %s.") % Words.count(int(game.bal.law_cooldown), "week"))
 	elif game.law_lock > 0:
 		_body(Copy.t("A law was just passed. The next one is %s away.") % Words.count(game.law_lock, "week"))
 	else:
 		_body(Copy.t("One law this sitting. The next sitting is %s later.") % Words.count(int(game.bal.law_cooldown), "week"))
-	for id in game.catalog.laws:
-		var defin: Dictionary = game.catalog.laws[id]
-		_heading(Copy.t(str(defin.name)))
-		_body(_law_blurb(defin))
-		if game.laws_on.has(id):
-			_body("In force.")
-		else:
-			var why := game.enact_reason(str(id))
-			var label := Copy.t("Enact %s") % Copy.t(str(defin.name))
-			if why == "":
-				card_body.add_child(_button(label, _enact.bind(str(id))))
-			else:
-				_blocked_pair(label, why)
+	_law_book()
 	card_body.add_child(_button("Close", _close_card))
+	_fit_card()
 
 
 func _enact(law_id: String) -> void:
@@ -4714,6 +4828,250 @@ func _law_blurb(defin: Dictionary) -> String:
 	if defin.has("opinion_on_enact"):
 		bits.append(Copy.t("Every rival's opinion %+d.") % int(defin.opinion_on_enact))
 	return " ".join(bits)
+
+
+const BOOK_ROWS := [
+	["food", "law.row.food", "rationing", "soup_line"],
+	["work", "law.row.work", "double_shifts", "night_shift"],
+	["sickness", "law.row.sickness", "triage", "quarantine"],
+	["dead", "law.row.dead", "ledger", "burial_tunnel"],
+]
+const BOOK_CREEDS := [
+	["watch", "creed.watch", "curfew", "conscription", "informers", "timetable"],
+	["chapel", "creed.chapel", "sermons", "chapel_shift", "penance", "covenant"],
+	["market", "creed.market", "open_market", "tunnel_tax", "token_wages", "everything_has_a_price"],
+]
+const LAW_ART := {
+	"frame": ["res://assets/ui/law_page_frame.webp", "40b6b1ec2b891e73164f52ffea834f34"],
+	"watch": ["res://assets/icons/factions/creed_watch.png", "8bfd0666baffc8c01eace8164a92dca9"],
+	"chapel": ["res://assets/icons/factions/creed_chapel.png", "db3af2ded47c31d426d5a589fc7ce5dc"],
+	"market": ["res://assets/icons/factions/creed_market.png", "bcce1451cada463c53c4dda6b487f54a"],
+}
+
+
+func _book_add(node: Node) -> void:
+	if book_host != null:
+		book_host.add_child(node)
+	elif card_body != null:
+		card_body.add_child(node)
+
+
+func _law_book() -> void:
+	book_host = null
+	var frame := _law_texture("frame")
+	if frame != null:
+		var plate := PanelContainer.new()
+		plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var style := StyleBoxTexture.new()
+		style.texture = frame
+		style.texture_margin_left = 110
+		style.texture_margin_right = 110
+		style.texture_margin_top = 78
+		style.texture_margin_bottom = 78
+		style.content_margin_left = 22
+		style.content_margin_right = 22
+		style.content_margin_top = 16
+		style.content_margin_bottom = 16
+		plate.add_theme_stylebox_override("panel", style)
+		var inner := VBoxContainer.new()
+		inner.add_theme_constant_override("separation", 6)
+		inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		plate.add_child(inner)
+		card_body.add_child(plate)
+		book_host = inner
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.add_child(_law_tab("adapt", "law.tab_adaptation"))
+	tabs.add_child(_law_tab("creed", "law.tab_creed"))
+	_book_add(tabs)
+	if laws_tab == "creed":
+		_law_creed_body()
+	else:
+		_law_adapt_body()
+	book_host = null
+
+
+func _law_tab(id: String, key: String) -> Button:
+	var button := _button(key, _law_pick_tab.bind(id))
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var on := laws_tab == id
+	var face := StyleBoxFlat.new()
+	face.bg_color = PAPER_BUTTON if on else Color(PAPER_BUTTON, 0.35)
+	face.border_color = BRASS if on else Color(PAPER_EDGE, 0.28)
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(2)
+	face.content_margin_left = 10
+	face.content_margin_right = 10
+	face.content_margin_top = 6
+	face.content_margin_bottom = 6
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", face)
+	button.add_theme_stylebox_override("pressed", face)
+	button.add_theme_stylebox_override("disabled", face)
+	if not on:
+		button.add_theme_color_override("font_color", PAPER_MUTED)
+	return button
+
+
+func _law_pick_tab(id: String) -> void:
+	laws_tab = id
+	_show_laws()
+
+
+func _law_adapt_body() -> void:
+	if game._law_on("engineers_charter"):
+		_body("%s — %s" % [_law_title(game.catalog.laws.engineers_charter), Copy.t("law.in_force")])
+		_body_muted("creed.none_hint")
+	for row in BOOK_ROWS:
+		_heading(Copy.t(str(row[1])))
+		var sides: PackedStringArray = [str(row[2]), str(row[3])]
+		var box := HBoxContainer.new()
+		box.add_theme_constant_override("separation", 8)
+		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tip := ""
+		for law_id in sides:
+			var why := ""
+			if not game.laws_on.has(law_id):
+				why = game.enact_reason(law_id)
+			if tip == "" and why != "":
+				tip = why
+			box.add_child(_law_side(law_id, why))
+		_book_add(box)
+		if tip != "":
+			_body_muted(tip)
+
+
+func _law_side(law_id: String, why: String) -> Button:
+	var defin: Dictionary = game.catalog.laws[law_id]
+	var on := game.laws_on.has(law_id)
+	var label := _law_title(defin)
+	if on:
+		label = "%s  ✓  %s" % [label, Copy.t("law.in_force")]
+	var button := _button(label, _ask_law.bind(law_id) if not on else func() -> void: pass)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var face := _button_face(false, false)
+	face.set_border_width_all(1)
+	if on:
+		face.border_color = BRASS
+		button.disabled = true
+	elif why != "":
+		button.disabled = true
+		button.modulate = Color(1, 1, 1, 0.55)
+		face.border_color = Color(PAPER_EDGE, 0.35)
+	if bool(defin.get("line", false)):
+		face.border_color = BRASS
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", face)
+	button.add_theme_stylebox_override("pressed", face)
+	button.add_theme_stylebox_override("disabled", face)
+	return button
+
+
+func _law_creed_body() -> void:
+	if game.week < 6:
+		_body_muted("law.creed_locked_week")
+	elif game._creed_branch() == "":
+		_body_muted("creed.none_hint")
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for branch in BOOK_CREEDS:
+		row.add_child(_law_branch(branch))
+	_book_add(row)
+	if game._law_on("everything_has_a_price"):
+		_law_price_trades()
+
+
+func _law_branch(branch: Array) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 4)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	var seal := _law_texture(str(branch[0]))
+	if seal != null:
+		var icon := TextureRect.new()
+		icon.texture = seal
+		icon.custom_minimum_size = Vector2(28, 28)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(icon)
+	var title := _label(Copy.t(str(branch[1])), 16, true)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	col.add_child(head)
+	var tipped := false
+	for i in range(2, branch.size()):
+		var law_id := str(branch[i])
+		var why := "" if game.laws_on.has(law_id) else game.enact_reason(law_id)
+		col.add_child(_law_side(law_id, why))
+		if why != "" and not tipped and game.week >= 6:
+			var lab := _label(why, 13)
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.add_theme_color_override("font_color", PAPER_MUTED)
+			col.add_child(lab)
+			tipped = true
+	return col
+
+
+func _law_price_trades() -> void:
+	_body_muted("law.blurb.everything_has_a_price")
+	for pair in [["sell", "law.trade_sell"], ["migrant", "law.trade_migrant"], ["hope", "law.trade_hope"]]:
+		var why := game.law_trade_reason(str(pair[0]))
+		if why == "":
+			_book_add(_button(str(pair[1]), _law_trade.bind(str(pair[0]))))
+		else:
+			_blocked_pair(Copy.t(str(pair[1])), why)
+
+
+func _law_trade(which: String) -> void:
+	if not game.apply({"kind": "law_trade", "trade": which}):
+		footer.text = Copy.t("The hall did not pass that.")
+		footer.visible = true
+	_refresh()
+	_show_laws()
+
+
+func _law_title(defin: Dictionary) -> String:
+	var key := "law.name." + str(defin.get("id", ""))
+	if Copy.keys.has(key):
+		return Copy.t(key)
+	return Copy.t(str(defin.get("name", "")))
+
+
+func _law_body(defin: Dictionary) -> String:
+	var key := "law.blurb." + str(defin.get("id", ""))
+	if Copy.keys.has(key):
+		return Copy.t(key)
+	var built := _law_blurb(defin)
+	return built if built != "" else Copy.t(str(defin.get("name", "")))
+
+
+func _law_texture(kind: String) -> Texture2D:
+	if law_art.has(kind):
+		var cached = law_art[kind]
+		return cached if cached is Texture2D else null
+	var spec: Array = LAW_ART.get(kind, [])
+	if spec.size() < 2:
+		law_art[kind] = false
+		return null
+	var path := str(spec[0])
+	var abs := ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(abs) or FileAccess.get_md5(abs) != str(spec[1]):
+		law_art[kind] = false
+		return null
+	var img := Image.new()
+	if img.load(abs) != OK:
+		law_art[kind] = false
+		return null
+	var tex := ImageTexture.create_from_image(img)
+	law_art[kind] = tex
+	return tex
 
 
 func _blown_toast(text: String) -> bool:
@@ -7491,6 +7849,8 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		return
 	if not _check_voice(event_id, choice_id):
 		_say(Voice.event_line(event_id, choice_id), title)
+	if event_id == "law_week6" and choice_id == "open":
+		laws_open_after = true
 	_advance_dawn(before)
 
 
@@ -7786,6 +8146,11 @@ func _advance_dawn(before: String) -> void:
 	if game.pending.is_empty():
 		_close_card()
 		event_mode = "dawn"
+		if laws_open_after:
+			laws_open_after = false
+			laws_tab = "creed"
+			_show_laws()
+			return
 		if mode == "all":
 			_end_turn.call_deferred()
 		else:
@@ -8188,14 +8553,14 @@ func _sync_room_sound() -> void:
 
 
 func _heading(text: String) -> void:
-	card_body.add_child(_label(text, 26, true))
+	_book_add(_label(text, 26, true))
 
 
 func _body(text: String) -> void:
 	var lab := _label(text, 17)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_body.add_child(lab)
+	_book_add(lab)
 
 
 func _body_muted(text: String) -> void:
@@ -8203,7 +8568,7 @@ func _body_muted(text: String) -> void:
 	lab.add_theme_color_override("font_color", PAPER_MUTED)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_body.add_child(lab)
+	_book_add(lab)
 
 
 func _body_ready(text: String) -> void:
@@ -8415,7 +8780,7 @@ func _blocked_pair(label: String, reason: String) -> void:
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.add_theme_color_override("font_color", DELTA_DOWN)
-	card_body.add_child(lab)
+	_book_add(lab)
 
 
 func _lock_button(label: String) -> Button:

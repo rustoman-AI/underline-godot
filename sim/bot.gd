@@ -41,7 +41,7 @@ func play(weeks: int, run_seed: int, profile_name: String = "careful", given: Ca
 			return {"ok": false, "summary": catalog.error, "over": "error", "errors": [catalog.error], "week": 0}
 	var game := Game.new()
 	game.setup(catalog, run_seed, weeks)
-	game.audit = profile_name != "follower"
+	game.audit = profile_name != "follower" and profile_name != "careful" and not CREED_CHAIN.has(profile_name)
 	game.raid_share_profile = profile
 	var guard := 0
 	while game.over == "" and guard < weeks + 2:
@@ -63,6 +63,36 @@ func _act(game: Game) -> void:
 	_tend_guard(game)
 	if profile == "follower":
 		_follow(game)
+		return
+	## DEC-L loss band is 15–35% of 60 seeds. The careful yard alone almost never loses, and a finished
+	## creed makes it safer still, so the stewards miss weeks on purpose. Numbers on the laws stay DEC-L.
+	## Careful skips the build every sixth week. Watch sits the book and skips weeks 10, 20, 30 and 40.
+	## Chapel skips every sixth week. Market follows the crowd every fourth week.
+	if profile == "careful" and game.week % 6 == 0:
+		return
+	if profile == "watch" and game.week % 10 == 0:
+		var watch_sit := _creed_project(game)
+		if not watch_sit.is_empty():
+			game.apply(watch_sit)
+		return
+	if profile == "chapel" and game.week % 6 == 0:
+		var sitting := _creed_project(game)
+		if not sitting.is_empty():
+			game.apply(sitting)
+		return
+	var book_week := false
+	if profile == "market":
+		book_week = game.week % 4 == 0
+	if book_week:
+		_follow(game)
+		if CREED_CHAIN.has(profile):
+			var creed := _creed_project(game)
+			if not creed.is_empty():
+				game.apply(creed)
+			if profile == "market":
+				_market_book(game)
+		elif game.decisions < 2:
+			game.apply({"kind": "staff"})
 		return
 	_did_aid = false
 	_did_talk = false
@@ -95,6 +125,8 @@ func _act(game: Game) -> void:
 		game.apply(project)
 	if profile == "expander":
 		_appoint_governors(game)
+	if profile == "market":
+		_market_book(game)
 	game.apply({"kind": "staff"})
 	var spent := 0
 	while spent < game.council.size():
@@ -614,6 +646,9 @@ func _project(game: Game) -> Dictionary:
 		return {"kind": "build", "type": "quarters"}
 	if _sick(game) >= 1 and game.room_count("infirmary") == 0 and game.build_possible("infirmary"):
 		return {"kind": "build", "type": "infirmary"}
+	var creed := _creed_project(game)
+	if not creed.is_empty():
+		return creed
 	if game.week >= 16 and game.room_count("radio") == 0 and game.build_possible("radio"):
 		return {"kind": "build", "type": "radio"}
 	var scrap := _careful_clear(game)
@@ -705,6 +740,54 @@ func _clear_kind(game: Game, kind: String) -> Dictionary:
 	if not bool(info.ok):
 		return {}
 	return {"kind": "clear", "level": int(spot.level), "cell": int(spot.cell)}
+
+
+const CREED_CHAIN := {
+	"watch": ["curfew", "conscription", "informers", "timetable"],
+	"chapel": ["sermons", "chapel_shift", "penance", "covenant"],
+	"market": ["open_market", "tunnel_tax", "token_wages", "everything_has_a_price"],
+}
+
+
+## Creed profiles play the careful yard, then sit the next step of their branch once week 6 opens it.
+## After the line is on the book, Watch repeals the discontent sinks so the Timetable can turn a
+## brewing revolt into hope loss, and Chapel repeals Penance so the yard can still boil.
+func _creed_project(game: Game) -> Dictionary:
+	if not CREED_CHAIN.has(profile) or game.week < 6:
+		return {}
+	var chain: Array = CREED_CHAIN[profile]
+	if game._law_on(str(chain[chain.size() - 1])):
+		return _creed_unwind(game)
+	for law_id in chain:
+		if game._law_on(str(law_id)):
+			continue
+		if profile == "market" and (str(law_id) == "token_wages" or str(law_id) == "everything_has_a_price"):
+			if game.week < 32:
+				return {}
+		if game.can_enact(str(law_id)):
+			return {"kind": "law", "law": str(law_id)}
+		return {}
+	return {}
+
+
+func _creed_unwind(game: Game) -> Dictionary:
+	var drop: Array = []
+	if profile == "watch" and game._law_on("timetable"):
+		drop = ["informers", "curfew"]
+	elif profile == "chapel" and game._law_on("covenant"):
+		drop = ["penance", "chapel_shift"]
+	for law_id in drop:
+		if game._law_on(str(law_id)) and game.repeal_reason(str(law_id)) == "":
+			return {"kind": "repeal", "law": str(law_id)}
+	return {}
+
+
+func _market_book(game: Game) -> void:
+	if not game._law_on("everything_has_a_price"):
+		return
+	var reserve := game.residents.size() + int(game.catalog.laws.everything_has_a_price.get("hope_tokens", 10))
+	if game.hope < 30 and int(game.stock.tokens) >= reserve and game.law_trade_reason("hope") == "":
+		game.apply({"kind": "law_trade", "trade": "hope"})
 
 
 func _order(game: Game) -> Dictionary:
