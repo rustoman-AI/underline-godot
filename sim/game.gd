@@ -12567,6 +12567,11 @@ func station_focus_dawn_chip() -> bool:
 	return false
 
 
+## Always false. P60 synod score is a visit read, never a soft dawn chip.
+func synod_score_dawn_chip() -> bool:
+	return false
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true

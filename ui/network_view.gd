@@ -206,6 +206,8 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _synod_float: Label
+var _synod_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -2322,6 +2324,111 @@ func _hide_focus_float() -> void:
 		_focus_float_tween.kill()
 	if _focus_float != null:
 		_focus_float.visible = false
+
+
+## P60. Raw Game.synod on the visit relation row. Global, not owner-gated. No bar and no clamp.
+func _synod_line(game) -> Control:
+	var chip := PanelContainer.new()
+	chip.mouse_filter = Control.MOUSE_FILTER_STOP
+	chip.tooltip_text = Copy.t("synod.tip")
+	chip.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip.set_meta("synod_line", true)
+	chip.set_meta("synod_raw", int(game.synod))
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color(0, 0, 0, 0)
+	face.border_color = Color("c9a050", 0.9)
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(2)
+	face.content_margin_left = 8
+	face.content_margin_right = 8
+	face.content_margin_top = 1
+	face.content_margin_bottom = 1
+	chip.add_theme_stylebox_override("panel", face)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var label := _lab(Copy.t("synod.label"), 15, false)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.set_meta("synod_label", true)
+	var value := _lab(Copy.fill("synod.value", {"n": int(game.synod)}), 15, true)
+	value.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	value.autowrap_mode = TextServer.AUTOWRAP_OFF
+	value.set_meta("synod_value", true)
+	row.add_child(label)
+	row.add_child(value)
+	chip.add_child(row)
+	return chip
+
+
+## First time this run the visit meter is showing and Synod is not zero. Later deltas stay quiet.
+func _note_synod_score() -> void:
+	if not is_inside_tree() or visit == null or not visit.visible:
+		return
+	var game = _game()
+	if game == null or int(game.synod) == 0:
+		return
+	if bool(game.flags.get("seen_synod_score", false)):
+		return
+	game.flags["seen_synod_score"] = true
+	_show_synod_float(Copy.t("synod.first"))
+
+
+func _show_synod_float(line: String) -> void:
+	if visit == null:
+		return
+	if _synod_float == null:
+		_synod_float = Label.new()
+		_synod_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_synod_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_synod_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_synod_float.add_theme_font_size_override("font_size", 18)
+		_synod_float.add_theme_color_override("font_color", Color("efe6d2"))
+		_synod_float.add_theme_constant_override("outline_size", 6)
+		_synod_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_synod_float.set_meta("synod_float", true)
+		_synod_float.z_index = 8
+		add_child(_synod_float)
+	_synod_float.text = line
+	_synod_float.modulate.a = 1.0
+	_synod_float.visible = true
+	_synod_float.set_meta("synod_float_static", _motion_off())
+	if _synod_float_tween != null and _synod_float_tween.is_valid():
+		_synod_float_tween.kill()
+	_place_synod_float()
+	if not is_inside_tree():
+		return
+	_synod_float_tween = create_tween()
+	if _motion_off():
+		_synod_float_tween.tween_interval(4.2)
+	else:
+		_synod_float_tween.tween_interval(2.4)
+		_synod_float_tween.tween_property(_synod_float, "modulate:a", 0.0, 0.8)
+	_synod_float_tween.tween_callback(func() -> void:
+		if _synod_float != null:
+			_synod_float.visible = false)
+
+
+func _place_synod_float() -> void:
+	if _synod_float == null or not _synod_float.visible or visit == null:
+		return
+	var w := clampf(visit.size.x - 48.0, 280.0, 520.0)
+	_synod_float.custom_minimum_size = Vector2(w, 0)
+	_synod_float.size = Vector2(w, 48)
+	var y := visit.position.y + 132.0
+	if _focus_float != null and _focus_float.visible:
+		y = maxf(y, _focus_float.position.y + 40.0)
+	if _need_float != null and _need_float.visible:
+		y = maxf(y, visit.position.y + _need_float.position.y + 36.0)
+	_synod_float.position = Vector2(maxf(8.0, visit.position.x + visit.size.x * 0.5 - w * 0.5), y)
+
+
+func _hide_synod_float() -> void:
+	if _synod_float_tween != null and _synod_float_tween.is_valid():
+		_synod_float_tween.kill()
+	if _synod_float != null:
+		_synod_float.visible = false
 
 
 func _note_first_pin_warmth() -> void:
@@ -5280,6 +5387,7 @@ func _size_visit() -> void:
 		visit_sheet.custom_minimum_size.x = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
 	_place_need_float()
 	_place_focus_float()
+	_place_synod_float()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -5302,6 +5410,7 @@ func close_visit() -> void:
 	if _need_float != null:
 		_need_float.visible = false
 	_hide_focus_float()
+	_hide_synod_float()
 	if visit != null:
 		visit.visible = false
 	if sheet != null and selected != "":
@@ -5374,6 +5483,7 @@ func _fill_visit(sid: String) -> void:
 	named.add_child(community)
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
+	column.add_child(_synod_line(game))
 	_add_siege_lines(column, game, sid)
 	_add_perk_good(game, sid, column)
 	head.add_child(column)
@@ -5398,6 +5508,7 @@ func _fill_visit(sid: String) -> void:
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
 	_note_station_focus(sid)
+	_note_synod_score()
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
