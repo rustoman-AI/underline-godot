@@ -203,6 +203,8 @@ var departed: Array = []
 var burials: Array = []
 ## Creed stays empty until a line law sets it. No line law is in the book yet.
 var creed := ""
+## Best score file. The gate points this at a scratch path; players use records.cfg.
+var records_path := "user://records.cfg"
 var notices: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
 var perk_float_due := {}
@@ -11883,23 +11885,41 @@ func _creed_id() -> String:
 
 
 func epilogue_payload() -> Dictionary:
-	var ending := str(over)
-	if ending not in ["time", "revolt", "hope", "collapse", "capital"]:
-		ending = "time"
 	var fates: Array = []
 	for line in fate_lines():
-		fates.append({"name": "", "line": str(line)})
+		fates.append({"line": str(line)})
+	var scored := bool(stats.get("scored", false))
 	return {
-		"ending": ending,
+		"ending": str(over),
 		"creed": _creed_id(),
 		"creed_label": _creed_label(),
 		"verdict": verdict_line(),
 		"judgment": judgment_line(),
 		"fates": fates,
-		"score": score_now(),
-		"score_parts": Copy.t("epilogue.score_parts"),
+		"chronicle": chronicle_top(6),
+		"score": int(stats.get("score", 0)) if scored else score_now(),
+		"best": best_score(),
 		"week": week,
 	}
+
+
+## Quiet line for error / unknown endings. The five endings use Texts verdicts instead.
+func ending_fallback() -> String:
+	match str(over):
+		"time":
+			return Copy.t("Forty weeks. The yard is still yours.")
+		"revolt":
+			return Copy.t("The platform turned.")
+		"hope":
+			return Copy.t("Hope ran out.")
+		"collapse":
+			return Copy.t("The stores gave out.")
+		"capital":
+			return Copy.t("The capital was lost.")
+		"error":
+			return Copy.t("The week broke.")
+		_:
+			return Copy.t("The run is over.")
 
 
 func _creed_label() -> String:
@@ -11917,7 +11937,7 @@ func _creed_label() -> String:
 func verdict_line() -> String:
 	var ending := str(over)
 	if ending not in ["time", "revolt", "hope", "collapse", "capital"]:
-		ending = "time"
+		return ""
 	var table: Dictionary = catalog.epilogues.get("verdicts", {})
 	var by_end: Dictionary = table.get(ending, {})
 	var pack = by_end.get(_creed_id(), {})
@@ -11928,8 +11948,6 @@ func verdict_line() -> String:
 
 func judgment_line() -> String:
 	var picked := _judgment_id()
-	if picked == "force_moment":
-		return "%s %s" % [Copy.t("combat.epilogue.force_moment"), Copy.t("combat.epilogue.force_judgment")]
 	for row in catalog.epilogues.get("judgments", []):
 		if str(row.get("id", "")) == picked:
 			return text_pack(row)
@@ -11966,7 +11984,7 @@ func _judgment_id() -> String:
 				_:
 					return "quiet_survive"
 		"station_taken_force":
-			return "force_moment"
+			return "held_stations"
 		"station_taken", "station_lost", "battle":
 			return "held_stations"
 		"dilemma":
@@ -12002,10 +12020,12 @@ func fate_lines() -> PackedStringArray:
 	pool.sort_custom(func(a, b): return int(a.memory) > int(b.memory))
 	var n := 0
 	for row in pool:
-		if n >= 5:
+		if n >= 5 or lines.size() >= 8:
 			break
 		lines.append(_fate_line(str(row.id), "", false))
 		n += 1
+	if lines.size() > 8:
+		lines.resize(8)
 	return lines
 
 
@@ -12085,16 +12105,10 @@ func _fate_pack(id: String) -> Dictionary:
 	return {"en": "{name} was still in the yard.", "ru": "{name} всё ещё во дворе."}
 
 
+## DEC-EP4. Display only. Mandate +100 stays parked (P17) and is not added.
 func score_now() -> int:
 	var named := int(stats.get("named_dead", 0))
-	var total := week * 10 + residents.size() * 2 + owned_count() * 15 + hope - named * 5
-	if _mandate_fulfilled():
-		total += 100
-	return total
-
-
-func _mandate_fulfilled() -> bool:
-	return stats.has("mandate_fulfilled") and bool(stats.get("mandate_fulfilled", false))
+	return week * 10 + residents.size() * 2 + owned_count() * 15 + hope - named * 5
 
 
 func best_score() -> int:
@@ -12111,12 +12125,12 @@ func _seal_score() -> void:
 
 func _write_best(score: int) -> int:
 	var cfg := ConfigFile.new()
-	cfg.load("user://records.cfg")
+	cfg.load(records_path)
 	var best := int(cfg.get_value("scores", "best", 0))
 	if score > best:
 		best = score
 		cfg.set_value("scores", "best", best)
-		cfg.save("user://records.cfg")
+		cfg.save(records_path)
 	return best
 
 

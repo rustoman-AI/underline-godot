@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_epilogue():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_epilogue():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,10 +434,109 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_epilogue():
+		await _epilogue_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
+
+
+## P68 stills: verdict, chronicle, fates. Motion stays off (shot_mode). Writes /opt/cursor/artifacts.
+func _epilogue_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	await _settle(Vector2i(1100, 820))
+	_close_card()
+	await _frame()
+	_stage_epilogue_run()
+	_show_ending()
+	await _frame()
+	await _frame()
+	_save_epilogue("p68_ep1_verdict")
+	_life_epilogue_go(1)
+	await _frame()
+	await _frame()
+	_save_epilogue("p68_ep2_chronicle")
+	_life_epilogue_go(2)
+	await _frame()
+	await _frame()
+	_save_epilogue("p68_ep3_fates")
+	var plate := Image.new()
+	var plate_path := ProjectSettings.globalize_path("res://assets/events/ending_time.webp")
+	if plate.load(plate_path) == OK:
+		var out := "/opt/cursor/artifacts/p68_ending_time_plate.png"
+		DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+		print("EPILOGUE PLATE %s err %s" % [out, plate.save_png(out)])
+	get_tree().quit(0)
+
+
+func _stage_epilogue_run() -> void:
+	game.chronicle.clear()
+	game.creed = "watch"
+	game.over = ""
+	var beats := [
+		[38, "named_death", {"name": "Rhee", "cause": "cough"}, 5],
+		[32, "creed_line", {"law": "sealed the sick"}, 5],
+		[28, "station_taken", {"place": "Coney Island"}, 3],
+		[22, "dilemma", {"title": "The Gate", "choice": "turn away"}, 3],
+		[16, "season", {"season": "cold"}, 2],
+		[10, "creed_chosen", {"creed": "Watch"}, 2],
+		[8, "clear", {}, 1],
+	]
+	for beat in beats:
+		game.week = int(beat[0])
+		game._note_moment(str(beat[1]), beat[2], int(beat[3]))
+	var bury_id := "pete"
+	if game.people.has(bury_id):
+		var person: Dictionary = game.people[bury_id]
+		game._unassign(bury_id)
+		var keep: Array = []
+		for row in game.residents:
+			if str(row.get("id", "")) != bury_id:
+				keep.append(row)
+		game.residents = keep
+		game.people.erase(bury_id)
+		game.departed.append({
+			"id": bury_id,
+			"name": str(person.get("name", "Pete Navarro")),
+			"name_ru": str(person.get("name_ru", "")),
+			"memory": 90,
+			"week": 38,
+			"how": "died",
+			"cause_id": "sickness",
+			"cause": "sickness",
+			"room": "",
+			"place": game._home_name(),
+			"burial": "bury",
+			"seasoned": false,
+			"grew_week": 0,
+			"night_runs": 0,
+			"checks_passed": 0,
+			"role": "",
+		})
+	for pair in [["ruth", 70], ["benny", 60], ["ellis", 50], ["samira", 40]]:
+		if game.people.has(str(pair[0])):
+			game.people[str(pair[0])].memory = int(pair[1])
+	game.week = 40
+	game.stats.named_dead = 1
+	game.hope = 482 - game.week * 10 - game.residents.size() * 2 - game.owned_count() * 15 + int(game.stats.named_dead) * 5
+	game.over = "time"
+	game.stats.scored = false
+	var cfg := ConfigFile.new()
+	cfg.set_value("scores", "best", 510)
+	cfg.save(game.records_path)
+
+
+func _save_epilogue(shot_name: String) -> void:
+	var img := get_viewport().get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	var path := "/opt/cursor/artifacts/%s.png" % shot_name
+	var err := img.save_png(path)
+	print("EPILOGUE SHOT %s %dx%d err %s" % [shot_name, img.get_width(), img.get_height(), err])
 
 
 func _journal_shots() -> void:
@@ -766,6 +865,10 @@ func _want_checks() -> bool:
 
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
+
+
+func _want_epilogue() -> bool:
+	return _dev_args().has("--epilogue")
 
 
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
@@ -7880,21 +7983,9 @@ func _new_run() -> void:
 
 
 func _ending() -> String:
-	match game.over:
-		"time":
-			return Copy.t("Forty weeks. The yard is still yours.")
-		"revolt":
-			return Copy.t("The platform turned.")
-		"hope":
-			return Copy.t("Hope ran out.")
-		"collapse":
-			return Copy.t("The stores gave out.")
-		"capital":
-			return Copy.t("The capital was lost.")
-		"error":
-			return Copy.t("The week broke.")
-		_:
-			return Copy.t("The run is over.")
+	if game == null:
+		return Copy.t("The run is over.")
+	return game.ending_fallback()
 
 
 func _mult(n: float) -> String:
@@ -11085,57 +11176,66 @@ func _ensure_life_epilogue() -> void:
 	layer.z_index = 80
 	layer.visible = false
 	var wash := ColorRect.new()
-	wash.color = Color(0.05, 0.04, 0.03, 0.94)
+	wash.color = Color(0.07, 0.05, 0.04, 0.78)
 	wash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	wash.mouse_filter = Control.MOUSE_FILTER_STOP
 	layer.add_child(wash)
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	var paper := _paper_style()
-	paper.set_border_width_all(3)
+	var paper := StyleBoxFlat.new()
+	paper.bg_color = SLIP_PAPER
+	paper.border_color = Color("5c4632")
+	paper.set_border_width_all(2)
 	paper.set_content_margin_all(0)
+	paper.set_corner_radius_all(2)
+	paper.shadow_color = Color(0, 0, 0, 0.45)
+	paper.shadow_size = 14
 	panel.add_theme_stylebox_override("panel", paper)
 	layer.add_child(panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 0)
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(column)
+	var band := PanelContainer.new()
+	var band_face := StyleBoxFlat.new()
+	band_face.bg_color = Color("e4d3ae")
+	band_face.content_margin_left = 22
+	band_face.content_margin_right = 22
+	band_face.content_margin_top = 10
+	band_face.content_margin_bottom = 10
+	band.add_theme_stylebox_override("panel", band_face)
+	column.add_child(band)
+	on_paper = true
+	life_epilogue_eyebrow = _slip_label("", 13, Color("6a543c"), true)
+	band.add_child(life_epilogue_eyebrow)
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_top", 28)
-	margin.add_theme_constant_override("margin_bottom", 28)
+	margin.add_theme_constant_override("margin_left", 22)
+	margin.add_theme_constant_override("margin_right", 22)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
 	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_child(margin)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(column)
-	on_paper = true
-	life_epilogue_eyebrow = _label("", 13)
-	life_epilogue_eyebrow.add_theme_color_override("font_color", PAPER_EDGE)
-	column.add_child(life_epilogue_eyebrow)
+	column.add_child(margin)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 12)
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(inner)
 	life_epilogue_body = VBoxContainer.new()
 	life_epilogue_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	life_epilogue_body.add_theme_constant_override("separation", 10)
-	column.add_child(life_epilogue_body)
-	var bottom := HBoxContainer.new()
-	bottom.add_theme_constant_override("separation", 12)
-	column.add_child(bottom)
-	life_epilogue_dots = HBoxContainer.new()
-	life_epilogue_dots.add_theme_constant_override("separation", 8)
-	life_epilogue_dots.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bottom.add_child(life_epilogue_dots)
-	for _i in 3:
-		var dot := Panel.new()
-		dot.custom_minimum_size = Vector2(10, 10)
-		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		life_epilogue_dots.add_child(dot)
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bottom.add_child(gap)
+	life_epilogue_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	life_epilogue_body.add_theme_constant_override("separation", 8)
+	inner.add_child(life_epilogue_body)
 	life_epilogue_actions = HBoxContainer.new()
 	life_epilogue_actions.add_theme_constant_override("separation", 8)
-	bottom.add_child(life_epilogue_actions)
+	life_epilogue_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.add_child(life_epilogue_actions)
 	on_paper = false
+	life_epilogue_dots = HBoxContainer.new()
+	life_epilogue_dots.add_theme_constant_override("separation", 18)
+	life_epilogue_dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(life_epilogue_dots)
 	add_child(layer)
 	life_epilogue = layer
 	life_epilogue_panel = panel
@@ -11144,21 +11244,27 @@ func _ensure_life_epilogue() -> void:
 func _paint_life_epilogue() -> void:
 	if life_epilogue == null or game == null:
 		return
-	_layout_life_epilogue()
 	var payload: Dictionary = game.epilogue_payload()
 	on_paper = true
-	life_epilogue_eyebrow.text = Copy.t("epilogue.eyebrow") % (life_epilogue_page + 1)
+	var page_key := "epilogue.page_verdict"
+	match life_epilogue_page:
+		1:
+			page_key = "epilogue.page_chronicle"
+		2:
+			page_key = "epilogue.page_fates"
+	life_epilogue_eyebrow.text = _epilogue_kicker(page_key, payload)
 	_wipe(life_epilogue_body)
 	_wipe(life_epilogue_actions)
 	match life_epilogue_page:
 		0:
 			_life_verdict(payload)
 		1:
-			_life_chronicle()
+			_life_chronicle(payload)
 		_:
 			_life_fates(payload)
 	_paint_life_dots()
 	on_paper = false
+	_layout_life_epilogue()
 	if _motion_off():
 		life_epilogue_body.modulate.a = 1.0
 		return
@@ -11167,166 +11273,203 @@ func _paint_life_epilogue() -> void:
 	fade.tween_property(life_epilogue_body, "modulate:a", 1.0, 0.15)
 
 
+func _epilogue_kicker(page_key: String, payload: Dictionary) -> String:
+	var page := Copy.t(page_key).to_upper()
+	if page_key != "epilogue.page_verdict":
+		return page
+	var ending := str(payload.get("ending", ""))
+	if not ["time", "revolt", "hope", "collapse", "capital"].has(ending):
+		return page
+	var tail := ending.to_upper()
+	var creed := str(payload.get("creed", "none"))
+	if ["watch", "chapel", "market"].has(creed):
+		tail += " × " + creed.to_upper()
+	return "%s · %s" % [page, tail]
+
+
 func _life_verdict(payload: Dictionary) -> void:
+	var art := _epilogue_art(str(payload.get("ending", "")))
+	if art != null:
+		life_epilogue_body.add_child(art)
 	var verdict := str(payload.get("verdict", ""))
 	if verdict == "":
-		verdict = _ending()
-	var head := _label(verdict, 34, true)
-	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	life_epilogue_body.add_child(head)
-	var creed := str(payload.get("creed_label", Copy.t("epilogue.no_creed")))
-	var sub := _label("%s · %s" % [Copy.t("Week %d%s") % [int(payload.get("week", game.week)), ""], creed], 16)
-	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sub.add_theme_color_override("font_color", PAPER_MUTED)
-	life_epilogue_body.add_child(sub)
-	var judgment := str(payload.get("judgment", ""))
-	if judgment != "":
-		var ask := _label(judgment, 20, true)
-		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		ask.add_theme_color_override("font_color", PAPER_MUTED)
-		ask.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		life_epilogue_body.add_child(ask)
-	_life_story_lines()
-	var go := _button("epilogue.continue", _life_epilogue_go.bind(1))
-	_style_primary(go)
-	go.custom_minimum_size = Vector2(180, 48)
-	life_epilogue_actions.add_child(go)
+		verdict = game.ending_fallback()
+	life_epilogue_body.add_child(_slip_label(verdict, 28, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_spacer())
+	life_epilogue_actions.add_child(_epilogue_gap())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.next", _life_epilogue_go.bind(1), false, "next"))
 
 
-## The story ending stays on the verdict page: title, leader lines, and the truth line.
-func _life_story_lines() -> void:
-	var id := game.ending_id()
-	if game.ending_text(id, "title") == "":
-		return
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 120)
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 6)
-	scroll.add_child(list)
-	var title := _label(game.ending_text(id, "title"), 18, true)
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_child(title)
-	var body := _label(game.ending_text(id, "text"), 15)
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_child(body)
-	for row in game.catalog.leaders.get("factions", []):
-		var fid := str(row.get("id", ""))
-		var line := _label("%s — %s" % [_leader_text(game.leader_name(fid, "leader")), game.leader_epilogue(fid)], 14)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		line.add_theme_color_override("font_color", PAPER_MUTED)
-		list.add_child(line)
-	var truth := _label(game.truth_epilogue(), 14)
-	truth.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	truth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_child(truth)
-	life_epilogue_body.add_child(scroll)
-
-
-func _life_chronicle() -> void:
-	var title := _label("epilogue.chronicle_title", 26, true)
-	life_epilogue_body.add_child(title)
-	var moments: Array = game.chronicle_top(6)
+func _life_chronicle(payload: Dictionary) -> void:
+	var moments: Array = payload.get("chronicle", [])
 	if moments.is_empty():
-		var empty := _label("epilogue.chronicle_empty", 16)
-		empty.add_theme_color_override("font_color", PAPER_MUTED)
-		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		life_epilogue_body.add_child(empty)
-	for moment in moments:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		var tag := Label.new()
-		tag.text = "W%d" % int(moment.get("week", 0))
-		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		tag.custom_minimum_size = Vector2(52, 24)
-		tag.add_theme_font_size_override("font_size", 14)
-		tag.add_theme_color_override("font_color", INK_DARK)
-		if number_font != null:
-			tag.add_theme_font_override("font", number_font)
-		var plate := StyleBoxFlat.new()
-		plate.bg_color = Color("e2a63a")
-		plate.set_corner_radius_all(2)
-		tag.add_theme_stylebox_override("normal", plate)
-		row.add_child(tag)
-		var text := str(moment.get("text", ""))
-		if text == "":
-			text = game.chronicle_line(moment)
-		var line := _label(text, 16)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(line)
-		life_epilogue_body.add_child(row)
-	var go := _button("epilogue.continue", _life_epilogue_go.bind(2))
-	_style_primary(go)
-	go.custom_minimum_size = Vector2(180, 48)
-	life_epilogue_actions.add_child(go)
+		life_epilogue_body.add_child(_slip_label("epilogue.chronicle_empty", 18, SLIP_MUTED))
+	else:
+		var n := 0
+		for moment in moments:
+			if n >= 6:
+				break
+			n += 1
+			var text := str(moment.get("text", ""))
+			if text == "":
+				text = game.chronicle_line(moment)
+			life_epilogue_body.add_child(_slip_label("%d.  %s" % [n, text], 17, SLIP_INK))
+	life_epilogue_body.add_child(_epilogue_spacer())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(0), false, "back"))
+	life_epilogue_actions.add_child(_epilogue_gap())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.next", _life_epilogue_go.bind(2), false, "next"))
 
 
 func _life_fates(payload: Dictionary) -> void:
-	var title := _label("epilogue.fates_title", 26, true)
-	life_epilogue_body.add_child(title)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 8)
-	scroll.add_child(list)
+	life_epilogue_body.add_child(_slip_label("epilogue.page_fates", 13, Color("6a543c"), true))
+	var shown := 0
 	for row in payload.get("fates", []):
+		if shown >= 8:
+			break
 		var line := str(row.get("line", ""))
-		var lab := _label(line, 16)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		list.add_child(lab)
-	life_epilogue_body.add_child(scroll)
-	var score_name := _label("epilogue.score", 13)
-	score_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	score_name.add_theme_color_override("font_color", PAPER_EDGE)
-	life_epilogue_body.add_child(score_name)
-	var score_num := _label(str(int(payload.get("score", 0))), 44, true)
-	score_num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_num.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	score_num.add_theme_color_override("font_color", Color("e2a63a"))
-	if number_font != null:
-		score_num.add_theme_font_override("font", number_font)
-	life_epilogue_body.add_child(score_num)
-	var parts := _label(str(payload.get("score_parts", "")), 11)
-	parts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	parts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	parts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parts.add_theme_color_override("font_color", PAPER_MUTED)
-	life_epilogue_body.add_child(parts)
-	var again := _button("epilogue.new_run", _life_epilogue_new_game)
-	again.custom_minimum_size = Vector2(160, 48)
-	life_epilogue_actions.add_child(again)
-	var menu := _button("epilogue.menu", _life_epilogue_menu)
-	_style_primary(menu)
-	menu.custom_minimum_size = Vector2(180, 48)
-	life_epilogue_actions.add_child(menu)
+		if line == "":
+			continue
+		life_epilogue_body.add_child(_slip_label(line, 16, SLIP_INK))
+		shown += 1
+	var judgment := str(payload.get("judgment", ""))
+	if judgment != "":
+		life_epilogue_body.add_child(_epilogue_rule())
+		life_epilogue_body.add_child(_slip_label(judgment, 17, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_rule())
+	var score := Copy.fill("epilogue.score", {
+		"n": int(payload.get("score", 0)),
+		"best": int(payload.get("best", 0)),
+	})
+	life_epilogue_body.add_child(_slip_label(score, 20, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_spacer())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(1), false, "back"))
+	life_epilogue_actions.add_child(_epilogue_gap())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.close", _life_epilogue_close, true, ""))
+
+
+func _epilogue_art(ending: String) -> TextureRect:
+	var tex := _ending_plate(ending)
+	if tex == null:
+		return null
+	var plate := TextureRect.new()
+	plate.texture = tex
+	plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	plate.custom_minimum_size = Vector2(0, 132)
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return plate
+
+
+## Real webp only. A git-lfs pointer, or a missing plate, leaves the card as paper.
+func _ending_plate(ending: String) -> Texture2D:
+	if not ["time", "revolt", "hope", "collapse", "capital"].has(ending):
+		return null
+	var rel := "res://assets/events/ending_%s.webp" % ending
+	var abs_path := ProjectSettings.globalize_path(rel)
+	if not FileAccess.file_exists(abs_path):
+		return null
+	var f := FileAccess.open(abs_path, FileAccess.READ)
+	if f == null:
+		return null
+	var head := f.get_buffer(4)
+	f.close()
+	if head.size() < 4 or head[0] != 0x52 or head[1] != 0x49 or head[2] != 0x46 or head[3] != 0x46:
+		return null
+	return ArtPack.load_texture(rel)
+
+
+func _epilogue_spacer() -> Control:
+	var gap := Control.new()
+	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return gap
+
+
+func _epilogue_gap() -> Control:
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return gap
+
+
+func _epilogue_rule() -> ColorRect:
+	var rule := ColorRect.new()
+	rule.color = Color(0.36, 0.27, 0.2, 0.45)
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rule
+
+
+func _epilogue_nav(key: String, cb: Callable, filled: bool, side: String) -> Button:
+	var label := Copy.t(key)
+	if side == "back":
+		label = "← " + label
+	elif side == "next":
+		label = label + " →"
+	var button := Button.new()
+	button.text = label
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = Vector2(148, 44)
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_size_override("font_size", 18)
+	if display_font != null:
+		button.add_theme_font_override("font", display_font)
+	var ink := Color("f6edd8") if filled else SLIP_INK
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("8d6230") if filled else Color("f7f0dc")
+	face.border_color = Color("5c3e18") if filled else Color("5c4632")
+	face.set_border_width_all(2)
+	face.set_corner_radius_all(2)
+	face.content_margin_left = 12
+	face.content_margin_right = 12
+	face.content_margin_top = 6
+	face.content_margin_bottom = 6
+	var hover := face.duplicate()
+	hover.bg_color = Color("a87438") if filled else Color("fff6e4")
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", face)
+	button.add_theme_stylebox_override("focus", face)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, ink)
+	button.pressed.connect(cb)
+	return button
 
 
 func _paint_life_dots() -> void:
 	if life_epilogue_dots == null:
 		return
-	for i in life_epilogue_dots.get_child_count():
-		var dot := life_epilogue_dots.get_child(i) as Panel
-		if dot == null:
-			continue
+	_wipe(life_epilogue_dots)
+	var keys := ["epilogue.page_verdict", "epilogue.page_chronicle", "epilogue.page_fates"]
+	for i in 3:
+		var item := HBoxContainer.new()
+		item.add_theme_constant_override("separation", 6)
+		item.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(10, 10)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var plate := StyleBoxFlat.new()
-		plate.bg_color = Color("e2a63a") if i == life_epilogue_page else Color("554533")
+		plate.bg_color = Color("e2a63a") if i == life_epilogue_page else Color("8a7b68")
 		plate.set_corner_radius_all(5)
 		dot.add_theme_stylebox_override("panel", plate)
+		item.add_child(dot)
+		var lab := Label.new()
+		lab.text = "%d %s" % [i + 1, Copy.t(keys[i])]
+		lab.add_theme_font_size_override("font_size", 14)
+		lab.add_theme_color_override("font_color", Color("f3e6cc") if i == life_epilogue_page else Color("b7a890"))
+		if display_font != null:
+			lab.add_theme_font_override("font", display_font)
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		item.add_child(lab)
+		life_epilogue_dots.add_child(item)
 
 
 func _life_epilogue_go(page: int) -> void:
+	Sound.play("click")
 	life_epilogue_page = clampi(page, 0, 2)
 	_paint_life_epilogue()
 
@@ -11338,40 +11481,51 @@ func _close_life_epilogue() -> void:
 		yard.mouse_filter = Control.MOUSE_FILTER_STOP
 
 
-func _life_epilogue_menu() -> void:
+## Page 3 Close. Same post-run path as the old ending card: back to the menu.
+func _life_epilogue_close() -> void:
+	Sound.play("click")
 	_close_life_epilogue()
 	_back_to_menu()
-
-
-func _life_epilogue_new_game() -> void:
-	_close_life_epilogue()
-	_close_card()
-	_begin_new_game(true)
 
 
 func _layout_life_epilogue() -> void:
 	if life_epilogue_panel == null or life_epilogue == null or not life_epilogue.visible:
 		return
-	var w := minf(720.0, maxf(280.0, size.x - 48.0))
-	var h := minf(860.0, maxf(320.0, size.y - 48.0))
-	life_epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5)
+	var w := minf(680.0, maxf(320.0, size.x - 64.0))
+	var h := minf(620.0, maxf(380.0, size.y - 110.0))
+	life_epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5 - 12.0)
 	life_epilogue_panel.size = Vector2(w, h)
+	if life_epilogue_dots != null:
+		var dw := life_epilogue_dots.get_combined_minimum_size().x
+		life_epilogue_dots.position = Vector2((size.x - dw) * 0.5, life_epilogue_panel.position.y + h + 14.0)
 
 
 func _life_epilogue_input(event: InputEvent) -> bool:
 	if life_epilogue == null or not life_epilogue.visible:
 		return false
-	var cancel := false
-	if event.is_action_pressed("ui_cancel"):
-		cancel = true
-	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-		cancel = true
-	if not cancel:
+	if event.is_echo():
 		return false
-	if life_epilogue_page < 2:
+	var back := event.is_action_pressed("ui_left")
+	var forward := event.is_action_pressed("ui_right") or event.is_action_pressed("ui_accept")
+	var cancel := event.is_action_pressed("ui_cancel")
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+		var key := event as InputEventKey
+		if key.keycode == KEY_LEFT:
+			back = true
+		elif key.keycode == KEY_RIGHT:
+			forward = true
+		elif key.keycode == KEY_ESCAPE:
+			cancel = true
+	if not back and not forward and not cancel:
+		return false
+	if back or (cancel and life_epilogue_page > 0):
+		if life_epilogue_page > 0:
+			_life_epilogue_go(life_epilogue_page - 1)
+		return true
+	if forward and life_epilogue_page < 2:
 		_life_epilogue_go(life_epilogue_page + 1)
-	else:
-		_life_epilogue_menu()
+		return true
+	_life_epilogue_close()
 	return true
 
 
