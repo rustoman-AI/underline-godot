@@ -1,0 +1,224 @@
+{
+  "_note": "P55 Community Perks (was P2). Spec: /workspace/COMMUNITY_PERKS_SPEC.md DEC-G1…G4 + POST_EA Section A / K5 schema. Keys: perk.toast_gain/loss ({station}/{line}); perk.line.<sid>; good.name.<id> (air_coupons); good.flowing / good.not_flowing. Dry metro grit. HARD NO: invent stations; P27 toll routes; soft-dawn. Numbers SPEC/Code only.",
+  "_roadmap": "P55",
+  "_owners": "Texts; Code held_perks + goods; UIUX sheet/pip/toast; Art optional icons",
+  "by_key": {
+    "good.air_coupons.sheet": {
+      "en": "+4 air a week.",
+      "ru": "+4 воздуха в неделю."
+    },
+    "good.copper.sheet": {
+      "en": "+3 materials a week.",
+      "ru": "+3 материала в неделю."
+    },
+    "good.flowing": {
+      "en": "flowing",
+      "ru": "идёт"
+    },
+    "good.flowing_long": {
+      "en": "{good} is coming in.",
+      "ru": "{good} идёт к нам."
+    },
+    "good.heat.sheet": {
+      "en": "+2 power a week. Sabotage risk comes with it.",
+      "ru": "+2 энергии в неделю. Риск диверсии идёт с ним."
+    },
+    "good.junk.sheet": {
+      "en": "A blueprint every 6 weeks.",
+      "ru": "Чертёж раз в 6 недель."
+    },
+    "good.label": {
+      "en": "Good",
+      "ru": "Товар"
+    },
+    "good.name.air_coupons": {
+      "en": "Air coupons",
+      "ru": "Талоны на воздух"
+    },
+    "good.name.copper": {
+      "en": "Copper",
+      "ru": "Медь"
+    },
+    "good.name.heat": {
+      "en": "Heat",
+      "ru": "Тепло"
+    },
+    "good.name.junk": {
+      "en": "Junk",
+      "ru": "Хлам"
+    },
+    "good.name.pork": {
+      "en": "Pork",
+      "ru": "Свинина"
+    },
+    "good.name.salt": {
+      "en": "Salt",
+      "ru": "Соль"
+    },
+    "good.name.seeds": {
+      "en": "Seeds",
+      "ru": "Семена"
+    },
+    "good.name.water": {
+      "en": "Water",
+      "ru": "Вода"
+    },
+    "good.not_flowing": {
+      "en": "not flowing",
+      "ru": "не идёт"
+    },
+    "good.pork.sheet": {
+      "en": "+6 food a week.",
+      "ru": "+6 еды в неделю."
+    },
+    "good.salt.sheet": {
+      "en": "Food spoils half as fast.",
+      "ru": "Еда портится вдвое медленнее."
+    },
+    "good.seeds.sheet": {
+      "en": "+1 food per hydroponics room. Opens grow lamps.",
+      "ru": "+1 еды с каждой гидропоники. Открывает лампы для ростков."
+    },
+    "good.water.sheet": {
+      "en": "Cough spreads half as fast.",
+      "ru": "Кашель расходится вдвое медленнее."
+    },
+    "perk.label": {
+      "en": "Perk",
+      "ru": "Бонус"
+    },
+    "perk.line.brickworks": {
+      "en": "+2 power a week. One room in ten risks sabotage.",
+      "ru": "+2 энергии в неделю. Каждая десятая комната рискует диверсией."
+    },
+    "perk.line.central": {
+      "en": "+2 influence a week.",
+      "ru": "+2 влияния в неделю."
+    },
+    "perk.line.foundry": {
+      "en": "Generator +10%. Sermons cost 1 hope, once.",
+      "ru": "Генератор +10%. Проповеди один раз отнимут 1 надежду."
+    },
+    "perk.line.library": {
+      "en": "Old manuals: +1 Wits on checks. Strange news comes twice as often.",
+      "ru": "Старые инструкции: +1 к Смекалке в проверках. Странные вести вдвое чаще."
+    },
+    "perk.line.market": {
+      "en": "Clean water: cough spreads half as fast.",
+      "ru": "Чистая вода: кашель расходится вдвое медленнее."
+    },
+    "perk.line.mill": {
+      "en": "Food outposts ship +2 food.",
+      "ru": "Продовольственные заставы присылают +2 еды."
+    },
+    "perk.line.observatory": {
+      "en": "+3 tokens a week. Flood warning comes a week early.",
+      "ru": "+3 жетона в неделю. О паводке узнаём на неделю раньше."
+    },
+    "perk.line.plaza": {
+      "en": "−1 discontent a week. The Exchange likes us less each week.",
+      "ru": "−1 недовольства в неделю. Бирже мы нравимся всё меньше."
+    },
+    "perk.line.quarry": {
+      "en": "Digs cost 1 material less (min 1).",
+      "ru": "Раскопки стоят на 1 материал меньше (мин. 1)."
+    },
+    "perk.line.riverside": {
+      "en": "Grow lamps: +1 food per hydroponics room. Mushroom beds open.",
+      "ru": "Лампы для ростков: +1 еды с каждой гидропоники. Открыты грибные грядки."
+    },
+    "perk.short.brickworks": {
+      "en": "spare power",
+      "ru": "запас энергии"
+    },
+    "perk.short.central": {
+      "en": "influence",
+      "ru": "влияние"
+    },
+    "perk.short.foundry": {
+      "en": "generator boost",
+      "ru": "прибавка генератора"
+    },
+    "perk.short.library": {
+      "en": "old manuals",
+      "ru": "старые инструкции"
+    },
+    "perk.short.market": {
+      "en": "clean water",
+      "ru": "чистая вода"
+    },
+    "perk.short.mill": {
+      "en": "extra food",
+      "ru": "лишняя еда"
+    },
+    "perk.short.observatory": {
+      "en": "tokens and flood warning",
+      "ru": "жетоны и ранняя весть о паводке"
+    },
+    "perk.short.plaza": {
+      "en": "calm yard",
+      "ru": "спокойный двор"
+    },
+    "perk.short.quarry": {
+      "en": "cheap digs",
+      "ru": "дешёвые раскопки"
+    },
+    "perk.short.riverside": {
+      "en": "grow lamps",
+      "ru": "лампы для ростков"
+    },
+    "perk.toast_gain": {
+      "en": "Held {station}: {line}",
+      "ru": "Взяли {station}: {line}"
+    },
+    "perk.toast_loss": {
+      "en": "Lost {station}: {line} gone",
+      "ru": "Потеряли {station}: {line} — больше нет"
+    },
+    "station.brickworks": {
+      "en": "Atlantic Av",
+      "ru": "Атлантик-авеню"
+    },
+    "station.central": {
+      "en": "Times Sq",
+      "ru": "Таймс-сквер"
+    },
+    "station.foundry": {
+      "en": "Penn Station",
+      "ru": "Пенн-стейшн"
+    },
+    "station.library": {
+      "en": "Jay St",
+      "ru": "Джей-стрит"
+    },
+    "station.market": {
+      "en": "Spring St",
+      "ru": "Спринг-стрит"
+    },
+    "station.mill": {
+      "en": "Greenpoint",
+      "ru": "Гринпойнт"
+    },
+    "station.observatory": {
+      "en": "High St",
+      "ru": "Хай-стрит"
+    },
+    "station.plaza": {
+      "en": "Union Sq",
+      "ru": "Юнион-сквер"
+    },
+    "station.quarry": {
+      "en": "Fulton St",
+      "ru": "Фултон-стрит"
+    },
+    "station.riverside": {
+      "en": "Botanic Garden",
+      "ru": "Ботанический сад"
+    }
+  },
+  "_placeholders": [
+    "{station}",
+    "{line}",
+    "{good}"
+  ]
+}

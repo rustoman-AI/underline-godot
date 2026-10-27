@@ -257,6 +257,10 @@ var rail_fading := false
 var rail_token := 0
 var rail_fade: Tween
 var delta_hold_until := 0
+## Leftover perk toasts (after the first) for the dawn card. Not a soft-dawn chip.
+var perk_muted: PackedStringArray = []
+var perk_pulse_key := ""
+var perk_pulse_token := 0
 var news_open := false
 var _soft_gap_warned := false
 var picker_busy_open := false
@@ -375,7 +379,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_perks():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +395,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_perks():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +438,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_perks():
+		await _perk_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -829,6 +835,10 @@ func _want_polish() -> bool:
 
 func _want_network() -> bool:
 	return _dev_args().has("--network")
+
+
+func _want_perks() -> bool:
+	return _dev_args().has("--perks")
 
 
 func _tabular(base: Font) -> Font:
@@ -1943,6 +1953,7 @@ func _refresh() -> void:
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
 		_toast_chain(notes)
+	_drain_perk_toasts()
 	_show_perk_floats()
 	_watch_work()
 	var season := ""
@@ -6229,7 +6240,7 @@ func note_spend(cost: Dictionary) -> void:
 	stock_tween = create_tween()
 	for key in cost:
 		var spent := int(cost[key])
-		if spent == 0 or not chips.has(str(key)):
+		if spent == 0 or not chips.has(str(key)) or str(key) == perk_pulse_key:
 			continue
 		var target := float(int(game.stock.get(key, 0)))
 		var start := target + float(spent)
@@ -6273,6 +6284,7 @@ func _paint_dawn() -> void:
 			dawn_heard = dawn_key
 			Sound.play("new_week")
 		_open_card(Copy.t("Dawn of week %d") % game.week)
+		_add_perk_muted()
 		_choice_tally()
 		var urgent: PackedStringArray = []
 		var rest: PackedStringArray = []
@@ -6298,6 +6310,7 @@ func _paint_dawn() -> void:
 	var ev: Dictionary = game.front_event()
 	note_incident(ev)
 	_open_card(game.line_of(ev, "title"), false, "Event")
+	_add_perk_muted()
 	var banner := _event_banner(ev)
 	if banner != null:
 		card_body.add_child(banner)
@@ -7620,14 +7633,79 @@ func _change_anchor(key: String) -> Vector2:
 	return target.get_global_rect().get_center() - get_global_rect().position
 
 
-## The first week a perk applies, its weekly number flies onto the meter once.
+## The first week a perk applies, the yard meter shows +N once. Not a soft-dawn chip.
 func _show_perk_floats() -> void:
-	if game == null or game.perk_float_due.is_empty():
+	if game == null:
 		return
-	var due: Dictionary = game.perk_float_due.duplicate()
+	var pulse: Dictionary = game.perk_meter_pulse
+	if pulse.is_empty():
+		game.perk_float_due = {}
+		return
+	if showing_network:
+		return
+	game.perk_meter_pulse = {}
 	game.perk_float_due = {}
-	var origin := Vector2(size.x * 0.5, (hud.size.y if hud != null else 72.0) + 48.0)
-	_fly_changes(due, get_global_rect().position + origin)
+	var key := str(pulse.get("key", ""))
+	var delta := int(pulse.get("delta", 0))
+	if delta == 0 or not chips.has(key):
+		return
+	var lab: Label = chips[key].delta
+	lab.text = "+%d" % delta if delta > 0 else "-%d" % absi(delta)
+	lab.add_theme_color_override("font_color", DELTA_UP if delta > 0 else DELTA_DOWN)
+	lab.modulate.a = 1.0
+	perk_pulse_key = key
+	delta_hold_until = Time.get_ticks_msec() + 1950
+	perk_pulse_token += 1
+	var token := perk_pulse_token
+	if _motion_off():
+		get_tree().create_timer(1.6).timeout.connect(_clear_perk_pulse.bind(token, key))
+		return
+	var hop := create_tween()
+	hop.tween_interval(1.6)
+	hop.tween_property(lab, "modulate:a", 0.0, 0.35)
+	hop.tween_callback(_clear_perk_pulse.bind(token, key))
+
+
+func _clear_perk_pulse(token: int, key: String) -> void:
+	if token != perk_pulse_token:
+		return
+	perk_pulse_key = ""
+	if not chips.has(key):
+		return
+	chips[key].delta.text = ""
+	chips[key].delta.modulate.a = 1.0
+
+
+func _drain_perk_toasts() -> void:
+	if game == null or game.held_perk_events.is_empty():
+		return
+	var events: Array = game.held_perk_events.duplicate()
+	game.held_perk_events.clear()
+	var lines: PackedStringArray = []
+	for ev in events:
+		var text := str(ev.get("text", ""))
+		if text == "":
+			continue
+		lines.append(text)
+		if lines.size() >= 3:
+			break
+	if lines.is_empty():
+		return
+	_toast(str(lines[0]))
+	perk_muted = PackedStringArray()
+	for i in range(1, lines.size()):
+		perk_muted.append(str(lines[i]))
+
+
+func _add_perk_muted() -> void:
+	if perk_muted.is_empty() or card_body == null:
+		return
+	for line in perk_muted:
+		var lab := _label(line, 15, false, false)
+		lab.add_theme_color_override("font_color", MUTED)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_body.add_child(lab)
+	perk_muted = PackedStringArray()
 
 
 func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:
@@ -10357,6 +10435,70 @@ func _offer_shot(event_id: String) -> void:
 	game.week_event_ids = {}
 	game._present_event(game._event_by_id(event_id))
 	_show_dawn()
+
+
+## P55 stills: sheet perk/good, goods pip, gain toast, first-week yard float.
+func _perk_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(Vector2i(1280, 720))
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	game.stations.riverside.owner = game.player
+	game.stations.riverside.known = true
+	game.stations.riverside.loyalty = 72
+	game.stations.riverside.garrison = 6
+	game._sync_perk_notices()
+	showing_network = true
+	yard.visible = false
+	network_view.visible = true
+	network_view.bind(self)
+	await _frame()
+	network_view._fit()
+	network_view.show_zoom(8.0, "riverside")
+	network_view.refresh()
+	_place_chrome()
+	await _frame()
+	await _frame()
+	_save("p55_map_pip")
+	network_view.open_sheet("riverside")
+	await _frame()
+	await _frame()
+	_save("p55_sheet")
+	network_view.close_sheet()
+	var line := ""
+	for note in game.notices:
+		if str(note).begins_with("Held "):
+			line = str(note)
+			break
+	if line == "" and game.get("held_perk_events") != null:
+		for ev in game.held_perk_events:
+			line = str(ev.get("text", ""))
+			if line != "":
+				break
+	if line != "":
+		_toast(line)
+	await _frame()
+	await _frame()
+	_save("p55_toast")
+	if toast_label != null:
+		toast_label.visible = false
+	if toast_plate != null:
+		toast_plate.visible = false
+	showing_network = false
+	network_view.visible = false
+	yard.visible = true
+	_place_chrome()
+	motion_in_shots = true
+	_show_perk_floats()
+	await _frame()
+	await _frame()
+	_save("p55_yard_float")
+	get_tree().quit()
 
 
 func _network_shots() -> void:
