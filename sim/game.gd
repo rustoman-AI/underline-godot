@@ -9270,7 +9270,13 @@ func choice_effects(choice: Dictionary) -> Dictionary:
 					if _has_trait(person, str(trait_name)):
 						h = clampi(h - 2, 0, 100)
 		fx.hope = h - hope
-		fx.discontent = clampi(discontent + int(choice.get("discontent", 0)), 0, 100) - discontent
+		var d := clampi(discontent + int(choice.get("discontent", 0)), 0, 100)
+		var mood = choice.get("trait_discontent", {})
+		if mood is Dictionary:
+			for trait_name in mood:
+				if _any_trait(str(trait_name)):
+					d = clampi(d + int(mood[trait_name]), 0, 100)
+		fx.discontent = d - discontent
 		fx.people = int(choice.get("people", 0))
 		fx.sick = maxi(0, int(choice.get("sick", 0)))
 		fx.papers = int(fx.papers) + int(choice.get("papers", 0))
@@ -9476,6 +9482,10 @@ func _apply_deltas(choice: Dictionary) -> void:
 		for trait_name in choice.trait_hope:
 			if _any_trait(str(trait_name)):
 				_add_hope(int(choice.trait_hope[trait_name]), "trait")
+	if choice.has("trait_discontent"):
+		for trait_name in choice.trait_discontent:
+			if _any_trait(str(trait_name)):
+				_add_discontent(int(choice.trait_discontent[trait_name]), "trait")
 	if choice.has("trait_absent"):
 		for trait_name in choice.trait_absent:
 			for person in residents:
