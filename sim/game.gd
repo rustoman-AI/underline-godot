@@ -201,7 +201,7 @@ var hardship_now: Array = []
 var chronicle: Array = []
 var departed: Array = []
 var burials: Array = []
-## Creed stays empty until a line law sets it. No line law is in the book yet.
+## Empty until a creed branch is enacted. A line law keeps it. No creed: Depot root.
 var creed := ""
 var notices: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
@@ -421,6 +421,8 @@ func apply(action: Dictionary) -> bool:
 			ok = use_medkits()
 		"law":
 			ok = _apply_law(str(action.get("law", "")))
+		"law_trade":
+			ok = _apply_law_trade(str(action.get("trade", "")))
 		"pump":
 			ok = _apply_pump()
 		"quarantine":
@@ -610,8 +612,13 @@ func food_need() -> int:
 	var n := 0
 	if shares > 0.0:
 		n = ceili(shares / float(maxi(1, int(bal.food_per))))
+	var food_mult := 1.0
 	if _law_on("rationing"):
-		n = int(round(float(n) * 0.75))
+		food_mult = float(catalog.laws.rationing.get("food_mult", 0.75))
+	elif _law_on("soup_line"):
+		food_mult = float(catalog.laws.soup_line.get("food_mult", 0.9))
+	if not is_equal_approx(food_mult, 1.0):
+		n = int(round(float(n) * food_mult))
 	return n
 
 
@@ -1015,11 +1022,76 @@ func enact_reason(law_id: String) -> String:
 		return Copy.t("Already in force.")
 	if not catalog.laws.has(law_id):
 		return Copy.t("No such law.")
+	var defin: Dictionary = catalog.laws[law_id]
+	var tree := _law_tree_reason(defin)
+	if tree != "":
+		return tree
 	if not _room_ready("meeting_hall"):
-		return Copy.t("Needs a staffed meeting hall. The hall has no one in it.")
+		return Copy.t("law.need_hall")
 	if law_lock > 0:
-		return Copy.t("The hall is waiting. Next law in %s.") % Words.count(law_lock, "week")
+		return Copy.fill("law.cooldown", {"n": law_lock})
+	if bool(defin.get("line", false)) and int(stock.influence) < int(defin.get("influence", 10)):
+		return Copy.t("law.influence_short")
+	var mats := int(defin.get("materials_cost", 0))
+	if mats > 0 and int(stock.materials) < mats:
+		return shortage_text({"materials": mats})
+	if int(defin.get("needs_level", 0)) > 0 and not _dug_level(int(defin.needs_level)):
+		return Copy.t("law.blurb.burial_tunnel")
 	return ""
+
+
+## First tree blocker only. Hall, cooldown and influence come after, so a locked row says why it is locked.
+func _law_tree_reason(defin: Dictionary) -> String:
+	if str(defin.get("tab", "")) == "creed" and week < 6:
+		return Copy.t("law.creed_locked_week")
+	var branch := str(defin.get("branch", ""))
+	var held := _creed_branch()
+	if branch != "" and held != "" and held != branch:
+		return Copy.t("law.locked_path")
+	for other in defin.get("locks", []):
+		var oid := str(other)
+		if catalog.laws.has(oid) and _law_on(oid):
+			return Copy.t("law.fork_taken")
+	var row_need := str(defin.get("requires_row", ""))
+	if row_need != "" and not _row_has_law(row_need):
+		return Copy.t("law.requires_row")
+	var prev := str(defin.get("requires", ""))
+	if prev != "" and not _law_on(prev):
+		return Copy.t("law.requires_row")
+	return ""
+
+
+func _creed_branch() -> String:
+	for law_id in laws_on:
+		if not catalog.laws.has(str(law_id)):
+			continue
+		var branch := str(catalog.laws[str(law_id)].get("branch", ""))
+		if branch != "":
+			return branch
+	return ""
+
+
+func _row_has_law(row: String) -> bool:
+	for law_id in laws_on:
+		if catalog.laws.has(str(law_id)) and str(catalog.laws[str(law_id)].get("row", "")) == row:
+			return true
+	return false
+
+
+## Level 3 is the third floor of the grid (index 2).
+func _dug_level(level_1: int) -> bool:
+	var want := level_1 - 1
+	for key in cells:
+		var cell: Dictionary = cells[key]
+		if int(cell.get("level", -1)) == want and bool(cell.get("dug", false)):
+			return true
+	return false
+
+
+func _hope_floor() -> int:
+	if _law_on("covenant"):
+		return int(catalog.laws.covenant.get("hope_floor", 25))
+	return 0
 
 
 func shortage_text(need: Dictionary) -> String:
@@ -1226,6 +1298,7 @@ func _dawn_after_orders() -> void:
 	_release_white_checks()
 	_offer_checks()
 	_offer_story_event()
+	_offer_week6_creed()
 	_offer_triggered()
 	_offer_burial()
 	_note_dawn_afford()
@@ -1424,6 +1497,9 @@ func _finish_checks() -> void:
 	if residents.size() < 8 and over == "":
 		over = "collapse"
 		_log("COLLAPSE the yard is empty", true)
+	var floor := _hope_floor()
+	if floor > 0 and hope < floor:
+		hope = floor
 	if hope <= 0:
 		hope_zero += 1
 		_shed(HOPE_ZERO_LEAVE, "died", "hope")
@@ -1432,7 +1508,7 @@ func _finish_checks() -> void:
 			_log("HOPE the station stops working", true)
 	else:
 		hope_zero = 0
-	if discontent >= 100 and over == "":
+	if discontent >= 100 and over == "" and not _timetable_holds():
 		over = "revolt"
 		_log("REVOLT the platform turns on you", true)
 	_sample_meters()
@@ -1447,6 +1523,10 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 	var mult := 1.0
 	if _law_on("double_shifts"):
 		mult = float(catalog.laws.double_shifts.prod_mult)
+	if _law_on("chapel_shift"):
+		mult *= float(catalog.laws.chapel_shift.get("output_mult", 0.95))
+	if _law_on("quarantine") and sick_count() >= int(catalog.laws.quarantine.get("sick_at", 3)):
+		mult *= float(catalog.laws.quarantine.get("output_mult", 0.9))
 	var made := {}
 	for room in rooms:
 		if room.offline or _flood_silences(room) or int(room.get("disabled", 0)) > 0:
@@ -1480,6 +1560,8 @@ func _tally(drop_hydro_food := false, drop_shop := false, drop_gen := false, com
 			if bool(defin.get("decays", false)):
 				n = int(round(float(n) * float(room.efficiency)))
 			n = int(round(float(n) * mult))
+			if _law_on("night_shift") and _staff_trait(room, str(catalog.laws.night_shift.get("trait", "Insomniac"))):
+				n = int(round(float(n) * float(catalog.laws.night_shift.get("room_mult", 1.15))))
 			if drop_hydro_food and str(room.type) == "hydroponics" and str(key) == "food":
 				n = int(n / 2.0)
 			if drop_shop and str(room.type) == "workshop" and str(key) == "materials" and not shrugs_down(room):
@@ -2091,7 +2173,12 @@ func _ru_meter_when(meter: String, left: int, push: String, fix: String) -> Stri
 
 
 func revolt_warning() -> Dictionary:
-	if discontent < int(bal.get("revolt_warn", 70)):
+	var gate := int(bal.get("revolt_warn", 70))
+	if _law_on("informers"):
+		var sooner := int(catalog.laws.informers.get("warn_sooner", 1))
+		var gain := maxi(1, _meter_gain("discontent"))
+		gate = maxi(0, gate - gain * sooner)
+	if discontent < gate:
 		return {}
 	var gain := _meter_gain("discontent")
 	var left := 99
@@ -2302,6 +2389,8 @@ func repeal_reason(law_id: String) -> String:
 		return Copy.t("Not in force.")
 	if not bool(catalog.laws[law_id].get("repealable", false)):
 		return Copy.t("It cannot be repealed.")
+	if _law_on("covenant") and law_id == "sermons":
+		return Copy.t("It cannot be repealed.")
 	if not _room_ready("meeting_hall"):
 		return Copy.t("Needs a staffed meeting hall. The hall has no one in it.")
 	if law_lock > 0:
@@ -2432,6 +2521,10 @@ func _apply_repeal(law_id: String) -> bool:
 	if repeal_reason(law_id) != "":
 		return false
 	laws_on.erase(law_id)
+	if _creed_branch() == "":
+		creed = ""
+	if law_id == "soup_line":
+		_clear_cook()
 	law_lock = int(bal.law_cooldown)
 	decisions += 1
 	_log("REPEAL %s" % catalog.laws[law_id].name, true)
@@ -2675,6 +2768,9 @@ func _add_hope(delta: int, source: String) -> void:
 		return
 	var before := hope
 	hope = clampi(hope + delta, 0, 100)
+	var floor := _hope_floor()
+	if floor > 0:
+		hope = maxi(hope, floor)
 	var applied := hope - before
 	if applied == 0:
 		return
@@ -2936,6 +3032,7 @@ func _apply_weekly_laws() -> void:
 		if law_id == "sermons" and _any_trait("Devout"):
 			_add_hope(int(defin.get("devout_hope", 0)), "law")
 			synod += int(defin.get("synod", 0))
+	_apply_book_laws()
 	if law_lock > 0:
 		law_lock -= 1
 	if rally_lock > 0:
@@ -3349,6 +3446,8 @@ func cough_spread_chance() -> float:
 	var chance := float(bal.cough_spread) * station_fx("cough_spread")
 	if _pressure_seals_online():
 		chance *= 0.8
+	if _law_on("quarantine"):
+		chance *= float(catalog.laws.quarantine.get("spread_mult", 0.5))
 	return chance
 
 
@@ -3781,13 +3880,29 @@ func _apply_law(law_id: String) -> bool:
 		_add_discontent(int(defin.discontent_on_enact), "law")
 	if defin.has("materials_on_enact"):
 		stock.materials = int(stock.materials) + int(defin.materials_on_enact)
+	if int(defin.get("materials_cost", 0)) > 0:
+		stock.materials = int(stock.materials) - int(defin.materials_cost)
+	if bool(defin.get("line", false)):
+		stock.influence = maxi(0, int(stock.influence) - int(defin.get("influence", 10)))
+		_note_moment("creed_line", {"law": str(defin.name)}, 5)
 	if defin.has("opinion_on_enact"):
 		for fid in opinions:
 			_add_opinion(fid, int(defin.opinion_on_enact))
-	if bool(defin.get("line", false)):
-		_note_moment("creed_line", {"law": str(defin.name)}, 5)
-		if str(defin.get("creed", "")) != "":
-			creed = str(defin.creed)
+	var shifts = defin.get("regard", {})
+	if shifts is Dictionary:
+		_apply_regard(shifts)
+	var moods = defin.get("mood_trait", {})
+	if moods is Dictionary:
+		for trait_name in moods:
+			_mood_trait(str(trait_name), int(moods[trait_name]))
+	if bool(defin.get("synod_pact", false)):
+		flags["synod_pact"] = true
+	if str(defin.get("branch", "")) != "":
+		creed = str(defin.branch)
+		if int(defin.get("step", 0)) == 1:
+			_note_moment("creed_chosen", {"creed": _creed_label()}, 4)
+	if bool(defin.get("cook", false)):
+		_assign_cook()
 	if law_id == "conscription":
 		for _i in int(defin.squad_bonus):
 			var pick := _recruit_pick()
@@ -3801,6 +3916,181 @@ func _apply_law(law_id: String) -> bool:
 	decisions += 1
 	_log("LAW %s" % defin.name, true)
 	return true
+
+
+func _apply_book_laws() -> void:
+	_assign_cook()
+	if _law_on("informers"):
+		_mood_one(int(catalog.laws.informers.get("mood_week", -2)))
+	if _law_on("token_wages"):
+		_pay_token_wages()
+	if _law_on("timetable") and discontent > int(catalog.laws.timetable.get("line_discontent", 80)):
+		_kill(1, Copy.t("law.name.timetable"), "the line", "the line")
+		_add_hope(int(catalog.laws.timetable.get("line_hope", -2)), "law")
+	if _law_on("triage") and _season_is("cough"):
+		var deaths := sick_count() / maxi(1, int(catalog.laws.triage.get("cough_per", 4)))
+		if deaths > 0:
+			_kill(deaths, Copy.t("law.name.triage"), "cough")
+
+
+func _timetable_holds() -> bool:
+	if not _law_on("timetable"):
+		return false
+	if not squads.has(player):
+		return false
+	var sq: Dictionary = squads[player]
+	if bool(sq.get("away", false)) or str(sq.get("station", "")) != str(capital_id):
+		return false
+	return hope >= int(catalog.laws.timetable.get("hope_hold", 20))
+
+
+func _pay_token_wages() -> void:
+	var defin: Dictionary = catalog.laws.token_wages
+	var cost := residents.size() * int(defin.get("token_each", 1))
+	if cost > 0 and int(stock.tokens) >= cost:
+		stock.tokens = int(stock.tokens) - cost
+		_add_discontent(int(defin.get("paid_discontent", -2)), "law")
+	else:
+		_add_discontent(int(defin.get("unpaid_discontent", 6)), "law")
+
+
+func _assign_cook() -> void:
+	if not _law_on("soup_line"):
+		_clear_cook()
+		return
+	for person in residents:
+		if bool(person.get("soup_cook", false)):
+			return
+	var pick := ""
+	for person in residents:
+		if _is_child(person) or str(person.get("council", "")) != "":
+			continue
+		pick = str(person.id)
+		break
+	if pick == "" and not residents.is_empty():
+		pick = str(residents[0].get("id", ""))
+	if pick != "" and people.has(pick):
+		_unassign(pick)
+		people[pick]["soup_cook"] = true
+
+
+func _clear_cook() -> void:
+	for person in residents:
+		person.erase("soup_cook")
+
+
+func _staff_trait(room: Dictionary, trait_name: String) -> bool:
+	for id in room.get("staff", []):
+		if not people.has(str(id)):
+			continue
+		var person: Dictionary = people[str(id)]
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		if _has_trait(person, trait_name):
+			return true
+	return false
+
+
+func _mood_one(delta: int) -> void:
+	var pool: Array = []
+	for person in residents:
+		if _is_child(person):
+			continue
+		pool.append(person)
+	if pool.is_empty():
+		return
+	var person: Dictionary = pool[rng.randi() % pool.size()]
+	person["mood"] = int(person.get("mood", 0)) + delta
+
+
+func _mood_trait(trait_name: String, delta: int) -> void:
+	for person in residents:
+		if _has_trait(person, trait_name):
+			person["mood"] = int(person.get("mood", 0)) + delta
+
+
+func _apply_regard(shifts: Dictionary) -> void:
+	for fid in shifts:
+		var amount := int(shifts[fid])
+		if amount == 0:
+			continue
+		if str(fid) == "penn":
+			if stations.has("foundry"):
+				var st: Dictionary = stations.foundry
+				st.sympathy = clampi(int(st.get("sympathy", 0)) + amount, -100, 100)
+			continue
+		if opinions.has(str(fid)) and str(fid) != "synod":
+			_add_opinion(str(fid), amount, "law")
+		if standing.has(str(fid)):
+			_add_standing(str(fid), amount, {"kind": "law"})
+
+
+func law_trade_reason(which: String) -> String:
+	if not _law_on("everything_has_a_price"):
+		return Copy.t("law.locked_path")
+	if int(flags.get("law_trade_" + which, -1)) == week:
+		return Copy.t("law.blurb.everything_has_a_price")
+	var defin: Dictionary = catalog.laws.everything_has_a_price
+	if which == "sell":
+		if residents.size() <= 8:
+			return Copy.t("law.locked_path")
+		return ""
+	if which == "migrant":
+		if int(stock.tokens) < int(defin.get("migrant_tokens", 20)):
+			return shortage_text({"tokens": int(defin.get("migrant_tokens", 20))})
+		return ""
+	if which == "hope":
+		if int(stock.tokens) < int(defin.get("hope_tokens", 10)):
+			return shortage_text({"tokens": int(defin.get("hope_tokens", 10))})
+		return ""
+	return Copy.t("No such law.")
+
+
+func _apply_law_trade(which: String) -> bool:
+	if law_trade_reason(which) != "":
+		return false
+	var defin: Dictionary = catalog.laws.everything_has_a_price
+	if which == "sell":
+		stock.tokens = int(stock.tokens) + int(defin.get("sell_tokens", 15))
+		_shed(1, "left", "the line", "the market")
+	elif which == "migrant":
+		stock.tokens = int(stock.tokens) - int(defin.get("migrant_tokens", 20))
+		_hire(1)
+	elif which == "hope":
+		stock.tokens = int(stock.tokens) - int(defin.get("hope_tokens", 10))
+		_add_hope(1, "law")
+	else:
+		return false
+	flags["law_trade_" + which] = week
+	decisions += 1
+	_log("LAW trade %s" % which, true)
+	return true
+
+
+## Week-6 creed card. Event family, once. Does not join the soft dawn stack.
+func book_joins_soft_dawn() -> bool:
+	return false
+
+
+func _offer_week6_creed() -> void:
+	if week != 6 or bool(flags.get("law_week6", false)):
+		return
+	flags["law_week6"] = true
+	var lead := Copy.pack("law.week6")
+	var body := Copy.pack("law.week6_body")
+	pending.push_front({
+		"id": "law_week6",
+		"major": true,
+		"title": Copy.pack("law.week6_title"),
+		"text": {
+			"en": str(lead.get("en", "")) + "\n" + str(body.get("en", "")),
+			"ru": str(lead.get("ru", "")) + "\n" + str(body.get("ru", "")),
+		},
+		"choices": [
+			{"id": "open", "label": Copy.pack("law.week6_open"), "flag": "law_week6_open"},
+			{"id": "later", "label": Copy.pack("law.week6_later"), "flag": "law_week6_later"},
+		],
+	})
 
 
 func _advance_jobs() -> void:
@@ -7243,6 +7533,9 @@ func _locked_ids() -> Array:
 	if not build.is_empty():
 		ids.append_array(build.workers)
 	ids.append_array(soldier_ids())
+	for person in residents:
+		if bool(person.get("soup_cook", false)):
+			ids.append(str(person.id))
 	return ids
 
 
@@ -7573,6 +7866,8 @@ func _heal() -> void:
 			var person: Dictionary = people[id]
 			if int(person.sick) <= 0 and int(person.absent) <= 0:
 				cures += 1
+	if _law_on("triage") and cures > 0:
+		cures += int(catalog.laws.triage.get("cure_bonus", 1))
 	if cures <= 0:
 		return
 	for person in residents:
@@ -12090,6 +12385,8 @@ func score_now() -> int:
 	var total := week * 10 + residents.size() * 2 + owned_count() * 15 + hope - named * 5
 	if _mandate_fulfilled():
 		total += 100
+	if _creed_id() == "none":
+		total += 50
 	return total
 
 
@@ -12449,6 +12746,8 @@ func _resolve_burial(person_id: String, choice_id: String) -> void:
 			continue
 		if choice_id == "bury":
 			row.burial = "bury"
+			if _law_on("burial_tunnel"):
+				_add_hope(int(catalog.laws.burial_tunnel.get("burial_hope", 1)), "law")
 		elif choice_id == "ledger":
 			row.burial = "ledger"
 			# TODO(P6): Devout mood −2 when mood exists. Ledger has no mood to write yet.
