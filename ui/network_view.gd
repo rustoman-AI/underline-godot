@@ -16,6 +16,7 @@ const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const PassageFlow = preload("res://sim/passage_flow.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -206,6 +207,10 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _flow_float: Label
+var _flow_float_tween: Tween
+## Screen-space hits for the passage-flow discs painted last frame. Tooltip only.
+var _flow_hits: Array = []
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -355,6 +360,7 @@ func refresh() -> void:
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
 	_note_first_leaflet()
+	_note_first_passage_flow()
 
 
 func _redraw() -> void:
@@ -1199,6 +1205,13 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_soft_marks(c, game)
 	_draw_unit_routes(c, game)
 	_draw_legend(c, game)
+	## Above tags and trails. Screen-sized, so the map transform stays off.
+	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+	var flow_r := PassageFlow.TICK_PX * 0.5
+	for flow_row in _flow_hits:
+		var flow_at: Vector2 = flow_row.at
+		c.draw_circle(flow_at, flow_r + 1.0, PassageFlow.CARD_INK)
+		c.draw_circle(flow_at, flow_r, flow_row.tint)
 
 
 ## Faction whose symbol a station carries: its owner when that is a leader faction, otherwise the leader
@@ -2444,6 +2457,7 @@ func _draw_deal_pips(c: CanvasItem, game) -> void:
 
 
 func _draw_passage_edges(c: CanvasItem, game) -> void:
+	_flow_hits.clear()
 	var home := str(game.capital_id)
 	if not game.stations.has(home):
 		return
@@ -2461,6 +2475,105 @@ func _draw_passage_edges(c: CanvasItem, game) -> void:
 		while t <= length:
 			c.draw_circle(a.lerp(yard, t / length), PASSAGE_DOT * k, brass)
 			t += PASSAGE_STEP * k
+		_queue_passage_flow(game, str(sid), a, yard)
+	## Same transform as the brass dots, and after them, so the disc sits on the thread.
+	_paint_passage_flow(c)
+
+
+## Static disc on the brass thread. No slide and no pulse, in either motion setting.
+## A missing flow_tick icon never blocks: the filled disc is the mark, so the CP2 tint stays exact.
+func _queue_passage_flow(game, sid: String, a: Vector2, yard: Vector2) -> void:
+	if not PassageFlow.shows(game, sid):
+		return
+	var mid := PassageFlow.midpoint(a, yard)
+	_flow_hits.append({
+		"at": (_view() * _map_xf) * mid,
+		"mid": mid,
+		"r": PassageFlow.TICK_PX * 0.5 + 4.0,
+		"sid": sid,
+		"tint": PassageFlow.tint_for(game, sid),
+	})
+
+
+func _paint_passage_flow(c: CanvasItem) -> void:
+	## Map units per screen pixel. The disc stays TICK_PX across, with a 1 px ink edge.
+	var span := maxf(_map_scale() * zoom, 0.01)
+	var radius := PassageFlow.TICK_PX * 0.5 / span
+	var edge := 1.0 / span
+	for row in _flow_hits:
+		var at: Vector2 = row.mid
+		c.draw_circle(at, radius + edge, PassageFlow.CARD_INK)
+		c.draw_circle(at, radius, row.tint)
+
+
+func _flow_hover_tip(screen_at: Vector2) -> String:
+	var game = _game()
+	if game == null:
+		return ""
+	var best := ""
+	var best_d := INF
+	for row in _flow_hits:
+		var at: Vector2 = row.at
+		var dist := at.distance_to(screen_at)
+		if dist <= float(row.r) and dist < best_d:
+			best_d = dist
+			best = "\n".join(PassageFlow.tip_lines(game, str(row.sid)))
+	return best
+
+
+func _note_first_passage_flow() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := PassageFlow.note(_game())
+	if line == "":
+		return
+	_show_flow_float(line)
+
+
+func _show_flow_float(line: String) -> void:
+	if _flow_float == null:
+		_flow_float = Label.new()
+		_flow_float.z_index = 8
+		_flow_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_flow_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_flow_float.add_theme_font_size_override("font_size", 18)
+		_flow_float.add_theme_color_override("font_color", PassageFlow.BRASS)
+		_flow_float.add_theme_constant_override("outline_size", 6)
+		_flow_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		add_child(_flow_float)
+	_flow_float.text = line
+	_flow_float.modulate.a = 1.0
+	_flow_float.visible = true
+	if _flow_float_tween != null and _flow_float_tween.is_valid():
+		_flow_float_tween.kill()
+	_place_flow_float()
+	if not is_inside_tree():
+		return
+	_flow_float_tween = create_tween()
+	if _motion_off():
+		_flow_float_tween.tween_interval(4.2)
+	else:
+		var rise := _flow_float.position.y - 18.0
+		_flow_float_tween.tween_property(_flow_float, "position:y", rise, 2.4)
+		_flow_float_tween.parallel().tween_property(_flow_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_flow_float_tween.tween_callback(func() -> void:
+		if _flow_float != null:
+			_flow_float.visible = false)
+
+
+func _place_flow_float() -> void:
+	if _flow_float == null or not _flow_float.visible:
+		return
+	_flow_float.custom_minimum_size = Vector2(420, 28)
+	_flow_float.size = Vector2(420, 28)
+	var y := 78.0
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	_flow_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
 
 
 func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
@@ -3791,7 +3904,10 @@ func _gui_input(event: InputEvent) -> void:
 			var game = _game()
 			tooltip_text = game.rumor_label() if game != null else ""
 		else:
-			tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
+			var line := Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
+			if line == "" and hit == "" and chip == "":
+				line = _flow_hover_tip(motion.position)
+			tooltip_text = line
 		if _drag:
 			origin -= motion.relative / zoom
 			_clamp_view()
@@ -3878,6 +3994,8 @@ func _tip(sid: String) -> String:
 	if int(st.get("intel", 0)) > 0:
 		lines.append(Copy.fill("listening.intel_line", {"n": int(st.intel)}))
 	for extra in deal_mark_lines(game, sid, _motion_off()):
+		lines.append(str(extra))
+	for extra in PassageFlow.tip_lines(game, sid):
 		lines.append(str(extra))
 	for extra in warm_lines(game, sid):
 		lines.append(str(extra))
