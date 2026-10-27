@@ -100,16 +100,40 @@
     "ru": "Самое тяжёлое"
   },
   "epilogue.chronicle_empty": {
-    "en": "The yard left no chronicle.",
-    "ru": "Двор не оставил хроники."
+    "en": "Nothing the yard kept.",
+    "ru": "Двор ничего не сохранил."
   },
   "epilogue.fates_title": {
     "en": "Who remains",
     "ru": "Кто остался"
   },
   "epilogue.score": {
-    "en": "Score",
-    "ru": "Счёт"
+    "en": "Score {n} · Best {best}",
+    "ru": "Счёт {n} · Лучший {best}"
+  },
+  "epilogue.next": {
+    "en": "Next",
+    "ru": "Дальше"
+  },
+  "epilogue.back": {
+    "en": "Back",
+    "ru": "Назад"
+  },
+  "epilogue.close": {
+    "en": "Close",
+    "ru": "Закрыть"
+  },
+  "epilogue.page_verdict": {
+    "en": "Verdict",
+    "ru": "Приговор"
+  },
+  "epilogue.page_chronicle": {
+    "en": "Chronicle",
+    "ru": "Летопись"
+  },
+  "epilogue.page_fates": {
+    "en": "Fates",
+    "ru": "Судьбы"
   },
   "epilogue.score_parts": {
     "en": "Weeks ×10 · Population ×2 · Stations ×15 · Hope · Named dead ×−5",
