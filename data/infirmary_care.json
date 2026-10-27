@@ -1,0 +1,31 @@
+{
+  "_note": "P61 Infirmary Care. Spec DEC-IC1…IC2 (historic P12). care.* namespace distinct from people.chip_* / sick.* — do NOT reuse P48 cot sticky copy. Tiny balance (Code owns heal); Texts zero invent. Not a dawn chip; no auto-assign / heal-button copy. Dry metro grit — careful hands, not miracle ward. Placeholder {n} = tonight floor cure power.",
+  "_roadmap": "P61",
+  "_owners": "Texts; Code _heal care bonus + gate; UIUX tip/power/first float; Art none",
+  "_placeholders": [
+    "{n}"
+  ],
+  "_do_not_touch": [
+    "sick.* (P48)",
+    "people.chip_* (P59)"
+  ],
+  "by_key": {
+    "care.tip": {
+      "en": "Care on staff speeds the cots.",
+      "ru": "Уход у персонала быстрее снимает с коек."
+    },
+    "care.power": {
+      "en": "Cure power {n}",
+      "ru": "Сила лечения: {n}"
+    },
+    "care.first": {
+      "en": "Careful hands clear a cot.",
+      "ru": "Осторожные руки освободили койку."
+    },
+    "care.none": {
+      "en": "No care on the ward.",
+      "ru": "На койках нет ухода."
+    }
+  },
+  "_status": "Designer APPROVED / locked 2026-10-26 — P61 Infirmary Care"
+}

@@ -242,6 +242,10 @@ var sick_badge_icon: TextureRect
 var sick_float: Label
 var sick_float_until := 0
 var sick_float_fade: Tween
+## P61 once-per-run yard float. Not a badge, not a dawn chip, not P48 cot chrome.
+var care_float: Label
+var care_float_until := 0
+var care_float_fade: Tween
 var undo_toast: PanelContainer
 ## P42 dawn rail-noise chip (bottom-left yard) and the once-per-run platform float.
 var rail_chip: PanelContainer
@@ -995,6 +999,7 @@ func _process(_delta: float) -> void:
 	_pulse_alarms()
 	_tick_away_float()
 	_tick_sick_cots()
+	_tick_care_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -1102,6 +1107,7 @@ func _build() -> void:
 	add_child(side)
 	_build_away_badge()
 	_build_sick_badge()
+	_build_care_float()
 
 	footer = _label("", 14)
 	footer.visible = false
@@ -1680,6 +1686,7 @@ func _place_chrome() -> void:
 		yard.on_resize()
 	_sync_away_badge()
 	_sync_sick_badge()
+	_sync_care_float()
 
 
 func _show_ahead(show: bool) -> void:
@@ -2060,6 +2067,7 @@ func _refresh() -> void:
 	_offer_pending()
 	_sync_away_badge()
 	_sync_sick_badge()
+	_sync_care_float()
 
 
 func _fill_people() -> void:
@@ -3981,6 +3989,8 @@ func _show_room(uid: String) -> void:
 			sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			card_body.add_child(sub)
 	_room_header(detail)
+	if str(detail.type) == "infirmary":
+		_infirmary_care_card()
 	if str(detail.type) == "listening_post":
 		_listening_card(uid)
 	elif str(detail.type) == "radio" and game.listening_active():
@@ -4142,6 +4152,27 @@ func _room_header(detail: Dictionary) -> void:
 		card_body.add_child(why)
 	for line in _room_status_lines(detail):
 		_body_ready(line)
+
+
+## Infirmary card only. Always the care tip. Power line when Code exposes tonight's floor sum.
+## The empty-ward string stays in the pack; the tip is not thin, so the card does not use it.
+func _infirmary_care_card() -> void:
+	var view: Dictionary = game.infirmary_care_view()
+	var tip := _label(Copy.t("care.tip"), 16, false, false)
+	tip.name = "CareTip"
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tip.add_theme_color_override("font_color", PAPER_MUTED)
+	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card_body.add_child(tip)
+	if not bool(view.get("expose", false)):
+		return
+	var power := _label(Copy.fill("care.power", {"n": int(view.get("n", 0))}), 16, false, false)
+	power.name = "CarePower"
+	power.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	power.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	power.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card_body.add_child(power)
 
 
 func _seat_row(uid: String, detail: Dictionary) -> void:
@@ -5481,6 +5512,87 @@ func _tick_sick_cots() -> void:
 		return
 	if sick_float_until > 0 and Time.get_ticks_msec() >= sick_float_until:
 		_hide_sick_float()
+
+
+func _build_care_float() -> void:
+	care_float = _label("", 18, true, false)
+	care_float.name = "CareFloat"
+	care_float.visible = false
+	care_float.z_index = 12
+	care_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	care_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	care_float.add_theme_constant_override("outline_size", 6)
+	care_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	add_child(care_float)
+
+
+func _sync_care_float() -> void:
+	if care_float == null or game == null:
+		return
+	if not _away_yard_open():
+		if care_float.visible:
+			_hide_care_float()
+		return
+	if care_float.visible:
+		_place_care_float()
+		return
+	var view: Dictionary = game.infirmary_care_view()
+	if not bool(view.get("first", false)):
+		return
+	_show_care_float()
+	game.infirmary_care_mark_seen()
+
+
+func _show_care_float() -> void:
+	if care_float == null:
+		return
+	care_float.text = Copy.t("care.first")
+	care_float.visible = true
+	care_float.modulate.a = 1.0
+	care_float.rotation = 0.0
+	if care_float_fade != null and care_float_fade.is_valid():
+		care_float_fade.kill()
+	_place_care_float()
+	if _motion_off():
+		care_float_until = Time.get_ticks_msec() + 3200
+		return
+	care_float_until = 0
+	care_float_fade = create_tween()
+	care_float_fade.tween_interval(2.6)
+	care_float_fade.tween_property(care_float, "modulate:a", 0.0, 0.4)
+	care_float_fade.tween_callback(func() -> void:
+		if care_float != null:
+			care_float.visible = false)
+
+
+func _place_care_float() -> void:
+	if care_float == null or not care_float.visible:
+		return
+	var w := maxf(care_float.size.x, care_float.get_combined_minimum_size().x)
+	var top := (hud.size.y if hud != null else 72.0) + 48.0
+	var play_bot := size.y - chrome_bottom
+	var fy := lerpf(top, play_bot, 0.54)
+	if sick_float != null and sick_float.visible:
+		fy = maxf(fy, sick_float.position.y + 36.0)
+	elif away_float != null and away_float.visible:
+		fy = maxf(fy, away_float.position.y + 36.0)
+	care_float.position = Vector2((size.x - w) * 0.5, fy)
+
+
+func _hide_care_float() -> void:
+	care_float_until = 0
+	if care_float_fade != null and care_float_fade.is_valid():
+		care_float_fade.kill()
+	if care_float != null:
+		care_float.visible = false
+
+
+func _tick_care_float() -> void:
+	if care_float == null or not care_float.visible:
+		return
+	_place_care_float()
+	if care_float_until > 0 and Time.get_ticks_msec() >= care_float_until:
+		_hide_care_float()
 
 
 ## One cable radio item every Settings.radio_every weeks once a radio room stands, held until no card or voice is up.

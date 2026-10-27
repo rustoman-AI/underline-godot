@@ -28,6 +28,12 @@ const SALVAGE_NODES := [
 const STRIP_MATERIALS := 4
 const STRIP_EVERY := 3
 const JUNK_EVERY := 6
+## P61 Infirmary Care. Each healthy non-absent infirmary staffer is 1.0 cure power
+## plus clamp(care, 0, CARE_CAP) * CARE_BONUS. Tonight's cures are floor(sum).
+## Designer lock started at 0.125. Careful loss on seeds 1–60 was 2/60 (3.3%), under 15%,
+## so the bonus is softened to 0.08. Cough, spoil, hope, and balance.json stay as they were.
+const CARE_BONUS := 0.08
+const CARE_CAP := 8
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -7564,23 +7570,68 @@ func _infect(n: int) -> void:
 		person.sick = 3
 
 
-func _heal() -> void:
-	var cures := 0
+## Tonight's cure power across online infirmaries. Offline rooms and sick or absent
+## staff add nothing. Care 0 is the old 1.0 per healthy staffer.
+func infirmary_cure_tally() -> Dictionary:
+	var sum := 0.0
+	var head := 0
 	for room in rooms:
-		if room.type != "infirmary" or room.offline:
+		if str(room.get("type", "")) != "infirmary" or bool(room.get("offline", false)):
 			continue
-		for id in room.staff:
-			var person: Dictionary = people[id]
-			if int(person.sick) <= 0 and int(person.absent) <= 0:
-				cures += 1
-	if cures <= 0:
-		return
-	for person in residents:
-		if cures <= 0:
-			break
-		if int(person.sick) > 0:
-			person.sick = 0
-			cures -= 1
+		for id in room.get("staff", []):
+			if not people.has(str(id)):
+				continue
+			var person: Dictionary = people[str(id)]
+			if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+				continue
+			head += 1
+			var care := clampi(int(person.get("skills", {}).get("care", 0)), 0, CARE_CAP)
+			sum += 1.0 + float(care) * CARE_BONUS
+	return {"sum": sum, "cures": int(floor(sum)), "headcount": head}
+
+
+## Live read for the infirmary card. `n` is tonight's floor(sum). The UI does not invent it.
+## `first` is the once-per-run yard float, set only after a care bonus actually cleared
+## at least one extra cot beyond headcount. Not a soft dawn chip.
+func infirmary_care_view() -> Dictionary:
+	var tally := infirmary_cure_tally()
+	var seen := bool(flags.get("seen_infirmary_care", false))
+	return {
+		"n": int(tally.cures),
+		"expose": true,
+		"headcount": int(tally.headcount),
+		"sum": float(tally.sum),
+		"first": bool(flags.get("infirmary_care_float", false)) and not seen,
+		"seen": seen,
+		"dawn": false,
+	}
+
+
+## First platform float has been seen this run. Save/load keeps `flags.seen_infirmary_care`.
+func infirmary_care_mark_seen() -> void:
+	flags["seen_infirmary_care"] = true
+	flags.erase("infirmary_care_float")
+
+
+## Always false. P61 is a yard float, never a soft dawn chip.
+func infirmary_care_dawn_chip() -> bool:
+	return false
+
+
+func _heal() -> void:
+	var tally := infirmary_cure_tally()
+	var cures := int(tally.cures)
+	var spent := 0
+	if cures > 0:
+		for person in residents:
+			if cures <= 0:
+				break
+			if int(person.sick) > 0:
+				person.sick = 0
+				cures -= 1
+				spent += 1
+	if spent >= int(tally.headcount) + 1 and not bool(flags.get("seen_infirmary_care", false)):
+		flags["infirmary_care_float"] = true
 
 
 func _tick_sickness() -> void:
@@ -12543,8 +12594,8 @@ func breach_craft_reason() -> String:
 	return order_block("breach")
 
 
-## Locked soft-dawn order. Party Away and Sick Cots are sticky yard chrome and have no slot here.
-## P43 homecoming queues the arrival chip; those badges do not.
+## Locked soft-dawn order. Party Away, Sick Cots, and Infirmary Care are yard chrome and have no slot here.
+## P43 homecoming queues the arrival chip. P61 does not join.
 const DAWN_SOFT_STACK := ["rumor", "border.dawn_new", "rail", "homecoming"]
 
 
