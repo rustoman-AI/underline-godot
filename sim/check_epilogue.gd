@@ -5,7 +5,8 @@ const Game = preload("res://sim/game.gd")
 const Copy = preload("res://sim/copy.gd")
 
 ## P68 Epilogue. Verdict, chronicle top 6, fates, judgment, score.
-## No win/loss change. No Mandate +100. Soft dawn stays the four-chip stack.
+## No win/loss change. Soft dawn stays the four-chip stack.
+## P73 turns the mandate +100 hook back on inside score_now. P72 adds 50 with no creed.
 ##   godot --headless --path . -s res://sim/check_epilogue.gd
 
 const ENDINGS := ["time", "revolt", "hope", "collapse", "capital"]
@@ -358,23 +359,28 @@ func _check_score(catalog: Catalog) -> bool:
 	var ok := true
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
 	var at := src.find("func score_now()")
-	var body := src.substr(at, 280)
-	if body.find("100") >= 0 or body.find("mandate") >= 0 or body.find("_mandate_fulfilled") >= 0:
-		print("Score: FAIL mandate still in score_now")
+	var body := src.substr(at, 480)
+	if body.find("_mandate_fulfilled") < 0 or body.find("100") < 0:
+		print("Score: FAIL mandate hook missing from score_now")
+		ok = false
+	if body.find("_creed_id") < 0 or body.find("50") < 0:
+		print("Score: FAIL no-creed bonus missing from score_now")
 		ok = false
 	var game := _game(catalog)
 	game.week = 10
 	game.hope = 7
 	game.stats.named_dead = 2
-	## Stacked P72: a fresh run has no creed, so score_now adds 50. Mandate still adds nothing.
+	## Stacked P72: a fresh run has no creed, so score_now adds 50.
+	## Stacked P73: mandate_fulfilled adds 100, then the flag is cleared so the seal tests the display formula.
 	var expect := 10 * 10 + game.residents.size() * 2 + game.owned_count() * 15 + 7 - 2 * 5 + 50
 	if game.score_now() != expect:
 		print("Score: FAIL formula ", game.score_now(), " want ", expect)
 		ok = false
 	game.stats.mandate_fulfilled = true
-	if game.score_now() != expect:
+	if game.score_now() != expect + 100:
 		print("Score: FAIL mandate changed the score ", game.score_now())
 		ok = false
+	game.stats.mandate_fulfilled = false
 	var path := game.records_path
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	game.over = "time"
