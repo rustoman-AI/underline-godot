@@ -104,6 +104,9 @@ func _init() -> void:
 ## With food_medium 4 the pack lands at 7/60. Softening keep to 3 stays 7; to 1 drops to 6.
 ## The food lever cannot enter 15-35% from this baseline. Cough is untouched.
 ## This run still gates 15-30%.
+## P66 deep-life note: check_deep_life_events.gd measures the same 60 careful seeds. Spec band is
+## 15-35%. This branch is from pre-P62 master (2/60). The nine one-shots land on the floor at 9/60 (15%).
+## food_small stays 2. Cough is untouched. This run still gates 15-30%.
 const LOSS_SEEDS := 60
 const CAREFUL_LOSS := [0.15, 0.30]
 const EARLIEST_LOSS := 15
@@ -130,6 +133,7 @@ func _losses_ok() -> bool:
 			print("  careful loses %.0f%%, outside %.0f-%.0f%%" % [share * 100.0, float(CAREFUL_LOSS[0]) * 100.0, float(CAREFUL_LOSS[1]) * 100.0])
 	print("  Station life note: spec careful band is 15-35 percent of 60 seeds (check_station_life_events.gd). This run still gates %.0f-%.0f percent." % [float(CAREFUL_LOSS[0]) * 100.0, float(CAREFUL_LOSS[1]) * 100.0])
 	print("  Tunnel life note: spec careful band is 15-35 percent of 60 seeds (check_tunnel_life_events.gd). Master before the pack was 2/60. Measured landing with food_medium 4 is 7/60. Softening keep does not enter the band. This run still gates %.0f-%.0f percent. Cough untouched." % [float(CAREFUL_LOSS[0]) * 100.0, float(CAREFUL_LOSS[1]) * 100.0])
+	print("  Deep life note: spec careful band is 15-35 percent of 60 seeds (check_deep_life_events.gd). Measured landing is 9/60 (15 percent). Master before the pack was 2/60. food_small stays 2. This run still gates %.0f-%.0f percent. Cough untouched." % [float(CAREFUL_LOSS[0]) * 100.0, float(CAREFUL_LOSS[1]) * 100.0])
 	return ok
 
 

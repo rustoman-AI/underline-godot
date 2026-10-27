@@ -1212,6 +1212,7 @@ func _dawn() -> void:
 func _dawn_after_orders() -> void:
 	_sync_perk_notices()
 	_flush_station_life_log()
+	_flush_deep_life_log()
 	orders_left = council.size()
 	for seat in council:
 		if governor_of(str(seat.id)) != "":
@@ -9215,6 +9216,7 @@ func _apply_event(action: Dictionary) -> bool:
 		_apply_deltas(choice)
 		_apply_standing_choice(ev, choice)
 		_apply_station_life_flavor(ev, choice)
+		_apply_deep_life_flavor(ev, choice)
 	decisions += 1
 	if not keep:
 		return true
@@ -9468,6 +9470,28 @@ func _flush_station_life_log() -> void:
 	if line == "":
 		return
 	flags.erase("station_life_listen")
+	_log(line, true)
+
+
+## P66 side_door watch, twin_marks copy, warm_smell send. The approved line waits for the
+## next dawn log, and only if the Listening Post is staffed when the choice is taken.
+## No probe, no intel, no Blown. name_scrubbed never comes through here.
+func _apply_deep_life_flavor(ev: Dictionary, choice: Dictionary) -> void:
+	if not bool(ev.get("deep_life", false)) or not choice.has("dawn_flavor"):
+		return
+	if not listening_active():
+		return
+	var line := line_of(choice, "dawn_flavor")
+	if line == "":
+		return
+	flags["deep_life_listen"] = line
+
+
+func _flush_deep_life_log() -> void:
+	var line := str(flags.get("deep_life_listen", ""))
+	if line == "":
+		return
+	flags.erase("deep_life_listen")
 	_log(line, true)
 
 
