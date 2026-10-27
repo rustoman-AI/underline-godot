@@ -7,6 +7,16 @@ const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
 const HOPE_ZERO_WEEKS := 3
+## P67 Named Lives. Thresholds and the ten death causes. Soft dawn does not read these.
+const KNOWN_AT := 40
+const DEATH_CARD_AT := 30
+const MEMORY_CAP := 100
+const MEMORY_STEP := 5
+const SKILL_WEEKS := 6
+const SKILL_CAP := 6
+const CHILD_WEEKS := 8
+const BIRTH_HOPE_CAP := 2
+const DEATH_CAUSES := ["sickness", "food_shortage", "air_shortage", "battle", "cough", "sealed", "dilemma", "accident", "cold", "flood"]
 const PUSH_BLOCKED := ["infirmary", "radio", "quarters"]
 const PUSH_WINDOW := 4
 ## Salvage Board (DEC-S2). Tier is the blueprint gate. Step is the room upgrade level this node fits.
@@ -603,10 +613,16 @@ func air_buffer_weeks() -> float:
 	return float(stock.air) / float(maxi(1, air_need()))
 
 
-func food_need() -> int:
+## Adult shares plus two thirds for each child. food_need ceilings this into meals.
+func ration_shares() -> float:
 	var shares := 0.0
 	for person in residents:
 		shares += (2.0 / 3.0) if _is_child(person) else 1.0
+	return shares
+
+
+func food_need() -> int:
+	var shares := ration_shares()
 	var n := 0
 	if shares > 0.0:
 		n = ceili(shares / float(maxi(1, int(bal.food_per))))
@@ -7323,23 +7339,30 @@ func _remove_resident(id: String, notice := false, cause := "", how := "died", p
 	if people.has(id) and (notice or cause != ""):
 		var who: Dictionary = people[id]
 		var memory := int(who.get("memory", 0))
-		var known := memory >= 40
+		var known := is_known(who)
+		if how == "died" and cause == "":
+			cause = "accident"
 		var line_id := _death_line_id(cause if cause != "" else "accident", who)
 		if how == "died":
+			var sentence := _death_sentence(who, line_id)
 			_remember_departure(who, "died", line_id, place)
 			stats.named_dead = int(stats.get("named_dead", 0)) + 1
 			_note_moment("named_death", {"name": str(who.get("name", id)), "cause": _death_cause_label(line_id), "who": id}, 5)
 			if known:
 				_note_moment("known_lost", {"name": str(who.get("name", id))}, 5)
 				_add_hope(-2, "known")
-			if memory >= 30:
+			if memory >= DEATH_CARD_AT:
 				burials.append({
 					"id": id,
 					"name": str(who.get("name", id)),
 					"name_ru": str(who.get("name_ru", "")),
 					"cause": line_id,
 					"memory": memory,
+					"fem": sex_of(who) == "f",
+					"sentence": sentence,
 				})
+			elif sentence != "":
+				notices.append(sentence)
 		elif how == "left":
 			_remember_departure(who, "left", line_id, place)
 			if known:
@@ -7702,8 +7725,6 @@ func _grow() -> void:
 		if child_name == "":
 			continue
 		born += 1
-		if born <= 2:
-			_add_hope(1, "birth")
 	if born > 0:
 		_log("BORN %d" % born, true)
 		_journal("born", {"n": born})
@@ -8384,6 +8405,8 @@ func front_event() -> Dictionary:
 ## week (ui/station.gd), one at a time as they work, and all that are left when they end the week.
 func event_is_big(ev: Dictionary) -> bool:
 	var id := str(ev.get("id", ""))
+	if str(ev.get("burial_id", "")) != "":
+		return true
 	if bool(ev.get("major", false)) or ev.has("trigger") or not crunch_leg(id).is_empty():
 		return true
 	return id.begins_with("st1_") or id.begins_with("st2_") or id.begins_with("st3_") or id.begins_with("lc_") or id.begins_with("lc2_")
@@ -10222,6 +10245,8 @@ func _init_people() -> void:
 			council.append({"role": str(person.council), "id": str(person.id), "loyalty": 80})
 	_apply_coney_cast()
 	_dress(residents)
+	for person in residents:
+		_fill_identity(person)
 
 
 const CONEY_SLOTS := ["chris", "mina", "kim", "drew", "ann"]
@@ -11286,7 +11311,7 @@ func _apply_audience(accept: bool) -> bool:
 		var person: Dictionary = people[str(fx.hand_over)]
 		deed["name"] = str(person.get("name", ""))
 		deed["name_ru"] = str(person.get("name_ru", ""))
-		_remove_resident(str(fx.hand_over))
+		_remove_resident(str(fx.hand_over), false, "dilemma", "left")
 		_journal("handed_over", {"faction": fid, "name": deed.name, "name_ru": deed.name_ru})
 	if deal_id == "burn_papers":
 		if bool(fx.papers):
@@ -12154,7 +12179,7 @@ func _birth() -> String:
 		"sick": 0,
 		"absent": 0,
 		"child": true,
-		"child_left": 8,
+		"child_left": CHILD_WEEKS,
 		"born_week": week,
 		"parent_skill": _parent_skill(),
 		"memory": 0,
@@ -12166,7 +12191,20 @@ func _birth() -> String:
 	people[id] = person
 	_dress([person])
 	_note_moment("birth", {"name": str(person.name)}, 2)
+	_note_birth_hope()
+	notices.append(Copy.fill("named.birth", {"name": str(person.name), "fem": sex_of(person) == "f"}))
 	return str(person.name)
+
+
+## Hope +1 per birth, and at most two of those in the same week.
+func _note_birth_hope() -> void:
+	if int(flags.get("birth_hope_week", -1)) != week:
+		flags["birth_hope_week"] = week
+		flags["birth_hope_n"] = 0
+	if int(flags.get("birth_hope_n", 0)) >= BIRTH_HOPE_CAP:
+		return
+	flags["birth_hope_n"] = int(flags.birth_hope_n) + 1
+	_add_hope(1, "birth")
 
 
 func _grow_up(person: Dictionary) -> void:
@@ -12209,20 +12247,20 @@ func _mark_served(person: Dictionary, room: Dictionary) -> void:
 	person.staff_weeks = int(person.get("staff_weeks", 0)) + 1
 	var defin: Dictionary = catalog.rooms[room.type]
 	person.last_room = str(defin.get("name", room.type))
-	if int(person.staff_weeks) < 6:
+	if int(person.staff_weeks) < SKILL_WEEKS:
 		return
 	person.staff_weeks = 0
 	var skill := str(defin.get("skill", ""))
 	if skill == "":
 		return
 	var cur := int(person.get("skills", {}).get(skill, 0))
-	if cur >= 6:
+	if cur >= SKILL_CAP:
 		return
 	person.skills[skill] = cur + 1
 	person.seasoned = true
 	person.checks = {}
 	_stamp_checks(person)
-	var toast := fill_text(_fate_pack("seasoned"), {"name": str(person.name), "room": Copy.t(str(defin.get("name", "")))})
+	var toast := Copy.fill("named.seasoned", {"room": Copy.t(str(defin.get("name", "")))})
 	notices.append(toast)
 	_log(toast, true)
 
@@ -12242,10 +12280,10 @@ func _life_note(person: Dictionary, pool: String, extra: Dictionary) -> void:
 		"name": str(person.get("name", "")),
 		"room": room,
 	})
-	person.memory = mini(100, int(person.get("memory", 0)) + 5)
+	person.memory = mini(MEMORY_CAP, int(person.get("memory", 0)) + MEMORY_STEP)
 
 
-func journal_line(ev: Dictionary) -> String:
+func journal_line(ev: Dictionary, fem := false) -> String:
 	if str(ev.get("pool", "")) == "fought":
 		var place := str(ev.get("room", ""))
 		return Copy.fill("combat.journal.fought", {"name": str(ev.get("name", "")), "place": place, "room": place})
@@ -12257,7 +12295,12 @@ func journal_line(ev: Dictionary) -> String:
 			break
 	if pick.is_empty() and not rows.is_empty():
 		pick = rows[0]
-	return fill_text(pick, {"name": str(ev.get("name", "")), "room": Copy.t(str(ev.get("room", "")))})
+	if pick.is_empty():
+		return ""
+	var text := text_pack(pick)
+	text = text.replace("{name}", str(ev.get("name", ""))).replace("{room}", Copy.t(str(ev.get("room", ""))))
+	var ending := "а" if fem and Copy.ru() else ""
+	return text.replace("{a}", ending).replace("{ee}", "")
 
 
 func _life_journal_shortage() -> void:
@@ -12291,14 +12334,42 @@ func _note_new_sickness() -> void:
 
 
 func _fill_identity(person: Dictionary) -> void:
-	if str(person.get("before_silence", "")) == "" or (person.get("before_silence") is Dictionary and str(person.before_silence.get("en", "")) == ""):
-		person.before_silence = _identity_pack(person, "pasts")
-	if str(person.get("keepsake", "")) == "" or (person.get("keepsake") is Dictionary and str(person.keepsake.get("en", "")) == ""):
-		person.keepsake = _identity_pack(person, "keepsakes")
+	if not cast_bio_locked(person):
+		if str(person.get("before_silence", "")) == "" or (person.get("before_silence") is Dictionary and str(person.before_silence.get("en", "")) == ""):
+			person.before_silence = _identity_pack(person, "pasts")
+		if str(person.get("keepsake", "")) == "" or (person.get("keepsake") is Dictionary and str(person.keepsake.get("en", "")) == ""):
+			person.keepsake = _identity_pack(person, "keepsakes")
 	if not person.has("memory"):
 		person.memory = 0
 	if not person.has("story_events"):
 		person.story_events = []
+
+
+## Coney cast keeps Look / Bio / Hook. Named-lives pasts do not replace those bios.
+func cast_bio_locked(person: Dictionary) -> bool:
+	return person.has("dossier") and str(person.get("cast_id", "")) != ""
+
+
+func is_known(person: Dictionary) -> bool:
+	return int(person.get("memory", 0)) >= KNOWN_AT
+
+
+## Before-the-Silence line or keepsake from the named-lives pack. Empty for a locked cast bio.
+func life_line(person: Dictionary, key: String) -> String:
+	if cast_bio_locked(person):
+		return ""
+	var field := "before_silence" if key == "before" else "keepsake"
+	var pack = person.get(field, {})
+	if pack is Dictionary and str(pack.get("en", "")) != "":
+		return text_pack(pack)
+	if typeof(pack) == TYPE_STRING and str(pack) != "":
+		return str(pack)
+	var kind := "pasts" if key == "before" else "keepsakes"
+	var authored: Dictionary = catalog.names.get(kind, {}).get("authored", {})
+	var id := str(person.get("id", ""))
+	if authored.has(id):
+		return text_pack(authored[id])
+	return ""
 
 
 func _identity_pack(person: Dictionary, kind: String) -> Dictionary:
@@ -12371,7 +12442,9 @@ func _death_line_id(cause: String, person: Dictionary) -> String:
 		"left":
 			return "left"
 		_:
-			return cause if cause != "" else "accident"
+			if DEATH_CAUSES.has(cause):
+				return cause
+			return "accident"
 
 
 func _death_cause_label(line_id: String) -> String:
@@ -12400,15 +12473,23 @@ func _death_cause_label(line_id: String) -> String:
 			return line_id.replace("_", " ")
 
 
-func _death_text(line_id: String, person_name: String, name_ru: String) -> Dictionary:
-	var pack := {"en": person_name, "ru": person_name}
+func _death_sentence(person: Dictionary, line_id: String) -> String:
+	var name := str(person.get("name", ""))
+	var name_ru := str(person.get("name_ru", ""))
+	var packed := _death_text(line_id, name, name_ru, sex_of(person) == "f")
+	return str(packed.get("ru", "")) if Copy.ru() else str(packed.get("en", ""))
+
+
+func _death_text(line_id: String, person_name: String, name_ru: String, fem := false) -> Dictionary:
+	var pack := {"en": "{name}", "ru": "{name}"}
 	for row in catalog.names.get("deaths", []):
 		if str(row.get("id", "")) == line_id:
 			pack = row
 			break
-	var en := fill_text({"en": str(pack.get("en", "")), "ru": str(pack.get("en", ""))}, {"name": person_name})
+	var en := str(pack.get("en", "{name}")).replace("{name}", person_name).replace("{a}", "").replace("{ee}", "")
 	var ru_name := name_ru if name_ru != "" else person_name
-	var ru := fill_text({"en": str(pack.get("ru", "")), "ru": str(pack.get("ru", ""))}, {"name": ru_name})
+	var ending := "а" if fem else ""
+	var ru := str(pack.get("ru", "{name}")).replace("{name}", ru_name).replace("{a}", ending).replace("{ee}", "")
 	return {"en": en, "ru": ru}
 
 
@@ -12419,15 +12500,17 @@ func _offer_burial() -> void:
 		if str(ev.get("burial_id", "")) != "":
 			return
 	var row: Dictionary = burials[0]
-	var body := _death_text(str(row.get("cause", "sickness")), str(row.get("name", "")), str(row.get("name_ru", "")))
-	if str(row.get("cause", "")) == "battle":
-		body = _battle_death_text(str(row.get("name", "")), str(row.get("name_ru", "")), str(row.get("place", "")))
+	var body := _death_text(str(row.get("cause", "sickness")), str(row.get("name", "")), str(row.get("name_ru", "")), bool(row.get("fem", false)))
 	var choices: Array = [
-		{"id": "bury", "label": {"en": "Bury them", "ru": "Похоронить"}, "cost": {"materials": 1}, "hope": 1},
-		{"id": "tunnel", "label": {"en": "Leave them in the tunnel", "ru": "Оставить в тоннеле"}},
+		{"id": "bury", "label": Copy.pack("named.bury"), "cost": {"materials": 1}, "hope": 1},
 	]
 	if _law_on("ledger"):
-		choices.insert(1, {"id": "ledger", "label": {"en": "Give them to the Ledger", "ru": "Отдать Гроссбуху"}, "materials": 2})
+		choices.append({
+			"id": "ledger",
+			"label": Copy.pack("named.ledger"),
+			"materials": 2,
+			"trait_hope": {"Devout": -2},
+		})
 	pending.push_front({
 		"id": "burial_%s" % str(row.get("id", "")),
 		"burial_id": str(row.get("id", "")),
@@ -12435,6 +12518,15 @@ func _offer_burial() -> void:
 		"text": body,
 		"choices": choices,
 	})
+
+
+## An unpaid death card waits behind the other dawn matters. It stays an event card.
+func park_front_burial() -> bool:
+	if pending.is_empty() or str(pending[0].get("burial_id", "")) == "":
+		return false
+	var ev: Dictionary = pending.pop_front()
+	pending.append(ev)
+	return true
 
 
 func _resolve_burial(person_id: String, choice_id: String) -> void:
@@ -12451,7 +12543,6 @@ func _resolve_burial(person_id: String, choice_id: String) -> void:
 			row.burial = "bury"
 		elif choice_id == "ledger":
 			row.burial = "ledger"
-			# TODO(P6): Devout mood −2 when mood exists. Ledger has no mood to write yet.
 			_log("LEDGER %s" % str(row.get("name", person_id)), true)
 
 
@@ -12550,6 +12641,11 @@ const DAWN_SOFT_STACK := ["rumor", "border.dawn_new", "rail", "homecoming"]
 
 func dawn_soft_stack() -> Array:
 	return DAWN_SOFT_STACK.duplicate()
+
+
+## Always false. P67 death cards are dawn event cards, never a soft dawn chip.
+func named_lives_dawn_chip() -> bool:
+	return false
 
 
 ## Always false. P44 must not become a fifth soft dawn chip. P43 owns the arrival chip.
@@ -12724,7 +12820,7 @@ func party_roster() -> Dictionary:
 			"id": str(id),
 			"name": str(person.get("name", id)),
 			"fight": int(person.get("skills", {}).get("fight", 0)),
-			"known": int(person.get("memory", 0)) >= 40,
+			"known": is_known(person),
 			"away": int(person.get("absent", 0)) > 0 or int(person.get("sick", 0)) > 0,
 		})
 	var max_size := int(sq.get("max_size", members.size()))
@@ -13472,7 +13568,7 @@ func _named_risk(pct: int) -> Dictionary:
 	var n := mini(hits, pool.size())
 	for i in n:
 		var person: Dictionary = pool[i]
-		if int(person.get("memory", 0)) >= 40:
+		if is_known(person):
 			known += 1
 	return {"named": hits, "known": known}
 
@@ -13552,7 +13648,7 @@ func _hurt_side(sq: Dictionary, sid: String, frac: float) -> Dictionary:
 		var person: Dictionary = pool[i]
 		var id := str(person.get("id", ""))
 		var pname := str(person.get("name", id))
-		var known := int(person.get("memory", 0)) >= 40
+		var known := is_known(person)
 		if _roll_injury():
 			person.absent = 2
 			_unassign(id)
@@ -13746,7 +13842,7 @@ func _note_fought(person: Dictionary, place: String) -> void:
 		"name": str(person.get("name", "")),
 		"room": place,
 	})
-	person.memory = mini(100, int(person.get("memory", 0)) + 5)
+	person.memory = mini(MEMORY_CAP, int(person.get("memory", 0)) + MEMORY_STEP)
 
 
 func _battle_death_text(person_name: String, name_ru: String, place: String) -> Dictionary:
