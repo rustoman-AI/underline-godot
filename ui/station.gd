@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_listening():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_listening():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +434,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_listening():
+		await _listening_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -768,6 +770,10 @@ func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
 
 
+func _want_listening() -> bool:
+	return _dev_args().has("--listening")
+
+
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
 ## station, a close look at a busy row, and an empty dug cell next to rooms. Writes rooms_station*.png.
 func _rooms_shots() -> void:
@@ -821,6 +827,147 @@ func _rooms_shots() -> void:
 		await _frame()
 		_save("rooms_station_empty")
 	get_tree().quit()
+
+
+## Room card, wired pin, and the dawn card for a Listening Post. Dev shots only.
+func _listening_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	var radio_at := _listening_floor()
+	var post_at := _listening_floor()
+	if radio_at.x < 0 or post_at.x < 0:
+		print("SHOT listening no floor")
+		get_tree().quit(1)
+		return
+	game._place_room("radio", radio_at.x, radio_at.y)
+	game._place_room("listening_post", post_at.x, post_at.y)
+	var radio = null
+	var post = null
+	for room in game.rooms:
+		if str(room.type) == "radio":
+			radio = room
+		elif str(room.type) == "listening_post":
+			post = room
+	_listening_staff(radio)
+	_listening_staff(post)
+	game.stock.tokens = 20
+	game.stock.food = 24
+	game.orders_left = 2
+	game.bal.probe_blown = 0.0
+	var target := _listening_target()
+	if target == "":
+		print("SHOT listening no target")
+		get_tree().quit(1)
+		return
+	_refresh()
+	_close_card()
+	_show_room(str(post.uid))
+	for _i in 4:
+		await _frame()
+	_save("p75_room")
+	if not game.queue_probe(target):
+		print("SHOT listening probe queue failed " + game.order_block("probe", target))
+		get_tree().quit(1)
+		return
+	game._resolve_queued()
+	_close_card()
+	if not showing_network:
+		_toggle_network()
+	for _i in 3:
+		await _frame()
+	var net := network_view as NetworkView
+	var st_shot: Dictionary = game.stations[target]
+	print("SHOT target %s %s intel %s wired %s owner %s known %s" % [
+		target, game.station_text(target, "community"), str(st_shot.get("intel", 0)),
+		str(st_shot.get("wired_until", 0)), str(st_shot.owner), str(st_shot.get("known", false))])
+	if net != null:
+		net.listening_aim = ""
+		net._fitted = true
+		net._zoom_range()
+		net.zoom = net._zoom_max
+		net.origin = net._station_world(st_shot)
+		net._clamp_view()
+		net.queue_redraw()
+	for _i in 4:
+		await _frame()
+	if net != null and net._layout.has(target):
+		var pin: Dictionary = net._layout[target]
+		print("SHOT pin at %s r %s zoom %s" % [str(pin.at), str(pin.r), str(net.zoom)])
+	_save("p75_wired")
+	if not showing_network:
+		_toggle_network()
+	_close_card()
+	if not game.order_reports.is_empty():
+		_show_order_report()
+		for _i in 4:
+			await _frame()
+		_save("p75_dawn")
+		_close_card()
+	game.flags.erase("listening_order_week")
+	game.orders_left = 1
+	game.seat_used = {}
+	if post != null:
+		post.disabled = 0
+		post.offline = false
+	game.bal.tap_blown = 1.0
+	game.notices.clear()
+	game.order_reports.clear()
+	var fid := str(game.stations[target].owner)
+	if game.opinions.has(fid) and game.queue_tap(fid):
+		game._resolve_queued()
+		_refresh()
+		for _i in 3:
+			await _frame()
+		_save("p75_blown_toast")
+		_close_card()
+		if not game.order_reports.is_empty():
+			_show_order_report()
+			for _i in 3:
+				await _frame()
+			_save("p75_blown")
+	print("SHOT listening done")
+	get_tree().quit()
+
+
+func _listening_floor() -> Vector2i:
+	for key in game.cells:
+		var cell: Dictionary = game.cells[key]
+		if game._cell_buildable(cell):
+			return Vector2i(int(cell.level), int(cell.cell))
+	return Vector2i(-1, -1)
+
+
+func _listening_staff(room) -> void:
+	if room == null:
+		return
+	for person in game.residents:
+		if int(person.get("sick", 0)) > 0 or str(person.get("post", "")) != "":
+			continue
+		room.staff.append(str(person.id))
+		person["post"] = str(room.uid)
+		return
+
+
+func _listening_target() -> String:
+	var fallback := ""
+	for sid in game.stations:
+		var st: Dictionary = game.stations[sid]
+		var owner := str(st.owner)
+		if owner == game.player or owner == "bunker" or owner == "neutral" or owner == "ruin":
+			continue
+		if str(st.get("bunker", "")) != "":
+			continue
+		st["known"] = true
+		if fallback == "":
+			fallback = str(sid)
+		if owner == "exchange":
+			return str(sid)
+	return fallback
 
 
 func _want_polish() -> bool:
@@ -3981,9 +4128,7 @@ func _show_room(uid: String) -> void:
 			sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			card_body.add_child(sub)
 	_room_header(detail)
-	if str(detail.type) == "listening_post":
-		_listening_card(uid)
-	elif str(detail.type) == "radio" and game.listening_active():
+	if str(detail.type) == "radio" and game.listening_active():
 		_body("listening.radio_helper")
 	if blocked:
 		var warn := _label(str(detail.get("disaster_note", "")), 17)
@@ -4004,50 +4149,101 @@ func _show_room(uid: String) -> void:
 		_seat_row(uid, detail)
 	if str(detail.skill) != "":
 		_body(Copy.t("Crew skill bonus: %s") % _mult(float(detail.multiplier)))
+	if str(detail.type) == "listening_post":
+		_listening_status()
 	var up: Dictionary = game.upgrade_preview(uid)
 	if str(up.get("name", "")) != "" or str(up.get("reason", "")) != "":
 		card_body.add_child(_upgrade_card(uid, false))
 	if str(detail.type) == "workshop":
 		_breach_craft_card()
 		card_body.add_child(_strip_card(false))
+	if str(detail.type) == "listening_post":
+		_listening_orders()
 	_body(Brief.demolish_line(game, uid))
 	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
 		card_body.add_child(_button("Laws", _show_laws))
-	_room_push(uid)
+	if str(detail.type) != "listening_post":
+		_room_push(uid)
 	_room_switch(uid)
 
 
-func _listening_card(uid: String) -> void:
-	_body(game.listening_card_key())
+func _listening_status() -> void:
+	var key := game.listening_card_key()
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var face := StyleBoxFlat.new()
+	var live := key == "listening.listen_status"
+	face.bg_color = Color("3a3126")
+	face.border_color = Color("d7a441") if live else PAPER_MUTED
+	face.set_border_width_all(1)
+	face.set_content_margin_all(8)
+	panel.add_theme_stylebox_override("panel", face)
+	var lab := _label(key, 16)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.add_theme_color_override("font_color", Color("d7a441") if live else PAPER_MUTED)
+	panel.add_child(lab)
+	card_body.add_child(panel)
 	var idle := game.listening_idle_line()
 	if idle != "":
-		_body_ready(idle)
-	for sid in game.listening_probe_targets():
-		var place := game.station_text(str(sid), "community")
-		var probe := _button("listening.probe", _queue_listening.bind(uid, "probe", str(sid), ""))
-		probe.text = "%s · %s · %d%%" % [Copy.t("listening.probe"), place, game.listening_blown_pct("probe")]
-		var why := game.order_block("probe", str(sid))
-		probe.disabled = why != ""
-		probe.tooltip_text = why if why != "" else Copy.t("listening.probe_tip")
-		card_body.add_child(probe)
-	for fid in game.listening_tap_targets():
-		var tap := _button("listening.tap", _queue_listening.bind(uid, "tap", "", str(fid)))
-		tap.text = "%s · %s · %d%%" % [Copy.t("listening.tap"), Copy.t(game._fname(str(fid))), game.listening_blown_pct("tap")]
-		var why := game.order_block("tap", str(fid))
-		tap.disabled = why != ""
-		tap.tooltip_text = why if why != "" else Copy.t("listening.tap_tip")
-		card_body.add_child(tap)
+		var quiet := _label("", 14)
+		quiet.text = idle
+		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		quiet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		quiet.add_theme_color_override("font_color", PAPER_MUTED)
+		card_body.add_child(quiet)
 
 
-func _queue_listening(uid: String, kind: String, sid: String, fid: String) -> void:
-	var action := {"order": kind}
-	if kind == "probe":
-		action["station"] = sid
-	else:
-		action["faction"] = fid
-	if game.queue_order(action):
-		_show_room(uid)
+func _listening_orders() -> void:
+	_listening_verb("probe")
+	_listening_verb("tap")
+	var active := game.listening_card_key()
+	for key in ["listening.need_radio", "listening.unstaffed", "listening.offline"]:
+		var line := _label("", 14)
+		line.text = "· " + Copy.t(key)
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_theme_color_override("font_color", PAPER_INK if key == active else PAPER_MUTED)
+		card_body.add_child(line)
+
+
+func _listening_verb(kind: String) -> void:
+	var probe := kind == "probe"
+	var name := Copy.t("listening.probe" if probe else "listening.tap")
+	var tip_key := "listening.probe_tip" if probe else "listening.tap_tip"
+	var tip := Copy.t(tip_key)
+	var preview: Dictionary = game.probe_preview("") if probe else game.tap_preview("")
+	var pct := int(preview.get("blown_pct", 15 if probe else 25))
+	var stock := 15 if probe else 25
+	if pct != stock:
+		tip = tip.replace("%d%%" % stock, "%d%%" % pct)
+	var why := str(preview.get("reason", ""))
+	var button := _button(name, _aim_listening.bind(kind))
+	button.text = "%s\n%s" % [name, tip]
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.custom_minimum_size.y = 88
+	button.disabled = why != ""
+	button.tooltip_text = why if why != "" else tip
+	card_body.add_child(button)
+
+
+func _aim_listening(kind: String) -> void:
+	var net := network_view as NetworkView
+	if net != null and str(net.listening_aim) == kind and showing_network:
+		net.listening_aim = ""
+		net.queue_redraw()
+		return
+	_close_card()
+	if not showing_network:
+		_toggle_network()
+	net = network_view as NetworkView
+	if net == null:
+		return
+	net.listening_aim = kind
+	net.queue_redraw()
 
 
 func _room_icon(type: String, px: int) -> Glyph:
@@ -6445,6 +6641,10 @@ func _show_order_report() -> void:
 	if bool(row.get("battle", false)):
 		_show_battle_report(row)
 		return
+	var heard := str(row.get("kind", ""))
+	if heard in ["probe_reveal", "tap_skim", "tap_plan", "blown"]:
+		_show_listening_report(row)
+		return
 	_open_card(str(row.get("title", Copy.t("Dawn report"))))
 	var art := _order_art(row)
 	if art != null:
@@ -6456,6 +6656,24 @@ func _show_order_report() -> void:
 		var line_key := str(row.get("line_key", ""))
 		if line_key != "":
 			_leader_voice(str(row.faction), line_key, "report:%d:%s:%s" % [game.week, str(row.faction), str(row.get("text", ""))])
+	card_body.add_child(_button("Continue", _next_order_report))
+
+
+## Probe, Tap, and Blown land on the dawn order card. They are not a soft dawn chip.
+func _show_listening_report(row: Dictionary) -> void:
+	_open_card(str(row.get("title", Copy.t("Dawn report"))))
+	var kind := str(row.get("kind", ""))
+	var ink := Color("c4544a") if kind == "blown" else Color("d7a441")
+	for bit in str(row.get("text", "")).split("\n"):
+		var line := str(bit).strip_edges()
+		if line == "":
+			continue
+		var lab := _label("", 18, true)
+		lab.text = line
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lab.add_theme_color_override("font_color", ink)
+		card_body.add_child(lab)
 	card_body.add_child(_button("Continue", _next_order_report))
 
 

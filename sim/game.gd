@@ -208,6 +208,8 @@ var notices: Array = []
 var perk_float_due := {}
 ## Dawn-card line for a Listening Post order. Not saved.
 var listening_line := ""
+## Structured dawn card for that order: probe_reveal, tap_skim, tap_plan, or blown. Not saved.
+var listening_report := {}
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -4537,9 +4539,9 @@ func queue_order(action: Dictionary) -> bool:
 		if kind == "probe":
 			flags["listening_probe_sid"] = str(action.get("station", action.get("dest", "")))
 			var place := station_text(str(flags["listening_probe_sid"]), "community")
-			notices.append(Copy.fill("listening.toast_probe_queued", {"station": place}))
+			notices.append(Copy.clip(Copy.fill("listening.toast_probe_queued", {"station": place}), 72))
 		else:
-			notices.append(Copy.fill("listening.toast_tap_queued", {"faction": Copy.t(_fname(str(action.get("faction", ""))))}))
+			notices.append(Copy.clip(Copy.fill("listening.toast_tap_queued", {"faction": Copy.t(_fname(str(action.get("faction", ""))))}), 72))
 	var target := sid
 	if kind == "expedition" and stations.has("vault"):
 		target = "vault"
@@ -4587,6 +4589,7 @@ func _resolve_queued() -> void:
 	queued_orders.clear()
 	for row in rows:
 		last_combat_report = {}
+		listening_report = {}
 		var action: Dictionary = row.get("action", {})
 		var cost: Dictionary = row.get("cost", {})
 		for key in cost:
@@ -4652,6 +4655,16 @@ func _resolve_queued() -> void:
 		elif stations.has(sid):
 			place = station_text(sid, "community")
 		seat_used.erase(str(row.get("role", "")))
+		if (kind == "probe" or kind == "tap") and not listening_report.is_empty():
+			var heard: Dictionary = listening_report.duplicate(true)
+			listening_report = {}
+			heard["ok"] = ok
+			heard["person"] = str(row.get("person", ""))
+			if str(heard.get("station", "")) == "":
+				heard["station"] = sid
+			order_reports.append(heard)
+			_journal("order_done", {"order": kind, "station": sid, "name": str(row.get("name", "")), "ok": ok})
+			continue
 		var note := _take_soft_note(kind, sid, row, ok)
 		if not note.is_empty():
 			order_reports.append(note)
@@ -9958,6 +9971,75 @@ func listening_blown_pct(kind: String) -> int:
 	return int(round(listening_blown_chance(kind) * 100.0))
 
 
+## True after this room has spent its weekly Probe or Tap. Listen never sets it.
+func listening_order_used() -> bool:
+	return int(flags.get("listening_order_week", -1)) == int(week)
+
+
+## Display only. An empty sid asks whether any Probe can be aimed this week.
+func probe_preview(sid: String) -> Dictionary:
+	var tokens := int(bal.get("probe_tokens", 3))
+	var reason := ""
+	if sid == "":
+		reason = _listening_room_block()
+		if reason == "":
+			reason = _listening_busy()
+		if reason == "" and orders_left <= 0:
+			reason = Copy.t("No council order left this week.")
+		if reason == "" and order_councillor().is_empty():
+			reason = Copy.t("No councillor is free.")
+		var targets := listening_probe_targets()
+		if reason == "" and targets.is_empty():
+			reason = Copy.t("That station is out of reach.")
+		if reason == "" and int(stock.tokens) < tokens:
+			reason = _probe_block(str(targets[0]))
+	else:
+		reason = order_block("probe", sid)
+	return {
+		"ok": reason == "",
+		"tokens": tokens,
+		"blown_pct": listening_blown_pct("probe"),
+		"reason": reason,
+		"station": sid,
+	}
+
+
+## Display only. An empty fid asks whether any Tap can be aimed this week.
+func tap_preview(fid: String) -> Dictionary:
+	var reason := ""
+	if fid == "":
+		reason = _listening_room_block()
+		if reason == "":
+			reason = _listening_busy()
+		if reason == "" and orders_left <= 0:
+			reason = Copy.t("No council order left this week.")
+		if reason == "" and order_councillor().is_empty():
+			reason = Copy.t("No councillor is free.")
+		var targets := listening_tap_targets()
+		if reason == "" and targets.is_empty():
+			reason = Copy.t("That station is out of reach.")
+		if reason == "":
+			reason = _tap_block(str(targets[0]))
+	else:
+		reason = order_block("tap", fid)
+	return {
+		"ok": reason == "",
+		"food": 2,
+		"blown_pct": listening_blown_pct("tap"),
+		"opinion_delta": -4,
+		"reason": reason,
+		"faction": fid,
+	}
+
+
+func queue_probe(sid: String) -> bool:
+	return queue_order({"kind": "order", "order": "probe", "station": sid})
+
+
+func queue_tap(fid: String) -> bool:
+	return queue_order({"kind": "order", "order": "tap", "faction": fid})
+
+
 func _intent_hidden(kind: String) -> bool:
 	if kind == "demand_posted":
 		return false
@@ -10062,6 +10144,7 @@ func _tap_block(fid: String) -> String:
 
 func _order_probe(sid: String) -> bool:
 	listening_line = ""
+	listening_report = {}
 	flags.erase("listening_probe_sid")
 	if not listening_active() or not stations.has(sid):
 		return false
@@ -10087,6 +10170,13 @@ func _order_probe(sid: String) -> bool:
 		"opinion": _signed_int(int(opinions.get(str(st.owner), 0))),
 	})
 	listening_line = line
+	listening_report = {
+		"kind": "probe_reveal",
+		"title": Copy.t("listening.probe"),
+		"text": line,
+		"ok": true,
+		"station": sid,
+	}
 	notices.append(line)
 	_log("ORDER probe %s intel %d" % [str(st.name), int(st.intel)])
 	return true
@@ -10094,6 +10184,7 @@ func _order_probe(sid: String) -> bool:
 
 func _order_tap(fid: String) -> bool:
 	listening_line = ""
+	listening_report = {}
 	if not listening_active() or not opinions.has(fid) or bool(at_war.get(fid, false)):
 		return false
 	if int(stock.food) < 2:
@@ -10112,6 +10203,13 @@ func _order_tap(fid: String) -> bool:
 	else:
 		line = Copy.fill("listening.tap_plan", {"plan": listening_plan_phrase(fid)})
 	listening_line = line
+	listening_report = {
+		"kind": "tap_skim" if good != "" else "tap_plan",
+		"title": Copy.t("listening.tap"),
+		"text": line,
+		"ok": true,
+		"faction": fid,
+	}
 	notices.append(line)
 	_log("ORDER tap %s" % fid)
 	return true
@@ -10127,6 +10225,13 @@ func _listening_blown(fid: String, place: String) -> void:
 	var blown := Copy.fill("listening.blown", {"station": place})
 	var dawn := Copy.t("listening.blown_dawn")
 	listening_line = "%s %s" % [blown, dawn]
+	listening_report = {
+		"kind": "blown",
+		"title": Copy.t("listening.offline"),
+		"text": "%s\n%s" % [blown, dawn],
+		"ok": true,
+		"station": place,
+	}
 	notices.append(blown)
 	notices.append(dawn)
 	_log(blown, true)

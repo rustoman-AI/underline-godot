@@ -121,6 +121,8 @@ class Layer extends Control:
 
 
 var host: Node = null
+## Room-card aim: "probe" or "tap". Empty when the map is not picking a Listening Post target.
+var listening_aim := ""
 var origin := Vector2.ZERO
 var zoom := 1.0
 var _drag := false
@@ -1465,6 +1467,22 @@ func _draw_order_trails(c: CanvasItem, game) -> void:
 		while t <= length:
 			c.draw_circle(a.lerp(b, t / length), 2.1 * k, Color(ORDER_RED, 0.9))
 			t += 9.0 * k
+	if listening_aim != "probe" or _hover == "" or not game.stations.has(_hover):
+		return
+	if not _listening_legal(game, _hover):
+		return
+	var capital := str(game.capital_id)
+	if not game.stations.has(capital):
+		return
+	var from := _map_spot(capital)
+	var to := _map_spot(_hover)
+	var span := from.distance_to(to)
+	if span < 1.0:
+		return
+	var step := 0.0
+	while step <= span:
+		c.draw_circle(from.lerp(to, step / span), 2.1 * k, Color(ORDER_RED, 0.9))
+		step += 9.0 * k
 
 
 func _pin_px(game, sid: String) -> float:
@@ -1674,6 +1692,8 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
+	if listening_aim != "" and _listening_legal(game, sid):
+		c.draw_arc(at, r + 7.0, 0, TAU, 28, ORDER_RED, 1.6, true)
 	if str(sid) == str(game.capital_id):
 		_draw_away_pip(c, game, at, r, lift)
 
@@ -1867,13 +1887,41 @@ func _draw_border_tick(_c: CanvasItem, _game, _sid: String, _at: Vector2, _r: fl
 
 
 func _draw_listening_chips(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
+	if not bool(st.get("known", false)):
+		return
 	var probing := str(game.flags.get("listening_probe_sid", "")) == sid
-	var wired := int(st.get("wired_until", 0)) > int(game.week)
 	if probing:
 		_draw_map_chip(c, "probing", at + Vector2(r * 0.55, -r * 0.95), lift)
-	if wired:
-		var shift := Vector2(-r * 0.85, -r * 0.7) if probing else Vector2(r * 0.55, -r * 0.95)
-		_draw_map_chip(c, "wired", at + shift, lift)
+	if _wired_shows(game, st):
+		_draw_wired_disc(c, at, r, lift)
+
+
+func _wired_shows(game, st: Dictionary) -> bool:
+	if not bool(st.get("known", false)):
+		return false
+	if str(st.get("owner", "")) == str(game.player):
+		return false
+	return int(st.get("wired_until", 0)) > int(game.week)
+
+
+## Paper disc, brass ring, thin coil. Top-left of the pin. Static in both motion settings.
+func _draw_wired_disc(c: CanvasItem, at: Vector2, r: float, lift: float) -> void:
+	var center := at + Vector2(-r * 0.70, -r * 0.72) - Vector2(0, 2.0 * lift)
+	var rad := 4.5
+	c.draw_circle(center, rad, TAG_PAPER)
+	c.draw_arc(center, rad - 0.5, 0.0, TAU, 18, DEAL_BRASS, 1.0, true)
+	c.draw_arc(center, rad * 0.42, 0.6, 5.4, 14, DEAL_BRASS, 1.0, true)
+
+
+func _listening_legal(game, sid: String) -> bool:
+	if game == null or not game.stations.has(sid):
+		return false
+	if listening_aim == "probe":
+		return game.order_block("probe", sid) == ""
+	if listening_aim == "tap":
+		var fid := str(game.stations[sid].get("owner", ""))
+		return game.listening_tap_targets().has(fid) and game.order_block("tap", fid) == ""
+	return false
 
 
 func _draw_map_chip(c: CanvasItem, name: String, at: Vector2, lift: float) -> void:
@@ -3750,7 +3798,21 @@ func _gui_input(event: InputEvent) -> void:
 		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN and button.pressed:
 			_wheel_zoom(button.position, 1.0 / 1.12)
 			accept_event()
+		elif button.button_index == MOUSE_BUTTON_RIGHT and button.pressed and listening_aim != "":
+			listening_aim = ""
+			_redraw()
+			accept_event()
+			return
 		elif button.button_index == MOUSE_BUTTON_LEFT:
+			if listening_aim != "" and button.pressed:
+				var pick := _station_at(button.position)
+				if pick == "":
+					listening_aim = ""
+					_redraw()
+				else:
+					_commit_listening(pick)
+				accept_event()
+				return
 			if button.pressed and _rumor_hit.size.x > 1.0 and _rumor_hit.has_point(button.position):
 				var game = _game()
 				if game != null and host != null and host.has_method("_toast"):
@@ -3873,9 +3935,9 @@ func _tip(sid: String) -> String:
 			lines.append(game._intent_text(intent))
 	if str(game.flags.get("listening_probe_sid", "")) == sid:
 		lines.append(Copy.t("listening.probe"))
-	if int(st.get("wired_until", 0)) > int(game.week):
+	if _wired_shows(game, st):
 		lines.append(Copy.t("listening.wired_tip"))
-	if int(st.get("intel", 0)) > 0:
+	if int(st.get("intel", 0)) >= 2:
 		lines.append(Copy.fill("listening.intel_line", {"n": int(st.intel)}))
 	for extra in deal_mark_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
@@ -4242,7 +4304,7 @@ func _fill_sheet_body(sid: String) -> void:
 		if conflict != "":
 			details.add_child(_lab(conflict, 14, false))
 		details.add_child(_lab("%s: %s" % [Copy.t("Owner"), Copy.t(_owner_name(game, str(st.owner)))], 14, false))
-		if bool(st.get("known", false)):
+		if int(st.get("intel", 0)) >= 2:
 			details.add_child(_lab(Copy.fill("listening.intel_line", {"n": int(st.get("intel", 0))}), 14, false))
 		details.add_child(_lab("%s: %s" % [Copy.t("Loyalty"), str(int(st.loyalty))], 14, false))
 		if int(st.unrest) > 0:
@@ -4398,6 +4460,29 @@ func _order_tip(game, kind: String, sid: String, why: String) -> String:
 	if risk != "":
 		lines.append("%s: %s" % [Copy.t("Risk"), risk])
 	return "\n".join(lines)
+
+
+func _commit_listening(sid: String) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	var ok := false
+	var why := ""
+	if listening_aim == "probe":
+		why = game.order_block("probe", sid)
+		ok = why == "" and game.queue_probe(sid)
+	elif listening_aim == "tap":
+		var fid := str(game.stations[sid].get("owner", ""))
+		why = game.order_block("tap", fid)
+		ok = why == "" and game.queue_tap(fid)
+	if ok:
+		listening_aim = ""
+		if host != null and host.has_method("_refresh"):
+			host._refresh()
+		refresh()
+		return
+	if why != "" and host != null and host.has_method("_toast"):
+		host._toast(Copy.clip(why, 72))
 
 
 func _issue(kind: String, sid: String) -> void:
