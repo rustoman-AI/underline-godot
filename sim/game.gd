@@ -3,6 +3,7 @@ extends RefCounted
 const Brief = preload("res://sim/brief.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const ChargesMandate = preload("res://sim/charges_mandate.gd")
 const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
@@ -149,6 +150,17 @@ var help_last := {}
 var story_queue: Array = []
 ## Proofs gained from choices ("proof": n) on top of the fragments learned honestly.
 var proof_extra := 0
+## P73 desk goals. Not a soft-dawn chip. Failing a charge takes nothing.
+var charges := {"active": [], "closed": [], "seed_weeks": 0}
+var promise := {
+	"status": "", "id": "", "due": 0, "born": 0, "streak": 0, "base": 0,
+	"clean": 0, "home": 0, "cooldown_until": 0, "refused_recent": false,
+	"cooldown_tipped": false, "prev_dis": -1,
+}
+var mandate := {
+	"offered": false, "picked": [], "show_progress": false,
+	"fulfilled": false, "missed": false, "late_short": false,
+}
 var errors: Array = []
 ## Told about every applied action ("action", {...}) and journal row ("journal", row). Set by the UI for the
 ## playtest log; never saved.
@@ -252,6 +264,16 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	salvage = {"strip_week": 0, "floated": false, "raid_bp": false, "float_id": "", "float_uid": "", "junk_week": 0}
 	hope = int(start.hope)
 	discontent = int(start.discontent)
+	charges = {"active": [], "closed": [], "seed_weeks": 0}
+	promise = {
+		"status": "", "id": "", "due": 0, "born": 0, "streak": 0, "base": 0,
+		"clean": 0, "home": 0, "cooldown_until": 0, "refused_recent": false,
+		"cooldown_tipped": false, "prev_dis": discontent,
+	}
+	mandate = {
+		"offered": false, "picked": [], "show_progress": false,
+		"fulfilled": false, "missed": false, "late_short": false,
+	}
 	stats = {
 		"shortages": 0,
 		"ultimatums": 0,
@@ -1210,6 +1232,7 @@ func _dawn() -> void:
 
 ## Dawn after the raid haul is in stock. Events, the dawn log, and the soft chip run from here.
 func _dawn_after_orders() -> void:
+	_tick_charges()
 	_sync_perk_notices()
 	orders_left = council.size()
 	for seat in council:
@@ -1291,6 +1314,7 @@ func _night() -> void:
 		before[key] = int(stock.get(key, 0))
 	for key in produced:
 		stock[key] = int(stock.get(key, 0)) + int(produced[key])
+	ChargesMandate.seed_night(self)
 	if vent_cut > 0:
 		stock.air = maxi(0, int(stock.air) - 2)
 		vent_cut = maxi(0, vent_cut - 1)
@@ -1339,6 +1363,14 @@ func _night() -> void:
 		_add_discontent(int(bal.power_shortage_discontent), "power")
 		week_short = true
 		_note("SHORT Power ran short by %d." % power_short, "SHORT энергии не хватило на %d." % power_short)
+	if food_short > 0:
+		flags["cm_food_short"] = week
+	if air_short > 0:
+		flags["cm_air_short"] = week
+	if power_short > 0:
+		flags["cm_power_short"] = week
+	if week_short and week >= 33 and week <= 40:
+		mandate["late_short"] = true
 	var dark_now := power_short > 0
 	for room in rooms:
 		if bool(room.get("browned", false)):
@@ -1740,6 +1772,8 @@ func _push_injure(room) -> void:
 	var en := str(pack.en).replace("{name}", name_en).replace("{a}", "")
 	var ru := str(pack.ru).replace("{name}", name_ru).replace("{a}", suffix)
 	_note("PUSH " + en, "PUSH " + ru)
+	if int(person.get("memory", 0)) >= 40 or _named_cast(person):
+		flags["cm_named_injury"] = week
 
 
 func _push_victim(room) -> String:
@@ -9204,6 +9238,13 @@ func _apply_event(action: Dictionary) -> bool:
 			choice = c
 	if choice.is_empty() or choice_locked(choice) or not choice_offered(choice) or not _afford(choice.get("cost", {})):
 		return false
+	## Charge / promise / mandate cards are not pool dilemmas and do not pay a cost.
+	if str(ev.get("cm", "")) != "":
+		ChargesMandate.apply_choice(self, ev, choice)
+		decisions += 1
+		pending.pop_front()
+		_log("EVENT %s: %s" % [line_of(ev, "title"), line_of(choice, "label")], true)
+		return true
 	_pay(choice.get("cost", {}))
 	var keep := true
 	if choice.has("check"):
@@ -11373,7 +11414,7 @@ const PERSIST := [
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
-	"story_queue", "proof_extra",
+	"story_queue", "proof_extra", "charges", "promise", "mandate",
 ]
 
 
@@ -11387,7 +11428,8 @@ const PERSIST := [
 ## Version 12 added the map rumor; older saves start with none.
 ## Version 13 added the salvage board; older saves start with none.
 ## Version 14 added the yard clear job. Older saves start with nobody clearing.
-const SAVE_SCHEMA := 14
+## Version 15 added charges, the one promise, and the week-8 mandate. Older saves start with none.
+const SAVE_SCHEMA := 15
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11425,6 +11467,8 @@ const V11_ADDED := ["rumor"]
 const V12_ADDED := ["salvage"]
 ## Fields a version 1 to 13 save may lack: no pile crew out yet.
 const V13_ADDED := ["clear"]
+## Fields a version 1 to 14 save may lack: no desk charges, promise, or mandate yet.
+const V14_ADDED := ["charges", "promise", "mandate"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -11482,7 +11526,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -12085,6 +12129,42 @@ func _fate_pack(id: String) -> Dictionary:
 	return {"en": "{name} was still in the yard.", "ru": "{name} всё ещё во дворе."}
 
 
+func _tick_charges() -> void:
+	ChargesMandate.on_dawn(self)
+
+
+func ticker_rows() -> Array:
+	return ChargesMandate.ticker_texts(self)
+
+
+func ticker_items() -> Array:
+	return ChargesMandate.ticker_items(self)
+
+
+func mandate_progress_line() -> String:
+	return ChargesMandate.progress_line(self)
+
+
+func charge_panel_rows() -> Array:
+	return ChargesMandate.panel_rows(self)
+
+
+func promise_panel_line() -> String:
+	return ChargesMandate.promise_line(self)
+
+
+func promise_cooldown_line() -> String:
+	return ChargesMandate.cooldown_line(self)
+
+
+func commit_mandate(ids: Array) -> bool:
+	return ChargesMandate.commit(self, ids)
+
+
+func charge_reward_label(kind: String) -> String:
+	return ChargesMandate.reward_label(kind)
+
+
 func score_now() -> int:
 	var named := int(stats.get("named_dead", 0))
 	var total := week * 10 + residents.size() * 2 + owned_count() * 15 + hope - named * 5
@@ -12104,6 +12184,9 @@ func best_score() -> int:
 func _seal_score() -> void:
 	if over == "" or bool(stats.get("scored", false)):
 		return
+	## Week-40 night has already run. Hold Coney can only be judged here.
+	## +100 stays inside score_now() via stats.mandate_fulfilled.
+	ChargesMandate.before_score(self)
 	stats.scored = true
 	stats.score = score_now()
 	stats.best_score = _write_best(int(stats.score))
@@ -13056,6 +13139,8 @@ func _order_patrol(dest: String) -> bool:
 	var sq: Dictionary = squads[player]
 	var path := _path(str(sq.station), dest)
 	var stepped := _step_squad(sq, str(path[1]), true)
+	if stepped:
+		flags["cm_patrol_win"] = week
 	_note_party_home()
 	return stepped
 

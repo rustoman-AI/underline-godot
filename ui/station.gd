@@ -195,6 +195,10 @@ var shelved_event := ""
 var check_picks := {}
 var check_flash := false
 var pending_button: Button
+var charges_button: Button
+var week_tip_n := 0
+var mandate_picks: Array = []
+var mandate_hold_picks := false
 var end_cover: Control
 var ahead_box: VBoxContainer
 var source_panel: Panel
@@ -375,7 +379,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_p73():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +395,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_p73():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -436,8 +440,125 @@ func _ready() -> void:
 		await _rooms_shots()
 	elif _want_vo():
 		await _vo_shots()
+	elif _want_p73():
+		await _p73_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
+
+
+func _p73_shots() -> void:
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	game.charges.active = [
+		{"id": "food_store_wk9", "due": game.week + 3, "reward": "blueprint", "streak": 0, "base": 0, "born": game.week},
+		{"id": "scout_botanic", "due": game.week + 5, "reward": "seeds_x2", "streak": 0, "base": 0, "born": game.week},
+		{"id": "dig_level_3", "due": game.week + 4, "reward": "blueprint", "streak": 0, "base": 0, "born": game.week},
+	]
+	game.mandate.picked = ["hold_coney", "reach_floor", "faith_dead"]
+	game.mandate.show_progress = true
+	game.mandate.offered = true
+	game.mandate.missed = false
+	game.pending.clear()
+	game.order_reports.clear()
+	game.demands.clear()
+	game.audience = {}
+	game.raid_share = {}
+	for season in game.seasons:
+		season["week"] = 0
+	_show_charges()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_charges")
+	_close_card()
+	game.pending = [_p73_promise_event()]
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_promise")
+	_close_card()
+	game.week = 8
+	game.pending = [_p73_mandate_event()]
+	mandate_picks = ["hold_coney", "unite_brooklyn", "reach_floor"]
+	mandate_hold_picks = true
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_mandate")
+	_close_card()
+	game.pending.clear()
+	game.expedition = {"left": 2, "tunnel": "to_ferry"}
+	game.build = {"left": 1, "type": "quarters", "level": 0, "cell": 2, "workers": []}
+	game.law_lock = 2
+	game.charges.active = [
+		{"id": "dig_level_3", "due": game.week + 3, "reward": "blueprint", "streak": 0, "base": 0, "born": game.week},
+	]
+	ambient_restore = Callable()
+	while not deck.is_empty():
+		deck.pop()
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_ticker_dawn")
+	_close_card()
+	_show_ahead(true)
+	await _frame()
+	await _frame()
+	_shot_artifact("p73_ticker_end")
+	print("P73 SHOTS DONE")
+	get_tree().quit()
+
+
+func _p73_promise_event() -> Dictionary:
+	return {
+		"id": "promise_offer",
+		"major": true,
+		"cm": "promise",
+		"promise_id": "no_shortage_3",
+		"title": Copy.pack("promise.offer_title"),
+		"text": Copy.pack("promise.offer"),
+		"choices": [
+			{"id": "decline", "label": Copy.pack("promise.decline")},
+			{"id": "accept", "label": Copy.pack("promise.accept")},
+		],
+	}
+
+
+func _p73_mandate_event() -> Dictionary:
+	return {
+		"id": "mandate_pick",
+		"major": true,
+		"cm": "mandate",
+		"title": Copy.pack("mandate.pick"),
+		"text": Copy.pack("mandate.pick_body"),
+		"choices": [
+			{"id": "confirm", "label": Copy.pack("mandate.confirm")},
+		],
+	}
+
+
+func _shot_artifact(shot_name: String) -> void:
+	_save(shot_name)
+	var img := get_viewport().get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	var err := img.save_png("/opt/cursor/artifacts/%s.png" % shot_name)
+	print("ARTIFACT %s err %s" % [shot_name, err])
 
 
 func _journal_shots() -> void:
@@ -741,6 +862,10 @@ func _want_visual() -> bool:
 
 func _want_shots() -> bool:
 	return _dev_args().has("--shots") or (OS.is_debug_build() and OS.get_environment("UNDERLINE_SHOTS") == "1")
+
+
+func _want_p73() -> bool:
+	return _dev_args().has("--p73")
 
 
 ## Screenshot and review switches. Empty in a release export, so a player's build cannot reach them.
@@ -1051,6 +1176,7 @@ func _build() -> void:
 	burn_button = _tool("burn", "Burn", _ask_burn)
 	power_button = _tool("power", "Power", _show_power)
 	people_button = _tool("people", "People", _toggle_drawer)
+	charges_button = _tool("blueprint", "charge.active", _show_charges)
 	var salvage_button := _tool("salvage_open", "salvage.title", _show_salvage)
 	salvage_button.tooltip_text = Copy.t("salvage.title")
 	var journal_button := _tool("journal", "Journal", _show_journal)
@@ -1060,7 +1186,7 @@ func _build() -> void:
 	power_button.tooltip_text = "Power order"
 	people_button.tooltip_text = "Residents"
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
-	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, salvage_button, journal_button, pending_button]:
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, charges_button, salvage_button, journal_button, pending_button]:
 		tray.add_child(button)
 
 	end_button = _button("End turn", _end_turn)
@@ -1712,6 +1838,13 @@ func _fill_ahead() -> void:
 	var dis_line := _label(Copy.t("Discontent %d") % int(proj.get("discontent", 0)), 16)
 	dis_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ahead_box.add_child(dis_line)
+	week_tip_n = 0
+	if game.has_method("ticker_rows"):
+		for line in game.ticker_rows():
+			var tip := _label(str(line), 16, false, false)
+			tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ahead_box.add_child(tip)
+			week_tip_n += 1
 	on_paper = was
 
 
@@ -1720,6 +1853,8 @@ func _place_ahead() -> void:
 		return
 	var w := 248.0
 	var h := 248.0
+	if week_tip_n > 0:
+		h += 18.0 * float(week_tip_n)
 	ahead.anchor_left = 0.0
 	ahead.anchor_top = 0.0
 	ahead.anchor_right = 0.0
@@ -1943,6 +2078,9 @@ func _refresh() -> void:
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
 		_toast_chain(notes)
+	if charges_button != null:
+		var cool := game.promise_cooldown_line()
+		charges_button.tooltip_text = cool if cool != "" else Copy.t("charge.active")
 	_show_perk_floats()
 	_watch_work()
 	var season := ""
@@ -3686,6 +3824,160 @@ func _salvage_panel(rows: Array) -> String:
 			return "res://assets/ui/salvage_board_no_blueprint.webp"
 		_:
 			return "res://assets/ui/salvage_board_panel.webp"
+
+
+func _show_charges() -> void:
+	if game == null:
+		return
+	if not _claim(ModalDeck.AMBIENT, "charges", _show_charges):
+		return
+	_open_card(Copy.t("charge.active"))
+	var prog := game.mandate_progress_line()
+	if prog != "":
+		_body_muted(prog)
+	var rows: Array = game.charge_panel_rows()
+	if rows.is_empty():
+		_body("charge.empty")
+	else:
+		var n := 1
+		for row in rows:
+			_body("%d. %s" % [n, str(row.get("text", ""))])
+			_body_muted("%s    %s" % [str(row.get("due", "")), str(row.get("reward", ""))])
+			n += 1
+	var active := game.promise_panel_line()
+	if active != "":
+		_body(active)
+	var cool := game.promise_cooldown_line()
+	if cool != "":
+		_body_muted(cool)
+
+
+func _paint_promise_card(ev: Dictionary) -> void:
+	_open_card(Copy.t("promise.offer_title"), false, "Event")
+	_body("promise.offer")
+	var pid := str(ev.get("promise_id", ""))
+	if pid != "":
+		_body_muted(Copy.t("promise.text." + pid))
+	_choice_divider()
+	card_body.add_child(_choice_button("promise.accept", {}, _pick_promise.bind("accept")))
+	card_body.add_child(_choice_button("promise.decline", {}, _pick_promise.bind("decline")))
+	_week_strip()
+
+
+func _pick_promise(choice_id: String) -> void:
+	if game == null or game.pending.is_empty():
+		return
+	var ev: Dictionary = game.front_event()
+	if str(ev.get("cm", "")) != "promise":
+		return
+	if not game.apply({"kind": "event", "event_id": str(ev.get("id", "")), "choice_id": choice_id}):
+		return
+	_refresh()
+	_show_dawn()
+
+
+func _paint_mandate_card(ev: Dictionary) -> void:
+	if mandate_hold_picks:
+		mandate_hold_picks = false
+	elif mandate_picks.is_empty() and not game.mandate.get("picked", []).is_empty() and bool(game.mandate.get("show_progress", false)):
+		mandate_picks = game.mandate.picked.duplicate()
+	_open_card(Copy.t("mandate.pick"), false, "Event")
+	_body("mandate.pick_body")
+	for id in ["hold_coney", "unite_brooklyn", "reach_floor", "faith_dead", "line_capital"]:
+		card_body.add_child(_mandate_row(id))
+	var confirm := _choice_button("mandate.confirm", {}, _confirm_mandate)
+	confirm.disabled = mandate_picks.size() != 3
+	card_body.add_child(confirm)
+	if mandate_picks.size() != 3:
+		_body_muted("mandate.need_three")
+	var preview := _mandate_preview_line()
+	if preview != "":
+		_body_muted(preview)
+	_week_strip()
+
+
+func _mandate_row(id: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var path := "res://assets/icons/ui/mandate_%s.png" % id
+	if ResourceLoader.exists(path):
+		var tex := ArtPack.load_texture(path)
+		if tex != null:
+			var mark := TextureRect.new()
+			mark.texture = tex
+			mark.custom_minimum_size = Vector2(36, 36)
+			mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(mark)
+	var mark_text := "[x]" if mandate_picks.has(id) else "[ ]"
+	var button := _choice_button("%s %s" % [mark_text, Copy.t("mandate.title." + id)], {}, _toggle_mandate.bind(id))
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(button)
+	return row
+
+
+func _toggle_mandate(id: String) -> void:
+	if mandate_picks.has(id):
+		mandate_picks.erase(id)
+	elif mandate_picks.size() < 3:
+		mandate_picks.append(id)
+	_paint_dawn()
+
+
+func _confirm_mandate() -> void:
+	if game == null or mandate_picks.size() != 3:
+		return
+	if not game.commit_mandate(mandate_picks.duplicate()):
+		return
+	_open_card(Copy.t("mandate.pick_title"), true, "Event")
+	var line := game.mandate_progress_line()
+	if line != "":
+		_body_muted(line)
+	_body("mandate.pick_body")
+	card_body.add_child(_button("Close", _close_card))
+	_week_strip()
+	_refresh()
+
+
+func _mandate_preview_line() -> String:
+	if mandate_picks.size() == 3:
+		var titles: PackedStringArray = []
+		for id in mandate_picks:
+			titles.append(Copy.t("mandate.title." + str(id)))
+		return Copy.fill("mandate.progress", {"title": " · ".join(titles)})
+	return game.mandate_progress_line() if game != null else ""
+
+
+func _week_strip() -> void:
+	if game == null:
+		return
+	var rows: Array = game.ticker_rows()
+	if rows.is_empty():
+		return
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 8)
+	flow.add_theme_constant_override("v_separation", 6)
+	for line in rows:
+		var chip := PanelContainer.new()
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color(0.16, 0.12, 0.08, 0.92)
+		face.border_color = Color("c4923a")
+		face.set_border_width_all(1)
+		face.set_corner_radius_all(4)
+		face.content_margin_left = 8
+		face.content_margin_right = 8
+		face.content_margin_top = 4
+		face.content_margin_bottom = 4
+		chip.add_theme_stylebox_override("panel", face)
+		var lab := _label(str(line), 14, false, false)
+		lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(lab)
+		flow.add_child(chip)
+	card_body.add_child(flow)
 
 
 func _show_salvage() -> void:
@@ -6267,6 +6559,15 @@ func _show_dawn() -> void:
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(game.front_event()))
+	if show_event:
+		var front: Dictionary = game.front_event()
+		var cm := str(front.get("cm", ""))
+		if cm == "promise":
+			_paint_promise_card(front)
+			return
+		if cm == "mandate":
+			_paint_mandate_card(front)
+			return
 	if not show_event:
 		var dawn_key := "%d:%d" % [game.get_instance_id(), game.week]
 		if dawn_heard != dawn_key:
@@ -6293,6 +6594,7 @@ func _paint_dawn() -> void:
 		else:
 			_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
+		_week_strip()
 		return
 	Sound.play("card_open")
 	var ev: Dictionary = game.front_event()
@@ -6362,6 +6664,7 @@ func _paint_dawn() -> void:
 	later.custom_minimum_size.y = 40
 	later.add_theme_font_size_override("font_size", 17)
 	card_body.add_child(later)
+	_week_strip()
 
 
 ## Why the choice above is closed: one small muted line right under its button.
