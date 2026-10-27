@@ -1,0 +1,27 @@
+{
+  "_note": "P60 Synod Score. Spec: /workspace/SYNOD_SCORE_SPEC.md DEC-SS1…SS2. Read-only Game.synod meter next to rival opinion. Zero balance; not a dawn chip; no spend/escort/Mayor copy. Dry metro grit — chapel favor, not faith carnival. Placeholder {n} = Game.synod int.",
+  "_roadmap": "P60",
+  "_owners": "Texts; Code wire Game.synod + gate; UIUX slot + tip + first float; Art none",
+  "_placeholders": [
+    "{n}"
+  ],
+  "by_key": {
+    "synod.label": {
+      "en": "Synod",
+      "ru": "Синод"
+    },
+    "synod.tip": {
+      "en": "Chapel favor. Flushing listens at 10.",
+      "ru": "Милость часовни. Flushing слышит с 10."
+    },
+    "synod.first": {
+      "en": "The chapel is counting.",
+      "ru": "Часовня считает."
+    },
+    "synod.value": {
+      "en": "{n}",
+      "ru": "{n}"
+    }
+  },
+  "_status": "Designer APPROVED / locked 2026-10-26 — P60 Synod Score"
+}
