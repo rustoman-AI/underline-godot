@@ -87,6 +87,8 @@ func _act(game: Game) -> void:
 					best_score = score
 					best = choice
 		if best.is_empty():
+			if game.park_front_burial():
+				continue
 			break
 		if not game.apply(_event_action(game, ev, best)):
 			break
@@ -280,6 +282,8 @@ func _follow(game: Game) -> void:
 		elif _story_pick(ev):
 			choice = _scene_choice(game, ev)
 		if choice.is_empty():
+			if game.park_front_burial():
+				continue
 			break
 		if not game.apply(_event_action(game, ev, choice)):
 			break
