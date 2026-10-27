@@ -104,6 +104,7 @@ func _act(game: Game) -> void:
 		if not game.apply(order):
 			break
 		spent += 1
+	NightRuns.bot_send(game, profile)
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
 

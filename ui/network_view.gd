@@ -127,6 +127,7 @@ var _drag := false
 var _hover := ""
 var _visit_sid := ""
 var selected := ""
+var _run_hits: Array = []
 var sheet: PanelContainer
 var council: PanelContainer
 var _sheet_body: VBoxContainer
@@ -1188,6 +1189,7 @@ func _draw_ink(c: CanvasItem) -> void:
 	_draw_leaders(c)
 	_draw_junctions(c, game)
 	_draw_pins(c, game)
+	_draw_run_pins(c, game)
 	_draw_deal_pips(c, game)
 	_draw_line_badges(c, game)
 	_plan_yields(game)
@@ -1530,6 +1532,46 @@ func _draw_pins(c: CanvasItem, game) -> void:
 			_draw_pin(c, game, str(sid), row)
 		else:
 			_draw_unknown(c, str(sid), row)
+
+
+## Intel 1 sites. Label only — the station pin geometry stays as it was.
+func _draw_run_pins(c: CanvasItem, game) -> void:
+	_run_hits = []
+	if game == null:
+		return
+	var tex: Texture2D = null
+	if ResourceLoader.exists("res://assets/icons/map/rumored_pin_24.png"):
+		tex = load("res://assets/icons/map/rumored_pin_24.png")
+	var font: Font = _tag_font if _tag_font != null else ThemeDB.fallback_font
+	var seen := {}
+	for site in NightRuns.rumored_sites(game):
+		var sid := str(site.get("station", ""))
+		if not game.stations.has(sid):
+			continue
+		var slot := int(seen.get(sid, 0))
+		seen[sid] = slot + 1
+		var at: Vector2 = _screen(_station_world(game.stations[sid])) + Vector2(26.0 + float(slot) * 40.0, -30.0)
+		var label := Copy.t("run.rumored")
+		if tex != null:
+			c.draw_texture_rect(tex, Rect2(at - Vector2(14, 14), Vector2(28, 28)), false)
+		else:
+			c.draw_circle(at, 10.0, Color("e0a84a"))
+			c.draw_arc(at, 10.0, 0, TAU, 20, Color("3a2a1a"), 1.4, true)
+		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
+		c.draw_rect(Rect2(at + Vector2(-6, 16), Vector2(text_size.x + 12, 22)), Color(0.08, 0.06, 0.04, 0.88), true)
+		c.draw_string(font, at + Vector2(0, 32), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("f4efe4"))
+		_run_hits.append({"id": str(site.get("id", "")), "at": at, "r": 22.0})
+
+
+func _run_pin_at(screen_at: Vector2) -> String:
+	var best := ""
+	var best_d := 20.0
+	for row in _run_hits:
+		var dist := screen_at.distance_to(row.at)
+		if dist <= float(row.r) and dist < best_d:
+			best_d = dist
+			best = str(row.id)
+	return best
 
 
 ## Transfer stations (on two lines or more): a double ring round the pin, so the choke points read at a glance.
@@ -3764,6 +3806,11 @@ func _gui_input(event: InputEvent) -> void:
 					_glide_to(_station_world(game.stations[aimed]))
 				accept_event()
 			elif button.pressed:
+				var run_hit := _run_pin_at(button.position)
+				if run_hit != "" and host != null and host.has_method("open_night_panel"):
+					host.open_night_panel()
+					accept_event()
+					return
 				var chip := _chip_at(button.position)
 				var hit := _station_at(button.position)
 				if chip != "" and hit == "":

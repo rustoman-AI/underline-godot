@@ -1,0 +1,526 @@
+{
+  "_note": "P74 Night Runs (historic P7 / DEC-4 → P74). Spec: /workspace/NIGHT_RUNS_P74_SPEC.md. Cite P67 Named Lives journals.night_run (7 lines — cite only, do not rewrite Named Lives); P20 Tunnel Party same-resident conflict; P55 goods/intel tease. Soft dawn: NONE (dawn resolve card ≠ soft dawn chip). ~12 encounters + ~30 rumors; run.* UI. Tone: dry metro grit — backpack plan + dawn card, not a real-time level. Floor RU N/A in this pack.",
+  "_roadmap": "P74",
+  "_owners": "Texts; Code runs/intel/sites + dawn resolve; UIUX night panel/backpack/rumored pin; Art optional site cards (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P74 Night Runs stamped 2026-10-26 (_designer APPROVED). Soft dawn NONE. Cite P67 night_run journal pool (7). Night grit 2026-10-26 (RU). Late grit 2026-10-26 (RU rumors + depleted). | Dawn grit 2026-10-27 (RU)",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P67 named_lives.json journals.night_run — 7 lines (cite only; do not rewrite)",
+    "P20 Tunnel Party — same resident ≠ night run + party same week",
+    "P55 goods / intel tease"
+  ],
+  "encounters": [
+    {
+      "id": "locked_cage",
+      "en": "A locked cage in the dark. Something rattles inside.",
+      "ru": "Закрытая клетка в темноте. Внутри что-то гремит."
+    },
+    {
+      "id": "sleeping_guard",
+      "en": "A guard asleep on a crate. The pack is at their boots.",
+      "ru": "Охранник спит на ящике. Котомка у сапог."
+    },
+    {
+      "id": "open_cache",
+      "en": "An open cache. No owner in sight. Too clean.",
+      "ru": "Открытый тайник. Хозяина не видно. Слишком чисто."
+    },
+    {
+      "id": "rival_runners",
+      "en": "Rival runners on the same stair. They see your light.",
+      "ru": "Чужие бегуны на той же лестнице. Они видят ваш свет."
+    },
+    {
+      "id": "flooded_car",
+      "en": "A flooded car. Bags float. The water smells wrong.",
+      "ru": "Затопленный вагон. Плывут мешки. Вода пахнет не так."
+    },
+    {
+      "id": "child_voice",
+      "en": "A child voice behind a grate. Asking for bread — or bait.",
+      "ru": "Детский голос за решёткой. Просит хлеба — или это приманка."
+    },
+    {
+      "id": "marked_crate",
+      "en": "A crate stamped Directorate. Seal still warm.",
+      "ru": "Ящик со штампом Директората. Печать ещё тёплая."
+    },
+    {
+      "id": "silent_chapel",
+      "en": "A silent chapel niche. Candles out. Bowl of tokens.",
+      "ru": "Тихая церковная ниша. Свечи погасли. Миска жетонов."
+    },
+    {
+      "id": "tripwire",
+      "en": "A tripwire across the throat of the tunnel. Fresh.",
+      "ru": "Растяжка поперёк горла туннеля. Свежая."
+    },
+    {
+      "id": "wounded_stranger",
+      "en": "A wounded stranger. Pack half-full. Eyes open.",
+      "ru": "Раненый незнакомец. Котомка наполовину. Глаза открыты."
+    },
+    {
+      "id": "radio_hiss",
+      "en": "A radio hissing under rubble. Coordinates, maybe.",
+      "ru": "Радио шипит под завалом. Координаты, может быть."
+    },
+    {
+      "id": "empty_bunks",
+      "en": "Empty bunks in a row. Boots still under one. Warm.",
+      "ru": "Пустые койки в ряд. Под одной ещё сапоги. Тёплые."
+    }
+  ],
+  "rumors": [
+    {
+      "id": "ruins_south",
+      "en": "Ruins south of the yard still hold sealed cans.",
+      "ru": "В руинах к югу от двора ещё лежат запечатанные банки."
+    },
+    {
+      "id": "dead_platform_r",
+      "en": "A dead platform on the R — no lights, fat packs.",
+      "ru": "Мёртвая платформа на R — без света, набитые котомки."
+    },
+    {
+      "id": "bunker_outer",
+      "en": "Outer rooms of a bunker left ajar after a raid.",
+      "ru": "Внешние комнаты бункера приоткрыты после рейда."
+    },
+    {
+      "id": "neighbor_store",
+      "en": "Neighbor station stores lean unlocked at third watch.",
+      "ru": "Склады соседней станции на третьей страже не на замке."
+    },
+    {
+      "id": "ferry_shed",
+      "en": "Ferry shed cache turns over every six weeks.",
+      "ru": "Тайник у паромного сарая обновляется раз в шесть недель."
+    },
+    {
+      "id": "botanic_vent",
+      "en": "Botanic vent dumps seed sacks when the fans reverse.",
+      "ru": "Вент Ботаника выбрасывает мешки семян, когда вентиляторы идут назад."
+    },
+    {
+      "id": "court_stair",
+      "en": "Court St stairwell: medkits under the third landing.",
+      "ru": "Лестница Court St: аптечки под третьей площадкой."
+    },
+    {
+      "id": "myrtle_radio",
+      "en": "Myrtle–Willoughby still coughs radio parts at night.",
+      "ru": "Myrtle–Willoughby по ночам ещё кашляет радиодеталями."
+    },
+    {
+      "id": "quarantine_gate",
+      "en": "Quarantine bunker gate stuck half-open since week 10.",
+      "ru": "Ворота карантинного бункера с 10-й недели полуоткрыты."
+    },
+    {
+      "id": "observatory_loot",
+      "en": "Old Observatory outer ring — copper and quiet.",
+      "ru": "Внешнее кольцо старой Обсерватории — медь и тишина."
+    },
+    {
+      "id": "line_clean_20",
+      "en": "Clean Line sites get sharper after week 20.",
+      "ru": "Чистые объекты Линии после 20-й недели злее."
+    },
+    {
+      "id": "stealing_seen",
+      "en": "Steal from a held station and someone talks.",
+      "ru": "Украдёшь с удержанной станции — кто-то заговорит."
+    },
+    {
+      "id": "insomnia_route",
+      "en": "Insomniacs know a dark route to the dead cars.",
+      "ru": "Бессонники знают тёмный ход к мёртвым вагонам."
+    },
+    {
+      "id": "pack_six",
+      "en": "Six units a runner. Medkits eat three.",
+      "ru": "Шесть единиц на бегуна. Аптечки едят три."
+    },
+    {
+      "id": "senses_grit",
+      "en": "Best Senses or Grit on the roll. The dark does not care which.",
+      "ru": "На броске — что выше, Чутьё или Жила. Темноте всё равно."
+    },
+    {
+      "id": "danger_three",
+      "en": "Danger-three miss can name a death. Or a ransom card.",
+      "ru": "Промах на опасности-три может кончиться смертью. Или карточкой выкупа."
+    },
+    {
+      "id": "deplete_six",
+      "en": "Hit the same site twice — loot thins six weeks.",
+      "ru": "Ударишь по одному месту дважды — добыча худеет на шесть недель."
+    },
+    {
+      "id": "intel_tier",
+      "en": "Intel priority lifts the site tier. Voice band three lifts it twice.",
+      "ru": "Приоритет разведки поднимает ярус места. Голосовая полоса три — дважды."
+    },
+    {
+      "id": "party_conflict",
+      "en": "Same boots cannot run and Tunnel Party the same week.",
+      "ru": "Те же сапоги не могут и в ночной выход, и в Туннельную партию за одну неделю."
+    },
+    {
+      "id": "yard_three",
+      "en": "Yard stage lets a third runner into the dark.",
+      "ru": "Стадия Двора пускает третьего бегуна в темноту."
+    },
+    {
+      "id": "ransom_whisper",
+      "en": "Captured runners come back as a ransom card — if anyone pays.",
+      "ru": "Пленных бегунов возвращают карточкой выкупа — если кто-то платит."
+    },
+    {
+      "id": "half_pack",
+      "en": "Miss soft: half the pack, two weeks hurt.",
+      "ru": "Мягкий промах: половина котомки, две недели ранен."
+    },
+    {
+      "id": "rumor_pin",
+      "en": "Intel one puts a rumored pin on the map.",
+      "ru": "Разведка первого уровня ставит на карту метку слуха."
+    },
+    {
+      "id": "south_ferry",
+      "en": "South Ferry vault outer hall — quiet goods, loud risk.",
+      "ru": "Внешний зал хранилища South Ferry — тихий товар, громкий риск."
+    },
+    {
+      "id": "jay_freight",
+      "en": "Jay St freight alcove still smells of diesel and salt.",
+      "ru": "Грузовая ниша Jay St ещё пахнет дизелем и солью."
+    },
+    {
+      "id": "bowling_crates",
+      "en": "Unmarked crates under Bowling Green. Receipts lie.",
+      "ru": "Ящики без клейма под Bowling Green. Расписки врут."
+    },
+    {
+      "id": "coney_side",
+      "en": "Side tunnel off Coney yard — wet, short, sometimes full.",
+      "ru": "Боковой ход от двора Кони — мокрый, короткий, иногда полный."
+    },
+    {
+      "id": "penn_patrol",
+      "en": "Penn patrols thicken on the hour after third watch.",
+      "ru": "Патрули Пенна густеют в час после третьей стражи."
+    },
+    {
+      "id": "synod_alms",
+      "en": "Synod alms box left outside a sealed shrine — bait or gift.",
+      "ru": "Синодальная кружка у запечатанной молельни — приманка или дар."
+    },
+    {
+      "id": "exchange_tip",
+      "en": "Exchange tip: the dead platform east turns over on even weeks.",
+      "ru": "Подсказка Биржи: мёртвая платформа на востоке обновляется по чётным неделям."
+    }
+  ],
+  "journals_cite": {
+    "_cite": "P67 named_lives.json → journals.night_run (7 lines). Do not rewrite; Code pulls from Named Lives.",
+    "ids": [
+      "night_run_1",
+      "night_run_2",
+      "night_run_3",
+      "night_run_4",
+      "night_run_5",
+      "night_run_6",
+      "night_run_7"
+    ]
+  },
+  "by_key": {
+    "run.send": {
+      "en": "Send into the dark",
+      "ru": "Послать в темноту"
+    },
+    "run.back": {
+      "en": "Runners return at dawn",
+      "ru": "Бегуны вернутся на рассвете"
+    },
+    "run.injured": {
+      "en": "{name} comes back hurt",
+      "ru": "{name} вернулся{a} с раной."
+    },
+    "run.priority_food": {
+      "en": "Priority: food",
+      "ru": "Приоритет: еда"
+    },
+    "run.priority_mats": {
+      "en": "Priority: materials",
+      "ru": "Приоритет: материалы"
+    },
+    "run.priority_medkits": {
+      "en": "Priority: medkits",
+      "ru": "Приоритет: аптечки"
+    },
+    "run.priority_intel": {
+      "en": "Priority: intel",
+      "ru": "Приоритет: разведка"
+    },
+    "run.leave_cache": {
+      "en": "Leave it",
+      "ru": "Оставить"
+    },
+    "run.take_all": {
+      "en": "Take all",
+      "ru": "Забрать всё"
+    },
+    "run.take_half": {
+      "en": "Take half",
+      "ru": "Забрать половину"
+    },
+    "run.panel_title": {
+      "en": "Night runs",
+      "ru": "Ночные выходы"
+    },
+    "run.pick_site": {
+      "en": "Pick a known site",
+      "ru": "Выберите известное место"
+    },
+    "run.pick_runners": {
+      "en": "Pick runners ({n} max)",
+      "ru": "Выберите бегунов (макс. {n})"
+    },
+    "run.backpack": {
+      "en": "Backpack — {n} units",
+      "ru": "Котомка — {n} ед."
+    },
+    "run.resolve_title": {
+      "en": "Dawn resolve",
+      "ru": "Итог рассвета"
+    },
+    "run.loot": {
+      "en": "Brought back: {loot}",
+      "ru": "Принесли: {loot}"
+    },
+    "run.empty_handed": {
+      "en": "Came back empty-handed.",
+      "ru": "Вернулись с пустыми руками."
+    },
+    "run.captured": {
+      "en": "{name} was taken. A ransom card may come.",
+      "ru": "{name} забрали. Может прийти карточка выкупа."
+    },
+    "run.death": {
+      "en": "{name} did not come back from the dark.",
+      "ru": "{name} не вернулся{a} из темноты."
+    },
+    "run.seen": {
+      "en": "Seen stealing. Owner opinion −10.",
+      "ru": "Поймали на краже. Мнение хозяина −10."
+    },
+    "run.depleted": {
+      "en": "Site picked thin. Loot down until it recovers.",
+      "ru": "Место обчистили. Добыча ниже, пока не отойдёт."
+    },
+    "run.rest": {
+      "en": "{name} rests this week.",
+      "ru": "{name} на этой неделе отдыхает."
+    },
+    "run.party_block": {
+      "en": "Already on Tunnel Party this week.",
+      "ru": "Уже в Туннельной партии на этой неделе."
+    },
+    "run.no_site": {
+      "en": "No known site yet.",
+      "ru": "Пока нет известных мест."
+    },
+    "run.rumored": {
+      "en": "Rumored",
+      "ru": "По слухам"
+    },
+    "run.danger": {
+      "en": "Danger {n}",
+      "ru": "Опасность {n}"
+    },
+    "run.encounter_title": {
+      "en": "In the dark",
+      "ru": "В темноте"
+    },
+    "run.encounter.locked_cage": {
+      "en": "A locked cage in the dark. Something rattles inside.",
+      "ru": "Закрытая клетка в темноте. Внутри что-то гремит."
+    },
+    "run.encounter.sleeping_guard": {
+      "en": "A guard asleep on a crate. The pack is at their boots.",
+      "ru": "Охранник спит на ящике. Котомка у сапог."
+    },
+    "run.encounter.open_cache": {
+      "en": "An open cache. No owner in sight. Too clean.",
+      "ru": "Открытый тайник. Хозяина не видно. Слишком чисто."
+    },
+    "run.encounter.rival_runners": {
+      "en": "Rival runners on the same stair. They see your light.",
+      "ru": "Чужие бегуны на той же лестнице. Они видят ваш свет."
+    },
+    "run.encounter.flooded_car": {
+      "en": "A flooded car. Bags float. The water smells wrong.",
+      "ru": "Затопленный вагон. Плывут мешки. Вода пахнет не так."
+    },
+    "run.encounter.child_voice": {
+      "en": "A child voice behind a grate. Asking for bread — or bait.",
+      "ru": "Детский голос за решёткой. Просит хлеба — или это приманка."
+    },
+    "run.encounter.marked_crate": {
+      "en": "A crate stamped Directorate. Seal still warm.",
+      "ru": "Ящик со штампом Директората. Печать ещё тёплая."
+    },
+    "run.encounter.silent_chapel": {
+      "en": "A silent chapel niche. Candles out. Bowl of tokens.",
+      "ru": "Тихая церковная ниша. Свечи погасли. Миска жетонов."
+    },
+    "run.encounter.tripwire": {
+      "en": "A tripwire across the throat of the tunnel. Fresh.",
+      "ru": "Растяжка поперёк горла туннеля. Свежая."
+    },
+    "run.encounter.wounded_stranger": {
+      "en": "A wounded stranger. Pack half-full. Eyes open.",
+      "ru": "Раненый незнакомец. Котомка наполовину. Глаза открыты."
+    },
+    "run.encounter.radio_hiss": {
+      "en": "A radio hissing under rubble. Coordinates, maybe.",
+      "ru": "Радио шипит под завалом. Координаты, может быть."
+    },
+    "run.encounter.empty_bunks": {
+      "en": "Empty bunks in a row. Boots still under one. Warm.",
+      "ru": "Пустые койки в ряд. Под одной ещё сапоги. Тёплые."
+    },
+    "run.rumor.ruins_south": {
+      "en": "Ruins south of the yard still hold sealed cans.",
+      "ru": "В руинах к югу от двора ещё лежат запечатанные банки."
+    },
+    "run.rumor.dead_platform_r": {
+      "en": "A dead platform on the R — no lights, fat packs.",
+      "ru": "Мёртвая платформа на R — без света, набитые котомки."
+    },
+    "run.rumor.bunker_outer": {
+      "en": "Outer rooms of a bunker left ajar after a raid.",
+      "ru": "Внешние комнаты бункера приоткрыты после рейда."
+    },
+    "run.rumor.neighbor_store": {
+      "en": "Neighbor station stores lean unlocked at third watch.",
+      "ru": "Склады соседней станции на третьей страже не на замке."
+    },
+    "run.rumor.ferry_shed": {
+      "en": "Ferry shed cache turns over every six weeks.",
+      "ru": "Тайник у паромного сарая обновляется раз в шесть недель."
+    },
+    "run.rumor.botanic_vent": {
+      "en": "Botanic vent dumps seed sacks when the fans reverse.",
+      "ru": "Вент Ботаника выбрасывает мешки семян, когда вентиляторы идут назад."
+    },
+    "run.rumor.court_stair": {
+      "en": "Court St stairwell: medkits under the third landing.",
+      "ru": "Лестница Court St: аптечки под третьей площадкой."
+    },
+    "run.rumor.myrtle_radio": {
+      "en": "Myrtle–Willoughby still coughs radio parts at night.",
+      "ru": "Myrtle–Willoughby по ночам ещё кашляет радиодеталями."
+    },
+    "run.rumor.quarantine_gate": {
+      "en": "Quarantine bunker gate stuck half-open since week 10.",
+      "ru": "Ворота карантинного бункера с 10-й недели полуоткрыты."
+    },
+    "run.rumor.observatory_loot": {
+      "en": "Old Observatory outer ring — copper and quiet.",
+      "ru": "Внешнее кольцо старой Обсерватории — медь и тишина."
+    },
+    "run.rumor.line_clean_20": {
+      "en": "Clean Line sites get sharper after week 20.",
+      "ru": "Чистые объекты Линии после 20-й недели злее."
+    },
+    "run.rumor.stealing_seen": {
+      "en": "Steal from a held station and someone talks.",
+      "ru": "Украдёшь с удержанной станции — кто-то заговорит."
+    },
+    "run.rumor.insomnia_route": {
+      "en": "Insomniacs know a dark route to the dead cars.",
+      "ru": "Бессонники знают тёмный ход к мёртвым вагонам."
+    },
+    "run.rumor.pack_six": {
+      "en": "Six units a runner. Medkits eat three.",
+      "ru": "Шесть единиц на бегуна. Аптечки едят три."
+    },
+    "run.rumor.senses_grit": {
+      "en": "Best Senses or Grit on the roll. The dark does not care which.",
+      "ru": "На броске — что выше, Чутьё или Жила. Темноте всё равно."
+    },
+    "run.rumor.danger_three": {
+      "en": "Danger-three miss can name a death. Or a ransom card.",
+      "ru": "Промах на опасности-три может кончиться смертью. Или карточкой выкупа."
+    },
+    "run.rumor.deplete_six": {
+      "en": "Hit the same site twice — loot thins six weeks.",
+      "ru": "Ударишь по одному месту дважды — добыча худеет на шесть недель."
+    },
+    "run.rumor.intel_tier": {
+      "en": "Intel priority lifts the site tier. Voice band three lifts it twice.",
+      "ru": "Приоритет разведки поднимает ярус места. Голосовая полоса три — дважды."
+    },
+    "run.rumor.party_conflict": {
+      "en": "Same boots cannot run and Tunnel Party the same week.",
+      "ru": "Те же сапоги не могут и в ночной выход, и в Туннельную партию за одну неделю."
+    },
+    "run.rumor.yard_three": {
+      "en": "Yard stage lets a third runner into the dark.",
+      "ru": "Стадия Двора пускает третьего бегуна в темноту."
+    },
+    "run.rumor.ransom_whisper": {
+      "en": "Captured runners come back as a ransom card — if anyone pays.",
+      "ru": "Пленных бегунов возвращают карточкой выкупа — если кто-то платит."
+    },
+    "run.rumor.half_pack": {
+      "en": "Miss soft: half the pack, two weeks hurt.",
+      "ru": "Мягкий промах: половина котомки, две недели ранен."
+    },
+    "run.rumor.rumor_pin": {
+      "en": "Intel one puts a rumored pin on the map.",
+      "ru": "Разведка первого уровня ставит на карту метку слуха."
+    },
+    "run.rumor.south_ferry": {
+      "en": "South Ferry vault outer hall — quiet goods, loud risk.",
+      "ru": "Внешний зал хранилища South Ferry — тихий товар, громкий риск."
+    },
+    "run.rumor.jay_freight": {
+      "en": "Jay St freight alcove still smells of diesel and salt.",
+      "ru": "Грузовая ниша Jay St ещё пахнет дизелем и солью."
+    },
+    "run.rumor.bowling_crates": {
+      "en": "Unmarked crates under Bowling Green. Receipts lie.",
+      "ru": "Ящики без клейма под Bowling Green. Расписки врут."
+    },
+    "run.rumor.coney_side": {
+      "en": "Side tunnel off Coney yard — wet, short, sometimes full.",
+      "ru": "Боковой ход от двора Кони — мокрый, короткий, иногда полный."
+    },
+    "run.rumor.penn_patrol": {
+      "en": "Penn patrols thicken on the hour after third watch.",
+      "ru": "Патрули Пенна густеют в час после третьей стражи."
+    },
+    "run.rumor.synod_alms": {
+      "en": "Synod alms box left outside a sealed shrine — bait or gift.",
+      "ru": "Синодальная кружка у запечатанной молельни — приманка или дар."
+    },
+    "run.rumor.exchange_tip": {
+      "en": "Exchange tip: the dead platform east turns over on even weeks.",
+      "ru": "Подсказка Биржи: мёртвая платформа на востоке обновляется по чётным неделям."
+    }
+  },
+  "meta": {
+    "encounters": 12,
+    "rumors": 30,
+    "journals_cited_from_p67": 7,
+    "runners_max": "2 (3 at Yard stage)",
+    "backpack_units": 6,
+    "encounter_rate": "35%",
+    "roll": "2d6 + best Senses or Grit vs 7/9/10 by danger"
+  },
+  "_designer": "APPROVED"
+}

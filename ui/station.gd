@@ -273,6 +273,8 @@ var address_button: Button
 var dis_pulse: Tween
 var hub_button: Button
 var network_button: Button
+var night_button: Button
+var night_panel: Control
 var network_view: Control
 var showing_network := false
 var hub_layer: Control
@@ -375,7 +377,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_night():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +393,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_night():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -438,6 +440,8 @@ func _ready() -> void:
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
+	elif _want_night():
+		await _night_shots()
 
 
 func _journal_shots() -> void:
@@ -1063,6 +1067,14 @@ func _build() -> void:
 	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, salvage_button, journal_button, pending_button]:
 		tray.add_child(button)
 
+	night_button = _button("run.panel_title", open_night_panel)
+	night_button.custom_minimum_size = Vector2(168, 44)
+	night_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	night_button.add_theme_font_size_override("font_size", 16)
+	night_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(night_button)
+	night_panel = preload("res://ui/night_panel.gd").new()
+	add_child(night_panel)
 	end_button = _button("End turn", _end_turn)
 	end_button.custom_minimum_size = Vector2(168, 58)
 	end_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1601,6 +1613,16 @@ func _place_chrome() -> void:
 		hud.offset_top = 0.0
 		hud.offset_bottom = hud_h
 	chrome_bottom = margin + tool_h + 4.0
+	if night_button != null:
+		night_button.anchor_left = 1.0
+		night_button.anchor_right = 1.0
+		night_button.anchor_top = 1.0
+		night_button.anchor_bottom = 1.0
+		night_button.offset_right = -margin
+		night_button.offset_left = -margin - end_w
+		night_button.offset_bottom = -margin - end_h - 8.0
+		night_button.offset_top = -margin - end_h - 8.0 - 44.0
+		night_button.custom_minimum_size = Vector2(end_w, 44)
 	if end_button != null:
 		end_button.anchor_left = 1.0
 		end_button.anchor_right = 1.0
@@ -2555,6 +2577,8 @@ func _end_cover_input(event: InputEvent) -> void:
 func _end_turn() -> void:
 	if game.over != "":
 		return
+	if night_panel != null and night_panel.has_method("close_panel"):
+		night_panel.close_panel()
 	if game.raid_share_open() or game.dawn_held():
 		_show_raid_share()
 		return
@@ -6264,6 +6288,163 @@ func _show_dawn() -> void:
 	_paint_dawn()
 
 
+func open_night_panel() -> void:
+	if game == null or game.over != "" or night_panel == null:
+		return
+	if modal_open:
+		return
+	if night_panel.has_method("open_for"):
+		night_panel.open_for(self)
+
+
+func _want_night() -> bool:
+	return _dev_args().has("--night-runs")
+
+
+func _paint_night_resolve(ev: Dictionary) -> void:
+	Sound.play("card_open")
+	_open_card(game.line_of(ev, "title"), false)
+	var art_path := str(ev.get("art", ""))
+	if art_path != "" and ResourceLoader.exists(art_path):
+		var tex: Texture2D = load(art_path)
+		if tex != null:
+			var plate := TextureRect.new()
+			plate.texture = tex
+			plate.custom_minimum_size = Vector2(0, 96)
+			plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			card_body.add_child(plate)
+	for line in game.line_of(ev, "text").split("\n"):
+		if str(line) != "":
+			_body_ready(str(line))
+	var enc := str(ev.get("encounter", ""))
+	if enc != "":
+		var nest := PanelContainer.new()
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color("241c14")
+		face.border_color = Color("e0a84a")
+		face.set_border_width_all(1)
+		face.set_corner_radius_all(6)
+		face.content_margin_left = 12
+		face.content_margin_right = 12
+		face.content_margin_top = 8
+		face.content_margin_bottom = 8
+		nest.add_theme_stylebox_override("panel", face)
+		nest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nest.custom_minimum_size = Vector2(480, 0)
+		var inner := VBoxContainer.new()
+		inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		inner.add_theme_constant_override("separation", 6)
+		nest.add_child(inner)
+		inner.add_child(_label("run.encounter_title", 18, true))
+		var body := _label("run.encounter." + enc, 16)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size = Vector2(440, 0)
+		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		inner.add_child(body)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		for choice in ev.choices:
+			var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
+			pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(pick)
+		inner.add_child(row)
+		card_body.add_child(nest)
+	else:
+		for choice in ev.choices:
+			card_body.add_child(_choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id))))
+
+
+func _night_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	var free: Array = []
+	for person in game.residents:
+		var pid := str(person.get("id", ""))
+		if game._is_council(pid) or game._is_child(person):
+			continue
+		if NightRuns.block_reason(game, pid) == "":
+			free.append(pid)
+	var sq: Dictionary = game.squads[game.player]
+	var roster: Array = sq.get("roster", [])
+	if not free.is_empty():
+		var member := str(free[0])
+		if roster.size() >= int(sq.get("max_size", roster.size())) and not roster.is_empty():
+			game.party_toggle(str(roster[0]))
+		game.party_toggle(member)
+		free.pop_front()
+	if night_panel != null and free.size() >= 2:
+		night_panel.picked = [free[0], free[1]]
+	showing_network = true
+	if network_view != null:
+		network_view.visible = true
+		network_view.bind(self)
+	if yard != null:
+		yard.visible = false
+	open_night_panel()
+	for _i in 4:
+		await _frame()
+	if night_panel != null and night_panel.has_method("reveal_pack"):
+		night_panel.reveal_pack()
+	for _i in 3:
+		await _frame()
+	_save("p74_backpack")
+	if night_panel != null:
+		night_panel._rebuild()
+	for _i in 3:
+		await _frame()
+	_save("p74_night_panel")
+	if night_panel != null and night_panel.has_method("close_panel"):
+		night_panel.close_panel()
+	var runner := ""
+	for person in game.residents:
+		var pid := str(person.get("id", ""))
+		if game._is_council(pid) or game._is_child(person):
+			continue
+		if NightRuns.block_reason(game, pid) == "":
+			runner = pid
+			break
+	var known: Array = NightRuns.known_sites(game)
+	if runner != "" and not known.is_empty():
+		NightRuns.send(game, str(known[0].get("id", "")), [runner], ["food", "materials", "medkits", "intel"])
+		var st: Dictionary = game.flags.night_runs
+		st["force_total"] = 6
+		st["force_encounter"] = "open_cache"
+		NightRuns.dawn(game)
+		_show_dawn()
+		await _frame()
+		await _frame()
+		if card_scroll != null:
+			var bar := card_scroll.get_v_scroll_bar()
+			card_scroll.scroll_vertical = int(bar.max_value)
+		await _frame()
+		_save("p74_dawn_resolve")
+		_close_card()
+	showing_network = true
+	if network_view != null:
+		network_view.visible = true
+		network_view.bind(self)
+	await _frame()
+	await _frame()
+	if network_view != null and game.stations.has("eastwater"):
+		var world: Vector2 = network_view._station_world(game.stations.eastwater)
+		network_view.origin = world
+		network_view.zoom = 1.45
+		network_view._clamp_view()
+		network_view.queue_redraw()
+		if network_view._ink_layer != null:
+			network_view._ink_layer.queue_redraw()
+	await _frame()
+	await _frame()
+	_save("p74_rumored_pin")
+	get_tree().quit(0)
+
+
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(game.front_event()))
@@ -6294,8 +6475,11 @@ func _paint_dawn() -> void:
 			_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
 		return
-	Sound.play("card_open")
 	var ev: Dictionary = game.front_event()
+	if bool(ev.get("night_run", false)):
+		_paint_night_resolve(ev)
+		return
+	Sound.play("card_open")
 	note_incident(ev)
 	_open_card(game.line_of(ev, "title"), false, "Event")
 	var banner := _event_banner(ev)
