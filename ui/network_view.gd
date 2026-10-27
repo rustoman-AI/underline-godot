@@ -4297,7 +4297,12 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	if game != null:
 		why = game.order_block(kind, sid)
 	if why != "" and APPROACHES.has(kind):
-		caption.text = "%s\n%s" % [Copy.t(label), why]
+		var face := why
+		if kind == "approach":
+			var short := OrderWhy.tip(game, kind, {"sid": sid})
+			if short != "":
+				face = short
+		caption.text = "%s\n%s" % [Copy.t(label), face]
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4382,6 +4387,10 @@ func _fit_order_button(button: Button, caption: Label) -> void:
 func _order_tip(game, kind: String, sid: String, why: String) -> String:
 	var cost: Dictionary = game.order_cost(kind, sid)
 	if why != "":
+		if OrderWhy.covers(kind):
+			var short := OrderWhy.tip(game, kind, {"sid": sid})
+			if short != "":
+				return short
 		if why.begins_with(Copy.t("Not enough influence.")):
 			var need := int(cost.get("influence", 4))
 			var tip := Copy.t("Not enough influence: need %d, have %d.") % [need, int(game.stock.get("influence", 0))]
@@ -4902,7 +4911,9 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 	for row in closed:
 		if shown < CARD_ORDERS:
 			_order_button(str(row[0]), str(row[1]), sid, parent, details)
-			var why := _lab(str(game_now.order_block(str(row[0]), sid)), 12, false)
+			var block := str(game_now.order_block(str(row[0]), sid))
+			var line := OrderWhy.show(game_now, str(row[0]), block, {"sid": sid})
+			var why := _lab(line, 12, false)
 			why.add_theme_color_override("font_color", CARD_MUTED if _on_paper else MUTED)
 			why.set_meta("closed_reason", str(row[0]))
 			parent.add_child(why)
