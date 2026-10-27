@@ -4315,6 +4315,8 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 		button.add_theme_stylebox_override("disabled", locked)
 	if game != null:
 		button.tooltip_text = _order_tip(game, kind, sid, why)
+	if kind == "approach" and why == "":
+		button.tooltip_text = Copy.t("approach.tip")
 	button.set_meta("order_kind", kind)
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if why == "":
@@ -4437,7 +4439,8 @@ func _issue(kind: String, sid: String) -> void:
 			host._refresh()
 		if host != null and host.has_method("note_spend"):
 			host.note_spend(cost)
-		if host != null and host.has_method("_toast"):
+		## Approach waits for _order_approach. The success line is approach.done, once, not a queue toast.
+		if kind != "approach" and host != null and host.has_method("_toast"):
 			host._toast(_order_queue_toast(kind, sid, _order_toast_ctx(game, kind, action)))
 		refresh()
 		if visit != null and visit.visible:
@@ -4591,7 +4594,7 @@ func _order_title(kind: String, sid: String = "") -> String:
 		"expedition":
 			return "Start expedition"
 		"approach":
-			return "Approach the Floor"
+			return "approach.label"
 		"approach_observatory":
 			return "Approach the Observatory"
 		"approach_quarantine":
@@ -4889,6 +4892,12 @@ func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visi
 	var closed: Array = []
 	for row in order_rows(game_now, own, sid):
 		var kind := str(row[0])
+		if kind == "approach":
+			## Capital strip only, and only while can_approach() is true. Hidden otherwise.
+			if game_now.can_approach():
+				_order_button(kind, str(row[1]), sid, parent, details)
+				shown += 1
+			continue
 		if APPROACHES.has(kind):
 			later.append(row)
 		elif kind in ["patrol", "raid", "assault"] and shown < CARD_ORDERS:
@@ -4975,6 +4984,8 @@ func order_rows(game, own: bool, sid: String = "") -> Array:
 		rows.append(["patrol", "Patrol"])
 		if sid == "" or sid == str(game.capital_id):
 			rows.append(["breach", "Breach kit"])
+			if game.can_approach():
+				rows.append(["approach", "approach.label"])
 		if sid != "" and game.verb_shown("aid", sid):
 			rows.append(["aid", "Aid"])
 		return rows
@@ -4986,8 +4997,6 @@ func order_rows(game, own: bool, sid: String = "") -> Array:
 			rows.append(["aid", "Aid"])
 		if game.verb_shown("pay", sid):
 			rows.append(["pay", "Pay"])
-	if not game.floor_met:
-		rows.append(["approach", "Approach the Floor"])
 	if not game._scene_used("st3_quarantine"):
 		rows.append(["approach_quarantine", "Approach the Quarantine"])
 	if not game._scene_used("st3_observatory"):

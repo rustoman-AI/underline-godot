@@ -1,0 +1,24 @@
+{
+  "_note": "P63 Approach Floor. Spec: /workspace/APPROACH_FLOOR_SPEC.md DEC-AF1…AF2. Thin UI over existing can_approach / _order_approach. Zero balance; not a dawn chip; no ending/credits copy. Dry metro grit — one quiet door. Coney kept as proper name. Floor RU = Этаж (not Пол — collides with Paul).",
+  "_roadmap": "P63",
+  "_owners": "Texts; Code Approach order + gate; UIUX slot + tip + hide; Art none",
+  "by_key": {
+    "approach.label": {
+      "en": "Approach the Floor",
+      "ru": "Подойти к Этажу"
+    },
+    "approach.tip": {
+      "en": "Papers in hand. The tunnel is open.",
+      "ru": "Бумаги при себе. Туннель открыт."
+    },
+    "approach.need": {
+      "en": "Need papers and the Floor tunnel.",
+      "ru": "Нужны бумаги и туннель к Этажу."
+    },
+    "approach.done": {
+      "en": "The Floor asks who speaks for Coney.",
+      "ru": "Этаж спрашивает, кто говорит за Coney."
+    }
+  },
+  "_status": "Designer APPROVED / locked 2026-10-26 — P63 Approach Floor (Этаж RU)"
+}

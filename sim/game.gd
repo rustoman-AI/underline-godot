@@ -5641,6 +5641,8 @@ func _order_approach() -> bool:
 	_add_hope(2, "victory")
 	_log("The Floor is still holding a meeting. They ask who speaks for Coney Island.", true)
 	_fire_trigger("approach_floor")
+	## P63. One success line for the station toast. Not a dawn chip, not an ending card.
+	notices.append(Copy.clip(Copy.t("approach.done"), 72))
 	return true
 
 
