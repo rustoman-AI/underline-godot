@@ -1,0 +1,521 @@
+{
+  "_note": "P66 Deep Life Events (DEC-DL1…DL2). Nine new9 standalones on existing event card. Cite /workspace/DEEP_LIFE_EVENTS_SPEC.md. Source release_events_new9.json — lock EN+RU here. effects_words only — Code maps numbers. ≥1 free choice each. synod_sheet may write Game.synod (P60 shows) — no Synod spend. name_scrubbed flavor/event only — no Named lives P14 systems. side_door.watch / twin_marks.copy / warm_smell.send: optional dawn Listening Post flavor if staffed — no intel/Probe. Out: new5/new8; P62/P64; P54 chains; EA stores_turn/diesel/ration_coat. Not soft dawn.",
+  "_roadmap": "P66",
+  "_owners": "Texts; Code pool wire + gate; UIUX cite-only existing card; Art optional plates",
+  "events": [
+    {
+      "id": "rust_water",
+      "title": {
+        "en": "Rust in the barrel",
+        "ru": "Ржавчина в бочке"
+      },
+      "who": "Inez",
+      "text": {
+        "en": "Inez dipped the ladle into the drinking barrel and brought up orange flakes. The water still runs clear after a minute. Nobody wants to be first to drink.",
+        "ru": "Инес зачерпнула ковшиком из питьевой бочки — и подняла оранжевые хлопья. Через минуту вода снова прозрачная. Первым пить никто не хочет."
+      },
+      "choices": [
+        {
+          "id": "boil",
+          "label": {
+            "en": "Boil a day's water by the generator",
+            "ru": "Прокипятить дневную норму у генератора"
+          },
+          "effects_words": "small power loss this week; water held; small hope gain",
+          "free": true
+        },
+        {
+          "id": "scrape",
+          "label": {
+            "en": "Scrape the barrel and hope",
+            "ru": "Выскоблить бочку — и надеяться"
+          },
+          "effects_words": "small discontent rise; small hope loss",
+          "free": true
+        },
+        {
+          "id": "filter",
+          "label": {
+            "en": "Rig a cloth filter from stores",
+            "ru": "Сделать тряпичный фильтр со склада"
+          },
+          "effects_words": "costs small materials; water held; small hope gain",
+          "free": false
+        }
+      ],
+      "min_week": 2,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_rust_water_body_en.mp3",
+            "text": "Inez dipped the ladle into the drinking barrel and brought up orange flakes. The water still runs clear after a minute. Nobody wants to be first to drink."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_rust_water_body_ru.mp3",
+            "text": "Инес зачерпнула ковшиком из питьевой бочки — и подняла оранжевые хлопья. Через минуту вода снова прозрачная. Первым пить никто не хочет."
+          }
+        ]
+      }
+    },
+    {
+      "id": "shoe_gate",
+      "title": {
+        "en": "A shoe at the gate",
+        "ru": "Ботинок у ворот"
+      },
+      "who": "June",
+      "text": {
+        "en": "June found a child's shoe left outside the gate. No child. No footprints in the grit that match. The lace is still tied.",
+        "ru": "Джун нашла детский ботинок снаружи у ворот. Ребёнка нет. В пыли нет подходящих следов. Шнурок всё ещё завязан."
+      },
+      "choices": [
+        {
+          "id": "bring",
+          "label": {
+            "en": "Bring it in. Ask at dawn count",
+            "ru": "Внести внутрь. Спросить на утреннем пересчёте"
+          },
+          "effects_words": "small hope gain; small discontent rise (unease)",
+          "free": true
+        },
+        {
+          "id": "leave",
+          "label": {
+            "en": "Leave it. Watch the gate another night",
+            "ru": "Оставить. Ещё ночь смотреть на ворота"
+          },
+          "effects_words": "small discontent rise; small hope held",
+          "free": true
+        },
+        {
+          "id": "burn",
+          "label": {
+            "en": "Burn it with the trash oil",
+            "ru": "Сжечь с отработанным маслом"
+          },
+          "effects_words": "small hope loss; small discontent drop",
+          "free": true
+        }
+      ],
+      "min_week": 3,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_shoe_gate_body_en.mp3",
+            "text": "June found a child's shoe left outside the gate. No child. No footprints in the grit that match. The lace is still tied."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_shoe_gate_body_ru.mp3",
+            "text": "Джун нашла детский ботинок снаружи у ворот. Ребёнка нет. В пыли нет подходящих следов. Шнурок всё ещё завязан."
+          }
+        ]
+      }
+    },
+    {
+      "id": "belt_squeal",
+      "title": {
+        "en": "Belt that knows the hour",
+        "ru": "Ремень, который знает час"
+      },
+      "who": "Pete",
+      "text": {
+        "en": "Pete says the generator belt starts to squeal at the same hour every night. Same note. Same length. He has timed it twice.",
+        "ru": "Пит говорит, что ремень генератора начинает визжать в один и тот же час каждую ночь. Та же нота. Столько же. Он засекал дважды."
+      },
+      "choices": [
+        {
+          "id": "replace",
+          "label": {
+            "en": "Swap the belt from scrap",
+            "ru": "Сменить ремень из утиля"
+          },
+          "effects_words": "costs small materials; power held; small hope gain",
+          "free": false
+        },
+        {
+          "id": "oil",
+          "label": {
+            "en": "Oil it and keep the clock",
+            "ru": "Смазать — и дальше засекать"
+          },
+          "effects_words": "small power loss risk; small discontent rise",
+          "free": true
+        },
+        {
+          "id": "watch",
+          "label": {
+            "en": "Post someone at that hour",
+            "ru": "Поставить кого-то на этот час"
+          },
+          "effects_words": "small hope held; small discontent rise (tired watch)",
+          "free": true
+        }
+      ],
+      "min_week": 4,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_belt_squeal_body_en.mp3",
+            "text": "Pete says the generator belt starts to squeal at the same hour every night. Same note. Same length. He has timed it twice."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_belt_squeal_body_ru.mp3",
+            "text": "Пит говорит, что ремень генератора начинает визжать в один и тот же час каждую ночь. Та же нота. Столько же. Он засекал дважды."
+          }
+        ]
+      }
+    },
+    {
+      "id": "synod_sheet",
+      "title": {
+        "en": "Leaflet under the mattress",
+        "ru": "Листовка под матрасом"
+      },
+      "who": "Lila",
+      "text": {
+        "en": "Lila turned a bunk mattress and found a Synod leaflet folded flat. Soft paper. Fresh ink. No name on the bunk chalk.",
+        "ru": "Лила перевернула матрас на нарах и нашла листовку Синода, сложенную плашмя. Мягкая бумага. Свежие чернила. Имени на мелу у нар нет."
+      },
+      "choices": [
+        {
+          "id": "burn",
+          "label": {
+            "en": "Burn it at the stove. Say nothing",
+            "ru": "Сжечь у печки. Никому не говорить"
+          },
+          "effects_words": "small Synod opinion risk held; small hope loss",
+          "free": true
+        },
+        {
+          "id": "read",
+          "label": {
+            "en": "Read it aloud at evening ration",
+            "ru": "Прочитать вслух на вечерней пайке"
+          },
+          "effects_words": "small discontent rise; small hope gain (some); Synod opinion risk",
+          "free": true
+        },
+        {
+          "id": "log",
+          "label": {
+            "en": "Log it and ask who slept there",
+            "ru": "Записать и спросить, кто там спал"
+          },
+          "effects_words": "costs small influence; small hope held; small discontent rise",
+          "free": false
+        }
+      ],
+      "min_week": 5,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_synod_sheet_body_en.mp3",
+            "text": "Lila turned a bunk mattress and found a Synod leaflet folded flat. Soft paper. Fresh ink. No name on the bunk chalk."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_synod_sheet_body_ru.mp3",
+            "text": "Лила перевернула матрас на нарах и нашла листовку Синода, сложенную плашмя. Мягкая бумага. Свежие чернила. Имени на мелу у нар нет."
+          }
+        ]
+      }
+    },
+    {
+      "id": "side_door",
+      "title": {
+        "en": "A quiet side door",
+        "ru": "Тихая боковая дверь"
+      },
+      "who": "Jonah",
+      "text": {
+        "en": "Jonah says an Exchange runner asked for a quiet side door past the toll chalk. No crest shown. Payment offered in sealed tins.",
+        "ru": "Джона говорит, что гонец Биржи просил тихую боковую дверь мимо пошлинного мела. Герба не показал. Плату предложил запечатанными банками."
+      },
+      "choices": [
+        {
+          "id": "refuse",
+          "label": {
+            "en": "Refuse. Send them to the main gate",
+            "ru": "Отказать. Отправить к главным воротам"
+          },
+          "effects_words": "small Exchange opinion risk; small hope held",
+          "free": true
+        },
+        {
+          "id": "take",
+          "label": {
+            "en": "Take the tins. Open the door once",
+            "ru": "Взять банки. Открыть дверь один раз"
+          },
+          "effects_words": "small food gain; small hope loss; small discontent rise (rumor)",
+          "free": true
+        },
+        {
+          "id": "watch",
+          "label": {
+            "en": "Open it with two watching from the dark",
+            "ru": "Открыть — двое смотрят из темноты"
+          },
+          "effects_words": "costs small food; small hope gain; optional dawn \"Logged at the Listening Post\" if Post staffed (no intel / no Probe)",
+          "free": false
+        }
+      ],
+      "min_week": 6,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_side_door_body_en.mp3",
+            "text": "Jonah says an Exchange runner asked for a quiet side door past the toll chalk. No crest shown. Payment offered in sealed tins."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_side_door_body_ru.mp3",
+            "text": "Джона говорит, что гонец Биржи просил тихую боковую дверь мимо пошлинного мела. Герба не показал. Плату предложил запечатанными банками."
+          }
+        ]
+      }
+    },
+    {
+      "id": "frost_glass",
+      "title": {
+        "en": "Frost on the inside",
+        "ru": "Иней изнутри"
+      },
+      "who": "Paul",
+      "text": {
+        "en": "Paul wiped the platform glass and his glove came away white. Frost on the inside. The tunnel air outside is no colder than yesterday.",
+        "ru": "Пол протёр стекло платформы — перчатка стала белой. Иней изнутри. Снаружи в тоннеле не холоднее, чем вчера."
+      },
+      "choices": [
+        {
+          "id": "seal",
+          "label": {
+            "en": "Check the pressure seals again",
+            "ru": "Ещё раз проверить уплотнения"
+          },
+          "effects_words": "costs small materials; air held; small hope gain",
+          "free": false
+        },
+        {
+          "id": "heat",
+          "label": {
+            "en": "Run the stove harder tonight",
+            "ru": "Сильнее топить печь этой ночью"
+          },
+          "effects_words": "small fuel/power loss; small discontent drop",
+          "free": true
+        },
+        {
+          "id": "ignore",
+          "label": {
+            "en": "Wipe it and log the hour",
+            "ru": "Стереть и записать час"
+          },
+          "effects_words": "small hope loss; small discontent rise",
+          "free": true
+        }
+      ],
+      "min_week": 3,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_frost_glass_body_en.mp3",
+            "text": "Paul wiped the platform glass and his glove came away white. Frost on the inside. The tunnel air outside is no colder than yesterday."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_frost_glass_body_ru.mp3",
+            "text": "Пол протёр стекло платформы — перчатка стала белой. Иней изнутри. Снаружи в тоннеле не холоднее, чем вчера."
+          }
+        ]
+      }
+    },
+    {
+      "id": "name_scrubbed",
+      "title": {
+        "en": "Name off the duty board",
+        "ru": "Имя стёрто с доски"
+      },
+      "who": "Benny",
+      "text": {
+        "en": "Benny checked the duty board at shift change. One name had been scratched off clean. The chalk dust still on the floor. No one claims the rag.",
+        "ru": "Бенни сверил доску нарядов при смене. Одно имя соскоблили начисто. Меловая пыль ещё на полу. Тряпку никто на себя не берёт."
+      },
+      "choices": [
+        {
+          "id": "rewrite",
+          "label": {
+            "en": "Rewrite the name. Ask who held the chalk",
+            "ru": "Вписать имя снова. Спросить, у кого был мел"
+          },
+          "effects_words": "small discontent rise; small hope held",
+          "free": true
+        },
+        {
+          "id": "blank",
+          "label": {
+            "en": "Leave the blank. Fill it at dawn",
+            "ru": "Оставить пустое. Заполнить на рассвете"
+          },
+          "effects_words": "small hope loss; small discontent rise",
+          "free": true
+        },
+        {
+          "id": "talk",
+          "label": {
+            "en": "Pull the named person aside quietly",
+            "ru": "Тихо отозвать того, чьё имя стёрли"
+          },
+          "effects_words": "costs small influence; small hope gain; small discontent drop",
+          "free": false
+        }
+      ],
+      "min_week": 4,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_name_scrubbed_body_en.mp3",
+            "text": "Benny checked the duty board at shift change. One name had been scratched off clean. The chalk dust still on the floor. No one claims the rag."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_name_scrubbed_body_ru.mp3",
+            "text": "Бенни сверил доску нарядов при смене. Одно имя соскоблили начисто. Меловая пыль ещё на полу. Тряпку никто на себя не берёт."
+          }
+        ]
+      }
+    },
+    {
+      "id": "twin_marks",
+      "title": {
+        "en": "Two paints on one brick",
+        "ru": "Две краски на одном кирпиче"
+      },
+      "who": "Tess",
+      "text": {
+        "en": "Tess found two factions' paint marks on the same tunnel brick past the spur. Fresh over dry. Neither mark alone would mean much. Together they do.",
+        "ru": "Тесс нашла метки двух фракций на одном кирпиче тоннеля за отводом. Свежая поверх сухой. По отдельности мало что значат. Вместе — уже значат."
+      },
+      "choices": [
+        {
+          "id": "scrub",
+          "label": {
+            "en": "Scrub both. Pretend the brick is blank",
+            "ru": "Стереть обе. Сделать вид, что кирпич пустой"
+          },
+          "effects_words": "small discontent drop; small hope loss",
+          "free": true
+        },
+        {
+          "id": "copy",
+          "label": {
+            "en": "Copy both into the Listening log",
+            "ru": "Срисовать обе в журнал Поста прослушки"
+          },
+          "effects_words": "costs small influence; small hope gain; chronicle/log flavor only (no intel / no Probe)",
+          "free": false
+        },
+        {
+          "id": "leave",
+          "label": {
+            "en": "Leave them. Widen the night watch",
+            "ru": "Оставить. Расширить ночную вахту"
+          },
+          "effects_words": "small discontent rise; small hope held",
+          "free": true
+        }
+      ],
+      "min_week": 7,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_twin_marks_body_en.mp3",
+            "text": "Tess found two factions' paint marks on the same tunnel brick past the spur. Fresh over dry. Neither mark alone would mean much. Together they do."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_twin_marks_body_ru.mp3",
+            "text": "Тесс нашла метки двух фракций на одном кирпиче тоннеля за отводом. Свежая поверх сухой. По отдельности мало что значат. Вместе — уже значат."
+          }
+        ]
+      }
+    },
+    {
+      "id": "warm_smell",
+      "title": {
+        "en": "Warm meal in the dark",
+        "ru": "Тёплый запах в темноте"
+      },
+      "who": "Mara",
+      "text": {
+        "en": "Mara caught a warm meal smell from a dark side tunnel. Onion and fat. No lamp. No voices. The smell held for three breaths and went.",
+        "ru": "Мара уловила запах тёплой еды из тёмного бокового тоннеля. Лук и жир. Ни фонаря. Ни голосов. Запах держался три вдоха и пропал."
+      },
+      "choices": [
+        {
+          "id": "send",
+          "label": {
+            "en": "Send two with a lamp and a rope",
+            "ru": "Послать двоих с фонарём и верёвкой"
+          },
+          "effects_words": "costs small food; small hope gain; optional dawn \"Logged at the Listening Post\" if Post staffed (no intel / no Probe)",
+          "free": false
+        },
+        {
+          "id": "bar",
+          "label": {
+            "en": "Bar that mouth until dawn",
+            "ru": "Закрыть этот проход до рассвета"
+          },
+          "effects_words": "small discontent rise; small hope held",
+          "free": true
+        },
+        {
+          "id": "ignore",
+          "label": {
+            "en": "Log the smell. Keep walking",
+            "ru": "Записать запах. Идти дальше"
+          },
+          "effects_words": "small hope loss; small discontent rise",
+          "free": true
+        }
+      ],
+      "min_week": 5,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_warm_smell_body_en.mp3",
+            "text": "Mara caught a warm meal smell from a dark side tunnel. Onion and fat. No lamp. No voices. The smell held for three breaths and went."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_warm_smell_body_ru.mp3",
+            "text": "Мара уловила запах тёплой еды из тёмного бокового тоннеля. Лук и жир. Ни фонаря. Ни голосов. Запах держался три вдоха и пропал."
+          }
+        ]
+      }
+    }
+  ],
+  "_status": "Designer APPROVED / locked 2026-10-26 — P66 Deep Life Events; Texts release polish 2026-10-26 (RU grit + VO sync; EN untouched); evening grit 2026-10-26 (RU)."
+}

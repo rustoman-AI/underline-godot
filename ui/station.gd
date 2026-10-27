@@ -375,7 +375,8 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	var deep_shots := _dev_args().has("--deep-life")
+	if deep_shots or _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +392,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not deep_shots and not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -438,6 +439,46 @@ func _ready() -> void:
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
+	elif _dev_args().has("--deep-life"):
+		await _deep_life_shots()
+
+
+## Dev shots of the P66 one-shots on the existing event card. Not player chrome.
+func _deep_life_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	for id in ["rust_water", "synod_sheet", "name_scrubbed"]:
+		game.pending.clear()
+		game.week_event_ids = {}
+		event_mode = "one"
+		game._present_event(game._event_by_id(id))
+		_show_dawn()
+		await _frame()
+		await _frame()
+		await _frame()
+		print("DEEP LIFE CARD %s / %s" % [id, game.line_of(game.front_event(), "title")])
+		_save("deep_life_%s" % id)
+		_close_card()
+	Copy.set_lang("ru")
+	game.pending.clear()
+	game.week_event_ids = {}
+	event_mode = "one"
+	game._present_event(game._event_by_id("shoe_gate"))
+	_show_dawn()
+	await _frame()
+	await _frame()
+	await _frame()
+	print("DEEP LIFE CARD shoe_gate / %s" % game.line_of(game.front_event(), "title"))
+	_save("deep_life_shoe_gate_ru")
+	_close_card()
+	get_tree().quit(0)
 
 
 func _journal_shots() -> void:

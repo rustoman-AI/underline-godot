@@ -72,6 +72,7 @@ func load_all() -> bool:
 	communities = _obj("station_communities.json")
 	communities_en = _obj("station_communities_en.json")
 	geo = _obj("map_geo.json")
+	_install_deep_life()
 	var bad_goods := goods_problems()
 	if error == "" and not bad_goods.is_empty():
 		error = "station goods: " + "; ".join(bad_goods)
@@ -220,6 +221,173 @@ func _arr(name: String) -> Array:
 	if error == "":
 		error = "%s is not a list" % name
 	return []
+
+
+## P66. Nine deep-life one-shots join the mid-week pool from the locked pack.
+## Numbers come from balance.deep_life_scale. Text stays the pack's EN+RU.
+## effects_words → fields. A leading '-' is the drop. Held lines are omitted.
+## dawn_flavor copies the pack's Listening Post line. No intel, no Probe.
+const DEEP_LIFE_FLAVOR := "Logged at the Listening Post"
+const DEEP_LIFE_MAP := {
+	"rust_water": {
+		"boil": {"power": "-power_small", "hope": "hope_small"},
+		"scrape": {"discontent": "discontent_small", "hope": "-hope_small"},
+		"filter": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+	},
+	"shoe_gate": {
+		"bring": {"hope": "hope_small", "discontent": "discontent_small"},
+		"leave": {"discontent": "discontent_small"},
+		"burn": {"hope": "-hope_small", "discontent": "-discontent_small"},
+	},
+	"belt_squeal": {
+		"replace": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"oil": {"power": "-power_soft", "discontent": "discontent_small"},
+		"watch": {"discontent": "discontent_small"},
+	},
+	"synod_sheet": {
+		"burn": {"hope": "-hope_small"},
+		"read": {"discontent": "discontent_small", "hope": "hope_small", "synod": "synod_small"},
+		"log": {"cost": {"influence": "influence_small"}, "discontent": "discontent_small"},
+	},
+	"side_door": {
+		"refuse": {"opinion_exchange": "-opinion_small"},
+		"take": {"food": "food_small", "hope": "-hope_small", "discontent": "discontent_small"},
+		"watch": {"cost": {"food": "food_small"}, "hope": "hope_small", "dawn_flavor": true},
+	},
+	"frost_glass": {
+		"seal": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"heat": {"power": "-power_soft", "discontent": "-discontent_small"},
+		"ignore": {"hope": "-hope_small", "discontent": "discontent_small"},
+	},
+	"name_scrubbed": {
+		"rewrite": {"discontent": "discontent_small"},
+		"blank": {"hope": "-hope_small", "discontent": "discontent_small"},
+		"talk": {"cost": {"influence": "influence_small"}, "hope": "hope_small", "discontent": "-discontent_small"},
+	},
+	"twin_marks": {
+		"scrub": {"discontent": "-discontent_small", "hope": "-hope_small"},
+		"copy": {"cost": {"influence": "influence_small"}, "hope": "hope_small", "dawn_flavor": true},
+		"leave": {"discontent": "discontent_small"},
+	},
+	"warm_smell": {
+		"send": {"cost": {"food": "food_small"}, "hope": "hope_small", "dawn_flavor": true},
+		"bar": {"discontent": "discontent_small"},
+		"ignore": {"hope": "-hope_small", "discontent": "discontent_small"},
+	},
+}
+
+
+func _install_deep_life() -> void:
+	if error != "":
+		return
+	var data = _read("deep_life_events.json")
+	if not (data is Dictionary):
+		if error == "":
+			error = "deep_life_events.json is not an object"
+		return
+	var scale: Dictionary = balance.get("deep_life_scale", {})
+	if scale.is_empty():
+		error = "deep life: no deep_life_scale"
+		return
+	var have := {}
+	for ev in events:
+		have[str(ev.get("id", ""))] = true
+	for raw in data.get("events", []):
+		if not (raw is Dictionary):
+			continue
+		var id := str(raw.get("id", ""))
+		if id == "" or have.has(id):
+			error = "deep life: duplicate or blank id %s" % id
+			return
+		var built := _deep_life_event(raw, scale)
+		if error != "":
+			return
+		events.append(built)
+		have[id] = true
+
+
+func _deep_life_event(raw: Dictionary, scale: Dictionary) -> Dictionary:
+	var id := str(raw.get("id", ""))
+	var spec: Dictionary = DEEP_LIFE_MAP.get(id, {})
+	if spec.is_empty():
+		error = "deep life: no number map for %s" % id
+		return {}
+	var choices: Array = []
+	for raw_choice in raw.get("choices", []):
+		if not (raw_choice is Dictionary):
+			continue
+		var cid := str(raw_choice.get("id", ""))
+		if not spec.has(cid):
+			error = "deep life: %s choice %s has no number map" % [id, cid]
+			return {}
+		var built := {"id": cid, "label": raw_choice.get("label", {})}
+		var fx: Dictionary = spec[cid]
+		for key in fx:
+			if str(key) == "dawn_flavor":
+				var quote := _deep_life_quote(id, cid, str(raw_choice.get("effects_words", "")))
+				if quote != DEEP_LIFE_FLAVOR:
+					error = "deep life: %s %s flavor quote missing" % [id, cid]
+					return {}
+				built["dawn_flavor"] = {"en": quote}
+				continue
+			if str(key) == "cost":
+				built["cost"] = _deep_life_nums(fx.cost, scale, id, cid)
+				if error != "":
+					return {}
+				continue
+			var n := _deep_life_one(scale, str(fx[key]))
+			if n == 0:
+				error = "deep life: %s %s %s is 0" % [id, cid, str(key)]
+				return {}
+			built[str(key)] = n
+		choices.append(built)
+	if choices.is_empty():
+		error = "deep life: %s has no choices" % id
+		return {}
+	return {
+		"id": id,
+		"title": raw.get("title", {}),
+		"text": raw.get("text", {}),
+		"who": str(raw.get("who", "")),
+		"major": false,
+		"min_week": int(raw.get("min_week", 1)),
+		"weight": int(raw.get("weight", 2)),
+		"cooldown": 8,
+		"deep_life": true,
+		"choices": choices,
+	}
+
+
+func _deep_life_nums(spec: Dictionary, scale: Dictionary, id: String, cid: String) -> Dictionary:
+	var out := {}
+	for key in spec:
+		var n := _deep_life_one(scale, str(spec[key]))
+		if n == 0:
+			error = "deep life: %s %s cost %s is 0" % [id, cid, str(key)]
+			return {}
+		out[str(key)] = n
+	return out
+
+
+func _deep_life_one(scale: Dictionary, name: String) -> int:
+	var neg := name.begins_with("-")
+	var key := name.trim_prefix("-")
+	var n := int(scale.get(key, 0))
+	return -n if neg else n
+
+
+## The quoted Listening Post line, when the pack wrote one. twin_marks.copy names the same
+## dawn flavor in the pack note and does not repeat the sentence.
+func _deep_life_quote(id: String, cid: String, words: String) -> String:
+	var open := words.find("\"")
+	if open < 0:
+		if id == "twin_marks" and cid == "copy":
+			return DEEP_LIFE_FLAVOR
+		return ""
+	var close := words.find("\"", open + 1)
+	if close <= open:
+		return ""
+	return words.substr(open + 1, close - open - 1)
 
 
 func _index(rows: Array, key: String) -> Dictionary:

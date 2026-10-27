@@ -209,5 +209,17 @@
     "trait_absent_short": 2,
     "papers_step": 1,
     "people_one": 1
+  },
+  "deep_life_scale": {
+    "_note": "P66 effects_words for rust_water, shoe_gate, belt_squeal, synod_sheet, side_door, frost_glass, name_scrubbed, twin_marks, warm_smell. Small steps only. power_soft is the belt risk and the frost fuel step, under power_small. food_small is the side-door tin and the warm-smell cost. Soften food_small before any cough edit if careful leaves 15-35%. Held lines omit the key. No tokens. Cough is untouched.",
+    "hope_small": 1,
+    "discontent_small": 1,
+    "food_small": 2,
+    "materials_small": 2,
+    "influence_small": 1,
+    "power_small": 2,
+    "power_soft": 1,
+    "opinion_small": 2,
+    "synod_small": 3
   }
 }
