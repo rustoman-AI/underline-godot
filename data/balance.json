@@ -209,5 +209,21 @@
     "trait_absent_short": 2,
     "papers_step": 1,
     "people_one": 1
+  },
+  "tunnel_life_scale": {
+    "_note": "P64 effects_words for wet_bunk, vent_prayer, crate_blank, filter_mesh, shelf_feud, fever_lamp, count_short, cold_rail. Small steps only. crate_blank keep uses food_medium; soften that key first if careful leaves 15-35%. Soft hits are a smaller stock step than a full small loss. Held, no-food, and no-power lines omit the key. efficiency_small is the air-filter mesh step. Cough is untouched.",
+    "hope_small": 1,
+    "discontent_small": 1,
+    "food_small": 2,
+    "food_medium": 4,
+    "food_soft": 1,
+    "materials_small": 2,
+    "tokens_small": 2,
+    "influence_small": 1,
+    "power_small": 2,
+    "power_soft": 1,
+    "opinion_small": 2,
+    "synod_small": 3,
+    "efficiency_small": 0.04
   }
 }

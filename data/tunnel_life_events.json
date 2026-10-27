@@ -1,0 +1,464 @@
+{
+  "_note": "P64 Tunnel Life Events (DEC-TL1…TL2). Eight new8 standalones on existing event card. Cite /workspace/TUNNEL_LIFE_EVENTS_SPEC.md. Source release_events_new8.json — lock EN+RU here. effects_words only — Code maps numbers. ≥1 free choice each. vent_prayer may mention synod / Game.synod (P60 shows it) — no Synod spend invent. Out: new5/new9; P54 chains; EA stores_turn/diesel/ration_coat; P62 ids. Not soft dawn.",
+  "_roadmap": "P64",
+  "_owners": "Texts; Code pool wire + careful band; UIUX cite-only existing card; Art optional plates",
+  "events": [
+    {
+      "id": "wet_bunk",
+      "title": {
+        "en": "Water on the bunks",
+        "ru": "Вода на койках"
+      },
+      "who": "Nora",
+      "text": {
+        "en": "Nora found a slow drip above the bunks. Three mattresses are wet through. The pipe sweats when the pumps kick, and nobody marked which joint failed.",
+        "ru": "Нора нашла над койками тихую капель. Три матраса промокли насквозь. Труба потеет, когда включаются насосы, и никто не пометил, какой стык сдался."
+      },
+      "choices": [
+        {
+          "id": "patch",
+          "label": {
+            "en": "Patch the joint tonight",
+            "ru": "Залатать стык этой ночью"
+          },
+          "effects_words": "costs small materials; small hope gain",
+          "free": false
+        },
+        {
+          "id": "move",
+          "label": {
+            "en": "Move the three bunks and live with it",
+            "ru": "Переставить три койки — и жить с этим"
+          },
+          "effects_words": "small discontent rise; small hope loss",
+          "free": true
+        },
+        {
+          "id": "ration_dry",
+          "label": {
+            "en": "Hang the bedding by the generator",
+            "ru": "Сушить постели у генератора"
+          },
+          "effects_words": "small power loss this week; small discontent drop",
+          "free": true
+        }
+      ],
+      "min_week": 3,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_wet_bunk_body_en.mp3",
+            "text": "Nora found a slow drip above the bunks. Three mattresses are wet through. The pipe sweats when the pumps kick, and nobody marked which joint failed."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_wet_bunk_body_ru.mp3",
+            "text": "Нора нашла над койками тихую капель. Три матраса промокли насквозь. Труба потеет, когда включаются насосы, и никто не пометил, какой стык сдался."
+          }
+        ]
+      }
+    },
+    {
+      "id": "vent_prayer",
+      "title": {
+        "en": "A prayer in the vent",
+        "ru": "Молитва в вентканале"
+      },
+      "who": "Ellis",
+      "text": {
+        "en": "Ellis says a Synod prayer is traveling the vents at night. Not from the chapel — from somewhere east of the filters. A few of yours are answering under their breath.",
+        "ru": "Эллис говорит, что ночью по вентканалам идёт молитва Синода. Не из часовни — откуда-то к востоку от фильтров. Некоторые из ваших отвечают себе под нос."
+      },
+      "choices": [
+        {
+          "id": "listen",
+          "label": {
+            "en": "Let them listen",
+            "ru": "Пусть слушают"
+          },
+          "effects_words": "small synod gain; small hope gain if Devout present",
+          "free": true
+        },
+        {
+          "id": "seal_vent",
+          "label": {
+            "en": "Stuff the vent and keep the night quiet",
+            "ru": "Заткнуть вентканал — пусть ночь будет тихой"
+          },
+          "effects_words": "small hope loss; small discontent rise among Devout",
+          "free": true
+        },
+        {
+          "id": "trace",
+          "label": {
+            "en": "Send someone east along the duct",
+            "ru": "Послать кого-то на восток по коробу"
+          },
+          "effects_words": "costs small influence; small synod gain; small hope gain",
+          "free": false
+        }
+      ],
+      "min_week": 5,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_vent_prayer_body_en.mp3",
+            "text": "Ellis says a Synod prayer is traveling the vents at night. Not from the chapel — from somewhere east of the filters. A few of yours are answering under their breath."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_vent_prayer_body_ru.mp3",
+            "text": "Эллис говорит, что ночью по вентканалам идёт молитва Синода. Не из часовни — откуда-то к востоку от фильтров. Некоторые из ваших отвечают себе под нос."
+          }
+        ]
+      }
+    },
+    {
+      "id": "crate_blank",
+      "title": {
+        "en": "A crate with no mark",
+        "ru": "Ящик без метки"
+      },
+      "who": "Benny",
+      "text": {
+        "en": "Benny's handcar brought a sealed crate with the Exchange stamp scraped off. Inside: dry rice and a folded note with no signature. Lin's people do not answer the radio.",
+        "ru": "Дрезина Бенни привезла запечатанный ящик — штамп Биржи соскоблен. Внутри сухой рис и сложенная записка без подписи. Люди Лин по рации не отвечают."
+      },
+      "choices": [
+        {
+          "id": "keep",
+          "label": {
+            "en": "Take the rice and burn the note",
+            "ru": "Забрать рис и сжечь записку"
+          },
+          "effects_words": "medium food gain; small Exchange opinion drop",
+          "free": true
+        },
+        {
+          "id": "return",
+          "label": {
+            "en": "Send it back stamped as found",
+            "ru": "Вернуть со штампом «найдено»"
+          },
+          "effects_words": "small Exchange opinion rise; no food",
+          "free": true
+        },
+        {
+          "id": "open_quiet",
+          "label": {
+            "en": "Open it in the workshop with Hal",
+            "ru": "Вскрыть в мастерской с Хэлом"
+          },
+          "effects_words": "small materials gain; small discontent rise (rumor)",
+          "free": true
+        }
+      ],
+      "min_week": 4,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_crate_blank_body_en.mp3",
+            "text": "Benny's handcar brought a sealed crate with the Exchange stamp scraped off. Inside: dry rice and a folded note with no signature. Lin's people do not answer the radio."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_crate_blank_body_ru.mp3",
+            "text": "Дрезина Бенни привезла запечатанный ящик — штамп Биржи соскоблен. Внутри сухой рис и сложенная записка без подписи. Люди Лин по рации не отвечают."
+          }
+        ]
+      }
+    },
+    {
+      "id": "filter_mesh",
+      "title": {
+        "en": "Mesh cut from the stack",
+        "ru": "Сетка с фильтра"
+      },
+      "who": "Mara",
+      "text": {
+        "en": "Mara found a square cut out of the top air-filter mesh. Someone used it for a blanket on the cold rail. The stack still pulls, but dust is getting past.",
+        "ru": "Мара нашла вырезанный квадрат в верхней сетке воздушного фильтра. Кто-то сделал из него одеяло у холодного рельса. Фильтр ещё тянет, но пыль уже проходит."
+      },
+      "choices": [
+        {
+          "id": "replace",
+          "label": {
+            "en": "Replace the mesh from stores",
+            "ru": "Поставить сетку со склада"
+          },
+          "effects_words": "costs small materials; efficiency held",
+          "free": false
+        },
+        {
+          "id": "shame",
+          "label": {
+            "en": "Name it on the platform and take the blanket back",
+            "ru": "Назвать виновного на платформе и забрать одеяло"
+          },
+          "effects_words": "small discontent drop; small hope loss",
+          "free": true
+        },
+        {
+          "id": "live",
+          "label": {
+            "en": "Leave it and rotate the filters early",
+            "ru": "Оставить и сменить фильтры раньше срока"
+          },
+          "effects_words": "small efficiency loss; small hope gain",
+          "free": true
+        }
+      ],
+      "min_week": 3,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_filter_mesh_body_en.mp3",
+            "text": "Mara found a square cut out of the top air-filter mesh. Someone used it for a blanket on the cold rail. The stack still pulls, but dust is getting past."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_filter_mesh_body_ru.mp3",
+            "text": "Мара нашла вырезанный квадрат в верхней сетке воздушного фильтра. Кто-то сделал из него одеяло у холодного рельса. Фильтр ещё тянет, но пыль уже проходит."
+          }
+        ]
+      }
+    },
+    {
+      "id": "shelf_feud",
+      "title": {
+        "en": "The shelf between bunks",
+        "ru": "Полка между койками"
+      },
+      "who": "Tess",
+      "text": {
+        "en": "Tess and Vic have not spoken in three days. The quarrel is over a shelf: whose tin, whose lamp oil, whose right to the nail in the wall. The platform is quiet around them on purpose.",
+        "ru": "Тесс и Вик три дня не разговаривают. Ссора из-за полки: чья банка, чьё ламповое масло, чьё право на гвоздь в стене. Платформа вокруг них нарочно молчит."
+      },
+      "choices": [
+        {
+          "id": "split",
+          "label": {
+            "en": "Split the shelf and nail a second board",
+            "ru": "Разделить полку и прибить вторую доску"
+          },
+          "effects_words": "costs small materials; small discontent drop",
+          "free": false
+        },
+        {
+          "id": "move_one",
+          "label": {
+            "en": "Move Vic to the far end",
+            "ru": "Переселить Вика на дальний конец"
+          },
+          "effects_words": "small hope loss; small discontent drop",
+          "free": true
+        },
+        {
+          "id": "ignore",
+          "label": {
+            "en": "Tell them to settle it themselves",
+            "ru": "Пусть разбираются сами"
+          },
+          "effects_words": "small discontent rise; small hope loss",
+          "free": true
+        }
+      ],
+      "min_week": 2,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_shelf_feud_body_en.mp3",
+            "text": "Tess and Vic have not spoken in three days. The quarrel is over a shelf: whose tin, whose lamp oil, whose right to the nail in the wall. The platform is quiet around them on purpose."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_shelf_feud_body_ru.mp3",
+            "text": "Тесс и Вик три дня не разговаривают. Ссора из-за полки: чья банка, чьё ламповое масло, чьё право на гвоздь в стене. Платформа вокруг них нарочно молчит."
+          }
+        ]
+      }
+    },
+    {
+      "id": "fever_lamp",
+      "title": {
+        "en": "A lamp for the fever bunk",
+        "ru": "Лампа у койки с горячкой"
+      },
+      "who": "Ruth",
+      "text": {
+        "en": "Ruth wants one lamp left on all night over the sick bunk. The generator is already thin. Hal says if that lamp stays, the hydro beds lose an hour at dawn.",
+        "ru": "Рут хочет оставить одну лампу на всю ночь над больной койкой. Генератор и так тянет слабо. Хэл говорит: если лампа останется, гидрогрядки потеряют час на рассвете."
+      },
+      "choices": [
+        {
+          "id": "keep_on",
+          "label": {
+            "en": "Keep the lamp on for Ruth",
+            "ru": "Оставить лампу для Рут"
+          },
+          "effects_words": "small power soft hit; small hope gain",
+          "free": true
+        },
+        {
+          "id": "share_shift",
+          "label": {
+            "en": "Rotate a sit-up watch with no lamp",
+            "ru": "Дежурить по очереди без лампы"
+          },
+          "effects_words": "small discontent rise; no power loss",
+          "free": true
+        },
+        {
+          "id": "cut_hydro",
+          "label": {
+            "en": "Dim the hydro bay an hour at dawn",
+            "ru": "Притушить гидро на час на рассвете"
+          },
+          "effects_words": "small food output soft hit; small hope gain",
+          "free": true
+        }
+      ],
+      "min_week": 4,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_fever_lamp_body_en.mp3",
+            "text": "Ruth wants one lamp left on all night over the sick bunk. The generator is already thin. Hal says if that lamp stays, the hydro beds lose an hour at dawn."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_fever_lamp_body_ru.mp3",
+            "text": "Рут хочет оставить одну лампу на всю ночь над больной койкой. Генератор и так тянет слабо. Хэл говорит: если лампа останется, гидрогрядки потеряют час на рассвете."
+          }
+        ]
+      }
+    },
+    {
+      "id": "count_short",
+      "title": {
+        "en": "The wrench count is short",
+        "ru": "Не хватает ключа"
+      },
+      "who": "Hal",
+      "text": {
+        "en": "Hal's evening count is short one wrench and a coil of copper. Nobody signed them out. The workshop door was not locked.",
+        "ru": "Вечерний подсчёт Хэла: не хватает одного ключа и мотка меди. Никто не брал под роспись. Дверь мастерской не запирали."
+      },
+      "choices": [
+        {
+          "id": "search",
+          "label": {
+            "en": "Search the bunks at lights-out",
+            "ru": "Обыскать койки при отбое"
+          },
+          "effects_words": "small discontent rise; small materials gain",
+          "free": true
+        },
+        {
+          "id": "buy",
+          "label": {
+            "en": "Buy replacements off the Exchange",
+            "ru": "Купить замену у Биржи"
+          },
+          "effects_words": "costs small tokens; small Exchange opinion rise; tools restored",
+          "free": false
+        },
+        {
+          "id": "lock",
+          "label": {
+            "en": "Lock the shop and write a duty rota",
+            "ru": "Запереть мастерскую и поставить дежурства"
+          },
+          "effects_words": "small hope loss; small discontent drop",
+          "free": true
+        }
+      ],
+      "min_week": 3,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_count_short_body_en.mp3",
+            "text": "Hal's evening count is short one wrench and a coil of copper. Nobody signed them out. The workshop door was not locked."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_count_short_body_ru.mp3",
+            "text": "Вечерний подсчёт Хэла: не хватает одного ключа и мотка меди. Никто не брал под роспись. Дверь мастерской не запирали."
+          }
+        ]
+      }
+    },
+    {
+      "id": "cold_rail",
+      "title": {
+        "en": "The third rail is cold",
+        "ru": "Третий рельс холодный"
+      },
+      "who": "Owen",
+      "text": {
+        "en": "Owen put his glove on the third rail by the south stair. It is cold. The platform has been running on borrowed heat from the generator room, and tonight even that is thin.",
+        "ru": "Оуэн коснулся перчаткой третьего рельса у южной лестницы. Холодный. Платформа жила заёмным теплом из генераторной, и сегодня даже его почти нет."
+      },
+      "choices": [
+        {
+          "id": "burn_scrap",
+          "label": {
+            "en": "Burn workshop scrap in the drum stove",
+            "ru": "Сжечь лом из мастерской в бочке"
+          },
+          "effects_words": "costs small materials; small discontent drop",
+          "free": false
+        },
+        {
+          "id": "bundle",
+          "label": {
+            "en": "Double the blankets and cut the night shift",
+            "ru": "Удвоить одеяла и снять ночную вахту"
+          },
+          "effects_words": "small output soft hit; small hope loss",
+          "free": true
+        },
+        {
+          "id": "trade_coal",
+          "label": {
+            "en": "Trade tokens for a sack of coal dust",
+            "ru": "Обменять жетоны на мешок угольной пыли"
+          },
+          "effects_words": "costs small tokens; small Exchange opinion rise; small hope gain",
+          "free": false
+        }
+      ],
+      "min_week": 5,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_cold_rail_body_en.mp3",
+            "text": "Owen put his glove on the third rail by the south stair. It is cold. The platform has been running on borrowed heat from the generator room, and tonight even that is thin."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_cold_rail_body_ru.mp3",
+            "text": "Оуэн коснулся перчаткой третьего рельса у южной лестницы. Холодный. Платформа жила заёмным теплом из генераторной, и сегодня даже его почти нет."
+          }
+        ]
+      }
+    }
+  ],
+  "_status": "Designer APPROVED / locked 2026-10-26 — P64 Tunnel Life Events; Texts release polish 2026-10-26 (RU grit only; EN untouched); evening grit 2026-10-26 (RU)."
+}
