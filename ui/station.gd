@@ -4371,8 +4371,12 @@ func _room_push(uid: String) -> void:
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var odds := str(info.get("reason", ""))
-	if bool(info.get("ok", false)):
+	var preview_ok := bool(info.get("ok", false))
+	if preview_ok:
 		odds = Copy.t("push.tip_ok") % int(info.pct)
+		var mark := _push_risk_mark()
+		if mark != null:
+			row.add_child(mark)
 	var state := _label(odds, 16)
 	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -7999,8 +8003,14 @@ func _confirm(heading: String, lines: PackedStringArray, ok: bool, action: Dicti
 	if not ready and why == "" and lines.size() > 0:
 		why = str(lines[lines.size() - 1])
 		shown = lines.slice(0, lines.size() - 1)
+	var push_tip := str(action.get("kind", "")) == "push"
+	var first_line := true
 	for line in shown:
-		_body(Copy.gloss(line))
+		if push_tip and first_line:
+			_push_tip_line(Copy.gloss(line))
+		else:
+			_body(Copy.gloss(line))
+		first_line = false
 	for line in muted:
 		_body_muted(line)
 	if ready:
@@ -8228,6 +8238,40 @@ func _status_line(kind: String, text: String) -> void:
 	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(face)
+	var lab := _label(text, 17)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lab)
+	card_body.add_child(row)
+
+
+## 32px risk mark beside a push percent. Missing texture leaves the words alone.
+func _push_risk_mark() -> TextureRect:
+	var path := "res://assets/overlays/push_risk.webp"
+	if not ResourceLoader.exists(path):
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null:
+		return null
+	var face := TextureRect.new()
+	face.texture = tex
+	face.custom_minimum_size = Vector2(32, 32)
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return face
+
+
+func _push_tip_line(text: String) -> void:
+	var mark := _push_risk_mark()
+	if mark == null:
+		_body(text)
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(mark)
 	var lab := _label(text, 17)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
