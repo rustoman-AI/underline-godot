@@ -1257,7 +1257,7 @@
   },
   "listening.listen_status": {
     "en": "Listening. Rival intents stay visible. Rumors land closer to true.",
-    "ru": "Слушаем. Чужие намерения не прячутся. Слухи ближе к правде."
+    "ru": "Слушаем. Чужие намерения видны. Слухи ближе к правде."
   },
   "listening.probe": {
     "en": "Probe",
@@ -1273,7 +1273,7 @@
   },
   "listening.tap_tip": {
     "en": "2 food · 1 order. Skim a good or preview their plan. Blown 25%. Opinion bite.",
-    "ru": "2 еды · 1 приказ. Снять товар или увидеть их план. Срыв 25%. Бьёт по мнению."
+    "ru": "2 еды · 1 приказ. Снять товар или увидеть их план. Срыв 25%. Минус к мнению."
   },
   "listening.blown": {
     "en": "Cover blown. They heard the tap at {station}.",
@@ -1309,7 +1309,7 @@
   },
   "listening.need_radio": {
     "en": "Needs a staffed Radio room online.",
-    "ru": "Нужна работающая укомплектованная Радиорубка."
+    "ru": "Нужна Радиорубка с людьми — и чтобы работала."
   },
   "listening.upgrade.pipe_taps": {
     "en": "Pipe taps — quieter Probe. Blown less often.",
@@ -1329,7 +1329,7 @@
   },
   "listening.radio_helper": {
     "en": "Listening Post covers intents",
-    "ru": "Пост прослушки закрывает намерения"
+    "ru": "Пост прослушки держит чужие намерения на виду"
   },
   "listening.intel_line": {
     "en": "Intel {n}/3",

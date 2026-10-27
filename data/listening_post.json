@@ -1,0 +1,154 @@
+{
+  "_note": "P75 Listening Post (historic P29 / DEC-E1…E5 → P75). Spec: /workspace/LISTENING_POST_P75_SPEC.md (cite historic /workspace/LISTENING_POST_SPEC.md — retarget ship id; keep room stats/verbs/Blown bands). Cite P74 Night Runs shared st.intel 0–3 (do not invent second intel track); P69 Push (Listening Post cannot Push); P28 rumor chips; P20 Raid intel≥2; P55 goods/tokens. Soft dawn: NONE (Probe reveal / Tap skim-plan / Blown = event/dawn card family ≠ soft dawn chip). Tone: dry metro grit — quiet room off the Radio, one order a week. No assassin/sabotage. Costs/risks from SPEC only (Probe 3 tokens+1 order · Blown 15%; Tap 2 food+1 order · Blown 25%). PLACEHOLDER LOCK (Designer APPROVED): {opinion}=signed integer string; {plan}=short EN/RU phrase Code composes from gift/aid/pay. Radio RU = Радиорубка. EN via Copy.t; RU → data/ru.json. RU unreopened on retarget (already good).",
+  "_roadmap": "P75",
+  "_owners": "Texts; Code wires keys; UIUX room card + map chip + toasts; Art room plate optional (never blocks)",
+  "_placeholders": [
+    "{station}",
+    "{faction}",
+    "{good}",
+    "{opinion}",
+    "{plan}"
+  ],
+  "by_key": {
+    "listening.name": {
+      "en": "Listening Post",
+      "ru": "Пост прослушки"
+    },
+    "listening.desc": {
+      "en": "A quiet room off the Radio. Pipe taps and patient ears. One order a week.",
+      "ru": "Тихая комната рядом с Радиорубкой. Отводы от труб и терпеливые уши. Один приказ в неделю."
+    },
+    "listening.listen_status": {
+      "en": "Listening. Rival intents stay visible. Rumors land closer to true.",
+      "ru": "Слушаем. Чужие намерения видны. Слухи ближе к правде."
+    },
+    "listening.probe": {
+      "en": "Probe",
+      "ru": "Зонд"
+    },
+    "listening.probe_tip": {
+      "en": "3 tokens · 1 order. Intel on a known station. Blown 15%.",
+      "ru": "3 жетона · 1 приказ. Разведка по известной станции. Срыв 15%."
+    },
+    "listening.tap": {
+      "en": "Tap",
+      "ru": "Отвод"
+    },
+    "listening.tap_tip": {
+      "en": "2 food · 1 order. Skim a good or preview their plan. Blown 25%. Opinion bite.",
+      "ru": "2 еды · 1 приказ. Снять товар или увидеть их план. Срыв 25%. Минус к мнению."
+    },
+    "listening.blown": {
+      "en": "Cover blown. They heard the tap at {station}.",
+      "ru": "Прикрытие сорвано. Они услышали отвод у {station}."
+    },
+    "listening.blown_dawn": {
+      "en": "Listening Post offline one week. Hope took a hit.",
+      "ru": "Пост прослушки выключен на неделю. Надежда просела."
+    },
+    "listening.probe_reveal": {
+      "en": "{faction} at {station}: opinion {opinion}.",
+      "ru": "{faction} у {station}: мнение {opinion}."
+    },
+    "listening.tap_skim": {
+      "en": "Tap skimmed +1 {good}.",
+      "ru": "Отвод снял +1 {good}."
+    },
+    "listening.tap_plan": {
+      "en": "Tap caught their plan: {plan}.",
+      "ru": "Отвод поймал их план: {plan}."
+    },
+    "listening.wired_tip": {
+      "en": "Wired · Probe mark, two weeks",
+      "ru": "На проводе · метка зонда, две недели"
+    },
+    "listening.offline": {
+      "en": "Listening Post offline.",
+      "ru": "Пост прослушки выключен."
+    },
+    "listening.unstaffed": {
+      "en": "No one at the Listening Post.",
+      "ru": "На посту прослушки никого."
+    },
+    "listening.need_radio": {
+      "en": "Needs a staffed Radio room online.",
+      "ru": "Нужна Радиорубка с людьми — и чтобы работала."
+    },
+    "listening.upgrade.pipe_taps": {
+      "en": "Pipe taps — quieter Probe. Blown less often.",
+      "ru": "Отводы от труб — зонд тише. Срыв реже."
+    },
+    "listening.upgrade.dead_drop": {
+      "en": "Dead drop — quieter still. Blown rarer.",
+      "ru": "Тайник — ещё тише. Срыв ещё реже."
+    },
+    "listening.toast_probe_queued": {
+      "en": "Probe queued · {station}",
+      "ru": "Зонд в очереди · {station}"
+    },
+    "listening.toast_tap_queued": {
+      "en": "Tap queued · {faction}",
+      "ru": "Отвод в очереди · {faction}"
+    },
+    "listening.radio_helper": {
+      "en": "Listening Post covers intents",
+      "ru": "Пост прослушки держит чужие намерения на виду"
+    },
+    "listening.intel_line": {
+      "en": "Intel {n}/3",
+      "ru": "Разведка {n}/3"
+    },
+    "listening.need_intel": {
+      "en": "Need intel 2",
+      "ru": "Нужна разведка 2"
+    }
+  },
+  "_placeholder_lock": {
+    "opinion": {
+      "format": "signed_integer_string",
+      "examples_en": [
+        "-4",
+        "+2",
+        "0"
+      ],
+      "note": "Same shape Code already shows for opinion deltas elsewhere. Not band words (Hostile/Wary/etc).",
+      "status": "Designer APPROVED"
+    },
+    "plan": {
+      "format": "short_phrase_code_composed",
+      "from_order_types": [
+        "gift",
+        "aid",
+        "pay"
+      ],
+      "examples_en": [
+        "gift tokens",
+        "aid food",
+        "pay tokens",
+        "gift tokens to Jay St",
+        "aid medicine"
+      ],
+      "examples_ru": [
+        "подарок жетонами",
+        "помощь едой",
+        "оплата жетонами",
+        "подарок жетонами на Jay St",
+        "помощь лекарствами"
+      ],
+      "note": "No separate Gift/Aid/Pay toast keys — Code fills {plan} in listening.tap_plan.",
+      "status": "Designer APPROVED"
+    },
+    "radio_ru": "Радиорубка",
+    "status": "Designer APPROVED"
+  },
+  "_status": "Designer APPROVED / Code-ready — P75 Listening Post stamped 2026-10-26 (23 listening.*). Soft dawn NONE. Merge Temur.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P74 night_runs.json — shared st.intel 0–3 (do not invent second intel track)",
+    "P69 push_room.json — Listening Post cannot Push (cite only)",
+    "P28 rumor chips — Listen raises rumor truth while staffed",
+    "P20 Raid — intel ≥ 2 gate",
+    "P55 community_perks — tokens/food costs cite"
+  ],
+  "_designer": "APPROVED"
+}
