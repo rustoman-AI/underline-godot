@@ -1,0 +1,37 @@
+{
+  "_note": "P59 People Chips. Spec: PEOPLE_CHIPS_SPEC.md DEC-PC1…PC2. Cite-land POST_EA L3. Zero balance; not a dawn chip. Per-row People drawer chips only — do NOT rewrite P44 away.* / P48 sick.* sticky badges or P56 ahead.* / confirm toasts. Placeholder {room} = short room name from existing catalog.",
+  "_roadmap": "P59",
+  "_owners": "Texts; Code _people_row chip + gate; UIUX chip layout/colors; Art none",
+  "_cite": "POST_EA_POLISH_UI_BRIEFS.md §L3",
+  "_placeholders": [
+    "{room}"
+  ],
+  "_do_not_touch": [
+    "away.* (P44)",
+    "sick.* (P48)",
+    "ahead.* / yard confirm (P56)"
+  ],
+  "by_key": {
+    "people.chip_sick": {
+      "en": "Sick",
+      "ru": "Болен"
+    },
+    "people.chip_away": {
+      "en": "Away",
+      "ru": "Вне"
+    },
+    "people.chip_crew": {
+      "en": "On a crew",
+      "ru": "В бригаде"
+    },
+    "people.chip_free": {
+      "en": "Free",
+      "ru": "Свободен"
+    },
+    "people.chip_room": {
+      "en": "{room}",
+      "ru": "{room}"
+    }
+  },
+  "_status": "Designer APPROVED / locked 2026-10-26 — P59 People Chips"
+}
