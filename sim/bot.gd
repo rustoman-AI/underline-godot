@@ -1095,6 +1095,16 @@ func _score_choice(game: Game, choice: Dictionary) -> int:
 	return score
 
 
+## Expander may mark a mid-line Relay. play() does not call this, so the careful band stays where it was measured.
+func relay_mark_order(game: Game) -> Dictionary:
+	if profile != "expander" or str(game.relay_sid) != "":
+		return {}
+	var mid := str(game.relay_mid_candidate())
+	if mid == "":
+		return {}
+	return {"kind": "order", "order": "relay_mark", "station": mid}
+
+
 func _sick(game: Game) -> int:
 	var n := 0
 	for person in game.residents:

@@ -66,6 +66,16 @@ var pending: Array = []
 var dig := {}
 ## Yard pile clear, same brigade as dig. Empty when nobody is clearing.
 var clear := {}
+## P78. The one Relay outpost, or "" when the Line has not marked one.
+var relay_sid := ""
+## First Mark float, shown once by the network. Not saved.
+var relay_float_pending := false
+## Hop shortcut. Off when a measured careful run leaves the 2/60 baseline.
+const RELAY_GRANT := true
+## 0 keeps the full shorter path. 1 would cap the reduction at one hop.
+const RELAY_HOP_CAP := 0
+## 0 counts immediately. 4 would wait until the Relay has been held four weeks.
+const RELAY_MIN_HELD := 0
 ## Last finished clear, for the one-shot dust overlay. Not saved.
 var clear_burst := {}
 var clear_burst_seq := 0
@@ -1306,6 +1316,7 @@ func _night() -> void:
 	_apply_weekly_laws()
 	if trade_on:
 		stock.tokens = int(stock.tokens) + int(bal.trade_tokens_week)
+	_settle_relay()
 	_deliver_outposts()
 	_apply_held_perks()
 	_deliver_goods()
@@ -1389,6 +1400,7 @@ func _night() -> void:
 	_synod_preach()
 	_claim_swayed()
 	_tick_holdings()
+	_settle_relay()
 	_drift_opinion()
 	_tick_children()
 	for fid in ambition:
@@ -4322,6 +4334,10 @@ func _apply_order(action: Dictionary) -> bool:
 			ok = _order_probe(str(action.get("station", action.get("dest", ""))))
 		"tap":
 			ok = _order_tap(str(action.get("faction", "")))
+		"relay_mark":
+			ok = _order_relay_mark(str(action.get("station", "")))
+		"relay_clear":
+			ok = _order_relay_clear(str(action.get("station", "")))
 	if ok:
 		if order == "probe" or order == "tap":
 			flags["listening_order_week"] = week
@@ -5013,6 +5029,14 @@ func order_block(kind: String, sid: String = "") -> String:
 			return _probe_block(sid)
 		"tap":
 			return _tap_block(sid)
+		"relay_mark":
+			if not bool(can_mark_relay(sid).get("ok", false)):
+				return str(can_mark_relay(sid).get("reason", ""))
+			return ""
+		"relay_clear":
+			if relay_sid != sid:
+				return Copy.t("relay.status_none")
+			return ""
 		_:
 			return Copy.t("No such order.")
 	return ""
@@ -9744,6 +9768,23 @@ func _hops(a: String, b: String) -> int:
 func _supply_hops(sid: String) -> int:
 	if sid == capital_id:
 		return 0
+	var direct := _supply_hops_direct(sid)
+	if not _relay_bends_for(sid):
+		return direct
+	var leg_t := _hops(sid, relay_sid)
+	var leg_c := _hops(relay_sid, capital_id)
+	if leg_t >= 900 or leg_c >= 900:
+		return direct
+	var bent := mini(_hops(sid, capital_id), leg_t + leg_c)
+	if RELAY_HOP_CAP > 0 and direct < 900:
+		bent = maxi(bent, direct - RELAY_HOP_CAP)
+	return mini(direct, bent)
+
+
+## Supply distance through stations that supply. The Relay shortcut does not call this on itself.
+func _supply_hops_direct(sid: String) -> int:
+	if sid == capital_id:
+		return 0
 	var queue: Array = [capital_id]
 	var dist := {capital_id: 0}
 	var qi := 0
@@ -9760,6 +9801,94 @@ func _supply_hops(sid: String) -> int:
 				return int(dist[n])
 			queue.append(n)
 	return 999
+
+
+func _relay_bends_for(sid: String) -> bool:
+	if not RELAY_GRANT or relay_sid == "" or sid == relay_sid or sid == capital_id:
+		return false
+	if not stations.has(relay_sid):
+		return false
+	if RELAY_MIN_HELD > 0 and int(stations[relay_sid].get("held_weeks", 0)) < RELAY_MIN_HELD:
+		return false
+	return true
+
+
+## Owned, not the capital, not hidden, bunker, or ruin.
+func can_mark_relay(sid: String) -> Dictionary:
+	if sid == "" or not stations.has(sid):
+		return {"ok": false, "reason": "missing"}
+	if sid == capital_id:
+		return {"ok": false, "reason": "capital"}
+	var st: Dictionary = stations[sid]
+	if str(st.get("owner", "")) != player:
+		return {"ok": false, "reason": "foreign"}
+	if bool(st.get("hidden", false)):
+		return {"ok": false, "reason": "hidden"}
+	if str(st.get("owner", "")) == "bunker" or str(st.get("bunker", "")) != "":
+		return {"ok": false, "reason": "bunker"}
+	if str(st.get("owner", "")) == "ruin" or bool(st.get("ruin", false)):
+		return {"ok": false, "reason": "ruin"}
+	return {"ok": true, "reason": ""}
+
+
+func _order_relay_mark(sid: String) -> bool:
+	if not bool(can_mark_relay(sid).get("ok", false)) or relay_sid == sid:
+		return false
+	relay_sid = sid
+	if not bool(flags.get("seen_relay_posts", false)):
+		flags["seen_relay_posts"] = true
+		relay_float_pending = true
+	_log("ORDER relay %s" % stations[sid].get("name", sid))
+	return true
+
+
+func _order_relay_clear(sid: String) -> bool:
+	if relay_sid == "" or relay_sid != sid:
+		return false
+	relay_sid = ""
+	_log("ORDER relay clear")
+	return true
+
+
+## The marked station still supplies the capital. Lost, unowned, or cut lines clear it.
+func relay_live(sid: String = "") -> bool:
+	var id := sid if sid != "" else relay_sid
+	if id == "" or not bool(can_mark_relay(id).get("ok", false)):
+		return false
+	return _supply_hops_direct(id) < 900
+
+
+func _settle_relay() -> void:
+	if relay_sid == "" or relay_live(relay_sid):
+		return
+	relay_sid = ""
+	notices.append(Copy.clip(Copy.t("relay.lost"), 72))
+
+
+## An owned outpost where bending through it shortens some other holding. Empty when none does.
+func relay_mid_candidate() -> String:
+	var best := ""
+	var best_save := 0
+	var prev := relay_sid
+	for sid in stations:
+		var id := str(sid)
+		if not bool(can_mark_relay(id).get("ok", false)):
+			continue
+		relay_sid = id
+		var save := 0
+		for other in stations:
+			var oid := str(other)
+			if oid == id or oid == capital_id or str(stations[oid].get("owner", "")) != player:
+				continue
+			var direct := _supply_hops_direct(oid)
+			var bent := _supply_hops(oid)
+			if bent < direct:
+				save += direct - bent
+		if save > best_save:
+			best_save = save
+			best = id
+	relay_sid = prev
+	return best
 
 
 func _connected(sid: String) -> bool:
@@ -11362,6 +11491,7 @@ const PERSIST := [
 	"opinions", "ambition", "at_war", "trade_on", "telegraphed", "demands",
 	"pending", "dig", "clear", "build", "expedition", "active_season", "artifacts",
 	"pumped", "flood_guard", "quarantine", "synod", "floor_met", "orders_left", "decisions",
+	"relay_sid",
 	"hope_zero", "next_person", "demand_seq", "log", "errors", "stats",
 	"food_buffers", "growth_bank", "hope_week", "hope_history", "hope_totals",
 	"dis_totals", "hope_samples", "last_net", "last_hope_delta", "last_dis_delta",
@@ -11387,7 +11517,8 @@ const PERSIST := [
 ## Version 12 added the map rumor; older saves start with none.
 ## Version 13 added the salvage board; older saves start with none.
 ## Version 14 added the yard clear job. Older saves start with nobody clearing.
-const SAVE_SCHEMA := 14
+## Version 15 added the Relay outpost. Older saves start with none. P77's open PR also claims schema 15.
+const SAVE_SCHEMA := 15
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11425,6 +11556,8 @@ const V11_ADDED := ["rumor"]
 const V12_ADDED := ["salvage"]
 ## Fields a version 1 to 13 save may lack: no pile crew out yet.
 const V13_ADDED := ["clear"]
+## Fields a version 1 to 14 save may lack: no Relay marked yet.
+const V14_ADDED := ["relay_sid"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -11482,7 +11615,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}

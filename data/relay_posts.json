@@ -1,0 +1,49 @@
+{
+  "_note": "P78 Relay Posts (NEW invent — DEC-R1…R4). Spec: /workspace/RELAY_POSTS_P78_SPEC.md. Cite P52 Station Focus + P57 Focus Pip (outpost lean — do not reopen picker); P55 goods / P58 Passage Flow (goods edge — do not reopen); P45 Deal Marks (cite marks — do not steal slots); Formulas.outpost_flow / Game._deliver_outposts / _supply_hops. Soft dawn: NONE (Mark/Clear toast + first float ≠ soft dawn chip). Tone: dry metro grit — one brass relay mark on a pin, not a logistics minigame. Balance FLAG TINY — Texts do not invent hop/table numbers. No AI Relays; no toll pathing; no Supply Lines separate P id. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P78",
+  "_owners": "Texts; Code persist relay_sid + Mark/Clear + hop path; UIUX Network mark + visit status; Art relay_mark_24 optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P78 Relay Posts stamped 2026-10-26 (8 relay.*; A1 Реле→Узел + A2 relay.first без гнуться). Soft dawn NONE. Merge Temur.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P52 / P57 — Station Focus + Focus Pip outpost lean (do not reopen picker)",
+    "P55 community_perks.json / P58 Passage Flow — goods edge (do not reopen)",
+    "P45 deal_marks.json — passage deal pips (cite marks; do not steal slots)",
+    "Formulas.outpost_flow / _supply_hops — hop int only; table numbers unreopened"
+  ],
+  "_placeholders": [],
+  "by_key": {
+    "relay.name": {
+      "en": "Relay",
+      "ru": "Узел"
+    },
+    "relay.mark": {
+      "en": "Mark Relay",
+      "ru": "Отметить узел"
+    },
+    "relay.clear": {
+      "en": "Clear Relay",
+      "ru": "Снять узел"
+    },
+    "relay.tip": {
+      "en": "Relay. Supply may route through here.",
+      "ru": "Узел. Снабжение может идти через него."
+    },
+    "relay.first": {
+      "en": "Supply can bend through a Relay.",
+      "ru": "Снабжение может идти через узел."
+    },
+    "relay.lost": {
+      "en": "Relay lost. Supply path resets.",
+      "ru": "Узел потерян. Путь снабжения сброшен."
+    },
+    "relay.status": {
+      "en": "Relay for the Line.",
+      "ru": "Узел для Линии."
+    },
+    "relay.status_none": {
+      "en": "No Relay marked.",
+      "ru": "Узел не отмечен."
+    }
+  },
+  "_designer": "APPROVED"
+}
