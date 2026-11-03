@@ -3935,7 +3935,7 @@ func _fit_from_board(uid: String) -> void:
 
 
 func _strip_card(on_board: bool) -> Control:
-	var info := game.strip_preview()
+	var info := game.strip_scrap_preview()
 	var panel := VBoxContainer.new()
 	panel.add_theme_constant_override("separation", 2)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL

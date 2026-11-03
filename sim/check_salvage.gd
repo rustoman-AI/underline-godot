@@ -113,7 +113,7 @@ func _report(lost: int) -> void:
 	else:
 		print("Dawn: ok  (soft dawn unchanged — P76 does not join)")
 	print("careful %d/60 (%.1f%%)" % [lost, pct])
-	print("Chrome: 18/18 SB1–SB3. Salvage stays the paper tray beside Burn (APPROVED SB1 near Network/Menu/burn). No Line Wall. Zero balance.")
+	print("Chrome SB1–SB3 / A1–A3: hit. Nit not relocated: Salvage stays the paper tray beside Burn (APPROVED SB1 near Network/Menu/burn), not on the Network or Menu buttons. No Line Wall. Zero balance. Soft dawn none.")
 
 
 func _game() -> Game:
