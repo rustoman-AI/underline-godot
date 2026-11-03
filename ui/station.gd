@@ -273,6 +273,7 @@ var address_button: Button
 var dis_pulse: Tween
 var hub_button: Button
 var network_button: Button
+var wall_button: Button
 var network_view: Control
 var showing_network := false
 var hub_layer: Control
@@ -375,7 +376,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_wall():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +392,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_wall():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -412,6 +413,8 @@ func _ready() -> void:
 			_play_intro()
 	if _want_checks():
 		await _check_shots()
+	elif _want_wall():
+		await _wall_shots()
 	elif _want_polish():
 		await _polish_shots()
 	elif _want_shots():
@@ -764,6 +767,10 @@ func _want_checks() -> bool:
 	return _dev_args().has("--checks")
 
 
+func _want_wall() -> bool:
+	return _dev_args().has("--wall")
+
+
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
 
@@ -1085,6 +1092,12 @@ func _build() -> void:
 	network_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	network_button.add_theme_font_size_override("font_size", 16)
 	add_child(network_button)
+	wall_button = _button("wall.open", _show_wall)
+	wall_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wall_button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	wall_button.add_theme_font_size_override("font_size", 16)
+	wall_button.tooltip_text = Copy.t("wall.desc")
+	add_child(wall_button)
 	hub_button = _button("Station view", _show_hub_view)
 	hub_button.visible = false
 	hub_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1633,6 +1646,21 @@ func _place_chrome() -> void:
 		network_button.offset_top = -margin - tool_h
 		network_button.text = Copy.t("Back to your station") if showing_network else Copy.t("Network")
 		network_button.tooltip_text = Copy.t("Close the map and return to your own station.") if showing_network else Copy.t("Open the map of the tunnels.")
+	if wall_button != null:
+		var wall_w := 112.0
+		wall_button.visible = not showing_network
+		wall_button.anchor_left = 1.0
+		wall_button.anchor_right = 1.0
+		wall_button.anchor_top = 1.0
+		wall_button.anchor_bottom = 1.0
+		wall_button.custom_minimum_size = Vector2(wall_w, tool_h)
+		var wall_right := -margin - end_w - 8.0 - (240.0 if showing_network else 132.0) - 8.0
+		wall_button.offset_right = wall_right
+		wall_button.offset_left = wall_right - wall_w
+		wall_button.offset_bottom = -margin
+		wall_button.offset_top = -margin - tool_h
+		wall_button.text = Copy.t("wall.open")
+		wall_button.tooltip_text = Copy.t("wall.desc")
 	if hub_button != null and hub_button.visible:
 		var view_w := 210.0
 		var tray_right := margin + tool_w * 5.0 + 48.0
@@ -1943,6 +1971,7 @@ func _refresh() -> void:
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
 		_toast_chain(notes)
+	_drain_wall_toast()
 	_show_perk_floats()
 	_watch_work()
 	var season := ""
@@ -3686,6 +3715,132 @@ func _salvage_panel(rows: Array) -> String:
 			return "res://assets/ui/salvage_board_no_blueprint.webp"
 		_:
 			return "res://assets/ui/salvage_board_panel.webp"
+
+
+func _show_wall() -> void:
+	if game == null or game.over != "":
+		return
+	if not _claim(ModalDeck.AMBIENT, "wall", _show_wall):
+		return
+	var view: Dictionary = game.wall_open()
+	_open_card(Copy.t("wall.title"))
+	card_roomy = true
+	_fit_card()
+	var desc := _label("wall.desc", 15)
+	desc.add_theme_color_override("font_color", PAPER_MUTED)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_body.add_child(desc)
+	if bool(view.get("empty", true)):
+		var empty_art := _wall_art("res://assets/ui/wall_panel_empty.webp")
+		if empty_art != null:
+			var banner := TextureRect.new()
+			banner.texture = empty_art
+			banner.custom_minimum_size = Vector2(0, 180)
+			banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card_body.add_child(banner)
+		var empty := _label("wall.empty", 16)
+		empty.add_theme_color_override("font_color", PAPER_MUTED)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.custom_minimum_size = Vector2(480, 0)
+		card_body.add_child(empty)
+	else:
+		var meta := HBoxContainer.new()
+		meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var showing := _label("wall.showing", 14)
+		showing.add_theme_color_override("font_color", PAPER_MUTED)
+		showing.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		meta.add_child(showing)
+		var count := _label(Copy.fill("wall.count", {"n": str(int(view.get("count", 0)))}), 14, false, false)
+		count.add_theme_color_override("font_color", PAPER_MUTED)
+		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		meta.add_child(count)
+		card_body.add_child(meta)
+		for plate in view.get("plates", []):
+			var row := _wall_row(plate)
+			if row != null:
+				card_body.add_child(row)
+	_fit_card()
+	_drain_wall_toast()
+
+
+func _drain_wall_toast() -> void:
+	if game == null or not game.wall_take_first_hope():
+		return
+	_toast(Copy.clip(Copy.t("wall.first"), 72), 1.6)
+
+
+func _wall_art(path: String) -> Texture2D:
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null or tex.get_width() <= 1:
+		return null
+	return tex
+
+
+func _wall_row(plate: Dictionary) -> Control:
+	var label := str(plate.get("label", ""))
+	if label == "":
+		return null
+	var kind := str(plate.get("kind", ""))
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(0, 64)
+	var frame := _wall_art("res://assets/ui/wall_plate_frame.webp")
+	if frame != null:
+		var face := StyleBoxTexture.new()
+		face.texture = frame
+		face.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+		face.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+		face.content_margin_left = 28
+		face.content_margin_right = 22
+		face.content_margin_top = 14
+		face.content_margin_bottom = 14
+		panel.add_theme_stylebox_override("panel", face)
+		panel.modulate = _wall_kind_tint(kind)
+	else:
+		var flat := StyleBoxFlat.new()
+		flat.bg_color = _wall_kind_flat(kind)
+		flat.set_corner_radius_all(3)
+		flat.set_content_margin_all(12)
+		panel.add_theme_stylebox_override("panel", flat)
+	var line := _label(label, 16, true, false)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if frame != null:
+		line.add_theme_color_override("font_color", Color("f3e6c4"))
+		line.add_theme_constant_override("outline_size", 4)
+		line.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.85))
+	else:
+		line.add_theme_color_override("font_color", Color("2a2116"))
+	panel.add_child(line)
+	return panel
+
+
+func _wall_kind_tint(kind: String) -> Color:
+	match kind:
+		"law", "mandate_pick", "mandate_done":
+			return Color(1.0, 0.94, 0.78)
+		"bury", "ledger":
+			return Color(0.82, 0.76, 0.7)
+		_:
+			return Color(0.9, 0.92, 0.8)
+
+
+func _wall_kind_flat(kind: String) -> Color:
+	match kind:
+		"law", "mandate_pick", "mandate_done":
+			return Color("c4a15a")
+		"bury", "ledger":
+			return Color("8a7564")
+		_:
+			return Color("9a8b6a")
 
 
 func _show_salvage() -> void:
@@ -9525,6 +9680,60 @@ func _hub_shots() -> void:
 	get_tree().quit(0)
 
 
+func _wall_shots() -> void:
+	hold_dawn = true
+	await _settle(_shot_size())
+	_close_card()
+	await _frame()
+	await _frame()
+	_save("wall_desk")
+	_show_wall()
+	await _frame()
+	await _frame()
+	_save("wall_open_empty")
+	_close_card()
+	game.wall_plates.clear()
+	game.wall_hoped = false
+	game.wall_first_hope = false
+	game._hang_wall("law", {"name": "Quiet hours", "weight": 3, "week": 4})
+	_refresh()
+	_close_card()
+	_show_wall()
+	await _frame()
+	await _frame()
+	_save("wall_open_first")
+	_close_card()
+	if toast_label != null:
+		toast_label.visible = false
+	game.wall_first_hope = false
+	game._hang_wall("mandate_pick", {"name": "Hold the Line", "weight": 3, "week": 8})
+	game._hang_wall("mandate_done", {"name": "Hold the Line", "weight": 3, "week": 20})
+	game._hang_wall("bury", {"name": "Mira", "weight": 3, "week": 11})
+	game._hang_wall("ledger", {"name": "Kolya", "weight": 3, "week": 14})
+	game._hang_wall("beat", {
+		"beat": "Station taken — North Spur",
+		"moment_kind": "station_taken",
+		"weight": 3,
+		"week": 16,
+		"fields": {"place": "North Spur"},
+	})
+	_show_wall()
+	await _frame()
+	await _frame()
+	_save("wall_open_plates")
+	_close_card()
+	game.over = "time"
+	_show_life_epilogue()
+	await _frame()
+	await _frame()
+	_save("wall_epilogue_before")
+	_life_epilogue_go(3)
+	await _frame()
+	await _frame()
+	_save("wall_epilogue")
+	get_tree().quit(0)
+
+
 func _shots() -> void:
 	await _settle(_shot_size())
 	_close_card()
@@ -11147,7 +11356,10 @@ func _paint_life_epilogue() -> void:
 	_layout_life_epilogue()
 	var payload: Dictionary = game.epilogue_payload()
 	on_paper = true
-	life_epilogue_eyebrow.text = Copy.t("epilogue.eyebrow") % (life_epilogue_page + 1)
+	var brow := Copy.t("epilogue.eyebrow") % (life_epilogue_page + 1)
+	if _epilogue_pages() > 3:
+		brow = brow.replace(" of 3", " of %d" % _epilogue_pages()).replace(" из 3", " из %d" % _epilogue_pages())
+	life_epilogue_eyebrow.text = brow
 	_wipe(life_epilogue_body)
 	_wipe(life_epilogue_actions)
 	match life_epilogue_page:
@@ -11155,8 +11367,10 @@ func _paint_life_epilogue() -> void:
 			_life_verdict(payload)
 		1:
 			_life_chronicle()
-		_:
+		2:
 			_life_fates(payload)
+		_:
+			_life_wall()
 	_paint_life_dots()
 	on_paper = false
 	if _motion_off():
@@ -11178,6 +11392,7 @@ func _life_verdict(payload: Dictionary) -> void:
 	var creed := str(payload.get("creed_label", Copy.t("epilogue.no_creed")))
 	var sub := _label("%s · %s" % [Copy.t("Week %d%s") % [int(payload.get("week", game.week)), ""], creed], 16)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sub.add_theme_color_override("font_color", PAPER_MUTED)
 	life_epilogue_body.add_child(sub)
 	var judgment := str(payload.get("judgment", ""))
@@ -11304,6 +11519,44 @@ func _life_fates(payload: Dictionary) -> void:
 	parts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parts.add_theme_color_override("font_color", PAPER_MUTED)
 	life_epilogue_body.add_child(parts)
+	if _epilogue_pages() > 3:
+		var go := _button("epilogue.continue", _life_epilogue_go.bind(3))
+		_style_primary(go)
+		go.custom_minimum_size = Vector2(180, 48)
+		life_epilogue_actions.add_child(go)
+	var again := _button("epilogue.new_run", _life_epilogue_new_game)
+	again.custom_minimum_size = Vector2(160, 48)
+	life_epilogue_actions.add_child(again)
+	var menu := _button("epilogue.menu", _life_epilogue_menu)
+	_style_primary(menu)
+	menu.custom_minimum_size = Vector2(180, 48)
+	life_epilogue_actions.add_child(menu)
+
+
+func _epilogue_pages() -> int:
+	if game != null and game.wall_has_plates():
+		return 4
+	return 3
+
+
+func _life_wall() -> void:
+	var title := _label("wall.epilogue", 26, true)
+	life_epilogue_body.add_child(title)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+	for plate in game.wall_epilogue_rows():
+		var row := _wall_row(plate)
+		if row != null:
+			list.add_child(row)
+	life_epilogue_body.add_child(scroll)
+	var back := _button("Back", _life_epilogue_go.bind(2))
+	back.custom_minimum_size = Vector2(120, 48)
+	life_epilogue_actions.add_child(back)
 	var again := _button("epilogue.new_run", _life_epilogue_new_game)
 	again.custom_minimum_size = Vector2(160, 48)
 	life_epilogue_actions.add_child(again)
@@ -11316,6 +11569,16 @@ func _life_fates(payload: Dictionary) -> void:
 func _paint_life_dots() -> void:
 	if life_epilogue_dots == null:
 		return
+	var pages := _epilogue_pages()
+	while life_epilogue_dots.get_child_count() < pages:
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(10, 10)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		life_epilogue_dots.add_child(dot)
+	while life_epilogue_dots.get_child_count() > pages:
+		var extra := life_epilogue_dots.get_child(life_epilogue_dots.get_child_count() - 1)
+		life_epilogue_dots.remove_child(extra)
+		extra.free()
 	for i in life_epilogue_dots.get_child_count():
 		var dot := life_epilogue_dots.get_child(i) as Panel
 		if dot == null:
@@ -11327,7 +11590,7 @@ func _paint_life_dots() -> void:
 
 
 func _life_epilogue_go(page: int) -> void:
-	life_epilogue_page = clampi(page, 0, 2)
+	life_epilogue_page = clampi(page, 0, _epilogue_pages() - 1)
 	_paint_life_epilogue()
 
 
@@ -11368,7 +11631,7 @@ func _life_epilogue_input(event: InputEvent) -> bool:
 		cancel = true
 	if not cancel:
 		return false
-	if life_epilogue_page < 2:
+	if life_epilogue_page < _epilogue_pages() - 1:
 		_life_epilogue_go(life_epilogue_page + 1)
 	else:
 		_life_epilogue_menu()
@@ -12412,6 +12675,9 @@ class Yard extends Control:
 	var prop_tex := {}
 	var pile_tex := {}
 	var dust_tex: Texture2D
+	var line_wall_tex: Texture2D
+	var line_wall_ready := false
+	var wall_hit := Rect2()
 	var dust_tried := false
 	var clear_dust_cell := Vector2i(-1, -1)
 	var clear_dust_until := 0
@@ -12813,6 +13079,11 @@ class Yard extends Control:
 					pan = pan_from + delta
 					_clamp_pan()
 			if not moved:
+				if wall_hit.size.x > 2.0 and wall_hit.has_point(event.position):
+					hover = Vector2i(-1, -1)
+					mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+					queue_redraw()
+					return
 				var over: Dictionary = _hit(event.position)
 				var next := Vector2i(-1, -1)
 				if not over.is_empty() and _kind(over) != "hidden":
@@ -12872,6 +13143,10 @@ class Yard extends Control:
 		queue_redraw()
 
 	func _note_tap(screen: Vector2) -> void:
+		if wall_hit.size.x > 2.0 and wall_hit.has_point(screen):
+			pending_level = -1
+			station._show_wall()
+			return
 		var help := _help_at(screen)
 		if not help.is_empty():
 			pending_level = -1
@@ -13022,12 +13297,48 @@ class Yard extends Control:
 				_draw_cell(_rect(geo, level, cell), level, cell)
 		_draw_merge_ghost(geo)
 		_draw_structure(geo)
+		_draw_line_wall(geo)
 		_draw_pops(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_merge_tag(geo)
 		_draw_seam_dust()
 		_draw_hover_label(geo)
+
+	## Optional yard hotspot. Same Wall panel as the desk button. Missing art draws nothing.
+	func _draw_line_wall(geo: Dictionary) -> void:
+		wall_hit = Rect2()
+		var tex := _line_wall_tex()
+		if tex == null or station == null or station.game == null:
+			return
+		var host: Dictionary = {}
+		for room in station.game.rooms:
+			if str(room.get("type", "")) == "platform":
+				host = room
+				break
+		if host.is_empty():
+			return
+		var rect := _rect(geo, int(host.get("level", 0)), int(host.get("cell", 0)))
+		var ph := rect.size.y * 0.52
+		var pw := ph * float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
+		var dest := Rect2(rect.end.x - pw - rect.size.x * 0.05, rect.position.y + rect.size.y * 0.2, pw, ph)
+		draw_texture_rect(tex, dest, false)
+		wall_hit = Rect2(pan + dest.position * zoom, dest.size * zoom)
+
+	func _line_wall_tex() -> Texture2D:
+		if line_wall_tex != null:
+			return line_wall_tex
+		if line_wall_ready:
+			return null
+		var path := "res://assets/props/common/prop_line_wall.webp"
+		if not ResourceLoader.exists(path):
+			line_wall_ready = true
+			return null
+		var tex := ArtPack.load_texture(path)
+		if tex != null and tex.get_width() > 1:
+			line_wall_tex = tex
+			line_wall_ready = true
+		return line_wall_tex
 
 	## How far a rib reaches into a cell from each side (half its width), so room notes and badges sit clear of it.
 	func _wall_inset() -> float:

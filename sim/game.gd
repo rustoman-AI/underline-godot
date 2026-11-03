@@ -203,6 +203,10 @@ var departed: Array = []
 var burials: Array = []
 ## Creed stays empty until a line law sets it. No line law is in the book yet.
 var creed := ""
+## P77 Line Wall. Brass plates for this run. Not a soft dawn chip. Hope +1 once is the only meter touch.
+var wall_plates: Array = []
+var wall_hoped := false
+var wall_first_hope := false
 var notices: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
 var perk_float_due := {}
@@ -231,6 +235,9 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	departed = []
 	burials = []
 	creed = ""
+	wall_plates = []
+	wall_hoped = false
+	wall_first_hope = false
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -3788,6 +3795,7 @@ func _apply_law(law_id: String) -> bool:
 		_note_moment("creed_line", {"law": str(defin.name)}, 5)
 		if str(defin.get("creed", "")) != "":
 			creed = str(defin.creed)
+		_hang_wall("law", {"name": str(defin.name), "weight": 5})
 	if law_id == "conscription":
 		for _i in int(defin.squad_bonus):
 			var pick := _recruit_pick()
@@ -6674,6 +6682,13 @@ func _grant_fork(id: String) -> void:
 	if not (forks is Dictionary) or not (forks as Dictionary).has(id):
 		return
 	flags["fork:" + id] = true
+	var side := id
+	var row = (forks as Dictionary).get(id, {})
+	if row is Dictionary:
+		side = str(row.get("name", row.get("en", id)))
+	elif str(row) != "":
+		side = str(row)
+	_hang_wall("law", {"name": side, "weight": 3})
 
 
 func _perk_station_name(sid: String) -> String:
@@ -11369,7 +11384,7 @@ const PERSIST := [
 	"crunch_power", "belt_down", "workshop_down", "gen_down", "event_last",
 	"week_event_ids", "power_order", "event_times", "events_seen", "event_history",
 	"follows", "pressure", "warning_weeks", "crisis_faults", "demand_log",
-	"power_zero_streak", "rally_lock", "address_week", "hardship_now", "chronicle", "departed", "burials", "creed", "notices", "combat_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results", "rumor",
+	"power_zero_streak", "rally_lock", "address_week", "hardship_now", "chronicle", "departed", "burials", "creed", "wall_plates", "wall_hoped", "wall_first_hope", "notices", "combat_lock", "seat_used", "opinion_memory", "queued_orders", "order_reports", "choice_results", "rumor",
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
@@ -11387,7 +11402,8 @@ const PERSIST := [
 ## Version 12 added the map rumor; older saves start with none.
 ## Version 13 added the salvage board; older saves start with none.
 ## Version 14 added the yard clear job. Older saves start with nobody clearing.
-const SAVE_SCHEMA := 14
+## Version 15 added the Line Wall. Older saves start with nothing hung.
+const SAVE_SCHEMA := 15
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11425,6 +11441,8 @@ const V11_ADDED := ["rumor"]
 const V12_ADDED := ["salvage"]
 ## Fields a version 1 to 13 save may lack: no pile crew out yet.
 const V13_ADDED := ["clear"]
+## Fields a version 1 to 14 save may lack: no plates on the Line Wall yet.
+const V14_ADDED := ["wall_plates", "wall_hoped", "wall_first_hope"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -11482,7 +11500,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -11813,14 +11831,19 @@ func fill_text(pack, vars: Dictionary) -> String:
 
 func _note_moment(kind: String, fields: Dictionary, weight: int) -> void:
 	chronicle.append({"week": week, "kind": kind, "weight": weight, "fields": fields.duplicate(true)})
+	_wall_on_moment(chronicle[chronicle.size() - 1])
 
 
 func chronicle_top(limit := 6) -> Array:
 	var rows: Array = chronicle.duplicate(true)
 	rows.sort_custom(func(a, b):
-		if int(a.weight) == int(b.weight):
-			return int(a.week) > int(b.week)
-		return int(a.weight) > int(b.weight)
+		if int(a.weight) != int(b.weight):
+			return int(a.weight) > int(b.weight)
+		var ap := _wall_backs_moment(a)
+		var bp := _wall_backs_moment(b)
+		if ap != bp:
+			return ap
+		return int(a.week) > int(b.week)
 	)
 	if rows.size() > limit:
 		rows.resize(limit)
@@ -11876,6 +11899,186 @@ func chronicle_line(moment: Dictionary) -> String:
 	return "Week %d: %s" % [int(moment.get("week", 0)), kind]
 
 
+## First plate may grant hope +1 once. Measured +1 moved careful loss from the preserved
+## 2/60 band to 3/60, so the +1 is dropped and the band stays put. Toast stays tied to a real grant.
+const WALL_HOPE_ONCE := 0
+const WALL_KINDS := ["law", "mandate_pick", "mandate_done", "bury", "ledger", "beat"]
+const WALL_MID_CAP := 12
+
+
+func wall_has_plates() -> bool:
+	return not wall_plates.is_empty()
+
+
+func wall_hang(kind: String, fields: Dictionary = {}) -> bool:
+	return _hang_wall(kind, fields)
+
+
+func wall_take_first_hope() -> bool:
+	if not wall_first_hope:
+		return false
+	wall_first_hope = false
+	return true
+
+
+func wall_open() -> Dictionary:
+	_wall_sync_mandate()
+	return {
+		"plates": _wall_rows(true),
+		"count": wall_plates.size(),
+		"empty": wall_plates.is_empty(),
+		"showing_cap": WALL_MID_CAP,
+		"showing": not wall_plates.is_empty(),
+	}
+
+
+func wall_epilogue_rows() -> Array:
+	_wall_sync_mandate()
+	return _wall_rows(false)
+
+
+func wall_plate_label(plate: Dictionary) -> String:
+	var kind := str(plate.get("kind", ""))
+	if not WALL_KINDS.has(kind):
+		return ""
+	var raw := str(plate.get("name", ""))
+	var name := raw
+	if kind == "bury" or kind == "ledger":
+		name = Copy.person(raw)
+	elif raw != "":
+		var named := Copy.t(raw)
+		name = named if named != "" else raw
+	if kind == "beat":
+		var beat := ""
+		if str(plate.get("moment_kind", "")) != "":
+			var fields: Dictionary = plate.get("fields", {})
+			beat = chronicle_line({
+				"kind": str(plate.moment_kind),
+				"week": int(plate.get("week", week)),
+				"weight": int(plate.get("weight", 0)),
+				"fields": fields,
+			})
+		if beat == "":
+			beat = str(plate.get("beat", ""))
+		return Copy.fill("wall.plate_beat", {"beat": beat})
+	var key := "wall.plate_%s" % kind
+	return Copy.fill(key, {"name": name})
+
+
+func _wall_rows(capped: bool) -> Array:
+	var ordered: Array = wall_plates.duplicate(true)
+	ordered.reverse()
+	var rows: Array = []
+	for plate in ordered:
+		if capped and rows.size() >= WALL_MID_CAP:
+			break
+		if not (plate is Dictionary):
+			continue
+		var copy: Dictionary = plate.duplicate(true)
+		var label := wall_plate_label(copy)
+		if label == "":
+			continue
+		copy["label"] = label
+		rows.append(copy)
+	return rows
+
+
+func _wall_on_moment(moment: Dictionary) -> void:
+	var kind := str(moment.get("kind", ""))
+	var weight := int(moment.get("weight", 0))
+	var fields: Dictionary = moment.get("fields", {})
+	if kind == "mandate":
+		var name := str(fields.get("mandate", fields.get("name", "")))
+		_hang_wall("mandate_pick", {"name": name, "weight": weight, "week": int(moment.get("week", week))})
+		return
+	if weight < 3:
+		return
+	_hang_wall("beat", {
+		"beat": chronicle_line(moment),
+		"moment_kind": kind,
+		"weight": weight,
+		"week": int(moment.get("week", week)),
+		"fields": fields,
+	})
+
+
+func _wall_sync_mandate() -> void:
+	if not _mandate_fulfilled() or _wall_has_kind("mandate_done"):
+		return
+	var name := str(stats.get("mandate", ""))
+	if name == "":
+		name = str(flags.get("mandate", ""))
+	if name == "":
+		for plate in wall_plates:
+			if str(plate.get("kind", "")) == "mandate_pick" and str(plate.get("name", "")) != "":
+				name = str(plate.name)
+				break
+	if name == "":
+		return
+	_hang_wall("mandate_done", {"name": name, "weight": 3, "week": week})
+
+
+func _wall_has_kind(kind: String) -> bool:
+	for plate in wall_plates:
+		if str(plate.get("kind", "")) == kind:
+			return true
+	return false
+
+
+func _wall_backs_moment(moment: Dictionary) -> bool:
+	var kind := str(moment.get("kind", ""))
+	var wk := int(moment.get("week", -1))
+	var fields: Dictionary = moment.get("fields", {})
+	var stamp := JSON.stringify(fields)
+	for plate in wall_plates:
+		if int(plate.get("week", -2)) != wk:
+			continue
+		var pk := str(plate.get("kind", ""))
+		var mk := str(plate.get("moment_kind", ""))
+		if pk == "beat" and mk == kind:
+			var pf: Dictionary = plate.get("fields", {})
+			if pf.is_empty() or JSON.stringify(pf) == stamp:
+				return true
+		if pk == "law" and (kind == "creed_line" or kind == "creed_chosen"):
+			return true
+		if (pk == "bury" or pk == "ledger") and (kind == "named_death" or kind == "known_lost"):
+			return true
+		if (pk == "mandate_pick" or pk == "mandate_done") and kind == "mandate":
+			return true
+	return false
+
+
+func _hang_wall(kind: String, fields: Dictionary) -> bool:
+	if not WALL_KINDS.has(kind):
+		return false
+	var stored: Dictionary = {}
+	var raw_fields = fields.get("fields", {})
+	if raw_fields is Dictionary:
+		stored = (raw_fields as Dictionary).duplicate(true)
+	var plate := {
+		"kind": kind,
+		"name": str(fields.get("name", "")),
+		"beat": str(fields.get("beat", "")),
+		"week": int(fields.get("week", week)),
+		"weight": int(fields.get("weight", 0)),
+		"moment_kind": str(fields.get("moment_kind", "")),
+		"fields": stored,
+	}
+	var sig := "%s|%s|%s|%s|%d|%s" % [plate.kind, plate.moment_kind, plate.name, plate.beat, int(plate.week), JSON.stringify(stored)]
+	for row in wall_plates:
+		if str(row.get("sig", "")) == sig:
+			return false
+	plate["sig"] = sig
+	wall_plates.append(plate)
+	if not wall_hoped and WALL_HOPE_ONCE > 0:
+		var before := hope
+		_add_hope(WALL_HOPE_ONCE, "wall")
+		wall_hoped = true
+		if hope > before:
+			wall_first_hope = true
+	return true
+
+
 func _creed_id() -> String:
 	if creed in ["watch", "chapel", "market"]:
 		return creed
@@ -11889,6 +12092,7 @@ func epilogue_payload() -> Dictionary:
 	var fates: Array = []
 	for line in fate_lines():
 		fates.append({"name": "", "line": str(line)})
+	_wall_sync_mandate()
 	return {
 		"ending": ending,
 		"creed": _creed_id(),
@@ -11899,6 +12103,8 @@ func epilogue_payload() -> Dictionary:
 		"score": score_now(),
 		"score_parts": Copy.t("epilogue.score_parts"),
 		"week": week,
+		"wall_plates": wall_epilogue_rows(),
+		"wall_page": wall_has_plates(),
 	}
 
 
@@ -12449,10 +12655,12 @@ func _resolve_burial(person_id: String, choice_id: String) -> void:
 			continue
 		if choice_id == "bury":
 			row.burial = "bury"
+			_hang_wall("bury", {"name": str(row.get("name", person_id)), "weight": 3})
 		elif choice_id == "ledger":
 			row.burial = "ledger"
 			# TODO(P6): Devout mood −2 when mood exists. Ledger has no mood to write yet.
 			_log("LEDGER %s" % str(row.get("name", person_id)), true)
+			_hang_wall("ledger", {"name": str(row.get("name", person_id)), "weight": 3})
 
 
 func _remember_departure(person: Dictionary, how: String, cause_id: String, place: String) -> void:
@@ -12564,6 +12772,11 @@ func sick_cots_dawn_chip() -> bool:
 
 ## Always false. P52 focus is a visit-sheet choice, never a soft dawn chip.
 func station_focus_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P77 Wall is a yard/desk surface. Plates and the first-plate toast are not a fifth soft dawn.
+func wall_dawn_chip() -> bool:
 	return false
 
 

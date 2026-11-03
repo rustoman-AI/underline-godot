@@ -1,0 +1,77 @@
+{
+  "_note": "P77 Line Wall (historic P19 / DEC-9 Line records → P77). Cite P67 Named Lives (Bury/Ledger plates); P68 Epilogue (chronicle weight ≥3 beats + epilogue Wall page — do not reopen end-card chrome); P72 Book of Laws (law enacted plates); P73 Mandate (pick + fulfill plates — Mandate +100 score via P68 only; Mandate miss ≠ fail plate). Soft dawn: NONE (Wall is yard/desk surface; plates are not dawn chips). Tone: dry metro grit — brass plates on a soot wall, not a quest log or trophy room. Zero–tiny balance (first-plate hope +1 once is Code/SPEC — Texts do not invent numbers). No Mandate +100 invent / no score chrome invent. No fail plate for Mandate miss / Charge fail.",
+  "_roadmap": "P77",
+  "_owners": "Texts; Code wall_plates PERSIST + hang hooks; UIUX Wall panel; Art plate frames optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P77 Line Wall stamped 2026-10-26 (14 wall.*; Mandate miss ≠ fail; cite P67/P68/P72/P73 only). Soft dawn NONE. Merge Temur. | Dawn grit 2026-10-27 (RU)",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P67 named lives — Bury / Ledger death choice → wall.plate_bury / wall.plate_ledger (do not rewrite Named Lives)",
+    "P68 epilogues — chronicle weight ≥3 beats + optional epilogue Wall page (do not reopen EP1–EP3 / score chrome)",
+    "P72 book of laws — law enacted → wall.plate_law (do not rewrite Book of Laws)",
+    "P73 mandate — Mandate pick + fulfill → wall.plate_mandate_pick / wall.plate_mandate_done; +100 via P68 only; miss ≠ fail plate"
+  ],
+  "_designer": "APPROVED",
+  "_placeholders": [
+    "{name}",
+    "{beat}",
+    "{n}"
+  ],
+  "by_key": {
+    "wall.title": {
+      "en": "Line Wall",
+      "ru": "Стена Линии"
+    },
+    "wall.open": {
+      "en": "Wall",
+      "ru": "Стена"
+    },
+    "wall.empty": {
+      "en": "Nothing hung yet.",
+      "ru": "Пока ничего не повесили."
+    },
+    "wall.first": {
+      "en": "First plate on the Wall.",
+      "ru": "Первая пластина на Стене."
+    },
+    "wall.desc": {
+      "en": "Brass plates on a soot wall.",
+      "ru": "Латунные пластины на закопчённой стене."
+    },
+    "wall.plate_law": {
+      "en": "Law: {name}",
+      "ru": "Закон: {name}"
+    },
+    "wall.plate_mandate_pick": {
+      "en": "Mandate chosen: {name}",
+      "ru": "Выбрали мандат: {name}"
+    },
+    "wall.plate_mandate_done": {
+      "en": "Mandate kept: {name}",
+      "ru": "Мандат сдержали: {name}"
+    },
+    "wall.plate_bury": {
+      "en": "Buried: {name}",
+      "ru": "Похоронили: {name}"
+    },
+    "wall.plate_ledger": {
+      "en": "Ledgered: {name}",
+      "ru": "В гроссбух: {name}"
+    },
+    "wall.plate_beat": {
+      "en": "{beat}",
+      "ru": "{beat}"
+    },
+    "wall.epilogue": {
+      "en": "What we hung",
+      "ru": "Что повесили"
+    },
+    "wall.showing": {
+      "en": "Latest twelve.",
+      "ru": "Последние двенадцать."
+    },
+    "wall.count": {
+      "en": "{n} hung",
+      "ru": "Повешено: {n}"
+    }
+  }
+}
