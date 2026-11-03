@@ -1931,5 +1931,19 @@
   "Penance": "Покаяние",
   "Covenant": "Завет",
   "Token wages": "Жетонная плата",
-  "Everything has a price": "У всего есть цена"
+  "Everything has a price": "У всего есть цена",
+  "wall.title": "Стена Линии",
+  "wall.open": "Стена",
+  "wall.empty": "Пока ничего не повесили.",
+  "wall.first": "Первая пластина на Стене.",
+  "wall.desc": "Латунные пластины на закопчённой стене.",
+  "wall.plate_law": "Закон: {name}",
+  "wall.plate_mandate_pick": "Выбрали мандат: {name}",
+  "wall.plate_mandate_done": "Мандат сдержали: {name}",
+  "wall.plate_bury": "Похоронили: {name}",
+  "wall.plate_ledger": "В гроссбух: {name}",
+  "wall.plate_beat": "{beat}",
+  "wall.epilogue": "Что повесили",
+  "wall.showing": "Последние двенадцать.",
+  "wall.count": "Повешено: {n}"
 }

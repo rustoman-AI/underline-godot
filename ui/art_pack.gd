@@ -374,6 +374,9 @@ static func textures() -> Dictionary:
 		## P42 props. No props/common gameplay hook; preload is the export registration.
 		"res://assets/props/common/prop_infirmary_tray.webp": preload("res://assets/props/common/prop_infirmary_tray.webp"),
 		"res://assets/props/common/prop_listening_cans.webp": preload("res://assets/props/common/prop_listening_cans.webp"),
+		"res://assets/props/common/prop_line_wall.webp": preload("res://assets/props/common/prop_line_wall.webp"),
+		"res://assets/ui/wall_plate_frame.webp": preload("res://assets/ui/wall_plate_frame.webp"),
+		"res://assets/ui/wall_panel_empty.webp": preload("res://assets/ui/wall_panel_empty.webp"),
 		## P49. Draws ask at 24px, so the hand-pixel plate is the one in the export. The 256 is the fallback plate.
 		"res://assets/icons/status/need_tick_24.png": preload("res://assets/icons/status/need_tick_24.png"),
 		"res://assets/icons/map/need_tick_24.png": preload("res://assets/icons/map/need_tick_24.png"),
