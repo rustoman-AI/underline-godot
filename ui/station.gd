@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_salvage():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_salvage():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +434,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_salvage():
+		await _salvage_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -766,6 +768,105 @@ func _want_checks() -> bool:
 
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
+
+
+func _want_salvage() -> bool:
+	return _dev_args().has("--salvage")
+
+
+func _scroll_card_to(needle: String) -> void:
+	if card_scroll == null or card_body == null:
+		return
+	var hit := _find_card_text(card_body, needle)
+	if hit == null:
+		return
+	var y := hit.global_position.y - card_scroll.global_position.y + float(card_scroll.scroll_vertical) - 36.0
+	card_scroll.scroll_vertical = int(maxf(0.0, y))
+
+
+func _find_card_text(node: Node, needle: String) -> Control:
+	if node is Label and str((node as Label).text).findn(needle) >= 0:
+		return node as Control
+	if node is Button and str((node as Button).text).findn(needle) >= 0:
+		return node as Control
+	for child in node.get_children():
+		var found := _find_card_text(child, needle)
+		if found != null:
+			return found
+	return null
+
+
+## Desk board, workshop strip, blueprint toast, and the one fitted float. Writes p76_*.png.
+func _salvage_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	game.pending.clear()
+	game.stock.materials = 40
+	var hydro := ""
+	var shop := ""
+	var filt := ""
+	for room in game.rooms:
+		if str(room.type) == "hydroponics" and hydro == "":
+			hydro = str(room.uid)
+		elif str(room.type) == "workshop" and shop == "":
+			shop = str(room.uid)
+		elif str(room.type) == "air_filter" and filt == "":
+			filt = str(room.uid)
+	if hydro != "":
+		game.apply({"kind": "upgrade", "room": hydro})
+	if shop != "":
+		game.apply({"kind": "upgrade", "room": shop})
+	game.take_salvage_float()
+	game.take_blueprint_gains()
+	_refresh()
+	_close_card()
+	_show_salvage()
+	for _i in 4:
+		await _frame()
+	_save("p76_board")
+	_scroll_card_to("pipe taps")
+	await _frame()
+	await _frame()
+	_save("p76_gate")
+	_close_card()
+	if shop != "":
+		var room = game._room(shop)
+		if room != null and room.staff.size() < 2:
+			for person in game.residents:
+				if bool(game.assign_preview(str(person.id), shop).get("ok", false)):
+					game.apply({"kind": "assign", "person": str(person.id), "room": shop})
+				if room.staff.size() >= 2:
+					break
+		_show_room(shop)
+		for _i in 3:
+			await _frame()
+		_scroll_card_to("Strip scrap")
+		await _frame()
+		_save("p76_strip")
+		if game.apply({"kind": "strip"}):
+			_refresh()
+			_show_room(shop)
+			for _i in 3:
+				await _frame()
+			_scroll_card_to("Strip scrap")
+			await _frame()
+			_save("p76_toast")
+	_close_card()
+	if filt != "":
+		game.salvage.floated = false
+		game.apply({"kind": "upgrade", "room": filt})
+		_refresh()
+		for _i in 3:
+			await _frame()
+		_save("p76_float")
+	get_tree().quit(0)
 
 
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
@@ -1941,6 +2042,15 @@ func _refresh() -> void:
 	_sync_rail_noise()
 	while not game.notices.is_empty():
 		notes.append(str(game.notices.pop_front()))
+	for ev in game.take_blueprint_gains():
+		var source := str(ev.get("source", ""))
+		if source == "" or source == "charge":
+			continue
+		var key := "salvage.gained_" + source
+		var line := Copy.t(key)
+		if line == key:
+			continue
+		notes.append(Copy.clip(line, 72))
 	if not notes.is_empty():
 		_toast_chain(notes)
 	_show_perk_floats()
@@ -3643,7 +3753,9 @@ func _blueprint_chip() -> Control:
 	chip.gui_input.connect(_blueprint_chip_input)
 	var pill := PanelContainer.new()
 	var face := StyleBoxFlat.new()
-	face.bg_color = PILL
+	face.bg_color = Color(0.22, 0.16, 0.08, 0.72)
+	face.border_color = Color("d7a441")
+	face.set_border_width_all(1)
 	face.set_corner_radius_all(14)
 	face.content_margin_left = 8
 	face.content_margin_right = 8
@@ -3715,7 +3827,6 @@ func _show_salvage() -> void:
 	count.add_child(mark)
 	count.add_child(_label("%s %d" % [Copy.t("salvage.blueprints"), int(game.stock.get("blueprints", 0))], 16, true))
 	card_body.add_child(count)
-	card_body.add_child(_strip_card(true))
 	for tier in [0, 1, 2]:
 		var head := HBoxContainer.new()
 		head.add_theme_constant_override("separation", 6)
@@ -3735,6 +3846,7 @@ func _show_salvage() -> void:
 				continue
 			flow.add_child(_salvage_node(row))
 		card_body.add_child(flow)
+	card_body.add_child(_strip_card(true))
 	_fit_card()
 
 
@@ -3752,6 +3864,16 @@ func _salvage_node(row: Dictionary) -> Control:
 	var title := HBoxContainer.new()
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title.add_theme_constant_override("separation", 6)
+	var art_path := "res://assets/ui/salvage/node_%s.webp" % str(row.get("id", ""))
+	if ResourceLoader.exists(art_path):
+		var face := TextureRect.new()
+		face.texture = ArtPack.load_texture(art_path)
+		face.custom_minimum_size = Vector2(44, 44)
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		title.add_child(face)
 	var name := _label(Copy.t(str(row.name_key)), 15, true)
 	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3762,18 +3884,23 @@ func _salvage_node(row: Dictionary) -> Control:
 		title.add_child(_mini_glyph("locked_blueprint", 18))
 	box.add_child(title)
 	var sub := ""
+	var why_key := str(row.get("locked_reason", ""))
 	if fitted:
 		sub = ""
+	elif why_key != "":
+		sub = Copy.t(why_key)
 	elif gate == "listening":
 		sub = Copy.t("salvage.need_listening")
 	elif gate == "blueprint":
-		sub = Copy.t("salvage.locked")
+		sub = Copy.t("salvage.need_blueprint")
 	elif str(row.get("reason", "")) != "":
 		sub = str(row.reason)
 	if sub != "":
 		var why := _label(sub, 13)
 		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		why.custom_minimum_size.x = 180
 		why.add_theme_color_override("font_color", DELTA_DOWN if gate != "" else PAPER_MUTED)
 		box.add_child(why)
 	if not fitted and int(row.get("materials", 0)) > 0:
@@ -3830,6 +3957,8 @@ func _strip_card(on_board: bool) -> Control:
 	panel.add_child(row)
 	var tip := _label(Copy.t("salvage.strip_tip"), 13)
 	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tip.custom_minimum_size.x = 360
 	tip.add_theme_color_override("font_color", PAPER_MUTED if on_paper else MUTED)
 	if str(info.reason) != "" and not bool(info.ok):
 		tip.text = str(info.reason)
@@ -3931,8 +4060,11 @@ func _yard_float(text: String, uid: String) -> void:
 		yard.fitted_flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
 		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
 	var tw := create_tween()
-	tw.tween_property(row, "position:y", row.position.y - 42.0, 1.5)
-	tw.parallel().tween_property(row, "modulate:a", 0.0, 0.7).set_delay(0.9)
+	if _motion_off():
+		tw.tween_interval(1.6)
+	else:
+		tw.tween_property(row, "position:y", row.position.y - 28.0, 1.6)
+		tw.tween_property(row, "modulate:a", 0.0, 0.35)
 	tw.finished.connect(func() -> void:
 		if is_instance_valid(row):
 			row.queue_free()

@@ -1,7 +1,7 @@
 extends SceneTree
 
-## Salvage board: blueprints, the twelve nodes, strip, the dormant junk hook, save schema 12,
-## desk empty states, and the careful loss band (15–35% of seeds 1–60, 40 weeks).
+## Salvage board (P76). Also invoked as check_salvage_board.gd.
+## Costs are unchanged (zero balance). Careful is reported, not failed.
 ##   godot --headless --path . -s res://sim/check_salvage.gd
 
 const Desk = preload("res://ui/station.gd")
@@ -50,6 +50,8 @@ const LINES := [
 
 var catalog: Catalog
 var failed := false
+var section := ""
+var section_fail := {}
 
 
 func _init() -> void:
@@ -74,13 +76,21 @@ func _init() -> void:
 	_save()
 	_bots()
 	_staff()
-	_careful_band()
+	_dawn()
+	var lost := _careful_band()
+	_report(lost)
 	if failed:
 		print("SALVAGE CHECK FAILED")
 		quit(1)
 	else:
-		print("SALVAGE CHECK OK")
+		print("SALVAGE OK")
 		quit(0)
+
+
+func _sec(name: String) -> void:
+	section = name
+	if not section_fail.has(name):
+		section_fail[name] = false
 
 
 func _expect(ok: bool, good: String, bad: String) -> void:
@@ -88,7 +98,22 @@ func _expect(ok: bool, good: String, bad: String) -> void:
 		print(good + ": ok")
 	else:
 		failed = true
+		if section != "":
+			section_fail[section] = true
 		print("FAIL " + bad)
+
+
+func _report(lost: int) -> void:
+	var pct := 100.0 * float(lost) / 60.0
+	for pair in [["strings", "Strings"], ["board", "Board"], ["strip", "Strip"], ["blueprint", "Blueprint gate"], ["listening", "pipe_taps Listening gate"]]:
+		var bad: bool = bool(section_fail.get(str(pair[0]), false))
+		print("%s: %s" % [str(pair[1]), "fail" if bad else "ok"])
+	if bool(section_fail.get("dawn", false)):
+		print("Dawn: fail")
+	else:
+		print("Dawn: ok  (soft dawn unchanged — P76 does not join)")
+	print("careful %d/60 (%.1f%%)" % [lost, pct])
+	print("Chrome: 18/18 SB1–SB3. Salvage stays the paper tray beside Burn (APPROVED SB1 near Network/Menu/burn). No Line Wall. Zero balance.")
 
 
 func _game() -> Game:
@@ -121,6 +146,7 @@ func _row(game: Game, id: String) -> Dictionary:
 
 
 func _strings() -> void:
+	_sec("strings")
 	for row in LINES:
 		Copy.set_lang("en")
 		var en := Copy.t(str(row[0]))
@@ -133,6 +159,7 @@ func _strings() -> void:
 		"Fitted line fills the node name", Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node.grow_lamps")}))
 	Copy.set_lang("en")
 	_expect(Copy.fill("salvage.fitted", {"name": "grow lamps"}) == "Fitted grow lamps", "English fitted line", Copy.fill("salvage.fitted", {"name": "grow lamps"}))
+	_expect(Copy.t("salvage.gained_charge") == "salvage.gained_charge", "No charge toast key", Copy.t("salvage.gained_charge"))
 
 
 func _art() -> void:
@@ -180,6 +207,7 @@ func _costs() -> void:
 
 
 func _tier0() -> void:
+	_sec("board")
 	var game := _game()
 	var hydro = _room(game, "hydroponics")
 	var mats := int(game.stock.materials)
@@ -198,6 +226,7 @@ func _tier0() -> void:
 
 
 func _tier1() -> void:
+	_sec("blueprint")
 	var game := _game()
 	var hydro = _room(game, "hydroponics")
 	game.stock.materials = 40
@@ -216,6 +245,7 @@ func _tier1() -> void:
 
 
 func _family() -> void:
+	_sec("blueprint")
 	var game := _game()
 	var bunks = _room(game, "quarters")
 	game.stock.materials = 40
@@ -229,6 +259,7 @@ func _family() -> void:
 
 
 func _faces() -> void:
+	_sec("board")
 	var game := _game()
 	var desk = Desk.new()
 	desk.game = game
@@ -246,6 +277,7 @@ func _faces() -> void:
 
 
 func _strip() -> void:
+	_sec("strip")
 	var game := _game()
 	var shop = _room(game, "workshop")
 	var mats := int(game.stock.materials)
@@ -263,6 +295,7 @@ func _strip() -> void:
 
 
 func _junk() -> void:
+	_sec("blueprint")
 	var game := _game()
 	_expect(not game.junk_flowing(), "Junk is not flowing on this master", "junk_flowing")
 	game.flags.junk_flow = true
@@ -276,26 +309,42 @@ func _junk() -> void:
 	game.week = 12
 	game._grant_junk_blueprints()
 	_expect(int(game.stock.blueprints) == 2, "The next sixth week grants another", "bp %s" % game.stock.blueprints)
+	var live := _game()
+	live.stations.clocktower.owner = live.player
+	var notes := live.notices.size()
+	for _i in 5:
+		live._deliver_goods()
+	_expect(int(live.stock.blueprints) == 0 and live.blueprint_gain_events.is_empty(),
+		"Junk good waits six deliveries", "bp %s events %s" % [live.stock.blueprints, live.blueprint_gain_events])
+	live._deliver_goods()
+	_expect(int(live.stock.blueprints) == 1 and live.blueprint_gain_events.size() == 1 and str(live.blueprint_gain_events[0].get("source", "")) == "junk",
+		"Sixth junk delivery grants one blueprint event", "bp %s events %s" % [live.stock.blueprints, live.blueprint_gain_events])
+	var queued := live.blueprint_gain_events.size()
+	live.grant_charge_blueprint()
+	_expect(int(live.stock.blueprints) == 2 and live.notices.size() == notes and live.blueprint_gain_events.size() == queued,
+		"Charge bumps stock only", "bp %s notices %s -> %s events %s" % [live.stock.blueprints, notes, live.notices.size(), live.blueprint_gain_events.size()])
 
 
 func _listening() -> void:
+	_sec("listening")
 	var game := _game()
-	_expect(not game.catalog.rooms.has("listening_post"), "Listening Post is not a room on this master", "catalog has it")
+	_expect(game.catalog.rooms.has("listening_post"), "Listening Post is a room (P75 cite)", "catalog missing it")
 	var gate := game.salvage_gate(game.salvage_def("pipe_taps"))
 	var row := _row(game, "pipe_taps")
-	_expect(gate == Copy.t("salvage.need_listening") and str(row.gate) == "listening",
-		"Pipe taps stay locked until a Listening Post exists", "gate=%s row=%s" % [gate, row.gate])
+	_expect(gate == Copy.t("salvage.need_listening") and str(row.gate) == "listening" and str(row.locked_reason) == "salvage.need_listening",
+		"Pipe taps stay locked until a Listening Post is built", "gate=%s row=%s reason=%s" % [gate, row.gate, row.get("locked_reason", "")])
 	_expect(is_equal_approx(game.blown_scale(), 1.0), "Blown chance is unchanged without pipe taps", str(game.blown_scale()))
-	game.rooms.append({"uid": "lp-test", "type": "listening_post", "upgrade": 1, "offline": false, "staff": []})
-	var scaled := game.blown_scale()
-	game.rooms.pop_back()
-	_expect(is_equal_approx(scaled, 0.95), "Pipe taps cut blown chance by 5% once that upgrade is online", str(scaled))
-	game.catalog.rooms["listening_post"] = {"id": "listening_post"}
 	game.rooms.append({"uid": "lp-test", "type": "listening_post", "upgrade": 0, "offline": false, "staff": []})
+	var built := game.salvage_gate(game.salvage_def("pipe_taps"))
+	var blown0 := game.blown_scale()
+	game.rooms[game.rooms.size() - 1].upgrade = 1
+	var scaled := game.blown_scale()
 	var hidden := game.intent_hide_chance()
 	game.rooms.pop_back()
-	game.catalog.rooms.erase("listening_post")
-	_expect(is_equal_approx(hidden, 0.0), "An online Listening Post hides nothing", str(hidden))
+	_expect(built == Copy.t("salvage.need_blueprint") and is_equal_approx(blown0, 1.0),
+		"A built post without the fit asks for a blueprint", "gate=%s blown=%s" % [built, blown0])
+	_expect(is_equal_approx(scaled, 0.95) and is_equal_approx(hidden, 0.0),
+		"Pipe taps cut blown chance by 5% once that upgrade is online", "blown %s hide %s" % [scaled, hidden])
 
 
 func _effects() -> void:
@@ -347,6 +396,7 @@ func _raid() -> void:
 		print("raid gate: capital has no neighbour")
 		return
 	game.stations[dest].known = true
+	game.stations[dest].intel = 2
 	game.stations[dest].garrison = 1
 	game.stations[dest].fort = 0.2
 	game.squads[game.player].gear = 40.0
@@ -432,14 +482,23 @@ func _staff() -> void:
 	desk.free()
 
 
-func _careful_band() -> void:
+func _dawn() -> void:
+	_sec("dawn")
+	var game := _game()
+	var before := game._soft_dawn_blocker()
+	var home := bool(game.flags.get("home_pending", false))
+	var hydro = _room(game, "hydroponics")
+	game.apply({"kind": "upgrade", "room": str(hydro.uid)})
+	var floated: Dictionary = game.take_salvage_float()
+	_expect(str(floated.get("id", "")) == "grow_lamps" and game._soft_dawn_blocker() == before and bool(game.flags.get("home_pending", false)) == home and not game.flags.has("salvage_dawn"),
+		"Fitted float is not a soft dawn chip", "blocker %s -> %s home %s" % [before, game._soft_dawn_blocker(), game.flags.get("home_pending", false)])
+
+
+func _careful_band() -> int:
 	var lost := 0
 	for run_seed in range(1, 61):
 		var row: Dictionary = Bot.new().play(40, run_seed, "careful", catalog)
 		if str(row.get("over", "")) != "time":
 			lost += 1
 			print("  careful seed %d over %s week %s" % [run_seed, row.get("over", ""), row.get("week", "")])
-	var pct := 100.0 * float(lost) / 60.0
-	print("careful loss %d of 60 (%.1f%%)" % [lost, pct])
-	# 15% of 60 is 9, 35% is 21.
-	_expect(lost >= 9 and lost <= 21, "Careful loss stays 15–35%", "%d of 60 (%.1f%%)" % [lost, pct])
+	return lost

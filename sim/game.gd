@@ -204,6 +204,8 @@ var burials: Array = []
 ## Creed stays empty until a line law sets it. No line law is in the book yet.
 var creed := ""
 var notices: Array = []
+## One-shot blueprint toasts. Charge never enters this queue. The desk drains it.
+var blueprint_gain_events: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
 var perk_float_due := {}
 ## Dawn-card line for a Listening Post order. Not saved.
@@ -232,6 +234,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	burials = []
 	creed = ""
 	notices = []
+	blueprint_gain_events = []
 	raid_share = {}
 	raid_share_hold = false
 	raid_share_profile = ""
@@ -3198,20 +3201,27 @@ func salvage_board() -> Array:
 				uid = str(room.uid)
 		copy.fitted = fitted
 		copy.uid = uid
+		copy.room_type = type
 		copy.blueprints = 1 if int(node.tier) >= 1 else 0
 		copy.materials = upgrade_cost(type, step) if catalog.rooms.has(type) else 0
+		copy.mats = int(copy.materials)
 		copy.name_key = "salvage.node." + str(node.id)
 		copy.gate = ""
 		copy.reason = ""
+		copy.locked_reason = ""
+		copy.needs = []
 		if not fitted:
 			if str(node.id) == "pipe_taps" and not _listening_post_built():
 				copy.gate = "listening"
+				copy.locked_reason = "salvage.need_listening"
+				copy.needs = ["listening_post"]
 				copy.reason = Copy.t("salvage.need_listening")
 			elif uid == "":
 				copy.gate = "room"
 			elif int(node.tier) >= 1 and int(stock.get("blueprints", 0)) < 1:
 				copy.gate = "blueprint"
-				copy.reason = Copy.t("salvage.locked")
+				copy.locked_reason = "salvage.need_blueprint"
+				copy.reason = Copy.t("salvage.need_blueprint")
 			else:
 				var info := upgrade_preview(uid)
 				if not bool(info.ok):
@@ -3242,19 +3252,42 @@ func salvage_face() -> String:
 	return salvage_face_of(salvage_board())
 
 
+func salvage_nodes() -> Array:
+	return salvage_board()
+
+
+func fit_salvage(id: String) -> bool:
+	var uid := salvage_fit_uid(id)
+	if uid == "":
+		return false
+	return apply({"kind": "upgrade", "room": uid})
+
+
 func strip_preview() -> Dictionary:
-	var info := {"ok": false, "reason": "", "materials": STRIP_MATERIALS}
+	var info := {"ok": false, "reason": "", "materials": STRIP_MATERIALS, "mats": STRIP_MATERIALS, "blueprints": 1, "weeks_left": 0}
 	var reasons: PackedStringArray = []
 	if not _room_ready("workshop"):
 		reasons.append(Copy.t("salvage.strip_tip"))
 	var last := int(salvage.get("strip_week", 0))
+	var left := 0
 	if last > 0 and week < last + STRIP_EVERY:
+		left = last + STRIP_EVERY - week
 		reasons.append(Copy.t("salvage.strip_tip"))
+		reasons.append(Words.count(left, "week"))
 	if int(stock.get("materials", 0)) < STRIP_MATERIALS:
 		reasons.append(Copy.t("Needs %s, the yard has %s.") % [Words.count(STRIP_MATERIALS, "material"), Words.count(int(stock.materials), "material")])
+	info.weeks_left = left
 	info.reason = " ".join(reasons)
 	info.ok = reasons.is_empty()
 	return info
+
+
+func strip_scrap_preview() -> Dictionary:
+	return strip_preview()
+
+
+func strip_scrap() -> bool:
+	return apply({"kind": "strip"})
 
 
 func _apply_strip() -> bool:
@@ -3271,9 +3304,26 @@ func _apply_strip() -> bool:
 
 func _gain_blueprint(source: String) -> void:
 	stock.blueprints = int(stock.get("blueprints", 0)) + 1
-	var line := Copy.t("salvage.gained_%s" % source)
-	notices.append(line)
-	_log(line, true)
+	if source == "charge":
+		return
+	blueprint_gain_events.append({"source": source, "amount": 1})
+	var key := "salvage.gained_%s" % source
+	var line := Copy.t(key)
+	if line != key:
+		_log(line, true)
+
+
+## P73 Charge cite. The stock count moves. No toast, and no salvage.gained_charge line.
+func grant_charge_blueprint(amount: int = 1) -> void:
+	if amount < 1:
+		return
+	stock.blueprints = int(stock.get("blueprints", 0)) + amount
+
+
+func take_blueprint_gains() -> Array:
+	var rows: Array = blueprint_gain_events.duplicate()
+	blueprint_gain_events.clear()
+	return rows
 
 
 func _grant_first_raid_blueprint() -> void:
@@ -3283,8 +3333,8 @@ func _grant_first_raid_blueprint() -> void:
 	_gain_blueprint("raid")
 
 
-## P2 Junk good is not on this master: station goods have no "junk", and nothing sets flags.junk_flow.
-## When that flow exists, a held junk source grants +1 blueprint every 6 weeks.
+## Night hook for an explicit junk_flow flag, or a station goods table that still lists junk.
+## The live P55 Junk good grants through _deliver_goods (blueprint_weeks). This does not reopen that card.
 func junk_flowing() -> bool:
 	if bool(flags.get("junk_flow", false)):
 		return true
@@ -3311,7 +3361,7 @@ func take_salvage_float() -> Dictionary:
 	salvage.float_uid = ""
 	if id == "":
 		return {}
-	return {"id": id, "uid": uid}
+	return {"id": id, "uid": uid, "name": Copy.t("salvage.node." + id)}
 
 
 func _ready_salvage() -> void:
@@ -3323,6 +3373,7 @@ func _ready_salvage() -> void:
 	salvage.float_id = str(salvage.get("float_id", ""))
 	salvage.float_uid = str(salvage.get("float_uid", ""))
 	salvage.junk_week = int(salvage.get("junk_week", 0))
+	blueprint_gain_events = []
 	if typeof(stock) != TYPE_DICTIONARY:
 		return
 	stock.blueprints = maxi(0, int(stock.get("blueprints", 0)))
@@ -6616,6 +6667,8 @@ func _deliver_goods() -> void:
 			if int(flags[key]) >= every:
 				flags[key] = 0
 				_grant_fork(str(fx.get("fork_unlock", "any_locked")))
+				if str(good.id) == "junk":
+					_gain_blueprint("junk")
 		else:
 			_open_forks(fx)
 
