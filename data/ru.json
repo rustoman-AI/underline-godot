@@ -1919,5 +1919,13 @@
   "Owen found a Directorate man asleep behind the generator. He took his armband off before he lay down. He asks not to be sent back to Rhee.": "Оуэн нашёл за генератором спящего человека из Управления. Повязку тот снял, прежде чем лечь. Просит не отдавать его обратно Ри.",
   "Give him a bunk and a new name": "Дать ему койку и другое имя",
   "Walk him back to the chain": "Отвести его обратно к цепи",
-  "Feed him and point him north": "Накормить и показать дорогу на север"
+  "Feed him and point him north": "Накормить и показать дорогу на север",
+  "Relay": "Узел",
+  "Mark Relay": "Отметить узел",
+  "Clear Relay": "Снять узел",
+  "Relay. Supply may route through here.": "Узел. Снабжение может идти через него.",
+  "Supply can bend through a Relay.": "Снабжение может идти через узел.",
+  "Relay lost. Supply path resets.": "Узел потерян. Путь снабжения сброшен.",
+  "Relay for the Line.": "Узел для Линии.",
+  "No Relay marked.": "Узел не отмечен."
 }

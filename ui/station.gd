@@ -375,7 +375,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_relay_shots():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +391,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_relay_shots():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +434,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_relay_shots():
+		await _relay_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -829,6 +831,125 @@ func _want_polish() -> bool:
 
 func _want_network() -> bool:
 	return _dev_args().has("--network")
+
+
+func _want_relay_shots() -> bool:
+	return _dev_args().has("--relay-shots")
+
+
+## P78 before/after plates. Seizes one owned non-capital outpost so the visit and the pin are the same station.
+func _relay_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	var sid := _relay_shot_outpost()
+	showing_network = true
+	yard.visible = false
+	network_view.visible = true
+	network_view.bind(self)
+	await _frame()
+	network_view._fit()
+	if sid != "":
+		network_view.focus_station(sid)
+		network_view.zoom = clampf(network_view.zoom * 2.2, network_view._zoom_min, network_view._zoom_max)
+		network_view._clamp_view()
+	network_view.refresh()
+	_place_chrome()
+	await _frame()
+	await _frame()
+	var phase := "before"
+	for arg in _dev_args():
+		if str(arg).begins_with("--relay-phase="):
+			phase = str(arg).trim_prefix("--relay-phase=")
+	if phase != "after" or sid == "":
+		_save("relay_%s_network" % phase)
+		if sid != "":
+			network_view.open_visit(sid)
+			await _frame()
+			await _relay_scroll()
+			await _frame()
+			_save("relay_%s_visit" % phase)
+		_save("relay_%s_gate" % phase)
+		get_tree().quit()
+		return
+	game.orders_left = maxi(game.orders_left, 3)
+	network_view.open_visit(sid)
+	await _frame()
+	await _relay_scroll()
+	await _frame()
+	_save("relay_after_visit_none")
+	network_view.close_visit()
+	if game.apply({"kind": "order", "order": "relay_mark", "station": sid}):
+		_toast(Copy.clip(Copy.t("relay.status"), 72))
+		network_view.note_relay_first()
+	network_view._hover = sid
+	network_view.tooltip_text = Copy.t("relay.tip")
+	network_view.show_zoom(4.0, sid)
+	network_view.refresh()
+	await _frame()
+	await _frame()
+	_save("relay_after_network")
+	if network_view._relay_float != null:
+		network_view._relay_float.visible = false
+	network_view.open_visit(sid)
+	await _frame()
+	await _relay_scroll()
+	await _frame()
+	_save("relay_after_visit")
+	network_view.close_visit()
+	game.stations[sid].owner = "neutral"
+	game._settle_relay()
+	_refresh()
+	network_view.refresh()
+	await _frame()
+	await _frame()
+	_save("relay_after_gate")
+	get_tree().quit()
+
+
+func _relay_scroll() -> void:
+	if network_view._visit_body == null:
+		return
+	var scroll := network_view._visit_body.get_parent() as ScrollContainer
+	if scroll == null:
+		return
+	for child in network_view._visit_body.get_children():
+		if child.has_meta("relay_row"):
+			scroll.scroll_vertical = int((child as Control).position.y) - 8
+			return
+
+
+func _relay_shot_outpost() -> String:
+	var picked := ""
+	var best := 999
+	for candidate in game.stations:
+		var st: Dictionary = game.stations[candidate]
+		if str(candidate) == str(game.capital_id):
+			continue
+		if str(st.get("owner", "")) in ["bunker", "ruin"]:
+			continue
+		if bool(st.get("hidden", false)) or str(st.get("bunker", "")) != "":
+			continue
+		var hops := int(game._hops(str(candidate), str(game.capital_id)))
+		if hops >= 900:
+			continue
+		if hops < best:
+			best = hops
+			picked = str(candidate)
+	if picked == "":
+		return ""
+	var st: Dictionary = game.stations[picked]
+	st.owner = game.player
+	st.known = true
+	st.hidden = false
+	st.held_weeks = 6
+	if str(st.get("focus", "")) == "":
+		st.focus = "food"
+	return picked
 
 
 func _tabular(base: Font) -> Font:

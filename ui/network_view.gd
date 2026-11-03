@@ -1674,6 +1674,8 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
+	## P57 focus letter, when that pack draws one, stays upper-inner. Relay is the opposite slot.
+	_draw_relay_mark(c, game, sid, at, r, lift)
 	if str(sid) == str(game.capital_id):
 		_draw_away_pip(c, game, at, r, lift)
 
@@ -3885,6 +3887,8 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	if str(game.relay_sid) == sid:
+		lines.append(Copy.t("relay.tip"))
 	return "\n".join(lines)
 
 
@@ -4255,6 +4259,7 @@ func _fill_sheet_body(sid: String) -> void:
 		if trade != "":
 			details.add_child(_lab(trade, 14, false))
 	_add_focus_picker(game, sid, _sheet_body)
+	_add_relay_row(game, sid, _sheet_body)
 	_add_actions(sid, own, _sheet_body, details)
 	_add_fold(_sheet_body, details)
 
@@ -4803,6 +4808,197 @@ func _draw_good_pip(c: CanvasItem, game, sid: String, at: Vector2, r: float, lif
 		c.draw_texture_rect(tex, Rect2(pip - Vector2(5, 5), Vector2(10, 10)), false, tint)
 	else:
 		c.draw_string(_font(), pip + Vector2(-3, 4), "+", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, tint)
+
+
+## P78. Letter R on a 13px paper disc, or relay_mark_24 when that plate loaded.
+## Slot is lower-inner, opposite the P57 focus letter. Omitted when that pair would overlap at max pin radius.
+const RELAY_DISC := 12.0
+const RELAY_FONT := 11
+const P57_DISC := 14.0
+const P57_OFFSET := Vector2(-0.35, -0.20)
+## A2 keeps x at 0.30. y was 0.18; at max pin radius that disc met the P55 goods pip,
+## so the mark steps north and stays right of center, clear of the focus letter.
+const RELAY_OFFSET := Vector2(0.30, -0.12)
+const RELAY_HOPE := Color("d7a441")
+var _relay_float: Label
+var _relay_float_tween: Tween
+
+
+func relay_mark_offset(pin_r: float) -> Vector2:
+	return Vector2(pin_r * RELAY_OFFSET.x, pin_r * RELAY_OFFSET.y)
+
+
+func focus_pip_offset(pin_r: float) -> Vector2:
+	return Vector2(pin_r * P57_OFFSET.x, pin_r * P57_OFFSET.y)
+
+
+func pin_radius_at(zoom_value: float, schematic_on: bool) -> float:
+	var base := PIN_OTHER * (1.0 + 0.22 * (1.0 if schematic_on else 0.0))
+	var px := maxf(PIN_FLOOR, base * sqrt(maxf(zoom_value, 0.001)))
+	return px * 0.42
+
+
+## True when the Relay disc would intersect a 14px focus letter at this pin radius.
+func relay_overlaps_focus(pin_r: float) -> bool:
+	if pin_r <= 0.0:
+		return true
+	var gap := focus_pip_offset(pin_r).distance_to(relay_mark_offset(pin_r))
+	return gap < (P57_DISC + RELAY_DISC) * 0.5
+
+
+func relay_mark_omitted() -> bool:
+	var z := _zoom_max if _zoom_max > 0.0 else zoom
+	return relay_overlaps_focus(pin_radius_at(z, schematic))
+
+
+func _draw_relay_mark(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or str(game.relay_sid) != str(sid) or relay_mark_omitted():
+		return
+	var pos := at + relay_mark_offset(r) - Vector2(0, 2.0 * lift)
+	var tex := ArtPack.icon_texture("relay_mark", 24.0)
+	if tex != null:
+		c.draw_texture_rect(tex, Rect2(pos - Vector2(RELAY_DISC, RELAY_DISC) * 0.5, Vector2(RELAY_DISC, RELAY_DISC)), false)
+		return
+	c.draw_circle(pos, RELAY_DISC * 0.5, TAG_PAPER)
+	c.draw_arc(pos, RELAY_DISC * 0.5, 0, TAU, 18, Color(RELAY_HOPE, 0.9), 1.0, true)
+	var font := _font()
+	var text := "R"
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, RELAY_FONT).x
+	var text_at := pos + Vector2(-width * 0.5, font.get_ascent(RELAY_FONT) * 0.35)
+	c.draw_string(font, text_at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, RELAY_FONT, CARD_INK)
+
+
+func _add_relay_row(game, sid: String, parent: Node) -> void:
+	if game == null or not bool(game.can_mark_relay(sid).get("ok", false)):
+		return
+	var current := str(game.relay_sid) == str(sid)
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 4)
+	box.set_meta("relay_row", sid)
+	var key := "relay.status" if current else "relay.status_none"
+	var status := _lab(Copy.t(key), 15, current)
+	status.set_meta("relay_status", key)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if current:
+		status.add_theme_color_override("font_color", RELAY_HOPE)
+	else:
+		status.add_theme_color_override("font_color", CARD_MUTED if _on_paper else Color(MUTED, 0.72))
+	box.add_child(status)
+	var marking := not current
+	var button := Button.new()
+	button.text = Copy.t("relay.mark" if marking else "relay.clear")
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.focus_mode = Control.FOCUS_NONE
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.custom_minimum_size = Vector2(160, 36)
+	button.set_meta("relay_action", "relay_mark" if marking else "relay_clear")
+	var order := "relay_mark" if marking else "relay_clear"
+	var why := str(game.order_block(order, sid))
+	button.disabled = why != ""
+	button.tooltip_text = why if why != "" else Copy.t("relay.tip")
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if why == "" else Control.CURSOR_ARROW
+	_style_relay_button(button, marking)
+	button.pressed.connect(_relay_order.bind(sid, order))
+	box.add_child(button)
+	parent.add_child(box)
+
+
+func _style_relay_button(button: Button, marking: bool) -> void:
+	var face := StyleBoxFlat.new()
+	face.set_corner_radius_all(3)
+	face.set_content_margin_all(8)
+	var ink := CARD_INK
+	if marking:
+		face.bg_color = Color("c4922a")
+		face.border_color = RELAY_HOPE
+		ink = CARD_INK
+	else:
+		face.bg_color = Color("d9d0bc")
+		face.border_color = Color("8a6a44")
+		ink = CARD_INK
+	face.set_border_width_all(1)
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var copy: StyleBoxFlat = face.duplicate()
+		if state == "disabled":
+			copy.bg_color = copy.bg_color.darkened(0.25)
+		button.add_theme_stylebox_override(state, copy)
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(key, ink)
+	button.add_theme_color_override("font_disabled_color", Color(ink, 0.45))
+	button.add_theme_font_size_override("font_size", 15)
+
+
+func _relay_order(sid: String, order: String) -> void:
+	var game = _game()
+	if game == null or not game.apply({"kind": "order", "order": order, "station": sid}):
+		return
+	var line := Copy.t("relay.status") if order == "relay_mark" else Copy.t("relay.status_none")
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.clip(line, 72))
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	if order == "relay_mark":
+		note_relay_first()
+	refresh()
+	if visit != null and visit.visible and _visit_sid == sid:
+		_fill_visit(sid)
+	elif selected != "":
+		_fill_sheet(selected)
+
+
+## First Mark of the run. Network float, not a soft-dawn chip and not a modal.
+func note_relay_first() -> void:
+	var game = _game()
+	if game == null or not bool(game.relay_float_pending):
+		return
+	game.relay_float_pending = false
+	_show_relay_float(Copy.t("relay.first"))
+
+
+func _show_relay_float(line: String) -> void:
+	if line == "":
+		return
+	if _relay_float == null:
+		_relay_float = Label.new()
+		_relay_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_relay_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_relay_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_relay_float.add_theme_font_size_override("font_size", 18)
+		_relay_float.add_theme_color_override("font_color", RELAY_HOPE)
+		_relay_float.add_theme_constant_override("outline_size", 6)
+		_relay_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_relay_float.set_meta("relay_float", true)
+		_relay_float.z_index = 8
+		add_child(_relay_float)
+	_relay_float.text = line
+	_relay_float.modulate.a = 1.0
+	_relay_float.visible = true
+	if _relay_float_tween != null and _relay_float_tween.is_valid():
+		_relay_float_tween.kill()
+	_place_relay_float()
+	if not is_inside_tree():
+		return
+	_relay_float_tween = create_tween()
+	## Static in both motion settings. Reduce-motion keeps the same 1.6s hold.
+	_relay_float_tween.tween_interval(1.6)
+	_relay_float_tween.tween_callback(func() -> void:
+		if _relay_float != null:
+			_relay_float.visible = false)
+
+
+func _place_relay_float() -> void:
+	if _relay_float == null or not _relay_float.visible:
+		return
+	var w := clampf(size.x - 48.0, 280.0, 520.0)
+	_relay_float.custom_minimum_size = Vector2(w, 36)
+	_relay_float.size = Vector2(w, 36)
+	var y := 124.0
+	if host != null and host.get("hud") != null and host.hud.size.y > 8.0:
+		y = host.hud.size.y + 28.0
+	if _focus_float != null and _focus_float.visible:
+		y += 40.0
+	_relay_float.position = Vector2(maxf(8.0, size.x * 0.5 - w * 0.5), y)
 
 
 ## "Known for: food, materials": a station's two biggest own goods (data, docs/STATION_GOODS_PLAN.md). Empty for the
@@ -5395,6 +5591,7 @@ func _fill_visit(sid: String) -> void:
 	if art != "":
 		details.add_child(_lab(art, 14, false))
 	_add_focus_picker(game, sid, _visit_body)
+	_add_relay_row(game, sid, _visit_body)
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
 	_note_station_focus(sid)

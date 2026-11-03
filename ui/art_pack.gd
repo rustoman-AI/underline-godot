@@ -374,6 +374,9 @@ static func textures() -> Dictionary:
 		"res://assets/icons/map/need_tick_24.png": preload("res://assets/icons/map/need_tick_24.png"),
 		"res://assets/icons/status/need_tick.png": preload("res://assets/icons/status/need_tick.png"),
 		"res://assets/icons/map/need_tick.png": preload("res://assets/icons/map/need_tick.png"),
+		## P78. Optional pin plate. The letter R draws when this file is missing.
+		"res://assets/icons/map/relay_mark_24.png": preload("res://assets/icons/map/relay_mark_24.png"),
+		"res://assets/icons/map/relay_mark.png": preload("res://assets/icons/map/relay_mark.png"),
 
 	}
 	return _textures
