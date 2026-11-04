@@ -12567,6 +12567,11 @@ func station_focus_dawn_chip() -> bool:
 	return false
 
 
+## Always false. P86 Quiet Toll is a tip and a Visit line, never a soft dawn chip.
+func quiet_toll_dawn_chip() -> bool:
+	return false
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true
