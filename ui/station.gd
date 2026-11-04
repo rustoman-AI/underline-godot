@@ -4039,12 +4039,14 @@ func _listening_card(uid: String) -> void:
 		probe.disabled = why != ""
 		var tip := Copy.t("listening.probe_tip")
 		if game.signal_probe_leans(str(sid)):
-			tip = "%s\n%s" % [tip, Copy.t("signal.probe_lean")]
+			var base := int(game.bal.get("probe_tokens", 3))
+			var cost := game.probe_token_cost(str(sid))
+			if cost != base:
+				tip = tip.replace("%d " % base, "%d " % cost)
 		probe.tooltip_text = why if why != "" else tip
 		card_body.add_child(probe)
 		if why == "" and game.signal_probe_leans(str(sid)):
-			var cost := game.probe_token_cost(str(sid))
-			var cost_line := _label("%s. %s" % [Words.count(cost, "token"), Copy.t("signal.probe_lean")], 14, false, false)
+			var cost_line := _label("signal.probe_lean", 14)
 			cost_line.set_meta("signal_probe_lean", str(sid))
 			cost_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			cost_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
