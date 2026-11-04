@@ -5292,18 +5292,24 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 var _obs_greet_cache := {}
+var _obs_greet_vo := ""
 
 
 func open_visit(sid: String) -> void:
 	_cam_origin = origin
 	_cam_zoom = zoom
 	_obs_greet_cache = {}
+	_obs_greet_vo = ""
 	if _game() != null:
 		MarksKit.greet_once(_game(), sid, _obs_greet_cache)
 	_show_visit(sid)
+	_obs_greet_voice()
 
 
 func close_visit() -> void:
+	if Voice.now_kind == "obs" and Voice.now_id == _obs_greet_vo:
+		Voice.fade(0.2)
+	_obs_greet_vo = ""
 	MarksKit.greet_clear(_obs_greet_cache)
 	_visit_sid = ""
 	if _need_float != null:
@@ -5316,6 +5322,19 @@ func close_visit() -> void:
 	origin = _cam_origin
 	zoom = _cam_zoom
 	_redraw()
+
+
+func _obs_greet_voice() -> void:
+	var game = _game()
+	if game == null:
+		return
+	var sid := str(_obs_greet_cache.get("sid", ""))
+	var key := MarksKit.greet_key(game, sid)
+	var shown := str(_obs_greet_cache.get("line", ""))
+	if key == "" or shown == "" or key == _obs_greet_vo:
+		return
+	_obs_greet_vo = key
+	Voice.play(Voice.obs_line(key, shown), "")
 
 
 func _show_visit(sid: String) -> void:

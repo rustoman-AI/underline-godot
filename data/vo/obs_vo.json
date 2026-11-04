@@ -1,0 +1,230 @@
+{
+  "_note": "underline_batch_p87_vo_01 (Daniel, eleven_v4). Type obs: a Marks & Kit line. id is the obs.* key. en/ru are the recorded exact_text. Voice.obs_line plays a take only while that text still matches the line on the card or panel. A missing file stays silent. obs.kit.dispatcher_brass.flavor is not mapped: the take says fourteen / четырнадцать and the text says 14.",
+  "lines": [
+    {
+      "id": "obs.mark.rail_stitch.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Track stitched up the arm. You've walked further than most.",
+      "ru": "Колея стежками вверх по руке. За тобой больше путей, чем у многих.",
+      "audio_en": "res://assets/audio/vo/obs/obs_mark_rail_stitch_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_mark_rail_stitch_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.mark.ash_hand.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Ash from three graves, rubbed into the palm.",
+      "ru": "Пепел с трёх могил, втёртый в ладонь.",
+      "audio_en": "res://assets/audio/vo/obs/obs_mark_ash_hand_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_mark_ash_hand_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.mark.word_knot.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "A knot that doesn't come undone. Neither did your word.",
+      "ru": "Затянуто намертво. Как и твоё слово.",
+      "audio_en": "res://assets/audio/vo/obs/obs_mark_word_knot_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_mark_word_knot_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.mark.signal_scar.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "They heard you listening. You kept your ear.",
+      "ru": "Тебя услышали за прослушкой. Ухо осталось при тебе.",
+      "audio_en": "res://assets/audio/vo/obs/obs_mark_signal_scar_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_mark_signal_scar_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.mark.raid_tally.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "A stroke for every raid. Someone always asks what they count.",
+      "ru": "По черте за каждый набег. Всегда кто-то спросит, что они считают.",
+      "audio_en": "res://assets/audio/vo/obs/obs_mark_raid_tally_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_mark_raid_tally_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.mark.open_door.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "A door frame over the heart, left ajar.",
+      "ru": "Дверной косяк над сердцем. Дверь приоткрыта.",
+      "audio_en": "res://assets/audio/vo/obs/obs_mark_open_door_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_mark_open_door_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.oilskin.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Barge tar and canal water. Chambers St doesn't give these out.",
+      "ru": "Баржевая смола и вода из канала. Чемберс-стрит такие просто так не отдаёт.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_oilskin_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_oilskin_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.barrel_quilt.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Scorched at the hem. It has stood close to a lot of fires.",
+      "ru": "Подпалена по краю. Много раз стояла близко к огню.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_barrel_quilt_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_barrel_quilt_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.linesman_vest.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Orange gone to rust. The strips still catch a lamp.",
+      "ru": "Оранжевый давно стал ржавым. Полосы ещё ловят свет лампы.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_linesman_vest_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_linesman_vest_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.carbide.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Hisses like it disapproves. Lights the car end to end.",
+      "ru": "Шипит, будто не одобряет. Светит на весь вагон.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_carbide_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_carbide_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.filter_hood.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "One can, no light. You breathe or you see.",
+      "ru": "Одна банка, света нет. Или дышишь, или видишь.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_filter_hood_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_filter_hood_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.headset.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "One wire is mended with hair. It still hums.",
+      "ru": "Один провод зашит волосом. Всё ещё гудит.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_headset_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_headset_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.free_mask.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "One eye painted shut. Nobody's face, nobody's fault.",
+      "ru": "Один глаз закрашен. Ничьё лицо, ничья вина.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_free_mask_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_free_mask_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.kit.whistle.flavor",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Two notes. Everyone in the tunnel knows the second one.",
+      "ru": "Две ноты. Вторую в туннеле знает каждый.",
+      "audio_en": "res://assets/audio/vo/obs/obs_kit_whistle_flavor_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_kit_whistle_flavor_ru.mp3"
+    },
+    {
+      "id": "obs.hint",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Marks come from what you do. Kit comes from people who trust you.",
+      "ru": "Наколки — за дела. Пожитки — от тех, кто тебе верит.",
+      "audio_en": "res://assets/audio/vo/obs/obs_hint_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_hint_ru.mp3"
+    },
+    {
+      "id": "obs.ink.body",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Someone heats the needle in the lamp. It won't come off.",
+      "ru": "Кто-то калит иглу над лампой. Это уже не сойдёт.",
+      "audio_en": "res://assets/audio/vo/obs/obs_ink_body_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_ink_body_ru.mp3"
+    },
+    {
+      "id": "obs.greet.line_walker",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "A line-walker. Mind the third rail.",
+      "ru": "Ходок по путям. Берегись третьего рельса.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_line_walker_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_line_walker_ru.mp3"
+    },
+    {
+      "id": "obs.greet.tally",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "They count your knuckles before they talk.",
+      "ru": "Прежде чем говорить, считают твои костяшки.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_tally_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_tally_ru.mp3"
+    },
+    {
+      "id": "obs.greet.open_door",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "They say your door doesn't shut.",
+      "ru": "Говорят, твоя дверь не закрывается.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_open_door_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_open_door_ru.mp3"
+    },
+    {
+      "id": "obs.greet.oilskin",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Still wearing it. Good. The canal remembers.",
+      "ru": "Всё ещё носишь. Хорошо. Канал помнит.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_oilskin_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_oilskin_ru.mp3"
+    },
+    {
+      "id": "obs.greet.barrel_quilt",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "That quilt has been by our fire. Sit.",
+      "ru": "Эта стёганка грелась у нашего огня. Садись.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_barrel_quilt_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_barrel_quilt_ru.mp3"
+    },
+    {
+      "id": "obs.greet.carbide",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Lamp's still lit. Keep it trimmed.",
+      "ru": "Лампа горит. Следи за ней.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_carbide_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_carbide_ru.mp3"
+    },
+    {
+      "id": "obs.greet.filter_hood",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Hood on. You can stay.",
+      "ru": "Капюшон на месте. Можешь остаться.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_filter_hood_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_filter_hood_ru.mp3"
+    },
+    {
+      "id": "obs.greet.dispatcher_brass",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "They read the number on your brass. Then they nod.",
+      "ru": "Читают номер на бляхе. Потом кивают.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_dispatcher_brass_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_dispatcher_brass_ru.mp3"
+    },
+    {
+      "id": "obs.greet.free_mask",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Nobody's here. Nobody says hello.",
+      "ru": "Никого нет. Никто не здоровается.",
+      "audio_en": "res://assets/audio/vo/obs/obs_greet_free_mask_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_greet_free_mask_ru.mp3"
+    }
+  ]
+}

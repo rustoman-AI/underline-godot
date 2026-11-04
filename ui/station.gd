@@ -272,6 +272,7 @@ var obs_float: Label
 var obs_mark_pick := ""
 var obs_slot_pick := ""
 var obs_focus_keep := ""
+var obs_vo_heard := ""
 var obs_painting := false
 var obs_gate_sig := ""
 var obs_stops: Array = []
@@ -8286,6 +8287,9 @@ func _close_card() -> void:
 	_clear_block_glow()
 	if Voice.now_kind == "leader":
 		Voice.stop()
+	if Voice.now_kind == "obs" and Voice.now_id == obs_vo_heard:
+		Voice.fade(0.2)
+	obs_vo_heard = ""
 	var token := deck.top_token()
 	if token == "dawn":
 		if event_mode == "one" and game != null and not game.pending.is_empty():
@@ -15253,6 +15257,33 @@ func _show_obs_float(text: String) -> void:
 	fade.tween_property(obs_float, "modulate:a", 0.0, 0.4)
 
 
+func _obs_voice(key: String) -> void:
+	if key == "" or key == obs_vo_heard:
+		return
+	obs_vo_heard = key
+	Voice.play(Voice.obs_line(key, Copy.t(key)), "")
+
+
+func _obs_panel_voice() -> void:
+	if game == null:
+		return
+	var key := ""
+	if obs_slot_pick != "":
+		var worn := str(game.obs.kit_worn.get(obs_slot_pick, ""))
+		if worn != "" and game.obs.kit_owned.has(worn):
+			key = "obs.kit.%s.flavor" % worn
+		else:
+			for id in MarksKit.KIT_ORDER:
+				if MarksKit.slot_of(str(id)) == obs_slot_pick and game.obs.kit_owned.has(id):
+					key = "obs.kit.%s.flavor" % str(id)
+					break
+	elif obs_mark_pick != "":
+		key = "obs.mark.%s.flavor" % obs_mark_pick
+	if key == "":
+		key = "obs.hint"
+	_obs_voice(key)
+
+
 func _paint_obs_card(ev: Dictionary) -> void:
 	_sync_obs_gate()
 	var kind := str(ev.get("obs_kind", ""))
@@ -15283,6 +15314,10 @@ func _paint_obs_card(ev: Dictionary) -> void:
 	card_body.add_child(later)
 	if focus_pick != null:
 		focus_pick.grab_focus.call_deferred()
+	if kind == "ink":
+		_obs_voice("obs.ink.body")
+	elif id != "":
+		_obs_voice("obs.kit.%s.flavor" % id)
 
 
 func _obs_glyph(kind: String, id: String, px: int, tint: Color = PAPER_INK) -> Control:
@@ -15441,6 +15476,7 @@ func _show_observer() -> void:
 	card_body.add_child(outer)
 	_obs_collect_stops()
 	_fit_card()
+	_obs_panel_voice()
 	obs_painting = false
 
 

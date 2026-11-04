@@ -18,6 +18,7 @@ func _init() -> void:
 		quit(1)
 		return
 	_strings()
+	_obs_vo()
 	_schema()
 	_triggers()
 	_lines()
@@ -38,6 +39,39 @@ func _init() -> void:
 		return
 	print("MARKS KIT OK")
 	quit(0)
+
+
+func _obs_vo() -> void:
+	var data = JSON.parse_string(FileAccess.get_file_as_string("res://data/vo/obs_vo.json"))
+	if not (data is Dictionary) or not (data.get("lines", null) is Array):
+		_bad("obs_vo.json")
+		return
+	var pack = JSON.parse_string(FileAccess.get_file_as_string("res://data/marks_kit.json"))
+	var text: Dictionary = pack.by_key
+	var lines: Array = data.lines
+	_expect(lines.size() == 25, "25 obs voice lines", str(lines.size()))
+	var ids: Array = []
+	for row in lines:
+		var id := str(row.get("id", ""))
+		ids.append(id)
+		_expect(str(row.get("type", "")) == "obs", "obs voice type %s" % id, str(row.get("type", "")))
+		_expect(text.has(id), "voice key is a marks line %s" % id, "")
+		_expect(str(row.get("en", "")) == str(text[id].get("en", "")), "voice EN matches %s" % id, str(row.get("en", "")))
+		_expect(str(row.get("ru", "")) == str(text[id].get("ru", "")), "voice RU matches %s" % id, str(row.get("ru", "")))
+		_expect(FileAccess.file_exists(str(row.get("audio_en", ""))), "EN file %s" % id, str(row.get("audio_en", "")))
+		_expect(FileAccess.file_exists(str(row.get("audio_ru", ""))), "RU file %s" % id, str(row.get("audio_ru", "")))
+		Copy.set_lang("en")
+		var en_row := Voice.obs_line(id, Copy.t(id))
+		_expect(not en_row.is_empty() and Voice.audio(en_row) != "", "EN take plays %s" % id, Voice.audio(en_row))
+		Copy.set_lang("ru")
+		var ru_row := Voice.obs_line(id, Copy.t(id))
+		_expect(not ru_row.is_empty() and Voice.audio(ru_row) != "", "RU take plays %s" % id, Voice.audio(ru_row))
+	Copy.set_lang("en")
+	_expect(ids.has("obs.mark.raid_tally.flavor"), "raid tally flavor is voiced", "")
+	_expect(not ids.has("obs.kit.dispatcher_brass.flavor"), "fourteen stays unmatched", "")
+	var ghost := {"id": "obs.missing", "type": "obs", "en": "x", "ru": "x", "audio_en": "res://assets/audio/vo/obs/missing_en.mp3", "audio_ru": "res://assets/audio/vo/obs/missing_ru.mp3"}
+	_expect(Voice.audio(ghost) == "" and Voice.play(ghost, "") == 0.0, "a missing take is silence", Voice.audio(ghost))
+	_expect(Voice.obs_line("obs.kit.dispatcher_brass.flavor", Copy.t("obs.kit.dispatcher_brass.flavor")).is_empty(), "unmatched brass does not play", "")
 
 
 func _strings() -> void:

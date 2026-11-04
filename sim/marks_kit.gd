@@ -554,20 +554,27 @@ static func read(game, surface: String, sid: String) -> String:
 			return ""
 
 
-static func greet(game, sid: String) -> String:
+static func greet_key(game, sid: String) -> String:
 	if not _live(game) or sid == "" or sid == game.capital_id or not game.stations.has(sid):
 		return ""
 	var sym := int(game.stations[sid].get("sympathy", 0))
 	var piece := _worn_from(game, sid)
 	if piece != "" and sym >= WARY:
-		return Copy.t("obs.greet.%s" % piece)
+		return "obs.greet.%s" % piece
 	if has_mark(game, "raid_tally") and sym >= WARY and _enemy_lean(game, sid):
-		return Copy.t("obs.greet.tally")
+		return "obs.greet.tally"
 	if has_mark(game, "rail_stitch") and sym >= WARY and str(game.stations[sid].get("owner", "")) != game.player:
-		return Copy.t("obs.greet.line_walker")
+		return "obs.greet.line_walker"
 	if has_mark(game, "open_door") and sym >= WARM:
-		return Copy.t("obs.greet.open_door")
+		return "obs.greet.open_door"
 	return ""
+
+
+static func greet(game, sid: String) -> String:
+	var key := greet_key(game, sid)
+	if key == "":
+		return ""
+	return Copy.t(key)
 
 
 static func greet_source(game, sid: String) -> Dictionary:
