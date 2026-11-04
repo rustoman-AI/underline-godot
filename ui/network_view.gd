@@ -16,6 +16,7 @@ const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -206,6 +207,8 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _transfer_float: Label
+var _transfer_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -355,6 +358,7 @@ func refresh() -> void:
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
 	_note_first_leaflet()
+	_note_first_transfer()
 
 
 func _redraw() -> void:
@@ -1674,6 +1678,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
+	_draw_transfer_mark(c, game, sid, at, r, lift)
 	if str(sid) == str(game.capital_id):
 		_draw_away_pip(c, game, at, r, lift)
 
@@ -1885,6 +1890,221 @@ func _draw_map_chip(c: CanvasItem, name: String, at: Vector2, lift: float) -> vo
 		c.draw_texture_rect(tint, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
 	if mark != null:
 		c.draw_texture_rect(mark, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
+
+
+## P84 map mark. Brass Y-fork on a 14px paper disc, lower-outer left.
+## Slot is locked at (-0.32, 0.22). The disc is never shrunk or shifted.
+## If that rect meets the focus letter, goods pip, deal row, leaflet,
+## the P78 relay slot, or the P82 signal slot at max pin radius, the mark is left off.
+const TRANSFER_DISC := 14.0
+const TRANSFER_OFFSET := Vector2(-0.32, 0.22)
+const TRANSFER_BRASS := Color("c9a050")
+const P57_FOCUS_DISC := 14.0
+const P57_FOCUS_OFFSET := Vector2(-0.35, -0.20)
+const P78_RELAY_DISC := 12.0
+const P78_RELAY_OFFSET := Vector2(0.30, -0.12)
+const P82_SIGNAL_DISC := 14.0
+const P82_SIGNAL_OFFSET := Vector2(0.32, -0.22)
+const P55_GOODS_R := 8.0
+const P55_GOODS_OFFSET := Vector2(0.62, 0.55)
+
+
+func transfer_mark_offset(pin_r: float) -> Vector2:
+	return Vector2(pin_r * TRANSFER_OFFSET.x, pin_r * TRANSFER_OFFSET.y)
+
+
+func transfer_pin_radius(zoom_value: float, schematic_on: bool, capital := false) -> float:
+	var base_px := PIN_CAPITAL if capital else PIN_OTHER
+	var bonus := 0.4 if capital else 0.22
+	var base := base_px * (1.0 + bonus * (1.0 if schematic_on else 0.0))
+	var px := maxf(PIN_FLOOR, base * sqrt(maxf(zoom_value, 0.001)))
+	return px * 0.42
+
+
+func transfer_max_pin_radius() -> float:
+	var z := _zoom_max if _zoom_max > 0.0 else zoom
+	if z <= 0.0:
+		z = 1.0
+	## Outpost pin at max zoom, the same radius P78 calls max pin radius.
+	return transfer_pin_radius(z, schematic, false)
+
+
+func transfer_capital_pin_radius() -> float:
+	var z := _zoom_max if _zoom_max > 0.0 else zoom
+	if z <= 0.0:
+		z = 1.0
+	return transfer_pin_radius(z, schematic, true)
+
+
+func _transfer_rect(center: Vector2, dia: float) -> Rect2:
+	return Rect2(center - Vector2(dia, dia) * 0.5, Vector2(dia, dia))
+
+
+func _transfer_hits(pin_r: float) -> Dictionary:
+	var at := transfer_mark_offset(pin_r)
+	var mine := _transfer_rect(at, TRANSFER_DISC)
+	var gaps := {}
+	var hits: PackedStringArray = []
+	var focus_at := Vector2(pin_r * P57_FOCUS_OFFSET.x, pin_r * P57_FOCUS_OFFSET.y)
+	gaps["focus"] = at.distance_to(focus_at)
+	if mine.intersects(_transfer_rect(focus_at, P57_FOCUS_DISC)):
+		hits.append("focus")
+	var goods_at := Vector2(pin_r * P55_GOODS_OFFSET.x, pin_r * P55_GOODS_OFFSET.y)
+	gaps["goods"] = at.distance_to(goods_at)
+	if mine.intersects(_transfer_rect(goods_at, P55_GOODS_R * 2.0)):
+		hits.append("goods")
+	var deal_gap := INF
+	var deal_box := Rect2()
+	var deal_first := true
+	for i in 3:
+		var pip := Vector2((float(i) - 1.0) * DealMarks.PIP_GAP, pin_r + DealMarks.PIP_DROP)
+		deal_gap = minf(deal_gap, at.distance_to(pip))
+		var pip_box := _transfer_rect(pip, DealMarks.PIP_R * 2.0)
+		deal_box = pip_box if deal_first else deal_box.merge(pip_box)
+		deal_first = false
+	gaps["deal"] = deal_gap
+	if mine.intersects(deal_box):
+		hits.append("deal")
+	var leaf_gap := INF
+	var leaf_px := LeafletDust.chip_px(pin_r)
+	var leaf_hit := false
+	for rel in [LeafletDust.NEAR, LeafletDust.OPPOSITE]:
+		var leaf_at := Vector2(rel.x * pin_r, rel.y * pin_r)
+		leaf_gap = minf(leaf_gap, at.distance_to(leaf_at))
+		if mine.intersects(_transfer_rect(leaf_at, leaf_px)):
+			leaf_hit = true
+	gaps["leaflet"] = leaf_gap
+	if leaf_hit:
+		hits.append("leaflet")
+	var relay_at := Vector2(pin_r * P78_RELAY_OFFSET.x, pin_r * P78_RELAY_OFFSET.y)
+	gaps["relay"] = at.distance_to(relay_at)
+	if mine.intersects(_transfer_rect(relay_at, P78_RELAY_DISC)):
+		hits.append("relay")
+	var signal_at := Vector2(pin_r * P82_SIGNAL_OFFSET.x, pin_r * P82_SIGNAL_OFFSET.y)
+	gaps["signal"] = at.distance_to(signal_at)
+	if mine.intersects(_transfer_rect(signal_at, P82_SIGNAL_DISC)):
+		hits.append("signal")
+	return {
+		"gaps": gaps,
+		"hits": hits,
+		"omit": not hits.is_empty(),
+		"leaf_px": leaf_px,
+		"rect": mine,
+		"deal": deal_box,
+	}
+
+
+func transfer_overlap_report(pin_r: float) -> Dictionary:
+	var row := _transfer_hits(pin_r)
+	row["r"] = pin_r
+	return row
+
+
+func transfer_mark_omitted() -> bool:
+	if bool(_transfer_hits(transfer_max_pin_radius()).get("omit", true)):
+		return true
+	## Capital pins are larger. The locked slot is omitted if either size collides.
+	return bool(_transfer_hits(transfer_capital_pin_radius()).get("omit", true))
+
+
+func _draw_transfer_mark(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not TransferHubs.is_hub(game, sid) or transfer_mark_omitted():
+		return
+	var pos := at + transfer_mark_offset(r) - Vector2(0, 2.0 * lift)
+	var tex := ArtPack.icon_texture("transfer_mark", 24.0)
+	if tex != null:
+		c.draw_texture_rect(tex, Rect2(pos - Vector2(TRANSFER_DISC, TRANSFER_DISC) * 0.5, Vector2(TRANSFER_DISC, TRANSFER_DISC)), false)
+		return
+	_draw_transfer_glyph(c, pos)
+
+
+## Vector Y-fork used only when the plate is missing. Not a letter, not a crescent, not a grey box.
+func _draw_transfer_glyph(c: CanvasItem, pos: Vector2) -> void:
+	var rad := TRANSFER_DISC * 0.5
+	c.draw_circle(pos, rad, TAG_PAPER)
+	c.draw_arc(pos, rad, 0, TAU, 18, TRANSFER_BRASS, 1.15, true)
+	var joint := pos + Vector2(0, -rad * 0.02)
+	var stem := pos + Vector2(0, rad * 0.52)
+	var left := pos + Vector2(-rad * 0.55, -rad * 0.48)
+	var right := pos + Vector2(rad * 0.52, -rad * 0.46)
+	c.draw_line(stem, joint, TRANSFER_BRASS, 1.45, true)
+	c.draw_line(joint, left, TRANSFER_BRASS, 1.45, true)
+	c.draw_line(joint, right, TRANSFER_BRASS, 1.45, true)
+
+
+func transfer_tip_lines(game, sid: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	var key := TransferHubs.tip_key(game, sid)
+	if key == "":
+		return out
+	out.append(Copy.t(key))
+	if key == "transfer.tip" and not transfer_mark_omitted():
+		out.append(Copy.t("transfer.mark"))
+	return out
+
+
+func _add_transfer_status(parent: Node, game, sid: String) -> void:
+	var key := TransferHubs.status_key(game, sid)
+	if key == "":
+		return
+	var hub := key == "transfer.status"
+	var line := _lab(Copy.t(key), 15, hub)
+	line.set_meta("transfer_status", key)
+	line.tooltip_text = Copy.t("transfer.tip" if hub else "transfer.quiet")
+	if hub:
+		line.add_theme_color_override("font_color", TRANSFER_BRASS)
+	parent.add_child(line)
+
+
+func _note_first_transfer() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var game = _game()
+	if game == null:
+		return
+	var line := TransferHubs.note(game)
+	if line == "":
+		return
+	_show_transfer_float(line)
+
+
+func _show_transfer_float(line: String) -> void:
+	if _transfer_float == null:
+		_transfer_float = Label.new()
+		_transfer_float.z_index = 8
+		_transfer_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_transfer_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_transfer_float.add_theme_font_size_override("font_size", 18)
+		_transfer_float.add_theme_color_override("font_color", TRANSFER_BRASS)
+		_transfer_float.add_theme_constant_override("outline_size", 6)
+		_transfer_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_transfer_float.set_meta("transfer_float", true)
+		add_child(_transfer_float)
+	_transfer_float.text = line
+	_transfer_float.modulate.a = 1.0
+	_transfer_float.visible = true
+	if _transfer_float_tween != null and _transfer_float_tween.is_valid():
+		_transfer_float_tween.kill()
+	_place_transfer_float()
+	if not is_inside_tree():
+		return
+	_transfer_float_tween = create_tween()
+	_transfer_float_tween.tween_interval(4.2)
+	_transfer_float_tween.tween_callback(func() -> void:
+		if _transfer_float != null:
+			_transfer_float.visible = false)
+
+
+func _place_transfer_float() -> void:
+	if _transfer_float == null or not _transfer_float.visible:
+		return
+	_transfer_float.custom_minimum_size = Vector2(520, 28)
+	_transfer_float.size = Vector2(520, 28)
+	var y := 36.0
+	for other in [_deal_float, _warm_float, _leaf_float, _need_float, _focus_float]:
+		if other != null and other.visible:
+			y = maxf(y, other.position.y + 34.0)
+	_transfer_float.position = Vector2(maxf(8.0, size.x * 0.5 - 260.0), y)
 
 
 ## Static scrap. No flutter in either motion setting. Art, else the propaganda icon at quarter pin size.
@@ -3885,6 +4105,8 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	for extra in transfer_tip_lines(game, sid):
+		lines.append(str(extra))
 	return "\n".join(lines)
 
 
@@ -5375,6 +5597,7 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
+	_add_transfer_status(column, game, sid)
 	_add_perk_good(game, sid, column)
 	head.add_child(column)
 	_visit_body.add_child(head)
