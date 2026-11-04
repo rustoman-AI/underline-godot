@@ -2,7 +2,7 @@
   "_note": "P85 Outpost Ledger (NEW invent — DEC-OL1…OL3). Spec: /workspace/OUTPOST_LEDGER_P85_SPEC.md. Namespace ledger.* — HARD NO reopen wall.* (P77 Line Wall plate_ledger is different). Cite P52 Station Focus (Visit / focus — do not reopen focus geometry); P55 Community Perks / goods (bind display only; do not invent goods); P57 Focus Pip (do not steal slot); P41 Yard Clearance (desk/yard density cite — do not reopen). Soft dawn: NONE (ledger first float ≠ soft dawn chip). Tone: dry metro grit — one thin glance on Visit, not a warehouse UI. Balance ZERO. Never invent economy numbers beyond placeholders. EN via Copy.t; RU → data/ru.json.",
   "_roadmap": "P85",
   "_owners": "Texts; Code Visit owned non-capital Ledger line bound to existing mats/food/goods fields; UIUX Visit Ledger status + tip + first float + empty/zero; Art none required (never blocks)",
-  "_status": "Empty copy per Designer (PR #67): ledger.empty is the muted row when last week's flow is zero or unreadable. EN 'Nothing came through last week.' RU 'За неделю ничего не прошло.' | Flow copy per Code/Designer (PR #67, 2026-11-03): ledger.status/tip now say last week's flow, not holdings. | Designer APPROVED / Code-ready 2026-11-03 (UI gate APPROVED). RU fix per Designer: 'мат.' → 'матер.' in ledger.status / ledger.mats (avoid 'swearing' read; matches 'материалы' in data/ru.json; agreement-safe with {n}). Keys/placeholders unchanged. Soft dawn NONE. | prior: Texts READY at design-gate awaiting Designer stamp — P85 Outpost Ledger authored 2026-10-27 (8 ledger.*). Soft dawn NONE. wall.* unreopened. P81–P83 unreopened. Cite P52/P55/P57/P41 only. | Polish t145u 2026-11-03: 3 edit(s) (ledger.tip.ru, ledger.status.ru, ledger.empty.ru); keys/placeholders unchanged; no balance; see polish_notes.md § Polish t145u. Still READY at design-gate (not stamped).",
+  "_status": "Flow copy per Code/Designer (PR #67, 2026-11-03): ledger.status/tip now say last week's flow, not holdings; ledger.empty back in use per Designer (muted, owned non-capital, flow zero/unreadable): 'Nothing came through last week.' / «За прошлую неделю ничего не прошло.». Keys/placeholders unchanged. | Designer APPROVED / Code-ready 2026-11-03 (UI gate APPROVED). RU fix per Designer: 'мат.' → 'матер.' in ledger.status / ledger.mats (avoid 'swearing' read; matches 'материалы' in data/ru.json; agreement-safe with {n}). Keys/placeholders unchanged. Soft dawn NONE. | prior: Texts READY at design-gate awaiting Designer stamp — P85 Outpost Ledger authored 2026-10-27 (8 ledger.*). Soft dawn NONE. wall.* unreopened. P81–P83 unreopened. Cite P52/P55/P57/P41 only. | Polish t145u 2026-11-03: 3 edit(s) (ledger.tip.ru, ledger.status.ru, ledger.empty.ru); keys/placeholders unchanged; no balance; see polish_notes.md § Polish t145u. Still READY at design-gate (not stamped).",
   "_soft_dawn": "NONE",
   "_cite": [
     "P52 Station Focus — Visit / focus chrome (cite; do not reopen focus geometry)",
@@ -36,7 +36,7 @@
     },
     "ledger.empty": {
       "en": "Nothing came through last week.",
-      "ru": "За неделю ничего не прошло."
+      "ru": "За прошлую неделю ничего не прошло."
     },
     "ledger.mats": {
       "en": "{n} mats",

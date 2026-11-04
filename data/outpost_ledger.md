@@ -20,7 +20,7 @@ Tone: dry metro grit. One thin glance on the Visit sheet — not a second wareho
 | `ledger.tip` | Outpost Ledger. What this station shipped last week. | Книга форпоста. Что ушло с этой станции за прошлую неделю. |
 | `ledger.first` | The outpost keeps a ledger. | Форпост ведёт книгу. |
 | `ledger.status` | Last week: {mats} mats · {food} food · {goods} goods | За прошлую неделю: {mats} матер. · {food} еды · {goods} товара |
-| `ledger.empty` | Nothing came through last week. | За неделю ничего не прошло. |
+| `ledger.empty` | Nothing came through last week. | За прошлую неделю ничего не прошло. |
 | `ledger.mats` | {n} mats | {n} матер. |
 | `ledger.food` | {n} food | {n} еды |
 | `ledger.goods` | {n} goods | {n} товара |

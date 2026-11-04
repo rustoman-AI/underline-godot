@@ -113,7 +113,7 @@ func _check_strings() -> bool:
 	if Copy.t("ledger.tip") != "Книга форпоста. Что ушло с этой станции за прошлую неделю.":
 		_bad("ru tip " + Copy.t("ledger.tip"))
 		return false
-	if Copy.t("ledger.empty") != "За неделю ничего не прошло.":
+	if Copy.t("ledger.empty") != "За прошлую неделю ничего не прошло.":
 		_bad("ru empty " + Copy.t("ledger.empty"))
 		return false
 	Copy.set_lang("en")
