@@ -12567,6 +12567,11 @@ func station_focus_dawn_chip() -> bool:
 	return false
 
 
+## Always false. P85 Outpost Ledger is a Visit line, never a soft dawn chip.
+func outpost_ledger_dawn_chip() -> bool:
+	return false
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true
