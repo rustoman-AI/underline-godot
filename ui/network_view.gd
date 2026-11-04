@@ -5394,10 +5394,51 @@ func _fill_visit(sid: String) -> void:
 	var art: String = game.station_text(sid, "art")
 	if art != "":
 		details.add_child(_lab(art, 14, false))
+	var visit_read := ""
+	if game.has_method("obs_read"):
+		visit_read = game.obs_read("visit", sid)
+	if visit_read != "":
+		details.add_child(_obs_sheet_line(game, "kit", "dispatcher_brass", visit_read))
 	_add_focus_picker(game, sid, _visit_body)
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
+	var greet := ""
+	if game.has_method("obs_greet"):
+		greet = game.obs_greet(sid)
+	if greet != "":
+		var src: Dictionary = MarksKit.greet_source(game, sid)
+		_visit_body.add_child(_obs_sheet_line(game, str(src.get("kind", "mark")), str(src.get("id", "")), greet))
 	_note_station_focus(sid)
+
+
+func _obs_sheet_line(game, kind: String, id: String, text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.tooltip_text = ""
+	if id != "":
+		row.tooltip_text = Copy.fill("obs.line_why", {"name": Copy.t("obs.%s.%s.name" % [kind, id])})
+	var glyph := TextureRect.new()
+	glyph.custom_minimum_size = Vector2(16, 16)
+	glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var tex := MarksKit.icon(kind, id, 16) if id != "" else null
+	if tex != null:
+		glyph.texture = tex
+		row.add_child(glyph)
+	else:
+		var ring := Label.new()
+		ring.text = MarksKit.initial(kind, id) if id != "" else ""
+		ring.custom_minimum_size = Vector2(16, 16)
+		ring.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ring.add_theme_font_size_override("font_size", 11)
+		ring.add_theme_color_override("font_color", Color("efe6d2"))
+		row.add_child(ring)
+	var lab := _lab(text, 14, false)
+	lab.add_theme_color_override("font_color", Color("d9cbb4"))
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lab)
+	return row
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
