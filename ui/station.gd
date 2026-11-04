@@ -216,6 +216,11 @@ var guide_skips := 0
 var toast_label: Label
 var toast_plate: PanelContainer
 var toast_fade: Tween
+## P79 Shift Board. Focus is the seat whose picker is open. The float is yard text, not a dawn chip.
+var shift_focus := {}
+var shift_float: Label
+var shift_float_token := 0
+var shift_button: Button
 var blown_flash: TextureRect
 var salvage_float: Control
 ## P43 dawn chip (paper strip under the top bar) and the once-per-run platform float.
@@ -375,7 +380,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_shift():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +396,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_shift():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +439,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_shift():
+		await _shift_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -586,6 +593,177 @@ func _want_lore() -> bool:
 
 func _want_drawer() -> bool:
 	return _dev_args().has("--drawer")
+
+
+func _want_shift() -> bool:
+	return _dev_args().has("--shift") or OS.get_environment("UNDERLINE_SHIFT_SHOTS") == "1"
+
+
+## Desk before the panel, then the board, the Free picker, Unassign, and no-Free.
+func _shift_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_shift_stage()
+	_refresh()
+	_close_card()
+	await _frame()
+	await _frame()
+	_save("shift_before_desk")
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save("shift_before_people")
+	drawer_open = false
+	_place_drawer()
+	game.flags.erase("seen_shift_board")
+	_open_shift_board()
+	await _frame()
+	await _frame()
+	_save("shift_after_board")
+	await get_tree().create_timer(1.7).timeout
+	_shift_fill_for_picker()
+	var empty := _shift_shot_seat(true)
+	if not empty.is_empty():
+		_shift_tap_empty(str(empty.uid), int(empty.seat))
+		await _frame()
+		await _frame()
+		_shift_scroll_picker()
+		await _frame()
+		_save("shift_after_picker")
+	var taken := _shift_shot_seat(false)
+	if not taken.is_empty():
+		_shift_tap_occupied(str(taken.uid), int(taken.seat), str(taken.person))
+		await _frame()
+		await _frame()
+		_save("shift_after_unassign")
+	if not empty.is_empty():
+		for person in game.residents:
+			var id := str(person.id)
+			if game._staff_room_of(id) != "" or game._is_child(person):
+				continue
+			if game._locked_ids().has(id):
+				continue
+			if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+				continue
+			person.sick = 2
+		_shift_tap_empty(str(empty.uid), int(empty.seat))
+		await _frame()
+		await _frame()
+		_shift_scroll_picker()
+		await _frame()
+		_save("shift_after_need_free")
+	get_tree().quit()
+
+
+func _shift_stage() -> void:
+	for room in game.rooms:
+		var keep := 1
+		var type := str(room.type)
+		if type == "hydroponics":
+			keep = 2
+		elif type == "generator":
+			keep = 99
+		elif type != "workshop" and type != "air_filter":
+			continue
+		while room.staff.size() > keep:
+			game.apply({"kind": "unassign", "person": str(room.staff[room.staff.size() - 1])})
+	var spared := false
+	var marked := 0
+	for person in game.residents:
+		var id := str(person.id)
+		if game._staff_room_of(id) != "" or game._is_child(person) or bool(person.get("soldier", false)):
+			continue
+		if game._locked_ids().has(id):
+			continue
+		if not spared and int(person.get("skills", {}).get("labor", 1)) > 1:
+			spared = true
+			continue
+		if marked == 0:
+			person.sick = 2
+			marked = 1
+		elif marked == 1:
+			person.absent = 2
+			marked = 2
+			break
+	var spot := _first_open_floor()
+	if spot.x >= 0:
+		game.stock.materials = maxi(int(game.stock.materials), 40)
+		game.apply({"kind": "build", "type": "infirmary", "level": spot.x, "cell": spot.y})
+
+
+## Leave one strong hand and one weak hand Free, and one empty seat, so the picker shows both pips.
+func _shift_fill_for_picker() -> void:
+	var keep_match := ""
+	var keep_low := ""
+	var rest: Array = []
+	for person in game.residents:
+		var id := str(person.id)
+		if game._staff_room_of(id) != "" or game._is_child(person) or game._locked_ids().has(id):
+			continue
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		var labor := int(person.get("skills", {}).get("labor", 1))
+		if keep_match == "" and labor > 1:
+			keep_match = id
+		elif keep_low == "" and labor <= 1:
+			keep_low = id
+		else:
+			rest.append(id)
+	for id in rest:
+		if _shift_empty_seats() <= 1:
+			break
+		for row in game.shift_board_rows():
+			if bool(row.get("building", false)) or str(row.get("room_id", "")) == "":
+				continue
+			if not bool(game.assign_preview(str(id), str(row.room_id)).ok):
+				continue
+			if _shift_empty_seats() <= 1:
+				break
+			game.apply({"kind": "assign", "person": str(id), "room": str(row.room_id)})
+			break
+
+
+func _shift_scroll_picker() -> void:
+	if card_scroll == null or card_body == null:
+		return
+	for child in card_body.get_children():
+		if not child.has_meta("shift_picker"):
+			continue
+		card_scroll.scroll_vertical = int((child as Control).position.y)
+		return
+
+
+func _shift_empty_seats() -> int:
+	var n := 0
+	for row in game.shift_board_rows():
+		if bool(row.get("building", false)) or str(row.get("room_id", "")) == "":
+			continue
+		for seat in row.get("seats", []):
+			if seat.get("person_id", null) == null:
+				n += 1
+	return n
+
+
+func _shift_shot_seat(want_empty: bool) -> Dictionary:
+	for row in game.shift_board_rows():
+		if bool(row.get("building", false)) or str(row.get("room_id", "")) == "":
+			continue
+		var seat_i := 0
+		for seat in row.get("seats", []):
+			var pid = seat.get("person_id", null)
+			var empty := pid == null or str(pid) == ""
+			if empty == want_empty:
+				return {"uid": str(row.room_id), "seat": seat_i, "person": "" if empty else str(pid)}
+			seat_i += 1
+	return {}
 
 
 func _drawer_shots() -> void:
@@ -1080,6 +1258,12 @@ func _build() -> void:
 	end_button.mouse_entered.connect(_show_ahead.bind(true))
 	end_button.mouse_exited.connect(_show_ahead.bind(false))
 	add_child(end_button)
+	shift_button = _button("shift.open", _open_shift_board)
+	shift_button.tooltip_text = Copy.t("shift.title")
+	shift_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	shift_button.custom_minimum_size = Vector2(108, 44)
+	shift_button.add_theme_font_size_override("font_size", 16)
+	add_child(shift_button)
 	network_button = _button("Network", _toggle_network)
 	network_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	network_button.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -1490,6 +1674,12 @@ func _side_panel() -> PanelContainer:
 	people_head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	people_head.mouse_filter = Control.MOUSE_FILTER_STOP
 	head.add_child(people_head)
+	var board := _button("shift.title", _open_shift_board)
+	board.tooltip_text = Copy.t("shift.title")
+	board.custom_minimum_size = Vector2(128, 36)
+	board.add_theme_font_size_override("font_size", 15)
+	board.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_child(board)
 	var shut := _button("×", _toggle_drawer)
 	shut.custom_minimum_size = Vector2(40, 36)
 	shut.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1620,6 +1810,19 @@ func _place_chrome() -> void:
 		end_cover.offset_left = -margin - end_w
 		end_cover.offset_bottom = -margin
 		end_cover.offset_top = -margin - end_h
+	if shift_button != null:
+		var shift_w := 108.0
+		shift_button.visible = not showing_network
+		shift_button.anchor_left = 1.0
+		shift_button.anchor_right = 1.0
+		shift_button.anchor_top = 1.0
+		shift_button.anchor_bottom = 1.0
+		shift_button.custom_minimum_size = Vector2(shift_w, tool_h)
+		var shift_right := -margin - end_w - 8.0 - (240.0 if showing_network else 132.0) - 8.0
+		shift_button.offset_right = shift_right
+		shift_button.offset_left = shift_right - shift_w
+		shift_button.offset_bottom = -margin
+		shift_button.offset_top = -margin - tool_h
 	if network_button != null:
 		var net_w := 240.0 if showing_network else 132.0
 		network_button.anchor_left = 1.0
@@ -3686,6 +3889,273 @@ func _salvage_panel(rows: Array) -> String:
 			return "res://assets/ui/salvage_board_no_blueprint.webp"
 		_:
 			return "res://assets/ui/salvage_board_panel.webp"
+
+
+## P79-SHIFT-BEGIN
+func _open_shift_board() -> void:
+	shift_focus = {}
+	_show_shift_board()
+
+
+func _show_shift_board() -> void:
+	if game == null:
+		return
+	if not _claim(ModalDeck.AMBIENT, "shift", _show_shift_board):
+		return
+	var first := game.shift_note_seen()
+	_open_card(Copy.t("shift.title"))
+	card_roomy = true
+	_fill_shift_board()
+	_fit_card()
+	if first:
+		_shift_float()
+
+
+func _fill_shift_board() -> void:
+	var rows: Array = game.shift_board_rows()
+	var focus_uid := str(shift_focus.get("uid", ""))
+	var focus_row: Dictionary = {}
+	for row in rows:
+		card_body.add_child(_shift_row(row))
+		if focus_uid != "" and str(row.get("room_id", "")) == focus_uid:
+			focus_row = row
+	if focus_row.is_empty() or bool(focus_row.get("building", false)):
+		return
+	card_body.add_child(_shift_picker(focus_row))
+
+
+func _shift_row(row: Dictionary) -> Control:
+	var plate := PanelContainer.new()
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plate.add_theme_stylebox_override("panel", _column_style())
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title := VBoxContainer.new()
+	title.custom_minimum_size = Vector2(148, 0)
+	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var name := _label(str(row.get("name", "")), 16, true, false)
+	name.clip_text = true
+	name.custom_minimum_size = Vector2(148, 0)
+	title.add_child(name)
+	if bool(row.get("building", false)):
+		var tip := _label(Copy.fill("station.tip_building", {
+			"room": str(row.get("name", "")),
+			"weeks": str(int(row.get("weeks", 0))),
+		}), 12, false, false)
+		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tip.custom_minimum_size = Vector2(148, 0)
+		tip.add_theme_color_override("font_color", PAPER_MUTED)
+		title.add_child(tip)
+	line.add_child(title)
+	var seats := HBoxContainer.new()
+	seats.add_theme_constant_override("separation", 6)
+	seats.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var seat_rows: Array = row.get("seats", [])
+	for seat_i in seat_rows.size():
+		seats.add_child(_shift_seat(row, seat_i, seat_rows[seat_i]))
+	line.add_child(seats)
+	if bool(row.get("full", false)):
+		var full := _label("shift.full", 14)
+		full.add_theme_color_override("font_color", PAPER_MUTED)
+		full.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(full)
+	plate.add_child(line)
+	return plate
+
+
+func _shift_seat(row: Dictionary, seat_i: int, seat: Dictionary) -> Control:
+	var uid := str(row.get("room_id", ""))
+	var building := bool(row.get("building", false)) or uid == ""
+	var pid = seat.get("person_id", null)
+	var empty := pid == null or str(pid) == ""
+	var text := Copy.t("shift.empty") if empty else game.shift_clip_name(str(seat.get("name", "")))
+	var cb := _shift_noop
+	if not building and empty:
+		cb = _shift_tap_empty.bind(uid, seat_i)
+	elif not building:
+		cb = _shift_tap_occupied.bind(uid, seat_i, str(pid))
+	var button := _button(text, cb)
+	button.text = text
+	button.custom_minimum_size = Vector2(132, 40)
+	button.add_theme_font_size_override("font_size", 14)
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.clip_text = true
+	button.disabled = building
+	if empty:
+		button.add_theme_color_override("font_color", PAPER_MUTED)
+		button.add_theme_color_override("font_disabled_color", PAPER_MUTED)
+		button.tooltip_text = Copy.t("shift.empty")
+	else:
+		var pip := game.shift_pip_line(str(pid), str(row.get("skill", "")))
+		button.tooltip_text = pip if pip != "" else text
+	if str(shift_focus.get("uid", "")) == uid and int(shift_focus.get("seat", -1)) == seat_i:
+		var face := _button_face(false, true)
+		face.border_color = Color("e2a63a")
+		face.set_border_width_all(2)
+		button.add_theme_stylebox_override("normal", face)
+	var wrap := HBoxContainer.new()
+	wrap.add_theme_constant_override("separation", 4)
+	wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if not empty:
+		var band := game.shift_skill_band(str(pid), str(row.get("skill", "")))
+		if band != "":
+			var dot := ColorRect.new()
+			dot.custom_minimum_size = Vector2(8, 8)
+			dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			dot.color = DELTA_UP if band == "match" else PAPER_MUTED
+			wrap.add_child(dot)
+	wrap.add_child(button)
+	return wrap
+
+
+func _shift_noop() -> void:
+	pass
+
+
+func _shift_tap_empty(uid: String, seat_i: int) -> void:
+	shift_focus = {"uid": uid, "seat": seat_i, "mode": "empty"}
+	_show_shift_board()
+
+
+func _shift_tap_occupied(uid: String, seat_i: int, person_id: String) -> void:
+	shift_focus = {"uid": uid, "seat": seat_i, "mode": "occupied", "person": person_id}
+	_show_shift_board()
+
+
+func _shift_picker(row: Dictionary) -> Control:
+	var box := VBoxContainer.new()
+	box.set_meta("shift_picker", true)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 6)
+	var rule := ColorRect.new()
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.color = PAPER_EDGE
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(rule)
+	if str(shift_focus.get("mode", "")) == "occupied":
+		box.add_child(_shift_occupied(row))
+		return box
+	var uid := str(row.get("room_id", ""))
+	var pick: Dictionary = game.shift_picker(uid)
+	var skill := str(pick.get("skill", ""))
+	if bool(pick.get("need_free", false)):
+		var none := _label("shift.need_free", 15)
+		none.add_theme_color_override("font_color", PAPER_MUTED)
+		box.add_child(none)
+	for person in pick.get("free", []):
+		box.add_child(_shift_free_row(person, uid, skill))
+	for person in pick.get("blocked", []):
+		var state := "Sick" if str(person.get("state", "")) == "sick" else "Away"
+		var who := _label("%s · %s" % [Copy.t(state), str(person.get("name", ""))], 15, false, false)
+		who.add_theme_color_override("font_color", PAPER_MUTED)
+		box.add_child(who)
+	return box
+
+
+func _shift_free_row(person: Dictionary, uid: String, skill: String) -> Control:
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var who := _label("%s · %s" % [Copy.t("Free"), str(person.get("name", ""))], 16, false, false)
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.add_child(who)
+	var pip := _label(game.shift_pip_line(str(person.get("id", "")), skill), 14, false, false)
+	pip.add_theme_color_override("font_color", DELTA_UP if str(person.get("band", "")) == "match" else PAPER_MUTED)
+	line.add_child(pip)
+	var assign := _button("shift.assign", _shift_assign.bind(str(person.get("id", "")), uid))
+	assign.custom_minimum_size = Vector2(120, 40)
+	assign.add_theme_font_size_override("font_size", 16)
+	line.add_child(assign)
+	return line
+
+
+func _shift_occupied(row: Dictionary) -> Control:
+	var pid := str(shift_focus.get("person", ""))
+	var skill := str(row.get("skill", ""))
+	var name := ""
+	for seat in row.get("seats", []):
+		if str(seat.get("person_id", "")) == pid:
+			name = str(seat.get("name", ""))
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var who := _label(game.shift_clip_name(name), 16, true, false)
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.add_child(who)
+	var pip_text := game.shift_pip_line(pid, skill)
+	if pip_text != "":
+		var pip := _label(pip_text, 14, false, false)
+		pip.add_theme_color_override("font_color", DELTA_UP if game.shift_skill_band(pid, skill) == "match" else PAPER_MUTED)
+		line.add_child(pip)
+	var button := _button("shift.unassign", _shift_unassign.bind(pid))
+	button.custom_minimum_size = Vector2(128, 40)
+	button.add_theme_font_size_override("font_size", 16)
+	line.add_child(button)
+	return line
+
+
+func _shift_assign(person_id: String, uid: String) -> void:
+	var info := game.assign_preview(person_id, uid)
+	if not bool(info.get("ok", false)):
+		_show_shift_board()
+		return
+	var toast := _assign_toast_line(person_id, uid)
+	if not game.apply({"kind": "assign", "person": person_id, "room": uid}):
+		_show_shift_board()
+		return
+	_refresh()
+	if toast != "":
+		_toast(toast)
+	shift_focus = {}
+	_show_shift_board()
+
+
+func _shift_unassign(person_id: String) -> void:
+	var toast := _unassign_toast_line(person_id)
+	if not game.apply({"kind": "unassign", "person": person_id}):
+		_show_shift_board()
+		return
+	_refresh()
+	if toast != "":
+		_toast(toast)
+	shift_focus = {}
+	_show_shift_board()
+
+
+## Yard soft float. Static for 1.6s. Reduce-motion keeps the text and skips any tween.
+func _shift_float() -> void:
+	if shift_float != null and is_instance_valid(shift_float):
+		shift_float.queue_free()
+	var lab := _label("", 18, true, false)
+	lab.text = Copy.t("shift.first")
+	lab.z_index = 40
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.add_theme_constant_override("outline_size", 6)
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lab.add_theme_color_override("font_color", Color("e9d6a6"))
+	lab.custom_minimum_size = Vector2(520, 28)
+	add_child(lab)
+	shift_float = lab
+	var top := 80.0
+	if hud != null:
+		top = hud.size.y + 8.0
+	lab.position = Vector2(maxf(8.0, (size.x - 520.0) * 0.5), top)
+	lab.size = Vector2(520, 28)
+	shift_float_token += 1
+	var token := shift_float_token
+	var timer := get_tree().create_timer(1.6)
+	timer.timeout.connect(func() -> void:
+		if token != shift_float_token:
+			return
+		if shift_float != null and is_instance_valid(shift_float):
+			shift_float.queue_free()
+		if shift_float_token == token:
+			shift_float = null
+	)
+## P79-SHIFT-END
 
 
 func _show_salvage() -> void:
@@ -8138,6 +8608,8 @@ func _close_card() -> void:
 	if deck.top_token() == "raid_share" and game != null and game.raid_share_open():
 		_pick_raid_share("stockpile")
 		return
+	if deck.top_token() == "shift":
+		shift_focus = {}
 	if yard != null:
 		yard.place_lock = false
 		yard.clear_place()
