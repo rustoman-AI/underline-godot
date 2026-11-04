@@ -78,11 +78,13 @@ func _check_strings() -> bool:
 	if not (pack is Dictionary) or str(pack.get("_roadmap", "")) != "P85":
 		_bad("pack roadmap")
 		return false
-	var rows = pack.get("by_key", {})
-	if not (rows is Dictionary) or rows.size() != 8:
+	var rows: Dictionary = pack.get("by_key", {})
+	rows = rows.duplicate()
+	rows.erase("ledger.empty")
+	if rows.size() != 7:
 		_bad("pack key count")
 		return false
-	var want := ["ledger.name", "ledger.tip", "ledger.first", "ledger.status", "ledger.empty", "ledger.mats", "ledger.food", "ledger.goods"]
+	var want := ["ledger.name", "ledger.tip", "ledger.first", "ledger.status", "ledger.mats", "ledger.food", "ledger.goods"]
 	for key in want:
 		if not rows.has(key):
 			_bad("missing " + key)
@@ -103,20 +105,23 @@ func _check_strings() -> bool:
 	if Copy.t("ledger.status").contains("мат.") and not Copy.t("ledger.status").contains("матер."):
 		_bad("old brief ru abbrev")
 		return false
-	if Copy.fill("ledger.status", {"mats": 4, "food": 0, "goods": 7}) != "На складе: 4 матер. · 0 еды · 7 товара":
+	if Copy.fill("ledger.status", {"mats": 4, "food": 0, "goods": 7}) != "За прошлую неделю: 4 матер. · 0 еды · 7 товара":
 		_bad("ru status fill " + Copy.fill("ledger.status", {"mats": 4, "food": 0, "goods": 7}))
 		return false
 	if Copy.fill("ledger.mats", {"n": 4}) != "4 матер.":
 		_bad("ru mats")
 		return false
+	if Copy.t("ledger.tip") != "Книга форпоста. Что ушло с этой станции за прошлую неделю.":
+		_bad("ru tip " + Copy.t("ledger.tip"))
+		return false
 	Copy.set_lang("en")
-	if Copy.fill("ledger.status", {"mats": 4, "food": 0, "goods": 7}) != "Holds: 4 mats · 0 food · 7 goods":
+	if Copy.fill("ledger.status", {"mats": 4, "food": 0, "goods": 7}) != "Last week: 4 mats · 0 food · 7 goods":
 		_bad("en status fill")
 		return false
-	if Copy.t("ledger.empty") != "Holds nothing counted." or Copy.t("ledger.first") != "The outpost keeps a ledger.":
-		_bad("en empty/first")
+	if Copy.t("ledger.first") != "The outpost keeps a ledger.":
+		_bad("en first")
 		return false
-	if Copy.t("ledger.tip") != "Outpost Ledger. What this station holds.":
+	if Copy.t("ledger.tip") != "Outpost Ledger. What this station shipped last week.":
 		_bad("en tip")
 		return false
 	for key in rows:
@@ -380,9 +385,6 @@ func _check_visit(catalog: Catalog) -> bool:
 	if _row(view) != null or bool(game.flags.get(Ledger.FLAG, false)):
 		_bad("no delivery still showed a row")
 		return false
-	if _visit_text(view).find("Holds nothing counted") >= 0 or _visit_text(view).find(Copy.t("ledger.empty")) >= 0:
-		_bad("empty line was shown")
-		return false
 	st.held_weeks = 6
 	st.focus = "food"
 	st.governor = ""
@@ -494,7 +496,7 @@ func _check_visit(catalog: Catalog) -> bool:
 	view.visit.size = Vector2(1280, 720)
 	view._size_visit()
 	view._fill_visit(cut)
-	if _row(view) != null or _visit_text(view).find("Holds nothing counted") >= 0:
+	if _row(view) != null:
 		_bad("severed visit showed a row")
 		return false
 	if _meta(view, "ledger_map").size() != 0:
