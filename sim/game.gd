@@ -28,6 +28,17 @@ const SALVAGE_NODES := [
 const STRIP_MATERIALS := 4
 const STRIP_EVERY := 3
 const JUNK_EVERY := 6
+## P83 Guest Beds. One cot per online Barracks, Dorm, or Quarters, cap 4.
+## Barracks and Dorm are not room types on this master. Inventing them would be a new room
+## and a housing change, so seats are carved from online Quarters (the home-yard housing room).
+## Platform is the hall, not a cot block. A later pack that adds type ids barracks or dorm
+## counts too; this pack does not write their stats. Soft dawn is not joined.
+const GUEST_ROOM_TYPES := ["barracks", "dorm", "quarters"]
+const GUEST_CAP := 4
+## Staff will not seat a guest while this is on (never auto-assign a guest to a room).
+## Player Assign converts, then the usual gates apply. Turn this off if careful loss
+## leaves the measured 2/60 baseline — state chrome stays either way.
+const GUEST_HOLD_WORK := true
 
 ## One week is dawn, station and council actions, the rival phase, then night.
 ## No nodes. Content comes from the JSON catalog.
@@ -1275,6 +1286,7 @@ func _rival_phase() -> void:
 
 
 func _night() -> void:
+	_tick_guests()
 	_grant_junk_blueprints()
 	var sick_now := sick_count()
 	if _season_is("cough"):
@@ -3476,6 +3488,7 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 	var info := assign_preview(person_id, uid)
 	if not bool(info.ok):
 		return false
+	var was_guest := people.has(person_id) and is_guest(people[person_id])
 	_unassign(person_id)
 	var room = _room(uid)
 	room.staff.append(person_id)
@@ -3485,6 +3498,9 @@ func _apply_assign(person_id: String, uid: String) -> bool:
 	_log("ASSIGN %s to %s" % [people[person_id].name, catalog.rooms[room.type].name])
 	if str(room.type) == "listening_post":
 		notices.append(listening_assign_line(person_id))
+	## Assign converts, then the seat above is the gate that already passed.
+	if was_guest:
+		_convert_guest(people[person_id])
 	return true
 
 
@@ -5741,6 +5757,7 @@ func _tick_expedition() -> void:
 	sq.away = false
 	_lose_soldiers(int(round(float(sq.size) * 0.15)), "The road to South Ferry")
 	stock.materials = int(stock.materials) + 10
+	## Party walk-back belongs to homecoming. Not a guest intake.
 	_hire(2)
 	expedition = {}
 	flags[EXPEDITION_FLAG] = true
@@ -6858,6 +6875,8 @@ func appoint_governor(sid: String, pid: String) -> bool:
 			if str(seat.id) == pid and str(seat_used.get(str(seat.role), "")) == "":
 				orders_left = maxi(0, orders_left - 1)
 	decisions += 1
+	if is_guest(people[pid]):
+		_convert_guest(people[pid])
 	_note("%s now holds %s for us." % [people[pid].name, stations[sid].name], "%s теперь держит для нас станцию «%s»." % [Copy.person(str(people[pid].name)), Copy.t(str(stations[sid].name))])
 	_journal("governor", {"station": sid, "person": pid})
 	return true
@@ -7205,7 +7224,7 @@ func _best_free(skill: String, used: Dictionary) -> String:
 	var best_v := -1
 	for person in residents:
 		var id := str(person.id)
-		if used.has(id) or _is_child(person):
+		if used.has(id) or _is_child(person) or (GUEST_HOLD_WORK and is_guest(person)):
 			continue
 		var v := 0 if skill == "" else int(person.skills.get(skill, 0))
 		if v > best_v:
@@ -7267,7 +7286,7 @@ func _unassign(id: String) -> void:
 		room.staff = keep
 
 
-func _hire(n: int) -> void:
+func _hire(n: int, park := false) -> void:
 	var firsts: Array = catalog.names.first
 	var lasts: Array = catalog.names.last
 	var traits: Array = catalog.names.traits
@@ -7296,6 +7315,150 @@ func _hire(n: int) -> void:
 		residents.append(person)
 		people[id] = person
 		_dress([person])
+		## Border / intake joiners park on a spare cot when one is free. Party return does not.
+		if park:
+			_park_guest(person)
+
+
+func is_guest(person: Dictionary) -> bool:
+	return int(person.get("guest_until", 0)) > 0
+
+
+## Online Barracks, Dorm, or Quarters in the home yard. Building jobs are not rooms yet.
+## Offline, switched off, or shut rooms lend no cot. Cap 4. Order is stable by uid.
+func guest_seat_rooms() -> Array:
+	var rows: Array = []
+	for room in rooms:
+		if not _guest_room_online(room):
+			continue
+		rows.append(room)
+	rows.sort_custom(func(a, b): return str(a.uid) < str(b.uid))
+	if rows.size() > GUEST_CAP:
+		return rows.slice(0, GUEST_CAP)
+	return rows
+
+
+func _guest_room_online(room) -> bool:
+	if room == null or not (room is Dictionary):
+		return false
+	if not GUEST_ROOM_TYPES.has(str(room.get("type", ""))):
+		return false
+	if bool(room.get("offline", false)) or bool(room.get("switched_off", false)):
+		return false
+	if int(room.get("disabled", 0)) > 0:
+		return false
+	return true
+
+
+func guest_max() -> int:
+	return guest_seat_rooms().size()
+
+
+func guest_people() -> Array:
+	var rows: Array = []
+	for person in residents:
+		if person is Dictionary and is_guest(person):
+			rows.append(person)
+	rows.sort_custom(func(a, b): return str(a.id) < str(b.id))
+	return rows
+
+
+func guest_count() -> int:
+	return guest_people().size()
+
+
+## Blank names read as the People chip word, not a guest.* string.
+func guest_display_name(person: Dictionary) -> String:
+	var name := str(person.get("name", "")).strip_edges()
+	if name == "":
+		return Copy.t("people.chip_guest")
+	return Copy.person(name)
+
+
+## Index of this room among the capped seats, or -1 when it lends none.
+func guest_seat_index(room) -> int:
+	if room == null:
+		return -1
+	var want := str(room.get("uid", ""))
+	var i := 0
+	for seat in guest_seat_rooms():
+		if str(seat.uid) == want:
+			return i
+		i += 1
+	return -1
+
+
+## The person on seat `index`, or {}.
+func guest_on_seat(index: int) -> Dictionary:
+	var rows := guest_people()
+	if index < 0 or index >= rows.size():
+		return {}
+	return rows[index]
+
+
+## Park a brand-new joiner when a cot is free. No second population cap: a full lane stays Free.
+## First fill of the run raises the soft float once. Not a dawn chip. No hope.
+func _park_guest(person: Dictionary) -> bool:
+	if is_guest(person):
+		return true
+	if guest_count() >= guest_max():
+		return false
+	person["guest_until"] = week
+	if not bool(flags.get("seen_guest_beds", false)):
+		flags["seen_guest_beds"] = true
+		flags["guest_float"] = true
+	return true
+
+
+func take_guest_float() -> bool:
+	if not bool(flags.get("guest_float", false)):
+		return false
+	flags["guest_float"] = false
+	return true
+
+
+## Night of the arrival week: one week on the cot, then Free. No hope, no auto-assign.
+func _tick_guests() -> void:
+	for person in residents:
+		if not (person is Dictionary):
+			continue
+		if int(person.get("guest_until", 0)) <= 0:
+			continue
+		if week >= int(person.guest_until):
+			_convert_guest(person)
+
+
+func _convert_guest(person: Dictionary) -> void:
+	if int(person.get("guest_until", 0)) <= 0:
+		return
+	person.erase("guest_until")
+	notices.append(Copy.fill("guest.free", {"name": guest_display_name(person)}))
+	if not bool(flags.get("seen_guest_convert", false)):
+		flags["seen_guest_convert"] = true
+		notices.append(Copy.t("guest.convert"))
+
+
+## Sick > Away > Guest > Duty > crew > room > Free.
+## Duty is only a priority cite: this pack does not invent a duty seat. P59 chips are not drawn here.
+func people_chip_kind(id: String) -> String:
+	if not people.has(id):
+		return ""
+	var person: Dictionary = people[id]
+	if int(person.get("sick", 0)) > 0:
+		return "sick"
+	if int(person.get("absent", 0)) > 0:
+		return "away"
+	if is_guest(person):
+		return "guest"
+	if str(person.get("duty_id", "")) != "":
+		return "duty"
+	for job in [dig, clear, build]:
+		for wid in job.get("workers", []):
+			if str(wid) == id:
+				return "crew"
+	if _staff_room_of(id) != "":
+		return "room"
+	return "free"
 
 
 func _kill(n: int, why: String, cause := "accident", place := "") -> void:
@@ -7492,10 +7655,14 @@ func recruit_preview() -> String:
 
 
 func _enlist(id: String) -> void:
+	var was_guest := people.has(id) and is_guest(people[id])
 	_mark_post(id)
 	_unassign(id)
 	people[id].soldier = true
 	_sync_guard()
+	## A player recruit is an assign onto the guard. Convert, then the enlist stands.
+	if was_guest:
+		_convert_guest(people[id])
 
 
 func _apply_recruit() -> bool:
@@ -9453,7 +9620,7 @@ func _apply_deltas(choice: Dictionary) -> void:
 	if choice.has("people"):
 		var n := int(choice.people)
 		if n > 0:
-			_hire(n)
+			_hire(n, true)
 		elif n < 0:
 			_shed(-n, "left", "left")
 	if choice.has("sick"):
