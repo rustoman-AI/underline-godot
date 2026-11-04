@@ -2467,55 +2467,7 @@ func _clear_duty(person_id: String, sid: String) -> void:
 
 
 func _toast_duty(line: String) -> void:
-	_show_duty_plate(line)
-	if host != null and host.has_method("_toast"):
-		host._toast(line)
-
-
-func _show_duty_plate(line: String) -> void:
-	if _duty_toast == null:
-		_duty_toast = PanelContainer.new()
-		_duty_toast.z_index = 9
-		_duty_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_duty_toast.set_meta("duty_toast", true)
-		var face := StyleBoxFlat.new()
-		face.bg_color = Color("efe4c8")
-		face.border_color = Color("2b2118")
-		face.set_border_width_all(1)
-		face.set_content_margin_all(8)
-		face.content_margin_left = 12
-		face.content_margin_right = 12
-		face.shadow_color = Color(0, 0, 0, 0.35)
-		face.shadow_size = 3
-		face.shadow_offset = Vector2(1, 2)
-		_duty_toast.add_theme_stylebox_override("panel", face)
-		var label := Label.new()
-		label.add_theme_font_size_override("font_size", 16)
-		label.add_theme_color_override("font_color", Color("2b2118"))
-		label.set_meta("duty_toast_line", true)
-		_duty_toast.add_child(label)
-		add_child(_duty_toast)
-	var text: Label = _duty_toast.get_child(0)
-	text.text = line
-	_duty_toast.visible = true
-	_duty_toast.modulate.a = 1.0
-	_place_duty_toast()
-	if _duty_toast_tween != null and _duty_toast_tween.is_valid():
-		_duty_toast_tween.kill()
-	if not is_inside_tree():
-		return
-	_duty_toast_tween = create_tween()
-	_duty_toast_tween.tween_interval(1.6)
-	_duty_toast_tween.tween_callback(func() -> void:
-		if _duty_toast != null:
-			_duty_toast.visible = false)
-
-
-func _place_duty_toast() -> void:
-	if _duty_toast == null or not _duty_toast.visible:
-		return
-	var w := 440.0
-	_duty_toast.position = Vector2(maxf(16.0, size.x * 0.5 - w * 0.5), 16.0)
+	host._toast(Copy.clip(line, 72))
 
 
 func _show_duty_float(line: String) -> void:

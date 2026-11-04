@@ -425,10 +425,10 @@ func _ui() -> bool:
 	if view._duty_float == null or not view._duty_float.visible or view._duty_float.text != Copy.t("duty.first"):
 		_bad("float")
 		return false
-	if view._duty_toast == null or not view._duty_toast.visible:
-		_bad("assign toast")
+	if not _meta(view, "duty_toast").is_empty():
+		_bad("second plate")
 		return false
-	if host.toasts.is_empty() or host.toasts[host.toasts.size() - 1] != Copy.t("duty.assign"):
+	if host.toasts.is_empty() or host.toasts[host.toasts.size() - 1] != Copy.clip(Copy.t("duty.assign"), 72):
 		_bad("assign host toast")
 		return false
 	var y := view._duty_float.position.y
@@ -478,7 +478,7 @@ func _ui() -> bool:
 	if cleared.is_empty() or str(cleared[0].get("person_id", "")) != "":
 		_bad("clear seat")
 		return false
-	if host.toasts.size() != n + 1 or host.toasts[n] != Copy.t("duty.unassign"):
+	if host.toasts.size() != n + 1 or host.toasts[n] != Copy.clip(Copy.t("duty.unassign"), 72):
 		_bad("clear toast")
 		return false
 	if not bool(game.duty_post(free_id, PassageDuty.edge_for(game, sid)).ok):
@@ -490,19 +490,16 @@ func _ui() -> bool:
 	if not _meta(view.visit, "duty_seat").is_empty():
 		_bad("lost seat stayed")
 		return false
-	if view._duty_toast == null or not view._duty_toast.visible:
-		_bad("lost toast")
+	if host.toasts.is_empty() or host.toasts[host.toasts.size() - 1] != Copy.clip(Copy.t("duty.lost"), 72):
+		_bad("lost toast " + str(host.toasts))
 		return false
-	var line: Label = view._duty_toast.get_child(0)
-	if line.text != Copy.t("duty.lost"):
-		_bad("lost line " + line.text)
+	if not _meta(view, "duty_toast").is_empty():
+		_bad("lost second plate")
 		return false
 	view._hide_duty_float()
 	await _save_view(view, "duty_visit_lost.png")
 	game.stations[foreign].passage = true
 	game.stations[foreign].known = true
-	if view._duty_toast != null:
-		view._duty_toast.visible = false
 	view.open_visit(foreign)
 	await process_frame
 	if not _meta(view.visit, "duty_seat").is_empty():
