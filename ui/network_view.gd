@@ -2328,8 +2328,8 @@ func _hide_focus_float() -> void:
 		_focus_float.visible = false
 
 
-## Last week's flow. The row is omitted when that flow cannot be read.
-## It stays the last child of the Visit status column so a later row can sit above it.
+## Last week's flow. Owned non-capital only. A zero or unreadable week is the muted empty line.
+## The row stays the last child of the Visit status column so a later row can sit above it.
 func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
 	if not Ledger.shows(game, sid):
 		return
@@ -2342,6 +2342,14 @@ func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
 	box.focus_mode = Control.FOCUS_ALL
 	box.set_meta("ledger_row", true)
 	box.set_meta("ledger_last", true)
+	if bool(row.get("empty", true)):
+		var quiet := _ledger_label(Ledger.empty_text(), false)
+		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		quiet.set_meta("ledger_line", "empty")
+		box.set_meta("ledger_kind", "empty")
+		box.add_child(quiet)
+		parent.add_child(box)
+		return
 	var text := Ledger.status_text(row)
 	if _ledger_fits(text):
 		var line := _ledger_label(text, true)

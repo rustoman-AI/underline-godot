@@ -80,11 +80,10 @@ func _check_strings() -> bool:
 		return false
 	var rows: Dictionary = pack.get("by_key", {})
 	rows = rows.duplicate()
-	rows.erase("ledger.empty")
-	if rows.size() != 7:
+	if rows.size() != 8:
 		_bad("pack key count")
 		return false
-	var want := ["ledger.name", "ledger.tip", "ledger.first", "ledger.status", "ledger.mats", "ledger.food", "ledger.goods"]
+	var want := ["ledger.name", "ledger.tip", "ledger.first", "ledger.status", "ledger.empty", "ledger.mats", "ledger.food", "ledger.goods"]
 	for key in want:
 		if not rows.has(key):
 			_bad("missing " + key)
@@ -114,6 +113,9 @@ func _check_strings() -> bool:
 	if Copy.t("ledger.tip") != "Книга форпоста. Что ушло с этой станции за прошлую неделю.":
 		_bad("ru tip " + Copy.t("ledger.tip"))
 		return false
+	if Copy.t("ledger.empty") != "За неделю ничего не прошло.":
+		_bad("ru empty " + Copy.t("ledger.empty"))
+		return false
 	Copy.set_lang("en")
 	if Copy.fill("ledger.status", {"mats": 4, "food": 0, "goods": 7}) != "Last week: 4 mats · 0 food · 7 goods":
 		_bad("en status fill")
@@ -123,6 +125,9 @@ func _check_strings() -> bool:
 		return false
 	if Copy.t("ledger.tip") != "Outpost Ledger. What this station shipped last week.":
 		_bad("en tip")
+		return false
+	if Copy.t("ledger.empty") != "Nothing came through last week.":
+		_bad("en empty " + Copy.t("ledger.empty"))
 		return false
 	for key in rows:
 		if str(key).begins_with("wall"):
@@ -196,8 +201,8 @@ func _check_ledger(catalog: Catalog) -> bool:
 		_bad("mark or dawn helper")
 		return false
 	var src := FileAccess.get_file_as_string("res://sim/outpost_ledger.gd")
-	if src.find("rand") >= 0 or src.find("held_weeks =") >= 0 or src.find("ledger.empty") >= 0:
-		_bad("ledger reader rolls, writes, or shows the empty line")
+	if src.find("rand") >= 0 or src.find("held_weeks =") >= 0:
+		_bad("ledger reader rolls or writes")
 		return false
 	print("Ledger fields: " + ", ".join(Ledger.fields_read()))
 	var game := _fresh(catalog)
@@ -213,8 +218,8 @@ func _check_ledger(catalog: Catalog) -> bool:
 	st.materials = 9
 	st.food = 9
 	st.goods = 9
-	if Ledger.shows(game, sid):
-		_bad("held_weeks 0 showed a row")
+	if not Ledger.shows(game, sid) or not Ledger.is_empty(game, sid) or Ledger.empty_text() != Copy.t("ledger.empty"):
+		_bad("held_weeks 0 did not read empty")
 		return false
 	st.erase("materials")
 	st.erase("food")
@@ -247,12 +252,12 @@ func _check_ledger(catalog: Catalog) -> bool:
 	far.hidden = false
 	far.held_weeks = 6
 	far.focus = "food"
-	if Ledger.shows(game, cut):
-		_bad("cut line showed a row")
+	if not Ledger.shows(game, cut) or not Ledger.is_empty(game, cut):
+		_bad("cut line did not read empty")
 		return false
 	game.log.append({"week": int(game.week), "text": "ORDER %s focuses on air" % str(st.name), "important": false})
-	if Ledger.shows(game, sid):
-		_bad("focus changed this week still showed")
+	if not Ledger.shows(game, sid) or not Ledger.is_empty(game, sid):
+		_bad("focus changed this week did not read empty")
 		return false
 	game.log.pop_back()
 	if Ledger.shows(game, game.capital_id):
@@ -382,27 +387,42 @@ func _check_visit(catalog: Catalog) -> bool:
 		return false
 	view.close_sheet()
 	view.open_visit(sid)
-	if _row(view) != null or bool(game.flags.get(Ledger.FLAG, false)):
-		_bad("no delivery still showed a row")
+	var row := _row(view)
+	if row == null or str(row.get_meta("ledger_kind")) != "empty":
+		_bad("no delivery kind " + (str(row.get_meta("ledger_kind")) if row != null else "missing"))
+		return false
+	var lines := _lines(row)
+	if lines.size() != 1 or str(lines[0].text) != "Nothing came through last week.":
+		_bad("empty text " + (str(lines[0].text) if not lines.is_empty() else "missing"))
+		return false
+	var ink: Color = lines[0].get_theme_color("font_color")
+	if not ink.is_equal_approx(NetworkView.MUTED):
+		_bad("empty ink " + str(ink))
+		return false
+	if str(row.tooltip_text) != Copy.t("ledger.tip") or str(lines[0].tooltip_text) != row.tooltip_text:
+		_bad("empty tip")
+		return false
+	if row.get_index() != row.get_parent().get_child_count() - 1:
+		_bad("empty row is not last")
 		return false
 	st.held_weeks = 6
 	st.focus = "food"
 	st.governor = ""
 	var want := _manual_flow(game, sid)
 	view._fill_visit(sid)
-	var row := _row(view)
+	row = _row(view)
 	if row == null or str(row.get_meta("ledger_kind")) != "status":
 		_bad("flow kind " + (str(row.get_meta("ledger_kind")) if row != null else "missing"))
 		return false
 	if row.get_index() != row.get_parent().get_child_count() - 1 or not bool(row.get_meta("ledger_last", false)):
 		_bad("ledger is not the last status row")
 		return false
-	var lines := _lines(row)
+	lines = _lines(row)
 	var status := Copy.fill("ledger.status", want)
 	if lines.size() != 1 or str(lines[0].text) != status:
 		_bad("flow text " + (str(lines[0].text) if not lines.is_empty() else "missing"))
 		return false
-	var ink: Color = lines[0].get_theme_color("font_color")
+	ink = lines[0].get_theme_color("font_color")
 	if not ink.is_equal_approx(NetworkView.INK):
 		_bad("flow ink " + str(ink))
 		return false
@@ -496,8 +516,13 @@ func _check_visit(catalog: Catalog) -> bool:
 	view.visit.size = Vector2(1280, 720)
 	view._size_visit()
 	view._fill_visit(cut)
-	if _row(view) != null:
-		_bad("severed visit showed a row")
+	row = _row(view)
+	lines = _lines(row)
+	if row == null or str(row.get_meta("ledger_kind")) != "empty" or lines.is_empty() or str(lines[0].text) != Copy.t("ledger.empty"):
+		_bad("severed visit " + (str(lines[0].text) if not lines.is_empty() else "missing"))
+		return false
+	if not lines[0].get_theme_color("font_color").is_equal_approx(NetworkView.MUTED):
+		_bad("severed ink")
 		return false
 	if _meta(view, "ledger_map").size() != 0:
 		_bad("map mark node")

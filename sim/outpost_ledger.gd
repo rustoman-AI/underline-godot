@@ -8,7 +8,8 @@ extends RefCounted
 ## food = flow.food
 ## goods = flow.tokens + flow.influence + flow.air
 ## Age is stations[sid].held_weeks, the age _deliver_outposts already applied.
-## A station with no delivery yet, a zero flow, or inputs that moved this week stays hidden.
+## Owned non-capital stations always get a row. A zero or unreadable week is ledger.empty.
+## Capital, foreign, unowned, and hidden stations get no row.
 
 const FLAG := "seen_outpost_ledger"
 
@@ -90,7 +91,7 @@ static func _flow(game, sid: String) -> Dictionary:
 
 
 static func amounts(game, sid: String) -> Dictionary:
-	var blank := {"mats": 0, "food": 0, "goods": 0, "show": false}
+	var blank := {"mats": 0, "food": 0, "goods": 0, "empty": true}
 	if not _owned_visible(game, sid) or _inputs_moved(game, sid):
 		return blank
 	var flow := _flow(game, sid)
@@ -99,12 +100,22 @@ static func amounts(game, sid: String) -> Dictionary:
 	var mats := int(flow.get("materials", 0)) - int(flow.get("upkeep_materials", 0))
 	var food := int(flow.get("food", 0))
 	var goods := int(flow.get("tokens", 0)) + int(flow.get("influence", 0)) + int(flow.get("air", 0))
-	var show := mats != 0 or food != 0 or goods != 0
-	return {"mats": mats, "food": food, "goods": goods, "show": show}
+	if mats == 0 and food == 0 and goods == 0:
+		return blank
+	return {"mats": mats, "food": food, "goods": goods, "empty": false}
 
 
+## Owned non-capital, and not hidden. The row is the flow line or the muted empty line.
 static func shows(game, sid: String) -> bool:
-	return bool(amounts(game, sid).get("show", false))
+	return _owned_visible(game, sid)
+
+
+static func is_empty(game, sid: String) -> bool:
+	return shows(game, sid) and bool(amounts(game, sid).get("empty", true))
+
+
+static func empty_text() -> String:
+	return Copy.t("ledger.empty")
 
 
 static func status_text(row: Dictionary) -> String:
