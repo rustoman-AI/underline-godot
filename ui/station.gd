@@ -4020,6 +4020,14 @@ func _show_room(uid: String) -> void:
 
 func _listening_card(uid: String) -> void:
 	_body(game.listening_card_key())
+	var status_key := "signal.status" if game.signal_live() else "signal.status_none"
+	var status := _label(status_key, 15)
+	status.set_meta("signal_status", status_key)
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if status_key == "signal.status_none":
+		status.add_theme_color_override("font_color", PAPER_MUTED)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card_body.add_child(status)
 	var idle := game.listening_idle_line()
 	if idle != "":
 		_body_ready(idle)
@@ -4029,8 +4037,20 @@ func _listening_card(uid: String) -> void:
 		probe.text = "%s · %s · %d%%" % [Copy.t("listening.probe"), place, game.listening_blown_pct("probe")]
 		var why := game.order_block("probe", str(sid))
 		probe.disabled = why != ""
-		probe.tooltip_text = why if why != "" else Copy.t("listening.probe_tip")
+		var tip := Copy.t("listening.probe_tip")
+		if game.signal_probe_leans(str(sid)):
+			var base := int(game.bal.get("probe_tokens", 3))
+			var cost := game.probe_token_cost(str(sid))
+			if cost != base:
+				tip = tip.replace("%d " % base, "%d " % cost)
+		probe.tooltip_text = why if why != "" else tip
 		card_body.add_child(probe)
+		if why == "" and game.signal_probe_leans(str(sid)):
+			var cost_line := _label("signal.probe_lean", 14)
+			cost_line.set_meta("signal_probe_lean", str(sid))
+			cost_line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			cost_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			card_body.add_child(cost_line)
 	for fid in game.listening_tap_targets():
 		var tap := _button("listening.tap", _queue_listening.bind(uid, "tap", "", str(fid)))
 		tap.text = "%s · %s · %d%%" % [Copy.t("listening.tap"), Copy.t(game._fname(str(fid))), game.listening_blown_pct("tap")]

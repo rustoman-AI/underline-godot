@@ -206,6 +206,8 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _signal_float: Label
+var _signal_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -355,6 +357,7 @@ func refresh() -> void:
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
 	_note_first_leaflet()
+	_note_first_signal()
 
 
 func _redraw() -> void:
@@ -1674,6 +1677,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
+	_draw_signal_mark(c, game, sid, at, r, lift)
 	if str(sid) == str(game.capital_id):
 		_draw_away_pip(c, game, at, r, lift)
 
@@ -1864,6 +1868,174 @@ func _draw_warmth_ring(c: CanvasItem, game, sid: String, st: Dictionary, at: Vec
 ## That pack is not on this branch, so the slot stays empty and does not invent a second ring.
 func _draw_border_tick(_c: CanvasItem, _game, _sid: String, _at: Vector2, _r: float, _lift: float) -> void:
 	pass
+
+
+## P82 map mark. Brass crescent on a 14px paper disc, upper-inner right.
+## A2 is locked at (0.32, -0.22). The disc is never shrunk. If that slot meets the focus letter,
+## goods pip, deal row, leaflet, or the P78 relay slot at max pin radius, the mark is left off.
+const SIGNAL_DISC := 14.0
+const SIGNAL_OFFSET := Vector2(0.32, -0.22)
+const SIGNAL_BRASS := Color("c9a050")
+const FOCUS_DISC := 14.0
+const FOCUS_OFFSET := Vector2(-0.35, -0.20)
+const RELAY_DISC := 12.0
+const RELAY_OFFSET := Vector2(0.30, -0.12)
+const GOODS_PIP_R := 8.0
+const GOODS_OFFSET := Vector2(0.62, 0.55)
+const DEAL_PIP_HALF := 2.8
+const WIRED_DISC := 18.0
+const WIRED_OFFSET := Vector2(0.55, -0.95)
+
+
+func signal_mark_offset(pin_r: float) -> Vector2:
+	return Vector2(pin_r * SIGNAL_OFFSET.x, pin_r * SIGNAL_OFFSET.y)
+
+
+func signal_pin_radius(zoom_value: float, schematic_on: bool) -> float:
+	var base := PIN_OTHER * (1.0 + 0.22 * (1.0 if schematic_on else 0.0))
+	var px := maxf(PIN_FLOOR, base * sqrt(maxf(zoom_value, 0.001)))
+	return px * 0.42
+
+
+func signal_max_pin_radius() -> float:
+	var z := _zoom_max if _zoom_max > 0.0 else zoom
+	if z <= 0.0:
+		z = 1.0
+	return signal_pin_radius(z, schematic)
+
+
+func _signal_hits(pin_r: float) -> Dictionary:
+	var at := signal_mark_offset(pin_r)
+	var gaps := {}
+	var hits: PackedStringArray = []
+	var focus := Vector2(pin_r * FOCUS_OFFSET.x, pin_r * FOCUS_OFFSET.y)
+	gaps["focus"] = at.distance_to(focus)
+	if float(gaps["focus"]) < (SIGNAL_DISC + FOCUS_DISC) * 0.5:
+		hits.append("focus")
+	var goods := Vector2(pin_r * GOODS_OFFSET.x, pin_r * GOODS_OFFSET.y)
+	gaps["goods"] = at.distance_to(goods)
+	if float(gaps["goods"]) < GOODS_PIP_R + SIGNAL_DISC * 0.5:
+		hits.append("goods")
+	var deal_gap := INF
+	for i in 3:
+		var pip := Vector2((float(i) - 1.0) * DealMarks.PIP_GAP, pin_r + DealMarks.PIP_DROP)
+		deal_gap = minf(deal_gap, at.distance_to(pip))
+	gaps["deal"] = deal_gap
+	if deal_gap < DEAL_PIP_HALF + SIGNAL_DISC * 0.5:
+		hits.append("deal")
+	var leaf_gap := INF
+	var leaf_px := LeafletDust.chip_px(pin_r)
+	for rel in [LeafletDust.NEAR, LeafletDust.OPPOSITE]:
+		var leaf := Vector2(rel.x * pin_r, rel.y * pin_r)
+		leaf_gap = minf(leaf_gap, at.distance_to(leaf))
+	gaps["leaflet"] = leaf_gap
+	if leaf_gap < leaf_px * 0.5 + SIGNAL_DISC * 0.5:
+		hits.append("leaflet")
+	var relay := Vector2(pin_r * RELAY_OFFSET.x, pin_r * RELAY_OFFSET.y)
+	gaps["relay"] = at.distance_to(relay)
+	if float(gaps["relay"]) < (SIGNAL_DISC + RELAY_DISC) * 0.5:
+		hits.append("relay")
+	var wired := Vector2(pin_r * WIRED_OFFSET.x, pin_r * WIRED_OFFSET.y)
+	gaps["wired"] = at.distance_to(wired)
+	if float(gaps["wired"]) < (SIGNAL_DISC + WIRED_DISC) * 0.5:
+		hits.append("wired")
+	return {"gaps": gaps, "hits": hits, "omit": not hits.is_empty(), "leaf_px": leaf_px}
+
+
+func signal_overlap_report(pin_r: float) -> Dictionary:
+	var row := _signal_hits(pin_r)
+	row["r"] = pin_r
+	return row
+
+
+func signal_mark_omitted() -> bool:
+	return bool(_signal_hits(signal_max_pin_radius()).get("omit", true))
+
+
+func _draw_signal_mark(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not game.has_method("signal_on"):
+		return
+	if str(sid) == str(game.capital_id) or not game.signal_on(sid):
+		return
+	if signal_mark_omitted():
+		return
+	var pos := at + signal_mark_offset(r) - Vector2(0, 2.0 * lift)
+	var tex := ArtPack.icon_texture("signal_mark", 24.0)
+	if tex != null:
+		c.draw_texture_rect(tex, Rect2(pos - Vector2(SIGNAL_DISC, SIGNAL_DISC) * 0.5, Vector2(SIGNAL_DISC, SIGNAL_DISC)), false)
+		return
+	_draw_signal_glyph(c, pos)
+
+
+## Vector crescent used only when the plate is missing. Not a letter, not a grey box.
+func _draw_signal_glyph(c: CanvasItem, pos: Vector2) -> void:
+	var rad := SIGNAL_DISC * 0.5
+	c.draw_circle(pos, rad, TAG_PAPER)
+	c.draw_arc(pos, rad - 1.1, -0.5, PI + 0.15, 18, SIGNAL_BRASS, 1.3, true)
+	c.draw_line(pos + Vector2(-2.4, 0.8), pos + Vector2(1.4, -1.5), SIGNAL_BRASS, 1.3, true)
+	c.draw_line(pos + Vector2(1.4, -1.5), pos + Vector2(2.6, 1.1), SIGNAL_BRASS, 1.3, true)
+
+
+func _add_signal_status(parent: Node, game, sid: String) -> void:
+	if game == null or not game.has_method("signal_status_key"):
+		return
+	var key := str(game.signal_status_key(sid))
+	if key == "":
+		return
+	var line := _lab(Copy.t(key), 14, key == "signal.status")
+	line.set_meta("signal_status", key)
+	parent.add_child(line)
+
+
+func _note_first_signal() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var game = _game()
+	if game == null or not game.has_method("signal_note"):
+		return
+	var line := str(game.signal_note())
+	if line == "":
+		return
+	_show_signal_float(line)
+
+
+func _show_signal_float(line: String) -> void:
+	if _signal_float == null:
+		_signal_float = Label.new()
+		_signal_float.z_index = 8
+		_signal_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_signal_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_signal_float.add_theme_font_size_override("font_size", 18)
+		_signal_float.add_theme_color_override("font_color", SIGNAL_BRASS)
+		_signal_float.add_theme_constant_override("outline_size", 6)
+		_signal_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_signal_float.set_meta("signal_float", true)
+		add_child(_signal_float)
+	_signal_float.text = line
+	_signal_float.modulate.a = 1.0
+	_signal_float.visible = true
+	if _signal_float_tween != null and _signal_float_tween.is_valid():
+		_signal_float_tween.kill()
+	_place_signal_float()
+	if not is_inside_tree():
+		return
+	_signal_float_tween = create_tween()
+	_signal_float_tween.tween_interval(1.6)
+	_signal_float_tween.tween_callback(func() -> void:
+		if _signal_float != null:
+			_signal_float.visible = false)
+
+
+func _place_signal_float() -> void:
+	if _signal_float == null or not _signal_float.visible:
+		return
+	_signal_float.custom_minimum_size = Vector2(520, 28)
+	_signal_float.size = Vector2(520, 28)
+	var y := 36.0
+	for other in [_deal_float, _warm_float, _leaf_float, _need_float, _focus_float]:
+		if other != null and other.visible:
+			y = maxf(y, other.position.y + 34.0)
+	_signal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 260.0), y)
 
 
 func _draw_listening_chips(c: CanvasItem, game, sid: String, st: Dictionary, at: Vector2, r: float, lift: float) -> void:
@@ -3885,6 +4057,8 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	if game.has_method("signal_on") and game.signal_on(sid) and str(sid) != str(game.capital_id) and not signal_mark_omitted():
+		lines.append(Copy.t("signal.tip"))
 	return "\n".join(lines)
 
 
@@ -5375,6 +5549,7 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
+	_add_signal_status(column, game, sid)
 	_add_perk_good(game, sid, column)
 	head.add_child(column)
 	_visit_body.add_child(head)
