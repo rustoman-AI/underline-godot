@@ -88,6 +88,15 @@ func _static() -> void:
 	var plugin := FileAccess.get_file_as_string("res://addons/build_stamp/export_plugin.gd")
 	if plugin.find("release_build_id") < 0 or plugin.find("skip()") < 0:
 		_bad("export plugin does not stamp the packed build id")
+	if BuildInfo.version_for(true) != "0.1.0":
+		_bad("release version %s" % BuildInfo.version_for(true))
+	if BuildInfo.version_for(false) != "0.1.0-playtest3":
+		_bad("playtest version %s" % BuildInfo.version_for(false))
+	if presets.find("name=\"Windows Steam\"") < 0:
+		_bad("Windows Steam preset missing")
+	var exporter := FileAccess.get_file_as_string("res://tools/export.ps1")
+	if exporter.find("--export-release") < 0 or exporter.find("--export-debug") >= 0 or exporter.find("Windows Steam") < 0:
+		_bad("steam export is not Export Release")
 
 
 func _chrome(st) -> void:
@@ -107,8 +116,11 @@ func _buttons(st) -> void:
 	var disabled := button.get_theme_stylebox("disabled") as StyleBoxFlat
 	var hover := button.get_theme_stylebox("hover") as StyleBoxFlat
 	var focus := button.get_theme_stylebox("focus") as StyleBoxFlat
-	if disabled == null or disabled.bg_color.a > 0.5 or not disabled.border_color.is_equal_approx(st.PAPER_MUTED):
-		_bad("disabled face %s" % (disabled.bg_color if disabled != null else "null"))
+	var disabled_ink: Color = button.get_theme_color("font_disabled_color")
+	if disabled == null or not is_equal_approx(disabled.bg_color.a, 0.18) or disabled.get_border_width(SIDE_LEFT) != 0:
+		_bad("disabled face %s border %s" % [disabled.bg_color if disabled != null else "null", disabled.get_border_width(SIDE_LEFT) if disabled != null else -1])
+	if not is_equal_approx(disabled_ink.a, 0.6) or not is_equal_approx(disabled_ink.r, st.PAPER_MUTED.r):
+		_bad("disabled ink %s" % disabled_ink)
 	if hover == null or focus == null or not hover.bg_color.is_equal_approx(focus.bg_color) or not hover.border_color.is_equal_approx(focus.border_color):
 		_bad("focus face is not the hover face")
 	button.free()
@@ -161,8 +173,11 @@ func _room(st) -> void:
 	else:
 		var ink: Color = (row.get_child(1) as Button).get_theme_color("font_color")
 		var hot: Color = (row.get_child(1) as Button).get_theme_color("font_hover_color")
-		if not ink.is_equal_approx(st.PAPER_MUTED) or not hot.is_equal_approx(st.DELTA_DOWN):
+		var face := (row.get_child(1) as Button).get_theme_stylebox("normal") as StyleBoxFlat
+		if not ink.is_equal_approx(st.PAPER_INK) or not hot.is_equal_approx(st.DELTA_DOWN):
 			_bad("demolish ink %s hover %s" % [ink, hot])
+		elif face == null or face.get_border_width(SIDE_LEFT) != 1 or not face.border_color.is_equal_approx(st.PAPER_EDGE):
+			_bad("demolish outline %s" % (face.border_color if face != null else "null"))
 	st.game.stock.materials = 0
 	st._show_room(uid)
 	await process_frame
@@ -271,6 +286,28 @@ func _map(st) -> void:
 	await process_frame
 	if net.tooltip_text != "" or str(net._hover) != "":
 		_bad("journal left the map tip '%s'" % net.tooltip_text)
+	var tip_src := FileAccess.get_file_as_string("res://ui/network_view.gd")
+	var drop_at := tip_src.find("func drop_tip")
+	var drop_fn := tip_src.substr(drop_at, tip_src.find("func close_sheet", drop_at) - drop_at)
+	if drop_fn.find("warp_mouse") < 0:
+		_bad("drop_tip does not warp the pointer")
+	net.drop_tip()
+	root.size = Vector2i(1920, 1080)
+	st.size = Vector2(1920, 1080)
+	await process_frame
+	st._fit_card()
+	st._tick_voice()
+	await process_frame
+	if st.vo_pill != null and st.vo_pill.visible and st.dim != null and st.dim.visible:
+		var left_w: float = st.vo_pill.get_combined_minimum_size().x
+		if st.vo_pill.position.x > 20.0:
+			_bad("journal pill x %.1f is not the left rule" % st.vo_pill.position.x)
+		var limit: float = st.card.get_global_rect().position.x - 48.0
+		if limit > 80.0 and st.vo_pill.position.x + left_w > limit + 2.0:
+			_bad("pill overlaps the journal, right %.1f limit %.1f" % [st.vo_pill.position.x + left_w, limit])
+	net._show_warm_float("The ring remembers how they feel.")
+	if net._warm_float == null or net._warm_float.z_index != 11:
+		_bad("first float z %s" % (net._warm_float.z_index if net._warm_float != null else "null"))
 	if st.dim == null or not st.dim.visible or st.dim.z_index <= net.sheet.z_index:
 		_bad("journal on the map is not dimmed (dim %s)" % (st.dim.z_index if st.dim != null else "null"))
 	st._ensure_menu()

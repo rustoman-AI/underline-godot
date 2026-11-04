@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory = $true)][ValidateSet("ru", "en")][string]$Lang
+    [Parameter(Mandatory = $true)][ValidateSet("ru", "en", "steam")][string]$Lang
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -9,7 +9,8 @@ $godot = $env:GODOT
 if (-not $godot) { $godot = Join-Path $root ".tools\godot\Godot_v4.7.2-stable_win64_console.exe" }
 if (-not (Test-Path $godot)) { throw "Godot not found at $godot. Set GODOT to the console binary." }
 
-$preset = "Windows " + $Lang.ToUpper()
+# Windows EN, RU and Steam ship with Export Release.
+$preset = if ($Lang -eq "steam") { "Windows Steam" } else { "Windows " + $Lang.ToUpper() }
 $outDir = Join-Path $root "build\$Lang\windows"
 $exe = Join-Path $outDir "Underline.exe"
 $zip = Join-Path $root "build\$Lang\Underline-$Lang-windows.zip"
@@ -34,6 +35,10 @@ if ($errors) {
 }
 
 [IO.File]::WriteAllText((Join-Path $outDir "lang.txt"), $Lang)
+if ($Lang -eq "steam") {
+    "exe {0:N1} MB  {1}" -f ((Get-Item $exe).Length / 1MB), $exe
+    return
+}
 
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 if (Test-Path $zip) { Remove-Item $zip -Force }

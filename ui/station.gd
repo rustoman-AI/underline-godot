@@ -5582,8 +5582,9 @@ func _tick_voice() -> void:
 	vo_bars.visible = spoken
 	vo_sub.text = sub
 	vo_sub.visible = sub != ""
+	var card_open := card != null and dim != null and dim.visible
 	var width := 480.0
-	if card != null and dim != null and dim.visible:
+	if card_open:
 		width = clampf(card.get_global_rect().position.x - 48.0, 240.0, 480.0)
 	vo_sub.custom_minimum_size.x = width
 	vo_pill.visible = true
@@ -5592,11 +5593,23 @@ func _tick_voice() -> void:
 	var bottom := size.y - chrome_bottom - 8.0
 	if radio_panel != null and radio_panel.visible:
 		bottom = radio_panel.position.y - 8.0
-	## On the map the lower left is the legend and the mode buttons. The caption sits bottom-centre instead.
+	## Centre on the open map only. A card (the Journal) keeps the left rule, stopped 48 px before the card.
 	var x := 16.0
-	if showing_network:
+	if showing_network and not card_open:
 		x = maxf(16.0, (size.x - pill_size.x) * 0.5)
-	vo_pill.position = Vector2(x, bottom - pill_size.y)
+	elif card_open:
+		var limit := card.get_global_rect().position.x - 48.0
+		if x + pill_size.x > limit:
+			x = limit - pill_size.x
+		x = maxf(8.0, x)
+	var next := Vector2(x, bottom - pill_size.y)
+	var shifted := vo_pill.position.distance_to(next) > 1.0
+	vo_pill.position = next
+	## Moving the pill off a card leaves its native tip behind until the pointer moves.
+	if card_open and shifted:
+		var vp := get_viewport()
+		if vp != null:
+			vp.warp_mouse(vp.get_mouse_position())
 	vo_bars.queue_redraw()
 
 
@@ -8260,7 +8273,9 @@ func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	if display_font != null:
 		button.add_theme_font_override("font", display_font)
 	button.add_theme_color_override("font_color", PAPER_INK if on_paper else INK)
-	button.add_theme_color_override("font_disabled_color", PAPER_MUTED if on_paper else MUTED)
+	var disabled_ink := PAPER_MUTED if on_paper else MUTED
+	disabled_ink.a = 0.6
+	button.add_theme_color_override("font_disabled_color", disabled_ink)
 	button.add_theme_stylebox_override("normal", _button_face(false, false))
 	button.add_theme_stylebox_override("hover", _button_face(false, true))
 	button.add_theme_stylebox_override("pressed", _button_face(true, false))
@@ -8299,12 +8314,11 @@ func _ui_click() -> void:
 	Sound.play("map_click")
 
 
-## Disabled is the plain face faded back: no brass edge, so a locked Push does not look live. Hover stays, so the why-tip still shows.
+## A locked button is a faint plate with no edge, so it cannot be read as the quiet Demolish outline.
 func _button_disabled_face() -> StyleBoxFlat:
 	var style := _button_face(false, false)
-	style.bg_color.a = 0.45
-	style.border_color = PAPER_MUTED
-	style.set_border_width_all(1)
+	style.bg_color.a = 0.18
+	style.set_border_width_all(0)
 	return style
 
 
@@ -8327,16 +8341,16 @@ func _quiet_demolish(text: String, cb: Callable) -> Control:
 		font = ThemeDB.fallback_font
 	var label_w := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 40.0
 	button.custom_minimum_size = Vector2(maxf(label_w, 140.0), 64.0 if Copy.ru() else 48.0)
-	button.add_theme_color_override("font_color", PAPER_MUTED)
+	button.add_theme_color_override("font_color", PAPER_INK)
 	button.add_theme_color_override("font_hover_color", DELTA_DOWN)
 	button.add_theme_color_override("font_pressed_color", DELTA_DOWN)
 	button.add_theme_color_override("font_focus_color", DELTA_DOWN)
 	var quiet := _button_face(false, false)
-	quiet.bg_color.a = 0.28
-	quiet.border_color = PAPER_MUTED
+	quiet.border_color = PAPER_EDGE
 	quiet.set_border_width_all(1)
 	var hot := _button_face(false, true)
 	hot.border_color = DELTA_DOWN
+	hot.set_border_width_all(1)
 	button.add_theme_stylebox_override("normal", quiet)
 	button.add_theme_stylebox_override("hover", hot)
 	button.add_theme_stylebox_override("pressed", hot)
