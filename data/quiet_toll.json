@@ -1,0 +1,48 @@
+{
+  "_note": "P86 Quiet Toll (NEW invent — DEC-QT1…QT3). Spec: /workspace/QUIET_TOLL_P86_SPEC.md. Namespace toll.* — NEVER duty.* (P81) / flow.* (P58). Cite-only P54 Event Chains toll *events* (do not reopen event card strings); P58 Passage Flow (foreign goods flowing — do not reopen edge tick); P81 Passage Duty (Duty posted is the gate — do not reopen Duty assign chrome). Soft dawn: NONE (toll tip / first float / skim toast ≠ soft dawn chip). Tone: dry metro grit — one quiet tip on a watched edge, not a toll booth carnival. Prefer tip-only ZERO MVP; skim FLAG careful — Texts do not invent skim amounts. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P86",
+  "_owners": "Texts; Code detect owned edge + Duty + foreign flow → tip; optional skim_once FLAG or tip_only ZERO; UIUX Quiet Toll tip + first float + optional skim toast; Art toll tick optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready 2026-11-03. tip_only MVP fix: toll.first and toll.need_duty no longer promise a take (watch, not skim). toll.skim parked, untouched. Keys/placeholders unchanged. Soft dawn NONE. | prior: Texts READY at design-gate awaiting Designer stamp — P86 Quiet Toll authored 2026-10-27 (8 toll.*). Soft dawn NONE. Tip-only ZERO MVP preferred; skim FLAG careful (no skim amounts in copy). P54 event cards cite-only unreopened. P81–P83 unreopened. duty.* never stolen. | Polish t145u 2026-11-03: 4 edit(s) (toll.status.ru, toll.need_duty.ru, toll.skim.ru, toll.skim.en); keys/placeholders unchanged; no balance; see polish_notes.md § Polish t145u. Still READY at design-gate (not stamped).",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P58 Passage Flow — foreign goods flowing on edges (cite; do not reopen edge tick geometry)",
+    "P81 Passage Duty — Duty posted on owned passage is the gate (cite; do not reopen Duty assign chrome); Duty lexicon = Дозор",
+    "P54 Event Chains — toll *events* cite-only (do not reopen event card strings or invent event art)"
+  ],
+  "_placeholders": [],
+  "by_key": {
+    "toll.name": {
+      "en": "Quiet Toll",
+      "ru": "Тихая пошлина"
+    },
+    "toll.tip": {
+      "en": "Quiet Toll. Duty watches foreign goods.",
+      "ru": "Тихая пошлина. Дозор следит за чужим товаром."
+    },
+    "toll.first": {
+      "en": "Duty watches what passes.",
+      "ru": "Дозор следит за тем, что идёт мимо."
+    },
+    "toll.skim": {
+      "en": "Quiet Toll. A few mats off the flow.",
+      "ru": "Тихая пошлина. Немного материалов с потока."
+    },
+    "toll.status": {
+      "en": "Quiet Toll watching.",
+      "ru": "Тихая пошлина действует."
+    },
+    "toll.status_none": {
+      "en": "No Quiet Toll.",
+      "ru": "Нет тихой пошлины."
+    },
+    "toll.need_duty": {
+      "en": "Post Duty to watch the flow.",
+      "ru": "Поставь дозор следить за потоком."
+    },
+    "toll.quiet": {
+      "en": "No foreign goods this week.",
+      "ru": "На этой неделе чужого товара нет."
+    }
+  },
+  "_designer": "APPROVED"
+}

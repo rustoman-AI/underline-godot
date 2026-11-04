@@ -16,6 +16,7 @@ const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const QuietToll = preload("res://sim/quiet_toll.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -206,6 +207,8 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _toll_float: Label
+var _toll_float_tween: Tween
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -355,6 +358,7 @@ func refresh() -> void:
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
 	_note_first_leaflet()
+	_note_first_quiet_toll()
 
 
 func _redraw() -> void:
@@ -3885,6 +3889,11 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	## P86 Quiet Toll stays the last line of this hover. P81 duty.tip, when that
+	## pack is on the branch, belongs above this line. P58 flow lines are not rewritten.
+	var toll := QuietToll.tip_line(game, sid)
+	if toll != "":
+		lines.append(toll)
 	return "\n".join(lines)
 
 
@@ -5327,6 +5336,80 @@ func _show_visit(sid: String) -> void:
 	_redraw()
 
 
+## One line on the owned station's Visit status column. Omitted unless Duty is posted.
+## status is the qualifying watch. status_none is muted, and only when Duty is up but nothing qualifies.
+func _add_quiet_toll(parent: Node, game, sid: String) -> void:
+	var kind := QuietToll.visit_kind(game, sid)
+	if kind == "":
+		return
+	var muted := kind == "none"
+	var line := _lab(QuietToll.visit_line(kind), 15, not muted)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.set_meta("toll_row", true)
+	line.set_meta("toll_kind", kind)
+	line.set_meta("toll_muted", muted)
+	if muted:
+		line.add_theme_color_override("font_color", CARD_MUTED if _on_paper else MUTED)
+	parent.add_child(line)
+
+
+func _note_first_quiet_toll() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := QuietToll.note(_game())
+	if line == "":
+		return
+	_show_toll_float(line)
+
+
+func _show_toll_float(line: String) -> void:
+	if _toll_float == null:
+		_toll_float = Label.new()
+		_toll_float.z_index = 8
+		_toll_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_toll_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_toll_float.add_theme_font_size_override("font_size", 18)
+		_toll_float.add_theme_color_override("font_color", DEAL_BRASS)
+		_toll_float.add_theme_constant_override("outline_size", 6)
+		_toll_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		add_child(_toll_float)
+	_toll_float.text = line
+	_toll_float.modulate.a = 1.0
+	_toll_float.visible = true
+	_toll_float.set_meta("toll_float", true)
+	if _toll_float_tween != null and _toll_float_tween.is_valid():
+		_toll_float_tween.kill()
+	_place_toll_float()
+	if not is_inside_tree():
+		return
+	_toll_float_tween = create_tween()
+	if _motion_off():
+		_toll_float.set_meta("toll_float_static", true)
+		_toll_float_tween.tween_interval(4.2)
+	else:
+		_toll_float.set_meta("toll_float_static", false)
+		var rise := _toll_float.position.y - 18.0
+		_toll_float_tween.tween_property(_toll_float, "position:y", rise, 2.4)
+		_toll_float_tween.parallel().tween_property(_toll_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_toll_float_tween.tween_callback(func() -> void:
+		if _toll_float != null:
+			_toll_float.visible = false)
+
+
+func _place_toll_float() -> void:
+	if _toll_float == null or not _toll_float.visible:
+		return
+	_toll_float.custom_minimum_size = Vector2(420, 28)
+	_toll_float.size = Vector2(420, 28)
+	var y := 78.0
+	if _deal_float != null and _deal_float.visible:
+		y = 112.0
+	if _leaf_float != null and _leaf_float.visible:
+		y = maxf(y, 146.0)
+	_toll_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+
+
 func _fill_visit(sid: String) -> void:
 	if _visit_body == null:
 		return
@@ -5376,6 +5459,9 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
 	_add_perk_good(game, sid, column)
+	## P86 Quiet Toll. Last child of this Visit status column on master.
+	## On merge with P85 (#67), keep this call immediately before _add_outpost_ledger.
+	_add_quiet_toll(column, game, sid)
 	head.add_child(column)
 	_visit_body.add_child(head)
 	var details := _details_box()
