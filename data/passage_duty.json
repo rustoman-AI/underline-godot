@@ -1,0 +1,42 @@
+{
+  "_note": "P81 Passage Duty (NEW invent — DEC-D1…D3). Namespace duty.* — NEVER shift.* (P79) / salvage.* (P76) / flow.* (P58). Soft dawn: NONE. Balance ZERO.",
+  "_roadmap": "P81",
+  "_status": "Designer APPROVED / Code-ready — P81 Passage Duty stamped 2026-10-27 (8 duty.*). Soft dawn NONE.",
+  "_soft_dawn": "NONE",
+  "_placeholders": [],
+  "by_key": {
+    "duty.name": {
+      "en": "Passage Duty",
+      "ru": "Дозор на проходе"
+    },
+    "duty.assign": {
+      "en": "Post Duty",
+      "ru": "Поставить дозор"
+    },
+    "duty.unassign": {
+      "en": "Clear Duty",
+      "ru": "Снять дозор"
+    },
+    "duty.tip": {
+      "en": "Duty. Someone watches this passage.",
+      "ru": "Дозор. Кто-то стережёт этот проход."
+    },
+    "duty.first": {
+      "en": "Someone watches the passage.",
+      "ru": "Кто-то стережёт проход."
+    },
+    "duty.lost": {
+      "en": "Duty cleared. Passage unwatched.",
+      "ru": "Дозор снят. Проход без глаз."
+    },
+    "duty.empty": {
+      "en": "No one on Duty.",
+      "ru": "На дозоре никого."
+    },
+    "duty.need_free": {
+      "en": "No Free hands.",
+      "ru": "Нет свободных рук."
+    }
+  },
+  "_designer": "APPROVED"
+}

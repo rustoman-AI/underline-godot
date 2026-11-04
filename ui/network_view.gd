@@ -206,6 +206,11 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _duty_float: Label
+var _duty_float_tween: Tween
+var _duty_toast: PanelContainer
+var _duty_toast_tween: Tween
+var _duty_host: VBoxContainer
 var _on_paper := false
 var _tag_font: Font
 var _italic: Font
@@ -351,6 +356,8 @@ func refresh() -> void:
 	_fill_council()
 	if selected != "":
 		_fill_sheet(selected)
+	if visit != null and visit.visible and _visit_sid != "":
+		_sync_duty(_game(), _visit_sid)
 	_redraw()
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
@@ -2324,6 +2331,253 @@ func _hide_focus_float() -> void:
 		_focus_float.visible = false
 
 
+## Visit seat for one owned passage. Empty opens a Free picker; occupied clears in one click.
+func _sync_duty(game, sid: String) -> void:
+	if _visit_body == null or game == null:
+		return
+	var stale := _duty_host == null or not is_instance_valid(_duty_host) or _duty_host.is_queued_for_deletion() or _duty_host.get_parent() != _visit_body
+	if stale:
+		_duty_host = VBoxContainer.new()
+		_duty_host.set_meta("duty_block", true)
+		_duty_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_duty_host.add_theme_constant_override("separation", 4)
+		_visit_body.add_child(_duty_host)
+	else:
+		for child in _duty_host.get_children():
+			child.visible = false
+			child.queue_free()
+	for line in PassageDuty.sweep(game):
+		_toast_duty(str(line))
+	for seat in PassageDuty.seats(game, sid):
+		_duty_host.add_child(_duty_seat(game, sid, seat))
+
+
+func _duty_seat(game, sid: String, seat: Dictionary) -> Control:
+	var edge := str(seat.get("id", ""))
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 2)
+	box.set_meta("duty_seat", edge)
+	var title := _lab(Copy.t("duty.name"), 15, true)
+	title.set_meta("duty_name", true)
+	box.add_child(title)
+	var tip := _lab(Copy.t("duty.tip"), 13, false)
+	tip.set_meta("duty_tip", true)
+	box.add_child(tip)
+	var pid := str(seat.get("person_id", ""))
+	if pid == "":
+		var hands: Array = PassageDuty.free_people(game)
+		if hands.is_empty():
+			var empty := _lab(Copy.t("duty.need_free"), 14, false)
+			empty.set_meta("duty_need_free", true)
+			box.add_child(empty)
+		else:
+			var button := _duty_button(Copy.t("duty.empty"), true)
+			button.tooltip_text = Copy.t("duty.tip")
+			button.set_meta("duty_empty", true)
+			button.pressed.connect(_open_duty_picker.bind(sid, edge))
+			box.add_child(button)
+	else:
+		var button := _duty_button(PassageDuty.clip_name(str(seat.get("person_name", ""))), false)
+		button.tooltip_text = Copy.t("duty.unassign")
+		button.set_meta("duty_named", pid)
+		button.pressed.connect(_clear_duty.bind(pid, sid))
+		box.add_child(button)
+	return box
+
+
+func _duty_button(text: String, quiet: bool) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.clip_text = true
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = Vector2(0, 36)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("3a3126")
+	face.border_color = Color("8a6a44")
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.set_content_margin_all(8)
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		button.add_theme_stylebox_override(state, face)
+	var ink := Color("b7aa96") if quiet else Color("efe6d2")
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(key, ink)
+	button.add_theme_font_size_override("font_size", 15)
+	return button
+
+
+func _open_duty_picker(sid: String, edge: String) -> void:
+	if _duty_host == null or not is_instance_valid(_duty_host):
+		return
+	var game = _game()
+	if game == null:
+		return
+	for node in _duty_nodes(_duty_host, "duty_picker"):
+		return
+	var hands: Array = PassageDuty.free_people(game)
+	if hands.is_empty():
+		_sync_duty(game, sid)
+		return
+	var picker := VBoxContainer.new()
+	picker.set_meta("duty_picker", edge)
+	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	picker.add_theme_constant_override("separation", 4)
+	var head := _lab(Copy.t("duty.assign"), 14, true)
+	head.set_meta("duty_assign", true)
+	picker.add_child(head)
+	for person in hands:
+		var button := _duty_button(Copy.person(str(person.get("name", ""))), false)
+		button.set_meta("duty_pick", str(person.get("id", "")))
+		button.pressed.connect(_post_duty.bind(str(person.get("id", "")), edge, sid))
+		picker.add_child(button)
+	_duty_host.add_child(picker)
+
+
+func _post_duty(person_id: String, edge: String, sid: String) -> void:
+	var game = _game()
+	if game == null:
+		return
+	var info: Dictionary = game.duty_post(person_id, edge)
+	if not bool(info.get("ok", false)):
+		return
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	_toast_duty(Copy.t("duty.assign"))
+	if bool(info.get("first", false)):
+		_show_duty_float(Copy.t("duty.first"))
+	_sync_duty(game, sid)
+	if host != null and host.has_method("_fill_people"):
+		host._fill_people()
+
+
+func _clear_duty(person_id: String, sid: String) -> void:
+	var game = _game()
+	if game == null or not game.duty_clear(person_id):
+		return
+	if host != null and host.has_method("_ui_click"):
+		host._ui_click()
+	_toast_duty(Copy.t("duty.unassign"))
+	_sync_duty(game, sid)
+	if host != null and host.has_method("_fill_people"):
+		host._fill_people()
+
+
+func _toast_duty(line: String) -> void:
+	_show_duty_plate(line)
+	if host != null and host.has_method("_toast"):
+		host._toast(line)
+
+
+func _show_duty_plate(line: String) -> void:
+	if _duty_toast == null:
+		_duty_toast = PanelContainer.new()
+		_duty_toast.z_index = 9
+		_duty_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_duty_toast.set_meta("duty_toast", true)
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color("efe4c8")
+		face.border_color = Color("2b2118")
+		face.set_border_width_all(1)
+		face.set_content_margin_all(8)
+		face.content_margin_left = 12
+		face.content_margin_right = 12
+		face.shadow_color = Color(0, 0, 0, 0.35)
+		face.shadow_size = 3
+		face.shadow_offset = Vector2(1, 2)
+		_duty_toast.add_theme_stylebox_override("panel", face)
+		var label := Label.new()
+		label.add_theme_font_size_override("font_size", 16)
+		label.add_theme_color_override("font_color", Color("2b2118"))
+		label.set_meta("duty_toast_line", true)
+		_duty_toast.add_child(label)
+		add_child(_duty_toast)
+	var text: Label = _duty_toast.get_child(0)
+	text.text = line
+	_duty_toast.visible = true
+	_duty_toast.modulate.a = 1.0
+	_place_duty_toast()
+	if _duty_toast_tween != null and _duty_toast_tween.is_valid():
+		_duty_toast_tween.kill()
+	if not is_inside_tree():
+		return
+	_duty_toast_tween = create_tween()
+	_duty_toast_tween.tween_interval(1.6)
+	_duty_toast_tween.tween_callback(func() -> void:
+		if _duty_toast != null:
+			_duty_toast.visible = false)
+
+
+func _place_duty_toast() -> void:
+	if _duty_toast == null or not _duty_toast.visible:
+		return
+	var w := 440.0
+	_duty_toast.position = Vector2(maxf(16.0, size.x * 0.5 - w * 0.5), 16.0)
+
+
+func _show_duty_float(line: String) -> void:
+	if _duty_float == null:
+		_duty_float = Label.new()
+		_duty_float.z_index = 8
+		_duty_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_duty_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_duty_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_duty_float.add_theme_font_size_override("font_size", 18)
+		_duty_float.add_theme_color_override("font_color", Color("efe6d2"))
+		_duty_float.add_theme_constant_override("outline_size", 6)
+		_duty_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_duty_float.set_meta("duty_float", true)
+		add_child(_duty_float)
+	_duty_float.text = line
+	_duty_float.modulate.a = 1.0
+	_duty_float.visible = true
+	if _duty_float_tween != null and _duty_float_tween.is_valid():
+		_duty_float_tween.kill()
+	_place_duty_float()
+	if not is_inside_tree():
+		return
+	_duty_float_tween = create_tween()
+	_duty_float_tween.tween_interval(1.6)
+	_duty_float_tween.tween_callback(func() -> void:
+		if _duty_float != null:
+			_duty_float.visible = false)
+
+
+func _place_duty_float() -> void:
+	if _duty_float == null or not _duty_float.visible:
+		return
+	var w := 420.0
+	if visit != null and visit.size.x > 48.0:
+		w = clampf(visit.size.x - 48.0, 280.0, 520.0)
+	_duty_float.custom_minimum_size = Vector2(w, 0)
+	_duty_float.size = Vector2(w, 36)
+	var y := 132.0
+	if _duty_toast != null and _duty_toast.visible:
+		y = 132.0
+	_duty_float.position = Vector2(maxf(8.0, size.x * 0.5 - w * 0.5), y)
+
+
+func _hide_duty_float() -> void:
+	if _duty_float_tween != null and _duty_float_tween.is_valid():
+		_duty_float_tween.kill()
+	if _duty_float != null:
+		_duty_float.visible = false
+
+
+func _duty_nodes(node: Node, key: String) -> Array:
+	var found: Array = []
+	if node != null and node.has_meta(key):
+		found.append(node)
+	if node == null:
+		return found
+	for child in node.get_children():
+		found.append_array(_duty_nodes(child, key))
+	return found
+
+
 func _note_first_pin_warmth() -> void:
 	if not visible or not is_inside_tree():
 		return
@@ -3885,6 +4139,9 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	var duty_tip := PassageDuty.tip_line(game, sid)
+	if duty_tip != "":
+		lines.append(duty_tip)
 	return "\n".join(lines)
 
 
@@ -5280,6 +5537,7 @@ func _size_visit() -> void:
 		visit_sheet.custom_minimum_size.x = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
 	_place_need_float()
 	_place_focus_float()
+	_place_duty_float()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -5302,6 +5560,7 @@ func close_visit() -> void:
 	if _need_float != null:
 		_need_float.visible = false
 	_hide_focus_float()
+	_hide_duty_float()
 	if visit != null:
 		visit.visible = false
 	if sheet != null and selected != "":
@@ -5395,6 +5654,7 @@ func _fill_visit(sid: String) -> void:
 	if art != "":
 		details.add_child(_lab(art, 14, false))
 	_add_focus_picker(game, sid, _visit_body)
+	_sync_duty(game, sid)
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
 	_note_station_focus(sid)

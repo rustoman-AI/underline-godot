@@ -2069,7 +2069,7 @@ func _fill_people() -> void:
 	_party_block()
 	var total := game.residents.size()
 	var working := 0
-	var grouped := {"free": [], "crew": [], "guard": [], "sick": []}
+	var grouped := {"free": [], "crew": [], "guard": [], "sick": [], "duty": []}
 	var sick_n := 0
 	var room_order: Array = []
 	for person in game.residents:
@@ -2091,6 +2091,9 @@ func _fill_people() -> void:
 		elif post == "sick":
 			sick_n += 1
 			grouped["sick"].append(person)
+		elif post == "duty":
+			working += 1
+			grouped["duty"].append(person)
 		else:
 			grouped["free"].append(person)
 	var free_n := total - working - sick_n
@@ -2168,6 +2171,8 @@ func _fill_people() -> void:
 			_people_group(Copy.t("Crew"), grouped["crew"], "labor", false)
 		if (people_filter == "" or people_filter == "guard") and not grouped["guard"].is_empty():
 			_people_group(Copy.t("Guard"), grouped["guard"], "fight", false)
+		if (people_filter == "" or people_filter == "duty") and not grouped["duty"].is_empty():
+			_people_group(Copy.t("duty.name"), grouped["duty"], "", false)
 	if showing_network and network_view != null:
 		network_view.refresh()
 
@@ -2293,6 +2298,8 @@ func _person_post(id: String) -> String:
 	var person: Dictionary = game.people[id]
 	if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
 		return "sick"
+	if PassageDuty.holds(person):
+		return "duty"
 	return "free"
 
 
@@ -2411,6 +2418,13 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	var name_label := _label(Copy.person(str(person.name)), 15)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_line.add_child(name_label)
+	var duty_chip := PassageDuty.chip_key(person)
+	if duty_chip != "":
+		var chip := _label(duty_chip, 12, true)
+		chip.set_meta("people_chip", "duty")
+		chip.add_theme_color_override("font_color", Color("e2a63a"))
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_line.add_child(chip)
 	if _story_state(id) == "new":
 		var dot := _label("•", 15, true)
 		dot.add_theme_color_override("font_color", Color("e2a63a"))
