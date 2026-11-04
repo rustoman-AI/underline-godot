@@ -15226,6 +15226,10 @@ func _maybe_obs_float() -> void:
 	var floated := MarksKit.take_float(game)
 	if floated != "":
 		_show_obs_float(floated)
+		if floated == Copy.t("obs.first_mark"):
+			_obs_voice("obs.first_mark")
+		elif floated == Copy.t("obs.first_kit"):
+			_obs_voice("obs.first_kit")
 
 
 func _show_obs_float(text: String) -> void:
@@ -15279,6 +15283,9 @@ func _obs_panel_voice() -> void:
 					break
 	elif obs_mark_pick != "":
 		key = "obs.mark.%s.flavor" % obs_mark_pick
+		var what_key := str(game.obs.earned.get(obs_mark_pick, {}).get("what", ""))
+		if what_key != "" and not Voice.obs_line(what_key, Copy.t(what_key)).is_empty():
+			key = what_key
 	if key == "":
 		key = "obs.hint"
 	_obs_voice(key)

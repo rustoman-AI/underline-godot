@@ -1,5 +1,5 @@
 {
-  "_note": "underline_batch_p87_vo_01 (Daniel, eleven_v4). Type obs: a Marks & Kit line. id is the obs.* key. en/ru are the recorded exact_text. Voice.obs_line plays a take only while that text still matches the line on the card or panel. A missing file stays silent. obs.kit.dispatcher_brass.flavor is not mapped: the take says fourteen / четырнадцать and the text says 14.",
+  "_note": "underline_batch_p87_vo_01 (Daniel, eleven_v4). Type obs: a Marks & Kit line. id is the obs.* key. en/ru are the recorded exact_text. Voice.obs_line plays a take only while that text still matches the line on the card or panel. A missing file stays silent. obs.kit.dispatcher_brass.flavor is not mapped: the take says fourteen / четырнадцать and the text says 14. t146 adds obs.first_mark, obs.first_kit, and obs.what.signal_scar where the take matches.",
   "lines": [
     {
       "id": "obs.mark.rail_stitch.flavor",
@@ -225,6 +225,33 @@
       "ru": "Никого нет. Никто не здоровается.",
       "audio_en": "res://assets/audio/vo/obs/obs_greet_free_mask_en.mp3",
       "audio_ru": "res://assets/audio/vo/obs/obs_greet_free_mask_ru.mp3"
+    },
+    {
+      "id": "obs.first_mark",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Your first mark is inked.",
+      "ru": "Первая наколка набита.",
+      "audio_en": "res://assets/audio/vo/obs/obs_first_mark_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_first_mark_ru.mp3"
+    },
+    {
+      "id": "obs.first_kit",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Someone gave you something to wear.",
+      "ru": "Тебе дали что-то носить.",
+      "audio_en": "res://assets/audio/vo/obs/obs_first_kit_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_first_kit_ru.mp3"
+    },
+    {
+      "id": "obs.what.signal_scar",
+      "type": "obs",
+      "speaker": "Daniel",
+      "en": "Caught listening. Walked away.",
+      "ru": "Прослушку раскрыли. Обошлось.",
+      "audio_en": "res://assets/audio/vo/obs/obs_what_signal_scar_en.mp3",
+      "audio_ru": "res://assets/audio/vo/obs/obs_what_signal_scar_ru.mp3"
     }
   ]
 }

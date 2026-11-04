@@ -49,7 +49,7 @@ func _obs_vo() -> void:
 	var pack = JSON.parse_string(FileAccess.get_file_as_string("res://data/marks_kit.json"))
 	var text: Dictionary = pack.by_key
 	var lines: Array = data.lines
-	_expect(lines.size() == 25, "25 obs voice lines", str(lines.size()))
+	_expect(lines.size() == 28, "28 obs voice lines", str(lines.size()))
 	var ids: Array = []
 	for row in lines:
 		var id := str(row.get("id", ""))
@@ -68,6 +68,7 @@ func _obs_vo() -> void:
 		_expect(not ru_row.is_empty() and Voice.audio(ru_row) != "", "RU take plays %s" % id, Voice.audio(ru_row))
 	Copy.set_lang("en")
 	_expect(ids.has("obs.mark.raid_tally.flavor"), "raid tally flavor is voiced", "")
+	_expect(ids.has("obs.first_mark") and ids.has("obs.first_kit") and ids.has("obs.what.signal_scar"), "t146 lines are voiced", str(ids))
 	_expect(not ids.has("obs.kit.dispatcher_brass.flavor"), "fourteen stays unmatched", "")
 	var ghost := {"id": "obs.missing", "type": "obs", "en": "x", "ru": "x", "audio_en": "res://assets/audio/vo/obs/missing_en.mp3", "audio_ru": "res://assets/audio/vo/obs/missing_ru.mp3"}
 	_expect(Voice.audio(ghost) == "" and Voice.play(ghost, "") == 0.0, "a missing take is silence", Voice.audio(ghost))
