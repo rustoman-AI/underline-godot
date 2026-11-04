@@ -1,0 +1,55 @@
+{
+  "_note": "P83 Guest Beds (NEW invent — DEC-G1…G3). Namespace guest.* — NEVER shift.* (P79). Cite P43 Homecoming (soft dawn stack — party-return chip; cite only; do not invent another soft dawn chip or reopen home.* chrome); border.dawn_new / intake arrivals (existing join path — cite); P59 People Chips (Sick/Away/crew/room/Free — cite; optional Guest chip; do not reopen sticky P44/P48); P41 Yard Clearance (cite desk/yard density — do not reopen); P67 Named Lives (cite only — no memorial/child invent); P79 Shift Board (cite — Guests are not Shift seats). Soft dawn: NONE (Guest toast / first float / convert ≠ soft dawn chip). Tone: dry metro grit — a spare cot with a name, not a refugee minigame or hope engine. Balance ZERO — no hope invent; no refuse→keep invent. EN via Copy.t; RU in by_key.",
+  "_roadmap": "P83",
+  "_owners": "Texts; Code Guest seats from Barracks/Dorm + convert; UIUX Guest row / Barracks-Dorm line; Art guest cot pip optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P83 Guest Beds stamped 2026-10-27 (8 guest.*; {n}/{max}/{name}). Soft dawn NONE. P78–P80 cite-only unreopened. Merge Temur.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P43 homecoming.json — party-return soft dawn chip only (cite; do not invent fifth chip; home.* unreopened)",
+    "border.dawn_new / intake — existing join path (cite)",
+    "P59 People chips — Sick / Away / crew / room / Free (cite; optional Guest chip; do not reopen P44/P48 sticky)",
+    "P41 yard clearance — cite desk/yard density only",
+    "P67 named_lives.json — cite only (no memorial / child invent)",
+    "P79 shift_board.json — Guests are not Shift seats; never shift.*"
+  ],
+  "_placeholders": [
+    "{n}",
+    "{max}",
+    "{name}"
+  ],
+  "by_key": {
+    "guest.name": {
+      "en": "Guest Beds",
+      "ru": "Гостевые койки"
+    },
+    "guest.status": {
+      "en": "{n}/{max} guest cots",
+      "ru": "Гостевых коек: {n}/{max}"
+    },
+    "guest.tip": {
+      "en": "Guest. New mouths rest before work.",
+      "ru": "Гость. Новые рты отдыхают перед работой."
+    },
+    "guest.first": {
+      "en": "Spare cots for new mouths.",
+      "ru": "Запасные койки для новых ртов."
+    },
+    "guest.full": {
+      "en": "Guest cots full.",
+      "ru": "Гостевые койки полны."
+    },
+    "guest.free": {
+      "en": "{name} takes a Free cot.",
+      "ru": "{name} берёт свободную койку."
+    },
+    "guest.empty": {
+      "en": "No guests.",
+      "ru": "Гостей нет."
+    },
+    "guest.convert": {
+      "en": "Ready for work.",
+      "ru": "Готов к работе."
+    }
+  },
+  "_designer": "APPROVED"
+}

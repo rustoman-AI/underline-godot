@@ -242,6 +242,9 @@ var sick_badge_icon: TextureRect
 var sick_float: Label
 var sick_float_until := 0
 var sick_float_fade: Tween
+## P83 first-fill float. A yard line, not a dawn chip and not a sticky plate.
+var guest_float: Label
+var guest_float_until := 0
 var undo_toast: PanelContainer
 ## P42 dawn rail-noise chip (bottom-left yard) and the once-per-run platform float.
 var rail_chip: PanelContainer
@@ -375,7 +378,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_guest():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +394,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_guest():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -434,6 +437,8 @@ func _ready() -> void:
 		await _drawer_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_guest():
+		await _guest_shots()
 	elif _want_vo():
 		await _vo_shots()
 	elif _dev_args().has("--journal"):
@@ -768,6 +773,260 @@ func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
 
 
+func _want_guest() -> bool:
+	return _dev_args().has("--guest") or _dev_args().has("--guest-plain")
+
+
+## Shot-only. Hides the new cot chrome so a before frame can be taken of the same surfaces.
+var _guest_plain := false
+
+
+## Quarters / Barracks / Dorm card line. Empty seat, a named cot, or a full lane.
+func _guest_card_lines(room) -> void:
+	if _guest_plain or game == null or room == null:
+		return
+	var index := game.guest_seat_index(room)
+	if index < 0:
+		return
+	var status := Copy.fill("guest.status", {"n": game.guest_count(), "max": game.guest_max()})
+	var line := _label(status, 16, true, false)
+	line.add_theme_color_override("font_color", PAPER_INK)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.tooltip_text = "%s\n%s" % [Copy.t("guest.name"), Copy.t("guest.tip")]
+	card_body.add_child(line)
+	var seated: Dictionary = game.guest_on_seat(index)
+	if not seated.is_empty():
+		var who := _label(game.guest_display_name(seated), 15, false, false)
+		who.add_theme_color_override("font_color", PAPER_INK)
+		card_body.add_child(who)
+	elif game.guest_count() == 0:
+		var empty := _label(Copy.t("guest.empty"), 14, false, false)
+		empty.add_theme_color_override("font_color", PAPER_MUTED)
+		card_body.add_child(empty)
+	if game.guest_max() > 0 and game.guest_count() >= game.guest_max():
+		var full := _label(Copy.t("guest.full"), 14, false, false)
+		full.add_theme_color_override("font_color", PAPER_EDGE)
+		card_body.add_child(full)
+
+
+## Thin desk row in the people drawer. Secondary to the room card. Not a new board.
+func _guest_desk_row() -> void:
+	if _guest_plain or game == null or people_box == null:
+		return
+	if game.guest_max() <= 0 and game.guest_count() <= 0:
+		return
+	var plate := PanelContainer.new()
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color(0.09, 0.08, 0.07, 0.0)
+	face.set_content_margin_all(0)
+	plate.add_theme_stylebox_override("panel", face)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 1)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_child(col)
+	var title := _label(Copy.t("guest.name"), 14, true, false)
+	title.add_theme_color_override("font_color", PAPER_EDGE)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title.tooltip_text = Copy.t("guest.tip")
+	col.add_child(title)
+	var status := _label(Copy.fill("guest.status", {"n": game.guest_count(), "max": game.guest_max()}), 13, false, false)
+	status.add_theme_color_override("font_color", INK)
+	status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(status)
+	if game.guest_count() == 0:
+		var empty := _label(Copy.t("guest.empty"), 13, false, false)
+		empty.add_theme_color_override("font_color", MUTED)
+		empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(empty)
+	else:
+		var names: PackedStringArray = []
+		for person in game.guest_people():
+			names.append(game.guest_display_name(person))
+		var who := _label(", ".join(names), 13, false, false)
+		who.add_theme_color_override("font_color", INK)
+		who.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		who.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(who)
+	if game.guest_max() > 0 and game.guest_count() >= game.guest_max():
+		var full := _label(Copy.t("guest.full"), 13, false, false)
+		full.add_theme_color_override("font_color", PAPER_EDGE)
+		full.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(full)
+	people_box.add_child(plate)
+
+
+func _sync_guest_float() -> void:
+	if _guest_plain or game == null or not game.take_guest_float():
+		return
+	if guest_float == null:
+		guest_float = _label("", 18, true, false)
+		guest_float.name = "GuestFloat"
+		guest_float.z_index = 8
+		guest_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		guest_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		guest_float.add_theme_constant_override("outline_size", 4)
+		guest_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+		guest_float.add_theme_color_override("font_color", INK)
+		add_child(guest_float)
+	guest_float.text = Copy.t("guest.first")
+	guest_float.tooltip_text = Copy.t("guest.tip")
+	guest_float.modulate.a = 1.0
+	guest_float.visible = true
+	guest_float.custom_minimum_size = Vector2(420, 28)
+	var at := Vector2(size.x * 0.5, size.y * 0.46)
+	guest_float.position = Vector2(at.x - 210.0, at.y)
+	guest_float.size = Vector2(420, 28)
+	## Static. Reduce-motion and the brief both keep it still for 1.6 s. Not a dawn chip.
+	guest_float_until = Time.get_ticks_msec() + 1600
+
+
+func _tick_guest_float() -> void:
+	if guest_float == null or not guest_float.visible or shot_mode:
+		return
+	if guest_float_until > 0 and Time.get_ticks_msec() >= guest_float_until:
+		guest_float.visible = false
+		guest_float_until = 0
+
+
+func _scroll_guest_chip() -> void:
+	if people_scroll == null or people_box == null:
+		return
+	var chip := _find_label(people_box, Copy.t("people.chip_guest"))
+	if chip == null:
+		return
+	var y := 0.0
+	var node: Node = chip
+	while node != null and node != people_box:
+		if node is Control:
+			y += (node as Control).position.y
+		node = node.get_parent()
+	people_scroll.scroll_vertical = int(maxf(0.0, y - 48.0))
+
+
+func _find_label(node: Node, text: String) -> Label:
+	if node is Label and str((node as Label).text) == text:
+		return node
+	for child in node.get_children():
+		var found := _find_label(child, text)
+		if found != null:
+			return found
+	return null
+
+
+func _guest_open_cells(n: int) -> void:
+	var placed := 0
+	for key in game.cells:
+		if placed >= n:
+			return
+		var cell: Dictionary = game.cells[key]
+		if not game._cell_buildable(cell):
+			continue
+		game._place_room("quarters", int(cell.level), int(cell.cell))
+		placed += 1
+
+
+func _guest_clear_modals() -> void:
+	game.pending.clear()
+	for _i in 6:
+		if deck.is_empty() and not modal_open:
+			break
+		_close_card()
+
+
+## Before frames (--guest-plain) and the new states (--guest): empty cot, named cot, full lane, chip, float, toast.
+func _guest_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	_guest_plain = _dev_args().has("--guest-plain")
+	await _settle(_shot_size())
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	_guest_clear_modals()
+	_guest_open_cells(2)
+	_refresh()
+	_guest_clear_modals()
+	var uid := _room_uid("quarters")
+	var prefix := "guest_before" if _guest_plain else "guest_after"
+	if uid != "":
+		_show_room(uid)
+		await _frame()
+		await _frame()
+		_save(prefix + "_card_empty")
+		_close_card()
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save(prefix + "_desk_empty")
+	drawer_open = false
+	_place_drawer()
+	if _guest_plain:
+		await _frame()
+		_save(prefix + "_yard")
+		get_tree().quit()
+		return
+	game._hire(1, true)
+	_refresh()
+	_guest_clear_modals()
+	await _frame()
+	await _frame()
+	_save("guest_after_float")
+	if uid != "":
+		_show_room(uid)
+		await _frame()
+		await _frame()
+		_save("guest_after_card_named")
+		_close_card()
+	var guard := 0
+	while game.guest_count() < game.guest_max() and guard < 8:
+		guard += 1
+		game._hire(1, true)
+	_refresh()
+	_guest_clear_modals()
+	if uid != "":
+		_show_room(uid)
+		await _frame()
+		await _frame()
+		_save("guest_after_card_full")
+		_close_card()
+	if guest_float != null:
+		guest_float.visible = false
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_scroll_guest_chip()
+	await _frame()
+	await _frame()
+	_save("guest_after_desk_chip")
+	drawer_open = false
+	_place_drawer()
+	var guest_id := ""
+	for person in game.guest_people():
+		guest_id = str(person.id)
+		break
+	var work := _room_uid("workshop")
+	if guest_id != "" and work != "":
+		var room = game._room(work)
+		if room != null and not room.staff.is_empty():
+			game.apply({"kind": "unassign", "person": str(room.staff[0])})
+		if game.apply({"kind": "assign", "person": guest_id, "room": work}):
+			if guest_float != null:
+				guest_float.visible = false
+			_refresh()
+			await _frame()
+			await _frame()
+			_save("guest_after_toast")
+	get_tree().quit()
+
+
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
 ## station, a close look at a busy row, and an empty dug cell next to rooms. Writes rooms_station*.png.
 func _rooms_shots() -> void:
@@ -995,6 +1254,7 @@ func _process(_delta: float) -> void:
 	_pulse_alarms()
 	_tick_away_float()
 	_tick_sick_cots()
+	_tick_guest_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -1956,6 +2216,7 @@ func _refresh() -> void:
 	var floated := game.take_salvage_float()
 	if str(floated.get("id", "")) != "":
 		_yard_float(Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node." + str(floated.id))}), str(floated.get("uid", "")))
+	_sync_guest_float()
 	stock_week = game.week
 	_sync_resource_names()
 	_sync_numbers()
@@ -2066,6 +2327,7 @@ func _fill_people() -> void:
 	if people_box == null or game == null:
 		return
 	_wipe(people_box)
+	_guest_desk_row()
 	_party_block()
 	var total := game.residents.size()
 	var working := 0
@@ -2411,6 +2673,13 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	var name_label := _label(Copy.person(str(person.name)), 15)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_line.add_child(name_label)
+	## Guest chip only. Sick, Away, Duty, crew, room and Free stay the existing row (P59 unreopened).
+	if game.people_chip_kind(id) == "guest":
+		var guest_chip := _label(Copy.t("people.chip_guest"), 12, false, false)
+		guest_chip.add_theme_color_override("font_color", PAPER_EDGE)
+		guest_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		guest_chip.tooltip_text = Copy.t("guest.tip")
+		name_line.add_child(guest_chip)
 	if _story_state(id) == "new":
 		var dot := _label("•", 15, true)
 		dot.add_theme_color_override("font_color", Color("e2a63a"))
@@ -3981,6 +4250,7 @@ func _show_room(uid: String) -> void:
 			sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			card_body.add_child(sub)
 	_room_header(detail)
+	_guest_card_lines(room)
 	if str(detail.type) == "listening_post":
 		_listening_card(uid)
 	elif str(detail.type) == "radio" and game.listening_active():

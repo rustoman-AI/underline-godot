@@ -1,0 +1,11 @@
+{
+  "_note": "P83 cites people.chip_guest only (EN Guest / RU Гость). Not a guest.* key. The rest of the People chip pack stays on P59 and is not reopened here. Do not invent EN/RU.",
+  "_roadmap": "P59 cite — P83 Guest chip only",
+  "_status": "Designer APPROVED / Code-ready — people.chip_guest Guest/Гость cite-only",
+  "by_key": {
+    "people.chip_guest": {
+      "en": "Guest",
+      "ru": "Гость"
+    }
+  }
+}
