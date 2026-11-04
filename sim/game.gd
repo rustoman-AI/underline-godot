@@ -3,6 +3,7 @@ extends RefCounted
 const Brief = preload("res://sim/brief.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
@@ -308,6 +309,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 		belt_down = false
 		workshop_down = false
 		gen_down = false
+	if stations.size() > 0:
+		TransferHubs.sync(self, false)
 	if errors.is_empty():
 		telegraphed = _plan_intents()
 		_dawn()
@@ -338,6 +341,7 @@ func end_week() -> void:
 	week += 1
 	LeafletDust.settle_all(self)
 	NeedTick.settle_all(self)
+	TransferHubs.sync(self)
 	decisions = 0
 	_dawn()
 	if _dawn_held:
@@ -12564,6 +12568,11 @@ func sick_cots_dawn_chip() -> bool:
 
 ## Always false. P52 focus is a visit-sheet choice, never a soft dawn chip.
 func station_focus_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P84 hub status is a visit line and a map mark, never a soft dawn chip.
+func transfer_dawn_chip() -> bool:
 	return false
 
 

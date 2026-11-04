@@ -1,0 +1,50 @@
+{
+  "_note": "P84 Transfer Hubs (NEW invent — DEC-TH1…TH3). Spec: /workspace/TRANSFER_HUBS_P84_SPEC.md. Namespace transfer.* — NEVER relay.* (P78) / duty.* (P81) / signal.* (P82). Cite P58 Passage Flow (open passage edges / degree — do not reopen edge tick); P78 Relay Posts (supply hops + Relay seat — Transfer is NOT a Relay; do not steal Relay seat); P81 Passage Duty (Duty seats — cite; do not reopen Duty chrome); P55 Community Perks (BR goods mark — do not steal); P57 Focus Pip (do not steal). Soft dawn: NONE (hub toast / first float ≠ soft dawn chip). Tone: dry metro grit — one quiet junction mark, not a second Relay desk. Balance ZERO. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P84",
+  "_owners": "Texts; Code derive Hub from owned degree≥3 open passages + Visit status + optional map mark; UIUX Visit Hub status + tip + first float + lost toast; Art transfer_mark_24 optional (never blocks)",
+  "_status": "Texts READY at design-gate awaiting Designer stamp — P84 Transfer Hubs authored 2026-10-27 (8 transfer.*). Soft dawn NONE. P81–P83 unreopened. Cite P58/P78/P81/P55/P57 only. | Polish t145u 2026-11-03: 4 edit(s) (transfer.tip.ru, transfer.status.ru, transfer.name.ru, transfer.status_none.ru); keys/placeholders unchanged; no balance; see polish_notes.md § Polish t145u. Still READY at design-gate (not stamped).",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P58 Passage Flow — open passage edges / degree count (do not reopen edge tick geometry)",
+    "P78 Relay Posts — supply hops + Relay seat; Transfer is not a Relay (do not steal Relay seat or invent second Relay)",
+    "P81 Passage Duty — Duty seats on owned edges (cite; do not reopen Duty chrome)",
+    "P55 Community Perks — BR goods mark (do not steal slot)",
+    "P57 Focus Pip — focus letter (do not steal slot)"
+  ],
+  "_placeholders": [],
+  "by_key": {
+    "transfer.name": {
+      "en": "Transfer Hub",
+      "ru": "Пересадка"
+    },
+    "transfer.tip": {
+      "en": "Transfer Hub. Three ways open.",
+      "ru": "Пересадка. Три пути открыты."
+    },
+    "transfer.first": {
+      "en": "A junction on the Line.",
+      "ru": "Развилка на Линии."
+    },
+    "transfer.lost": {
+      "en": "Hub quiet. Ways closed.",
+      "ru": "Пересадка затихла. Пути закрыты."
+    },
+    "transfer.status": {
+      "en": "Transfer Hub.",
+      "ru": "Пересадка."
+    },
+    "transfer.status_none": {
+      "en": "Not a Hub.",
+      "ru": "Пересадки нет."
+    },
+    "transfer.mark": {
+      "en": "Hub",
+      "ru": "Пересадка"
+    },
+    "transfer.quiet": {
+      "en": "No junction here.",
+      "ru": "Здесь нет развилки."
+    }
+  },
+  "_designer": "READY"
+}

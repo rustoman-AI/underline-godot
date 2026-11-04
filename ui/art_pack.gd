@@ -267,6 +267,8 @@ static func textures() -> Dictionary:
 		"res://assets/events/smuggler_next.webp": preload("res://assets/events/smuggler_next.webp"),
 		"res://assets/icons/map/rumor.png": preload("res://assets/icons/map/rumor.png"),
 		"res://assets/icons/map/rumor_24.png": preload("res://assets/icons/map/rumor_24.png"),
+		"res://assets/icons/map/transfer_mark.png": preload("res://assets/icons/map/transfer_mark.png"),
+		"res://assets/icons/map/transfer_mark_24.png": preload("res://assets/icons/map/transfer_mark_24.png"),
 		"res://assets/icons/map/gift.png": preload("res://assets/icons/map/gift.png"),
 		"res://assets/icons/map/gift_24.png": preload("res://assets/icons/map/gift_24.png"),
 		"res://assets/icons/map/aid.png": preload("res://assets/icons/map/aid.png"),

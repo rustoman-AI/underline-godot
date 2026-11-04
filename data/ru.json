@@ -1919,5 +1919,13 @@
   "Owen found a Directorate man asleep behind the generator. He took his armband off before he lay down. He asks not to be sent back to Rhee.": "Оуэн нашёл за генератором спящего человека из Управления. Повязку тот снял, прежде чем лечь. Просит не отдавать его обратно Ри.",
   "Give him a bunk and a new name": "Дать ему койку и другое имя",
   "Walk him back to the chain": "Отвести его обратно к цепи",
-  "Feed him and point him north": "Накормить и показать дорогу на север"
+  "Feed him and point him north": "Накормить и показать дорогу на север",
+  "Transfer Hub": "Пересадка",
+  "Transfer Hub. Three ways open.": "Пересадка. Три пути открыты.",
+  "A junction on the Line.": "Развилка на Линии.",
+  "Hub quiet. Ways closed.": "Пересадка затихла. Пути закрыты.",
+  "Transfer Hub.": "Пересадка.",
+  "Not a Hub.": "Пересадки нет.",
+  "Hub": "Пересадка",
+  "No junction here.": "Здесь нет развилки."
 }
