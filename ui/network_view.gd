@@ -16,6 +16,7 @@ const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const SynodFavor = preload("res://sim/synod_favor.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -204,6 +205,10 @@ var _leaf_float: Label
 var _leaf_float_tween: Tween
 var _need_float: Label
 var _need_float_tween: Tween
+var _favor_open := false
+var _favor_float: Label
+var _favor_float_tween: Tween
+var _visit_scroll: ScrollContainer
 var _focus_float: Label
 var _focus_float_tween: Tween
 var _on_paper := false
@@ -5266,6 +5271,7 @@ func _build_visit() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_visit_scroll = scroll
 	_visit_body = VBoxContainer.new()
 	_visit_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_visit_body.add_theme_constant_override("separation", 6)
@@ -5299,8 +5305,11 @@ func open_visit(sid: String) -> void:
 
 func close_visit() -> void:
 	_visit_sid = ""
+	_favor_open = false
 	if _need_float != null:
 		_need_float.visible = false
+	if _favor_float != null:
+		_favor_float.visible = false
 	_hide_focus_float()
 	if visit != null:
 		visit.visible = false
@@ -5378,6 +5387,7 @@ func _fill_visit(sid: String) -> void:
 	_add_perk_good(game, sid, column)
 	head.add_child(column)
 	_visit_body.add_child(head)
+	_add_favor_chapel(game, sid)
 	var details := _details_box()
 	var who: String = game.station_text(sid, "who")
 	var conflict: String = game.station_text(sid, "conflict")
@@ -5398,6 +5408,136 @@ func _fill_visit(sid: String) -> void:
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
 	_note_station_focus(sid)
+
+
+## Chapel row under the visit relation line. Cites Game.synod as text. Does not build a meter bar.
+func _add_favor_chapel(game, sid: String) -> void:
+	if game == null or _visit_body == null:
+		return
+	var box := VBoxContainer.new()
+	box.name = "FavorChapel"
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 4)
+	box.set_meta("favor_chapel", true)
+	var cite := _lab("%s %d" % [Copy.t("Synod"), int(game.synod)], 15, true)
+	cite.set_meta("favor_synod_cite", int(game.synod))
+	box.add_child(cite)
+	if not SynodFavor.open(game):
+		var need := _lab(Copy.t("favor.need"), 14, false)
+		need.set_meta("favor_need", true)
+		need.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(need)
+		_visit_body.add_child(box)
+		return
+	var cooling := SynodFavor.cooldown_n(game)
+	if cooling > 0:
+		var rest := _lab(Copy.fill("favor.cooldown", {"n": cooling}), 14, false)
+		rest.set_meta("favor_cooldown", cooling)
+		rest.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(rest)
+		_visit_body.add_child(box)
+		return
+	if not _favor_open:
+		var ask := Button.new()
+		ask.text = Copy.t("favor.open")
+		ask.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		ask.set_meta("favor_ask", true)
+		ask.pressed.connect(_open_favor_panel.bind(sid))
+		box.add_child(ask)
+		_visit_body.add_child(box)
+		return
+	var title := _lab(Copy.t("favor.open"), 16, true)
+	title.set_meta("favor_title", true)
+	box.add_child(title)
+	for id in SynodFavor.IDS:
+		box.add_child(_favor_option(game, str(id), sid))
+	_visit_body.add_child(box)
+
+
+func _favor_option(game, id: String, sid: String) -> Control:
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 1)
+	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var button := Button.new()
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.text = "%s    %d" % [Copy.t(SynodFavor.label_key(id)), SynodFavor.cost(id)]
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.set_meta("favor_option", id)
+	button.disabled = SynodFavor.block(game, id) == "cost"
+	button.pressed.connect(_spend_favor.bind(id, sid))
+	stack.add_child(button)
+	var tip := _lab(Copy.t(SynodFavor.tip_key(id)), 13, false)
+	tip.set_meta("favor_tip", id)
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stack.add_child(tip)
+	return stack
+
+
+func _open_favor_panel(sid: String) -> void:
+	_favor_open = true
+	_fill_visit(sid)
+	_scroll_favor()
+
+
+func _spend_favor(id: String, sid: String) -> void:
+	var game = _game()
+	if game == null:
+		return
+	if not game.apply({"kind": "favor", "id": id}):
+		return
+	_favor_open = false
+	var row: Dictionary = game.last_favor
+	if host != null and host.has_method("_toast"):
+		host._toast(str(row.get("toast", "")))
+	var floated := str(row.get("float", ""))
+	if floated != "":
+		_show_favor_float(floated)
+	if host != null and host.has_method("_refresh"):
+		host._refresh()
+	_fill_visit(sid)
+	_scroll_favor()
+
+
+## First spend, once a run. Static. Not a soft-dawn chip.
+func _show_favor_float(line: String) -> void:
+	if visit == null or line == "":
+		return
+	if _favor_float == null:
+		_favor_float = Label.new()
+		_favor_float.name = "FavorFloat"
+		_favor_float.z_index = 5
+		_favor_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_favor_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_favor_float.add_theme_font_size_override("font_size", 16)
+		_favor_float.add_theme_color_override("font_color", INK)
+		_favor_float.add_theme_constant_override("outline_size", 4)
+		_favor_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		_favor_float.set_meta("favor_float", true)
+		visit.add_child(_favor_float)
+	_favor_float.text = line
+	_favor_float.modulate.a = 1.0
+	_favor_float.visible = true
+	_favor_float.custom_minimum_size = Vector2(520, 28)
+	_favor_float.size = Vector2(520, 28)
+	_favor_float.position = Vector2(maxf(8.0, visit.size.x * 0.5 - 260.0), 8.0)
+	if _favor_float_tween != null and _favor_float_tween.is_valid():
+		_favor_float_tween.kill()
+	if not is_inside_tree():
+		return
+	_favor_float_tween = create_tween()
+	_favor_float_tween.tween_interval(1.6)
+	_favor_float_tween.tween_callback(func() -> void:
+		if _favor_float != null:
+			_favor_float.visible = false)
+
+
+func _scroll_favor() -> void:
+	if _visit_scroll == null or _visit_body == null:
+		return
+	var row := _visit_body.find_child("FavorChapel", true, false)
+	if row == null:
+		return
+	_visit_scroll.scroll_vertical = int(row.position.y)
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().

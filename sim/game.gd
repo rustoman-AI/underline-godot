@@ -3,6 +3,7 @@ extends RefCounted
 const Brief = preload("res://sim/brief.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const SynodFavor = preload("res://sim/synod_favor.gd")
 const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
 const HOPE_ZERO_LEAVE := 2
@@ -82,6 +83,8 @@ var pumped := false
 var flood_guard := false
 var quarantine := false
 var synod := 0
+## Last chapel spend, for the visit toast and first float. Not saved; the flags are.
+var last_favor := {}
 var floor_met := false
 var orders_left := 0
 var seat_used := {}
@@ -447,6 +450,8 @@ func apply(action: Dictionary) -> bool:
 			ok = recall_governor(str(action.get("station", "")))
 		"audience":
 			ok = _apply_help() if bool(action.get("help", false)) else _apply_audience(bool(action.get("accept", false)))
+		"favor":
+			ok = _apply_favor(str(action.get("id", "")))
 		_:
 			ok = false
 	if ok and not entry.is_empty():
@@ -454,6 +459,12 @@ func apply(action: Dictionary) -> bool:
 	if ok and watcher.is_valid():
 		watcher.call("action", {"kind": kind, "action": action, "entry": entry, "scene": scene})
 	return ok
+
+
+func _apply_favor(id: String) -> bool:
+	var row: Dictionary = SynodFavor.spend(self, id)
+	last_favor = row
+	return bool(row.get("ok", false))
 
 
 ## What the journal keeps about an action, read before the action changes state. Empty means not journaled.
@@ -1196,6 +1207,8 @@ func _dawn() -> void:
 	_expire_need_ticks()
 	battle_dis_week = 0
 	_resolve_queued()
+	## Escort tip expires only after this dawn's fights, and never as a soft-dawn chip.
+	SynodFavor.expire_escort(self)
 	## The share card sits at the end of order resolve, before the rest of dawn reads the stock.
 	if raid_share_open() and raid_share_hold:
 		_dawn_held = true
@@ -6156,7 +6169,11 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 func _battle(sq: Dictionary, sid: String) -> bool:
 	var st: Dictionary = stations[sid]
 	var roll := net_rng.randf_range(0.8, 1.2)
-	var attack := float(sq.size) * float(sq.gear) * (1.0 + float(sq.fight) / 10.0) * roll
+	var fight := float(sq.fight)
+	var leaned := SynodFavor.escort_applies(self, sq, sid)
+	if leaned:
+		fight += 1.0
+	var attack := float(sq.size) * float(sq.gear) * (1.0 + fight / 10.0) * roll
 	var garrison := float(st.garrison)
 	var defender: Dictionary = {}
 	if str(st.owner) == player:
@@ -6183,6 +6200,8 @@ func _battle(sq: Dictionary, sid: String) -> bool:
 			_lose_soldiers(int(round(float(defender.size) * loss * 0.5)), "The guard held the station")
 	if ours:
 		_note_moment("battle", {"place": str(st.name), "result": "the squad came back smaller" if not win else "the squad took the station"}, 3)
+	if leaned:
+		SynodFavor.consume_escort(self)
 	return win
 
 
@@ -8153,7 +8172,10 @@ func _roll_events() -> void:
 	if pool.is_empty():
 		pool = _event_pool(false)
 	if not pool.is_empty():
-		_present_event(_weighted(pool))
+		var picked: Dictionary = _weighted(pool)
+		## Quiet week skips one weighted major faction knock (toll / knock-style) or lets the card through.
+		if not SynodFavor.skip_pressure(self, picked):
+			_present_event(picked)
 	_offer_dilemmas()
 
 
@@ -11833,6 +11855,8 @@ func chronicle_line(moment: Dictionary) -> String:
 	var kind := str(moment.get("kind", ""))
 	var fields: Dictionary = moment.get("fields", {})
 	fields["week"] = int(moment.get("week", week))
+	if kind == "favor":
+		return Copy.fill("favor.spent", {"favor": str(fields.get("favor", ""))})
 	if kind == "raid_share":
 		if str(fields.get("choice", "")) == "tribute":
 			return Copy.fill("raid_share.dawn_tribute", {
@@ -13419,7 +13443,10 @@ func _battle_factors(sq: Dictionary, sid: String, breach: bool) -> Dictionary:
 	if breach:
 		atk_mod *= 1.15
 		mods.append({"id": "breach", "label": Copy.t("combat.mod_breach")})
-	var attack := _effective_size(sq) * float(sq.get("gear", 1.0)) * (1.0 + float(sq.get("fight", 1)) / 10.0) * atk_mod
+	var fight := float(sq.get("fight", 1))
+	if SynodFavor.escort_applies(self, sq, sid):
+		fight += 1.0
+	var attack := _effective_size(sq) * float(sq.get("gear", 1.0)) * (1.0 + fight / 10.0) * atk_mod
 	var garrison := float(st.get("garrison", 1))
 	var defender := {}
 	if str(st.get("owner", "")) == player and squads.has(player):
@@ -13521,6 +13548,7 @@ func _add_battle_discontent(amount: int) -> void:
 
 
 func _resolve_battle(atk: Dictionary, sid: String, breach: bool) -> Dictionary:
+	var leaned := SynodFavor.escort_applies(self, atk, sid)
 	var factors := _battle_factors(atk, sid, breach)
 	var roll := net_rng.randf_range(0.8, 1.2)
 	var win := float(factors.attack) * roll > float(factors.defense)
@@ -13534,6 +13562,8 @@ func _resolve_battle(atk: Dictionary, sid: String, breach: bool) -> Dictionary:
 		var st: Dictionary = stations[sid]
 		st.garrison = maxi(2, int(round(float(st.get("garrison", 2)) * (1.0 - def_frac))))
 	var player_hurt := atk_hurt if str(atk.get("faction", "")) == player else def_hurt
+	if leaned:
+		SynodFavor.consume_escort(self)
 	return {"win": win, "player": player_hurt, "attack": factors.attack, "defense": factors.defense, "mods": factors.mods}
 
 
