@@ -311,6 +311,8 @@ static func note_sympathy(game, sid: String, before: int, after: int) -> void:
 	_gift_station(game, sid)
 
 
+## A capture never grants Kit. Force marks the station's piece as not given for the run.
+## A peaceful join is not a capture; that path can still hand the piece over.
 static func note_capture(game, sid: String, force: bool) -> void:
 	if not _live(game):
 		return

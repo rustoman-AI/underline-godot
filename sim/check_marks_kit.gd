@@ -22,6 +22,7 @@ func _init() -> void:
 	_triggers()
 	_lines()
 	_swap()
+	_defaults()
 	_dawn()
 	_soft_dawn()
 	_bots_skip()
@@ -240,6 +241,36 @@ func _swap() -> void:
 	_expect(str(game.obs.kit_worn.lamp) == "", "a coat does not sit on the lamp hook", str(game.obs.kit_worn))
 	game.obs_swap("coat", "")
 	_expect(str(game.obs.kit_worn.coat) == "", "take the coat off", str(game.obs.kit_worn))
+
+
+func _defaults() -> void:
+	var blank := MarksKit.fresh()
+	_expect(not blank.has("name"), "the Observer has no name field", str(blank.keys()))
+	var pack = JSON.parse_string(FileAccess.get_file_as_string("res://data/marks_kit.json"))
+	var rows: Dictionary = pack.by_key
+	for key in rows:
+		var en := str(rows[key].get("en", ""))
+		var ru := str(rows[key].get("ru", ""))
+		if en.to_lower().find("what is your name") >= 0 or en.to_lower().find("name the observer") >= 0 or ru.find("как тебя зовут") >= 0:
+			_bad("name prompt %s" % str(key))
+	var taken := _game()
+	var food := int(taken.stock.food)
+	var hope := taken.hope
+	var mats := int(taken.stock.materials)
+	var tokens := int(taken.stock.tokens)
+	MarksKit.note_capture(taken, "dockyard", true)
+	MarksKit.note_sympathy(taken, "dockyard", 20, 80)
+	_expect(taken.obs.kit_owned.is_empty() and taken.obs.wait_kit.is_empty() and taken.obs.kit_lost.has("oilskin"),
+		"capturing a station never grants Kit", str(taken.obs.kit_owned) + " " + str(taken.obs.wait_kit))
+	taken.obs_desk = false
+	taken.obs.kit_owned = ["carbide"]
+	taken.obs_swap("lamp", "carbide")
+	_expect(str(taken.obs.kit_worn.lamp) == "", "no swap off the home desk", str(taken.obs.kit_worn))
+	taken.obs_desk = true
+	taken.obs_swap("lamp", "carbide")
+	_expect(str(taken.obs.kit_worn.lamp) == "carbide", "swap at the home desk", str(taken.obs.kit_worn))
+	_expect(int(taken.stock.food) == food and taken.hope == hope and int(taken.stock.materials) == mats and int(taken.stock.tokens) == tokens,
+		"a swap has no cost", "food %s hope %s" % [taken.stock.food, taken.hope])
 
 
 func _dawn() -> void:
