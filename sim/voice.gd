@@ -74,6 +74,19 @@ static func event_line(event_id: String, choice_id: String) -> Dictionary:
 const EVENT_VO_EXACT := true
 
 
+## Marks & Kit takes (data/vo/obs_vo.json). The id is the obs.* key. A take plays only
+## while its recorded text is still the string on screen. No row, or a missing file, is silence.
+static func obs_line(key: String, shown: String) -> Dictionary:
+	if key == "" or shown == "":
+		return {}
+	var row := line(key)
+	if row.is_empty() or str(row.get("type", "")) != "obs":
+		return {}
+	if _plain(text(row)) != _plain(shown):
+		return {}
+	return row
+
+
 static func event_show(kind: String, event_id: String, part: String, shown: String) -> Dictionary:
 	for row in of_type("event_show"):
 		if str(row.get("kind", "")) != kind or str(row.get("event", "")) != event_id or str(row.get("part", "")) != part:

@@ -208,6 +208,12 @@ var notices: Array = []
 var perk_float_due := {}
 ## Dawn-card line for a Listening Post order. Not saved.
 var listening_line := ""
+## P87 Observer: inked marks, offered deeds, and worn Kit. Schema 17. Empty on older saves.
+var obs := {}
+## Swap gate for the home desk. The station screen sets these; they are not saved.
+var obs_desk := true
+var obs_narrative := false
+var obs_shelved := false
 
 var catalog: Catalog
 var rng := RandomNumberGenerator.new()
@@ -236,6 +242,10 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	raid_share_hold = false
 	raid_share_profile = ""
 	_dawn_held = false
+	obs = MarksKit.fresh()
+	obs_desk = true
+	obs_narrative = false
+	obs_shelved = false
 	over = ""
 	player_lean = str(cat.factions[player].lean)
 	capital_id = str(cat.factions[player].capital)
@@ -335,6 +345,7 @@ func end_week() -> void:
 		over = "time"
 		_seal_score()
 		return
+	MarksKit.note_week_end(self)
 	week += 1
 	LeafletDust.settle_all(self)
 	NeedTick.settle_all(self)
@@ -1248,6 +1259,7 @@ func _dawn_after_orders() -> void:
 	_audience_dawn()
 	_drip_piles()
 	_offer_home_chip()
+	MarksKit.dawn(self)
 
 
 func _rival_phase() -> void:
@@ -3271,6 +3283,7 @@ func _apply_strip() -> bool:
 
 func _gain_blueprint(source: String) -> void:
 	stock.blueprints = int(stock.get("blueprints", 0)) + 1
+	MarksKit.note_blueprint(self, source)
 	var line := Copy.t("salvage.gained_%s" % source)
 	notices.append(line)
 	_log(line, true)
@@ -4363,6 +4376,7 @@ func _order_propaganda(sid: String) -> bool:
 	stock.influence = int(stock.influence) - propaganda_cost(sid)
 	st.sympathy = before_sym + gain
 	var after_sym := int(st.sympathy)
+	MarksKit.note_sympathy(self, sid, before_sym, after_sym)
 	_log("ORDER propaganda %s +%d (%d)" % [st.name, gain, after_sym])
 	var joined := false
 	if after_sym >= 100:
@@ -4390,6 +4404,7 @@ func _order_envoy(sid: String) -> bool:
 	var gain := maxi(2, int(round(float(sympathy_preview(sid)) * 0.35)))
 	st.sympathy = before_sym + gain
 	var after_sym := int(st.sympathy)
+	MarksKit.note_sympathy(self, sid, before_sym, after_sym)
 	_log("ORDER envoy %s +%d (%d)" % [st.name, gain, after_sym])
 	var joined := false
 	if after_sym >= 100:
@@ -4762,6 +4777,9 @@ func _order_result_text(kind: String, action: Dictionary, who: String, place: St
 		"probe", "tap":
 			if listening_line != "":
 				bits.append(listening_line)
+			var heard := MarksKit.read(self, "listening", str(action.get("station", action.get("dest", ""))))
+			if heard != "":
+				bits.append(heard)
 	var gained := _gained_since(before)
 	if gained != "":
 		bits.append(gained)
@@ -6320,6 +6338,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 		notices.append(Copy.fill("pressure.claim_cleared", {"station": _station_place(sid)}))
 	_grant_claim(st, prev)
 	if fid == player:
+		MarksKit.note_capture(self, sid, force)
 		var shipment := ""
 		if force and bool(bal.get("force_no_join_hope", true)):
 			_add_hope(int(bal.get("assault_hope", -3)), "force")
@@ -8383,6 +8402,8 @@ func front_event() -> Dictionary:
 ## scenes, crisis legs and leader consequences (lc_, lc2_). The rest are small: the player meets them during the
 ## week (ui/station.gd), one at a time as they work, and all that are left when they end the week.
 func event_is_big(ev: Dictionary) -> bool:
+	if MarksKit.is_card(ev):
+		return true
 	var id := str(ev.get("id", ""))
 	if bool(ev.get("major", false)) or ev.has("trigger") or not crunch_leg(id).is_empty():
 		return true
@@ -8422,6 +8443,9 @@ func modal_ids() -> Array:
 func dismiss_front() -> bool:
 	if pending.is_empty():
 		return false
+	if MarksKit.is_card(pending[0]):
+		pending.pop_front()
+		return true
 	var ev: Dictionary = pending[0]
 	var choice := _free_choice(ev)
 	if choice.is_empty():
@@ -8523,6 +8547,9 @@ func _event_ok(ev: Dictionary) -> bool:
 func _resolve_pending() -> void:
 	var guard := 0
 	while not pending.is_empty() and guard < 6:
+		if MarksKit.is_card(pending[0]):
+			pending.pop_front()
+			continue
 		guard += 1
 		var ev: Dictionary = pending[0]
 		var choice := {}
@@ -8542,7 +8569,49 @@ func _resolve_pending() -> void:
 
 
 func choice_locked(choice: Dictionary) -> bool:
+	if MarksKit.line_hidden(self, choice):
+		return true
 	return bool(choice.get("locked", false)) or requires_reason(choice.get("requires", {})) != ""
+
+
+func obs_can_swap() -> bool:
+	return MarksKit.can_swap(self)
+
+
+func obs_swap(slot: String, kit_id: String) -> String:
+	return MarksKit.swap(self, slot, kit_id)
+
+
+func obs_queue_ink(mark_id: String) -> bool:
+	return MarksKit.queue_ink(self, mark_id)
+
+
+func obs_read(surface: String, sid: String) -> String:
+	return MarksKit.read(self, surface, sid)
+
+
+func obs_greet(sid: String) -> String:
+	return MarksKit.greet(self, sid)
+
+
+func obs_line_source(choice: Dictionary) -> Dictionary:
+	return MarksKit.line_source(choice)
+
+
+func obs_bot_skip(choice: Dictionary) -> bool:
+	return MarksKit.bot_skip(choice)
+
+
+func obs_is_card(ev: Dictionary) -> bool:
+	return MarksKit.is_card(ev)
+
+
+func obs_line_hidden(choice: Dictionary) -> bool:
+	return MarksKit.line_hidden(self, choice)
+
+
+func obs_holds_dawn() -> bool:
+	return MarksKit.holds_dawn(self)
 
 
 ## Why a locked choice is closed, one line for the card: a check's lock_reason or the first unmet "requires".
@@ -8556,7 +8625,7 @@ func lock_reason(choice: Dictionary) -> String:
 
 
 ## Choice-level "requires": the "needs" keys plus these.
-const REQUIRES_EXTRA := ["proofs_min", "hope_min", "any_flag", "any_of"]
+const REQUIRES_EXTRA := ["proofs_min", "hope_min", "any_flag", "any_of", "obs_mark", "obs_kit"]
 ## What a flag read by "requires" is called on the card; any other flag shows its id with spaces.
 const FLAG_TEXT := {
 	"floor_published": "the minutes read aloud",
@@ -8644,6 +8713,10 @@ func requires_reason(req) -> String:
 		if not nouns.has(""):
 			return Copy.t("Needs %s") % Copy.t(" or ").join(nouns)
 		return Copy.t("; or ").join(whys)
+	if req.has("obs_mark") and not MarksKit.has_mark(self, str(req.obs_mark)):
+		return Copy.fill("obs.line_why", {"name": Copy.t("obs.mark.%s.name" % str(req.obs_mark))})
+	if req.has("obs_kit") and not MarksKit.wearing(self, str(req.obs_kit)):
+		return Copy.fill("obs.line_why", {"name": Copy.t("obs.kit.%s.name" % str(req.obs_kit))})
 	return ""
 
 
@@ -9204,6 +9277,11 @@ func _apply_event(action: Dictionary) -> bool:
 			choice = c
 	if choice.is_empty() or choice_locked(choice) or not choice_offered(choice) or not _afford(choice.get("cost", {})):
 		return false
+	if MarksKit.is_card(ev):
+		MarksKit.resolve(self, ev, str(choice.get("id", "")))
+		pending.pop_front()
+		decisions += 1
+		return true
 	_pay(choice.get("cost", {}))
 	var keep := true
 	if choice.has("check"):
@@ -9231,6 +9309,8 @@ func _apply_event(action: Dictionary) -> bool:
 	if str(ev.get("burial_id", "")) != "":
 		_resolve_burial(str(ev.burial_id), str(choice.get("id", "")))
 	else:
+		if MarksKit.ARRIVAL_EVENTS.has(str(ev.get("id", ""))) and int(choice.get("people", 0)) > 0:
+			MarksKit.note_arrival(self, int(choice.get("people", 0)))
 		_note_moment("dilemma", {"title": line_of(ev, "title"), "choice": line_of(choice, "label")}, 3)
 		var named := str(action.get("person", ""))
 		if named != "" and people.has(named):
@@ -10080,6 +10160,8 @@ func _order_probe(sid: String) -> bool:
 		return true
 	st.intel = clampi(maxi(int(st.get("intel", 0)), 2), 0, 3)
 	st.wired_until = int(week) + 2
+	if sid == "signal":
+		MarksKit.note_signal(self, "probe")
 	var faction := Copy.t(_fname(str(st.owner))) if catalog.factions.has(str(st.owner)) else Copy.t("Neutral")
 	var line := Copy.fill("listening.probe_reveal", {
 		"faction": faction,
@@ -10127,6 +10209,7 @@ func _listening_blown(fid: String, place: String) -> void:
 	var blown := Copy.fill("listening.blown", {"station": place})
 	var dawn := Copy.t("listening.blown_dawn")
 	listening_line = "%s %s" % [blown, dawn]
+	MarksKit.note_blown(self)
 	notices.append(blown)
 	notices.append(dawn)
 	_log(blown, true)
@@ -11373,7 +11456,7 @@ const PERSIST := [
 	"check_schedule", "white_pending", "vent_cut", "relations", "flags", "journal",
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
-	"story_queue", "proof_extra",
+	"story_queue", "proof_extra", "obs",
 ]
 
 
@@ -11387,7 +11470,9 @@ const PERSIST := [
 ## Version 12 added the map rumor; older saves start with none.
 ## Version 13 added the salvage board; older saves start with none.
 ## Version 14 added the yard clear job. Older saves start with nobody clearing.
-const SAVE_SCHEMA := 14
+## Version 15 and 16 are already claimed by open packs. Version 17 adds the Observer.
+## Older saves start with no marks and no Kit. Renumber on merge if 15 or 16 landed first.
+const SAVE_SCHEMA := 17
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11425,6 +11510,8 @@ const V11_ADDED := ["rumor"]
 const V12_ADDED := ["salvage"]
 ## Fields a version 1 to 13 save may lack: no pile crew out yet.
 const V13_ADDED := ["clear"]
+## Fields a version 1 to 16 save may lack: no Observer yet.
+const V16_ADDED := ["obs"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -11464,6 +11551,7 @@ func import_state(data: Dictionary) -> bool:
 		_muster_start_guard()
 	_sync_guard()
 	_ready_salvage()
+	obs = MarksKit.normalize(obs)
 	return true
 
 
@@ -11482,7 +11570,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -12449,6 +12537,7 @@ func _resolve_burial(person_id: String, choice_id: String) -> void:
 			continue
 		if choice_id == "bury":
 			row.burial = "bury"
+			MarksKit.note_bury(self)
 		elif choice_id == "ledger":
 			row.burial = "ledger"
 			# TODO(P6): Devout mood −2 when mood exists. Ledger has no mood to write yet.
@@ -13308,6 +13397,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 	if win:
 		## Loot waits until the share pick. A bot, or a sim with no card, resolves it here — after the raid's own opinion hit.
 		raid_share = _raid_loot(dest)
+		MarksKit.note_raid(self, dest)
 		if not raid_share_hold:
 			var pick := "stockpile"
 			if raid_share_profile != "":

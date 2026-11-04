@@ -266,6 +266,20 @@ var net_guided := false
 var net_guide_sid := ""
 var guide_played := false
 var shot_mode := false
+var obs_button: Button
+var obs_pip: Panel
+var obs_float: Label
+var obs_mark_pick := ""
+var obs_slot_pick := ""
+var obs_focus_keep := ""
+var obs_vo_heard := ""
+var obs_painting := false
+var obs_gate_sig := ""
+var obs_stops: Array = []
+var obs_row_stops: Array = []
+var obs_hook_stops: Array = []
+var obs_pane_stops: Array = []
+var card_max_w := 0.0
 var menu_button: Button
 ## Brass "Address" by the meters (Tension pass, brief B2): a council order that buys hope with influence once a week.
 var address_button: Button
@@ -375,7 +389,7 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	if _want_shots() or _want_obs_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -410,7 +424,9 @@ func _ready() -> void:
 			_open_settings(false)
 		elif not Settings.intro_seen:
 			_play_intro()
-	if _want_checks():
+	if _want_obs_shots():
+		await _obs_shots()
+	elif _want_checks():
 		await _check_shots()
 	elif _want_polish():
 		await _polish_shots()
@@ -743,6 +759,81 @@ func _want_shots() -> bool:
 	return _dev_args().has("--shots") or (OS.is_debug_build() and OS.get_environment("UNDERLINE_SHOTS") == "1")
 
 
+func _want_obs_shots() -> bool:
+	return _dev_args().has("--obs-shots")
+
+
+func _obs_shots() -> void:
+	await _settle(_shot_size())
+	_close_card()
+	await _frame()
+	await _frame()
+	_save("obs_before_desk")
+	game.obs = MarksKit.fresh()
+	game.obs.offered = ["ash_hand"]
+	game.obs.earned = {"ash_hand": {"week": 6, "what": "obs.what.ash_hand", "station": ""}}
+	game.obs.due_ink = ["ash_hand"]
+	game.obs.card_week = 0
+	game.week = 6
+	game.pending.clear()
+	MarksKit.dawn(game)
+	event_mode = "one"
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("obs_ink_card")
+	if not game.pending.is_empty():
+		game.apply({"kind": "event", "event_id": str(game.pending[0].get("id", "")), "choice_id": "yes"})
+	_close_card()
+	await _frame()
+	obs_mark_pick = "ash_hand"
+	obs_slot_pick = ""
+	_show_observer()
+	await _frame()
+	await _frame()
+	_save("obs_silhouette")
+	game.obs.kit_owned = ["oilskin", "filter_hood"]
+	game.obs.earned["oilskin"] = {"week": 4, "what": "", "station": "dockyard"}
+	game.obs.earned["filter_hood"] = {"week": 5, "what": "", "station": "eastwater"}
+	game.obs.kit_worn = {"coat": "oilskin", "lamp": "", "token": ""}
+	obs_slot_pick = "coat"
+	_show_observer()
+	await _frame()
+	await _frame()
+	_save("obs_kit_swap")
+	_close_card()
+	game.obs = MarksKit.fresh()
+	game.obs.offered = ["ash_hand", "rail_stitch"]
+	game.obs.earned = {
+		"ash_hand": {"week": 6, "what": "obs.what.ash_hand", "station": ""},
+		"rail_stitch": {"week": 6, "what": "obs.what.rail_stitch", "station": "dockyard"},
+	}
+	game.week = 6
+	game.pending.clear()
+	MarksKit.queue_ink(game, "ash_hand")
+	MarksKit.queue_ink(game, "rail_stitch")
+	obs_mark_pick = "rail_stitch"
+	obs_slot_pick = ""
+	_show_observer()
+	await _frame()
+	await _frame()
+	_save("obs_queued_after")
+	_close_card()
+	game.obs.marks = ["rail_stitch", "ash_hand"]
+	var rumble := {}
+	for row in game.catalog.events:
+		if str(row.get("id", "")) == "rumble":
+			rumble = row.duplicate(true)
+			break
+	game.pending = [rumble]
+	event_mode = "one"
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("obs_mark_choice")
+	get_tree().quit(0)
+
+
 ## Screenshot and review switches. Empty in a release export, so a player's build cannot reach them.
 func _dev_args() -> PackedStringArray:
 	return OS.get_cmdline_user_args() if OS.is_debug_build() else PackedStringArray()
@@ -1060,7 +1151,20 @@ func _build() -> void:
 	power_button.tooltip_text = "Power order"
 	people_button.tooltip_text = "Residents"
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
-	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, salvage_button, journal_button, pending_button]:
+	obs_button = _tool("obs_open", "obs.open", _show_observer)
+	obs_button.tooltip_text = Copy.t("obs.open")
+	obs_button.custom_minimum_size = Vector2(96, 66)
+	obs_pip = Panel.new()
+	obs_pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	obs_pip.position = Vector2(62, 4)
+	obs_pip.size = Vector2(8, 8)
+	var pip_face := StyleBoxFlat.new()
+	pip_face.bg_color = BRASS
+	pip_face.set_corner_radius_all(4)
+	obs_pip.add_theme_stylebox_override("panel", pip_face)
+	obs_button.add_child(obs_pip)
+	obs_pip.visible = false
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, salvage_button, journal_button, obs_button, pending_button]:
 		tray.add_child(button)
 
 	end_button = _button("End turn", _end_turn)
@@ -1824,7 +1928,8 @@ func _fit_card() -> void:
 	if card == null or not dim.visible:
 		return
 	var margin := 24.0
-	var max_w := minf(size.x - margin * 2.0, 800.0 if card_roomy else 680.0)
+	var ceiling := card_max_w if card_max_w > 0.0 else (800.0 if card_roomy else 680.0)
+	var max_w := minf(size.x - margin * 2.0, ceiling)
 	var top_limit := _card_top_limit()
 	var bottom_limit := 12.0
 	var max_h := size.y - top_limit - bottom_limit
@@ -1943,6 +2048,7 @@ func _refresh() -> void:
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
 		_toast_chain(notes)
+	_flush_obs()
 	_show_perk_floats()
 	_watch_work()
 	var season := ""
@@ -2227,6 +2333,7 @@ func _release_small() -> void:
 
 func _toggle_network() -> void:
 	showing_network = not showing_network
+	_sync_obs_gate()
 	if showing_network:
 		_queue_release()
 	if network_view != null:
@@ -2565,6 +2672,7 @@ func _end_turn() -> void:
 	var before := {}
 	for room in game.rooms:
 		before[str(room.uid)] = true
+	_hide_undo_toast()
 	Sound.play("end_turn")
 	game.raid_share_hold = true
 	game.end_week()
@@ -3715,6 +3823,9 @@ func _show_salvage() -> void:
 	count.add_child(mark)
 	count.add_child(_label("%s %d" % [Copy.t("salvage.blueprints"), int(game.stock.get("blueprints", 0))], 16, true))
 	card_body.add_child(count)
+	var vest_read := game.obs_read("salvage", "")
+	if vest_read != "":
+		card_body.add_child(_obs_read_row("kit", "linesman_vest", vest_read))
 	card_body.add_child(_strip_card(true))
 	for tier in [0, 1, 2]:
 		var head := HBoxContainer.new()
@@ -6241,6 +6352,13 @@ func note_spend(cost: Dictionary) -> void:
 
 func _show_dawn() -> void:
 	shelved_event = ""
+	if game != null:
+		for ev in game.pending:
+			if ev is Dictionary:
+				ev.erase("shelved")
+		game.big_first()
+		MarksKit.reseat(game)
+	_sync_obs_gate()
 	if game != null and game.raid_share_open():
 		_show_raid_share()
 		return
@@ -6251,9 +6369,8 @@ func _show_dawn() -> void:
 		_show_audience()
 		return
 	if game != null:
-		game.big_first()
 		## Every waiting event marks the room it names right away, so a small one shows on the station before it
-		## comes up.
+		## comes up. big_first already ran so the ink card can sit behind a death card.
 		for ev in game.pending:
 			note_incident(ev)
 	if not _claim(ModalDeck.NARRATIVE, "dawn", _show_dawn):
@@ -6266,7 +6383,9 @@ func _show_dawn() -> void:
 
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
-	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(game.front_event()))
+	var front := game.front_event()
+	var burial_with_obs := str(front.get("burial_id", "")) != "" and game.obs_holds_dawn()
+	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(front) or burial_with_obs)
 	if not show_event:
 		var dawn_key := "%d:%d" % [game.get_instance_id(), game.week]
 		if dawn_heard != dawn_key:
@@ -6297,6 +6416,10 @@ func _paint_dawn() -> void:
 	Sound.play("card_open")
 	var ev: Dictionary = game.front_event()
 	note_incident(ev)
+	if game.obs_is_card(ev):
+		_paint_obs_card(ev)
+		return
+	MarksKit.attach(game, ev)
 	_open_card(game.line_of(ev, "title"), false, "Event")
 	var banner := _event_banner(ev)
 	if banner != null:
@@ -6329,6 +6452,8 @@ func _paint_dawn() -> void:
 	for choice in ev.choices:
 		if not game.choice_offered(choice):
 			continue
+		if game.obs_line_hidden(choice):
+			continue
 		if choice.has("check") and not game.choice_locked(choice):
 			_check_block(ev, choice)
 		elif choice.has("bet"):
@@ -6341,15 +6466,29 @@ func _paint_dawn() -> void:
 			why = game.shortage_text(choice.get("cost", {}))
 			if why == "":
 				why = Copy.t("That cost cannot be paid.")
-		card_body.add_child(pick)
+		var line_why := ""
+		if str(choice.get("mirror", "")) != "":
+			var src := game.obs_line_source(choice)
+			line_why = Copy.fill("obs.line_why", {"name": Copy.t("obs.%s.%s.name" % [src.kind, src.id])})
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			row.add_child(_obs_glyph(str(src.kind), str(src.id), 16, PAPER_INK))
+			pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(pick)
+			card_body.add_child(row)
+			row.tooltip_text = line_why
+		else:
+			card_body.add_child(pick)
 		var words := _choice_words(game.choice_effects(choice))
 		if words != "":
 			card_body.add_child(_effect_line(words))
 		if game.choice_locked(choice) or why != "":
 			pick.disabled = true
-			pick.tooltip_text = why
+			pick.tooltip_text = why if line_why == "" else "%s\n%s" % [why, line_why]
 			if why != "":
 				card_body.add_child(_choice_reason(why))
+		elif line_why != "":
+			pick.tooltip_text = line_why
 	var after_n: int = game.pending.size() - 1
 	if event_mode == "dawn":
 		after_n = game.pending.size() - game.small_pending() - 1
@@ -8031,11 +8170,15 @@ func _claim(priority: int, token: String, restore: Callable) -> bool:
 	if priority == ModalDeck.AMBIENT:
 		ambient_restore = restore
 	deck.push(priority, token)
+	if priority == ModalDeck.NARRATIVE:
+		_hide_undo_toast()
+	_sync_obs_gate()
 	return deck.top_token() == token
 
 
 ## tag: a small word in front of the title saying what kind of card this is ("Event").
 func _open_card(heading: String, with_close: bool = true, tag: String = "") -> void:
+	card_max_w = 0.0
 	_show_ahead(false)
 	if room_open != "":
 		room_open = ""
@@ -8144,6 +8287,9 @@ func _close_card() -> void:
 	_clear_block_glow()
 	if Voice.now_kind == "leader":
 		Voice.stop()
+	if Voice.now_kind == "obs" and Voice.now_id == obs_vo_heard:
+		Voice.fade(0.2)
+	obs_vo_heard = ""
 	var token := deck.top_token()
 	if token == "dawn":
 		if event_mode == "one" and game != null and not game.pending.is_empty():
@@ -8151,7 +8297,13 @@ func _close_card() -> void:
 		event_mode = "dawn"
 	if token == "dawn" and game != null and not game.pending.is_empty():
 		shelved_event = str(game.front_event().get("id", ""))
+		game.front_event()["shelved"] = true
+	_sync_obs_gate()
 	deck.pop()
+	_sync_obs_gate()
+	_maybe_obs_float()
+	if deck.top_token() == "observer":
+		_show_observer()
 	if deck.top_priority() == ModalDeck.AMBIENT and ambient_restore.is_valid():
 		ambient_restore.call()
 		_sync_waiting()
@@ -11393,6 +11545,17 @@ func _end_log() -> void:
 
 func _input(event: InputEvent) -> void:
 	if _life_epilogue_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("ui_cancel") and deck.top_token() == "observer":
+		var owner := get_viewport().gui_get_focus_owner()
+		if owner != null and owner.has_meta("obs_pane"):
+			var hop := _obs_stop(str(owner.get_meta("obs_back", "")))
+			if hop != null:
+				hop.grab_focus()
+				get_viewport().set_input_as_handled()
+				return
+		_close_card()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton or event is InputEventKey or event is InputEventMouseMotion or event is InputEventScreenTouch:
@@ -15025,6 +15188,826 @@ class SeatSlot extends Control:
 		var arm := minf(box.size.x, box.size.y) * 0.16
 		draw_line(c - Vector2(arm, 0), c + Vector2(arm, 0), col, 4.0)
 		draw_line(c - Vector2(0, arm), c + Vector2(0, arm), col, 4.0)
+
+
+func _sync_obs_gate() -> void:
+	if game == null:
+		return
+	game.obs_desk = not showing_network
+	game.obs_narrative = deck.top_priority() == ModalDeck.NARRATIVE
+	game.obs_shelved = shelved_event != ""
+	var sig := "%s|%s|%d" % [game.obs_narrative, game.obs_shelved, game.pending.size()]
+	if sig == obs_gate_sig:
+		return
+	obs_gate_sig = sig
+	if obs_painting:
+		return
+	if deck.top_token() == "observer":
+		_show_observer()
+
+
+func _flush_obs() -> void:
+	if game == null:
+		return
+	_sync_obs_gate()
+	if obs_pip != null:
+		obs_pip.visible = bool(game.obs.get("new_flag", false))
+	for line in MarksKit.pull_toasts(game):
+		_toast(line)
+	_maybe_obs_float()
+
+
+func _maybe_obs_float() -> void:
+	if game == null:
+		return
+	_sync_obs_gate()
+	if game.obs_narrative or deck.top_token() == "observer":
+		return
+	var floated := MarksKit.take_float(game)
+	if floated != "":
+		_show_obs_float(floated)
+		if floated == Copy.t("obs.first_mark"):
+			_obs_voice("obs.first_mark")
+		elif floated == Copy.t("obs.first_kit"):
+			_obs_voice("obs.first_kit")
+
+
+func _show_obs_float(text: String) -> void:
+	if obs_float == null:
+		obs_float = _label("", 18, true, false)
+		obs_float.z_index = 8
+		obs_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		obs_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		obs_float.add_theme_constant_override("outline_size", 6)
+		obs_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		add_child(obs_float)
+	obs_float.text = text
+	obs_float.visible = true
+	obs_float.modulate.a = 1.0
+	var y := (hud.size.y if hud != null else 72.0) + 36.0
+	obs_float.position = Vector2(size.x * 0.5 - 180.0, y)
+	obs_float.size = Vector2(360, 28)
+	if _motion_off():
+		var hold := create_tween()
+		hold.tween_interval(1.6)
+		hold.tween_callback(func() -> void:
+			if obs_float != null:
+				obs_float.visible = false)
+		return
+	obs_float.modulate.a = 1.0
+	var fade := create_tween()
+	fade.tween_property(obs_float, "modulate:a", 1.0, 0.2)
+	fade.tween_interval(2.2)
+	fade.tween_property(obs_float, "modulate:a", 0.0, 0.4)
+
+
+func _obs_voice(key: String) -> void:
+	if key == "" or key == obs_vo_heard:
+		return
+	obs_vo_heard = key
+	Voice.play(Voice.obs_line(key, Copy.t(key)), "")
+
+
+func _obs_panel_voice() -> void:
+	if game == null:
+		return
+	var key := ""
+	if obs_slot_pick != "":
+		var worn := str(game.obs.kit_worn.get(obs_slot_pick, ""))
+		if worn != "" and game.obs.kit_owned.has(worn):
+			key = "obs.kit.%s.flavor" % worn
+		else:
+			for id in MarksKit.KIT_ORDER:
+				if MarksKit.slot_of(str(id)) == obs_slot_pick and game.obs.kit_owned.has(id):
+					key = "obs.kit.%s.flavor" % str(id)
+					break
+	elif obs_mark_pick != "":
+		key = "obs.mark.%s.flavor" % obs_mark_pick
+		var what_key := str(game.obs.earned.get(obs_mark_pick, {}).get("what", ""))
+		if what_key != "" and not Voice.obs_line(what_key, Copy.t(what_key)).is_empty():
+			key = what_key
+	if key == "":
+		key = "obs.hint"
+	_obs_voice(key)
+
+
+func _paint_obs_card(ev: Dictionary) -> void:
+	_sync_obs_gate()
+	var kind := str(ev.get("obs_kind", ""))
+	var id := str(ev.get("obs_id", ""))
+	var glyph_kind := "mark" if kind == "ink" else "kit"
+	_open_card(str(ev.get("title", "")), false, "")
+	card_body.add_child(_obs_glyph(glyph_kind, id, 64, PAPER_INK))
+	if kind == "ink":
+		var caption := _label("obs.mark.%s.name" % id, 16, true)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card_body.add_child(caption)
+	_body(str(ev.get("text", "")))
+	_choice_divider()
+	var focus_pick: Button = null
+	var focus_id := MarksKit.card_focus(kind)
+	for choice in ev.get("choices", []):
+		var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.get("id", "")), str(choice.get("id", ""))))
+		_style_obs_button(pick, false)
+		card_body.add_child(pick)
+		if str(choice.get("id", "")) == focus_id:
+			focus_pick = pick
+		if kind == "ink" and str(choice.get("id", "")) == "yes":
+			card_body.add_child(_choice_reason(Copy.fill("obs.ink.slots", {"n": int(ev.get("obs_slots", 0))})))
+	var later := _button("Not now", _close_card)
+	_style_choice(later)
+	later.custom_minimum_size.y = 40
+	card_body.add_child(later)
+	if focus_pick != null:
+		focus_pick.grab_focus.call_deferred()
+	if kind == "ink":
+		_obs_voice("obs.ink.body")
+	elif id != "":
+		_obs_voice("obs.kit.%s.flavor" % id)
+
+
+func _obs_glyph(kind: String, id: String, px: int, tint: Color = PAPER_INK) -> Control:
+	var tex := MarksKit.tinted(MarksKit.icon(kind, id, px), tint)
+	if tex != null:
+		var rect := TextureRect.new()
+		rect.texture = tex
+		rect.modulate = tint
+		rect.custom_minimum_size = Vector2(px, px)
+		rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return rect
+	var ring := PanelContainer.new()
+	ring.custom_minimum_size = Vector2(px, px)
+	ring.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color(0, 0, 0, 0)
+	face.border_color = Color(PAPER_EDGE.r, PAPER_EDGE.g, PAPER_EDGE.b, 0.75)
+	face.set_border_width_all(maxi(1, px / 16))
+	face.set_corner_radius_all(int(px / 2))
+	ring.add_theme_stylebox_override("panel", face)
+	var lab := _label(MarksKit.initial(kind, id), maxi(11, int(px / 2.0)), true, false)
+	lab.add_theme_color_override("font_color", tint)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ring.add_child(lab)
+	return ring
+
+
+func _obs_focus_face() -> StyleBoxFlat:
+	var ring := StyleBoxFlat.new()
+	ring.draw_center = false
+	ring.border_color = Color("e9c46a")
+	ring.set_border_width_all(2)
+	ring.set_corner_radius_all(4)
+	return ring
+
+
+func _obs_face(bg: Color, border_a: float) -> StyleBoxFlat:
+	var face := StyleBoxFlat.new()
+	face.bg_color = bg
+	face.border_color = Color(PAPER_EDGE.r, PAPER_EDGE.g, PAPER_EDGE.b, border_a)
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(3)
+	face.content_margin_left = 8
+	face.content_margin_right = 8
+	face.content_margin_top = 4
+	face.content_margin_bottom = 4
+	return face
+
+
+func _style_obs_button(btn: Button, blocked: bool) -> void:
+	btn.focus_mode = Control.FOCUS_ALL
+	btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn.add_theme_stylebox_override("normal", _obs_face(PAPER_BUTTON, 1.0))
+	btn.add_theme_stylebox_override("hover", _obs_face(PAPER_BUTTON_HOVER, 1.0))
+	btn.add_theme_stylebox_override("pressed", _obs_face(PAPER_BUTTON_DOWN, 1.0))
+	btn.add_theme_stylebox_override("disabled", _obs_face(PAPER, 0.7))
+	btn.add_theme_stylebox_override("focus", _obs_focus_face())
+	btn.add_theme_color_override("font_color", PAPER_INK)
+	btn.add_theme_color_override("font_hover_color", PAPER_INK)
+	btn.add_theme_color_override("font_pressed_color", PAPER_INK)
+	btn.add_theme_color_override("font_disabled_color", PAPER_MUTED)
+	btn.disabled = blocked
+	if blocked:
+		btn.tooltip_text = Copy.t("obs.swap_blocked")
+		btn.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	else:
+		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+
+func _obs_read_row(kind: String, id: String, text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.tooltip_text = Copy.fill("obs.line_why", {"name": Copy.t("obs.%s.%s.name" % [kind, id])})
+	row.add_child(_obs_glyph(kind, id, 16))
+	var lab := _label(text, 14, false, false)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lab)
+	return row
+
+
+func _show_observer() -> void:
+	if game == null or game.over != "":
+		return
+	if obs_painting:
+		return
+	obs_painting = true
+	obs_row_stops = []
+	obs_hook_stops = []
+	obs_pane_stops = []
+	if not _claim(ModalDeck.AMBIENT, "observer", _show_observer):
+		obs_painting = false
+		return
+	_sync_obs_gate()
+	game.obs.new_flag = false
+	if obs_pip != null:
+		obs_pip.visible = false
+	_open_card("obs.title")
+	card_roomy = true
+	if obs_mark_pick == "" and obs_slot_pick == "":
+		var picked := _obs_default_pick()
+		if picked == "":
+			obs_slot_pick = "coat"
+		else:
+			obs_mark_pick = picked
+	var plan := MarksKit.layout_plan(size.x, size.y)
+	card_max_w = float(plan.width) + 36.0
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 8)
+	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var pane := VBoxContainer.new()
+	pane.add_theme_constant_override("separation", 12)
+	pane.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if plan.side:
+		pane.custom_minimum_size.x = 360
+	if obs_slot_pick != "" and not game.obs_can_swap():
+		var blocked := _label("obs.swap_blocked", 14)
+		blocked.add_theme_color_override("font_color", PAPER_MUTED)
+		blocked.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		blocked.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		blocked.focus_mode = Control.FOCUS_NONE
+		pane.add_child(blocked)
+	if obs_slot_pick != "":
+		_obs_fill_slot(pane, obs_slot_pick)
+	else:
+		_obs_fill_marks(pane, float(plan.pane))
+	var scroll := ObsScroll.new()
+	scroll.cap_y = _obs_scroll_cap(float(plan.bust))
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	if plan.side:
+		scroll.custom_minimum_size.x = 360
+	scroll.add_child(pane)
+	var bust := _obs_bust(float(plan.bust))
+	if plan.side:
+		var split := HBoxContainer.new()
+		split.add_theme_constant_override("separation", 16)
+		split.add_child(bust)
+		split.add_child(scroll)
+		outer.add_child(split)
+	else:
+		outer.add_child(bust)
+		outer.add_child(scroll)
+	outer.add_child(_obs_hooks())
+	var hint := _obs_line("obs.hint", 14, false)
+	hint.add_theme_color_override("font_color", PAPER_MUTED)
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.focus_mode = Control.FOCUS_NONE
+	outer.add_child(hint)
+	card_body.add_child(outer)
+	_obs_collect_stops()
+	_fit_card()
+	_obs_panel_voice()
+	obs_painting = false
+
+
+func _obs_bust(scale := 1.0) -> Control:
+	var tex := ArtPack.load_texture("res://assets/portraits/obs_silhouette.png")
+	var wrap := TextureRect.new()
+	wrap.custom_minimum_size = Vector2(160, 240) * scale
+	wrap.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	wrap.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wrap.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if tex != null:
+		wrap.texture = tex
+	else:
+		wrap.add_child(_obs_outline())
+	var rects := {
+		"forearm": Rect2(Vector2(100, 178) * scale, Vector2(34, 20) * scale),
+		"hand": Rect2(Vector2(66, 189) * scale, Vector2(29, 27) * scale),
+		"chest_neck": Rect2(Vector2(68, 98) * scale, Vector2(22, 31) * scale),
+	}
+	var names: Array = MarksKit.SPOTS
+	for i in names.size():
+		var spot := str(names[i])
+		var box := Button.new()
+		var at: Rect2 = rects[spot]
+		box.position = at.position
+		box.size = at.size
+		box.custom_minimum_size = at.size
+		box.focus_mode = Control.FOCUS_NONE
+		box.mouse_filter = Control.MOUSE_FILTER_STOP
+		var mark_id := ""
+		if i < game.obs.marks.size():
+			mark_id = str(game.obs.marks[i])
+		if mark_id == "":
+			box.tooltip_text = Copy.t("obs.mark_locked")
+			box.text = ""
+		else:
+			box.tooltip_text = Copy.t("obs.mark.%s.name" % mark_id)
+			box.pressed.connect(_obs_view_mark.bind(mark_id))
+			var icon := _obs_glyph("mark", mark_id, mini(32, int(at.size.y)))
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			box.add_child(icon)
+			if game.obs.fresh.has(mark_id) and not _motion_off():
+				icon.modulate.a = 0.7
+				var ink := create_tween()
+				ink.tween_property(icon, "modulate:a", 1.0, 0.6)
+		var bare := StyleBoxFlat.new()
+		bare.bg_color = Color(0, 0, 0, 0)
+		bare.border_color = Color(PAPER_EDGE.r, PAPER_EDGE.g, PAPER_EDGE.b, 0.75)
+		bare.set_border_width_all(1)
+		bare.set_corner_radius_all(int(at.size.y))
+		box.add_theme_stylebox_override("normal", bare)
+		box.add_theme_stylebox_override("hover", bare)
+		box.add_theme_stylebox_override("pressed", bare)
+		wrap.add_child(box)
+	if not game.obs.fresh.is_empty():
+		game.obs.fresh = []
+	return wrap
+
+
+func _obs_outline() -> Control:
+	var ink := Control.new()
+	ink.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ink.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ink.draw.connect(func() -> void:
+		var c := ink.size * 0.5
+		ink.draw_arc(c + Vector2(0, -70), 28, 0, TAU, 32, PAPER_EDGE, 1.5, true)
+		ink.draw_line(c + Vector2(0, -40), c + Vector2(0, 20), PAPER_EDGE, 1.5, true)
+		ink.draw_arc(c + Vector2(0, 50), 48, PI, TAU, 24, PAPER_EDGE, 1.5, true)
+	)
+	return ink
+
+
+func _obs_row_ids() -> Array:
+	var ids: Array = []
+	for id in game.obs.marks:
+		ids.append(str(id))
+	for id in game.obs.offered:
+		if not game.obs.noroom.has(id) and not ids.has(str(id)):
+			ids.append(str(id))
+	for id in game.obs.noroom:
+		if not ids.has(str(id)):
+			ids.append(str(id))
+	return ids
+
+
+func _obs_default_pick() -> String:
+	var ids := _obs_row_ids()
+	for i in range(ids.size() - 1, -1, -1):
+		if not game.obs.seen.has(str(ids[i])):
+			return str(ids[i])
+	for id in game.obs.offered:
+		if not game.obs.noroom.has(id):
+			return str(id)
+	if not game.obs.marks.is_empty():
+		return str(game.obs.marks[game.obs.marks.size() - 1])
+	return ""
+
+
+func _obs_fill_marks(pane: VBoxContainer, pane_w: float) -> void:
+	var ids := _obs_row_ids()
+	if ids.is_empty():
+		var quiet := _label("obs.mark_locked", 14)
+		quiet.add_theme_color_override("font_color", PAPER_MUTED)
+		quiet.focus_mode = Control.FOCUS_NONE
+		quiet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pane.add_child(quiet)
+		return
+	if obs_mark_pick == "" or not ids.has(obs_mark_pick):
+		obs_mark_pick = str(ids[0])
+	for id in ids:
+		pane.add_child(_obs_mark_row(str(id), pane_w))
+	pane.add_child(_obs_mark_detail(obs_mark_pick))
+
+
+func _obs_line(text: String, size: int, display: bool) -> Label:
+	var lab := _label(text, size, display)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.custom_minimum_size.x = 260
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return lab
+
+
+func _obs_mark_row(id: String, pane_w: float) -> Control:
+	var state := MarksKit.state_of_mark(game, id)
+	var face := ObsRow.new()
+	face.focus_mode = Control.FOCUS_ALL
+	face.mouse_filter = Control.MOUSE_FILTER_STOP
+	face.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	face.set_meta("obs_stop", "mark:%s" % id)
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0, 0, 0, 0)
+	plate.border_color = Color("e2a63a") if obs_mark_pick == id else Color(0, 0, 0, 0)
+	plate.set_border_width_all(2)
+	plate.set_corner_radius_all(4)
+	plate.content_margin_left = 4
+	plate.content_margin_right = 4
+	plate.content_margin_top = 2
+	plate.content_margin_bottom = 2
+	face.add_theme_stylebox_override("panel", plate)
+	var inner := HBoxContainer.new()
+	inner.add_theme_constant_override("separation", 8)
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if state != "noroom":
+		var glyph := _obs_glyph("mark", id, 24)
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		inner.add_child(glyph)
+	var words := VBoxContainer.new()
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var title := _obs_line("obs.mark.%s.name" % id, 16, true)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.add_child(title)
+	var state_key := "obs.mark_state_%s" % state
+	var bits := Copy.t(state_key)
+	if not game.obs.seen.has(id):
+		bits = "%s · %s" % [bits, Copy.t("obs.mark_new")]
+	var word := _label(bits, 14, false, false)
+	word.add_theme_color_override("font_color", PAPER_MUTED)
+	word.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	word.clip_text = false
+	word.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	word.custom_minimum_size.x = 120
+	word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.add_child(word)
+	var earned := _obs_earned_label(id)
+	earned.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.add_child(earned)
+	inner.add_child(words)
+	face.add_child(inner)
+	face.picked.connect(_obs_view_mark.bind(id))
+	obs_row_stops.append(face)
+	if state != "offered":
+		return face
+	var queued := MarksKit.ink_queued(game, id)
+	var key := MarksKit.queue_label(game, id) if queued else ("obs.ink_btn" if pane_w < 360.0 else "obs.ink.queue")
+	var btn := _button(key, _obs_queue_mark.bind(id))
+	_style_obs_button(btn, queued)
+	if queued:
+		btn.tooltip_text = ""
+	btn.custom_minimum_size = Vector2(120 if Copy.ru() else 110, 44)
+	btn.set_meta("obs_pane", true)
+	btn.set_meta("obs_back", "mark:%s" % id)
+	btn.set_meta("obs_stop", "queue:%s" % id)
+	obs_row_stops.append(btn)
+	if pane_w < 400.0:
+		var shell := VBoxContainer.new()
+		shell.add_theme_constant_override("separation", 6)
+		shell.add_child(face)
+		shell.add_child(btn)
+		return shell
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	line.add_child(face)
+	line.add_child(btn)
+	return line
+
+
+func _obs_mark_detail(id: String) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	if MarksKit.state_of_mark(game, id) != "noroom":
+		head.add_child(_obs_glyph("mark", id, 32))
+	var name := _label("obs.mark.%s.name" % id, 16, true)
+	head.add_child(name)
+	box.add_child(head)
+	box.add_child(_obs_line("obs.mark.%s.flavor" % id, 14, false))
+	for kind in MarksKit.effects_of("mark", id):
+		box.add_child(_obs_line("obs.does.%s" % str(kind), 14, false))
+	var head_line := _label("obs.earned_from_head", 14)
+	head_line.add_theme_color_override("font_color", PAPER_MUTED)
+	box.add_child(head_line)
+	box.add_child(_obs_earned_label(id))
+	return box
+
+
+func _obs_earned_label(id: String) -> Label:
+	var row: Dictionary = game.obs.earned.get(id, {})
+	var when := Copy.fill("obs.when", {"week": int(row.get("week", game.week))})
+	var what := _obs_what(row)
+	var lab := _obs_line(Copy.fill("obs.earned_from", {"when": when, "what": what}), 14, false)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	return lab
+
+
+func _obs_what(row: Dictionary) -> String:
+	var key := str(row.get("what", ""))
+	var station := _obs_station_name(str(row.get("station", "")))
+	if key == "":
+		return station
+	if key == "obs.find.title":
+		return Copy.t(key)
+	return Copy.fill(key, {"station": station})
+
+
+func _obs_station_name(sid: String) -> String:
+	if sid == "" or game == null or not game.stations.has(sid):
+		return sid
+	return Copy.t(str(game.stations[sid].get("name", sid)))
+
+
+func _obs_fill_slot(pane: VBoxContainer, slot: String) -> void:
+	var title := _label("obs.slot_%s" % slot, 16, true)
+	pane.add_child(title)
+	var found := false
+	for id in MarksKit.KIT_ORDER:
+		if MarksKit.slot_of(str(id)) != slot:
+			continue
+		if game.obs.kit_lost.has(id) and not game.obs.kit_owned.has(id):
+			var lost := _label(Copy.fill("obs.kit_lost", {"station": _obs_station_name(str(MarksKit.GIFT_STATION.get(id, "")))}), 14, false, false)
+			lost.add_theme_color_override("font_color", PAPER_MUTED)
+			lost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lost.focus_mode = Control.FOCUS_NONE
+			lost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			pane.add_child(lost)
+			found = true
+			continue
+		if not game.obs.kit_owned.has(id):
+			continue
+		found = true
+		pane.add_child(_obs_kit_row(slot, str(id)))
+	if not found:
+		var empty := _label("obs.kit_empty", 14)
+		empty.add_theme_color_override("font_color", PAPER_MUTED)
+		empty.focus_mode = Control.FOCUS_NONE
+		empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pane.add_child(empty)
+
+
+func _obs_kit_row(slot: String, id: String) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(_obs_glyph("kit", id, 48))
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.custom_minimum_size.x = 280
+	words.add_child(_obs_line("obs.kit.%s.name" % id, 16, true))
+	words.add_child(_obs_line("obs.kit.%s.flavor" % id, 14, false))
+	words.add_child(_obs_earned_label(id))
+	var worn := str(game.obs.kit_worn.get(slot, "")) == id
+	var state := _label("obs.kit_state_worn" if worn else "obs.kit_state_kept", 14)
+	state.add_theme_color_override("font_color", PAPER_MUTED)
+	words.add_child(state)
+	for kind in MarksKit.effects_of("kit", id):
+		words.add_child(_label("obs.does.%s" % str(kind), 14))
+	row.add_child(words)
+	box.add_child(row)
+	var blocked := not game.obs_can_swap()
+	if worn:
+		var off := _button("obs.take_off", _obs_take_off.bind(slot))
+		_style_obs_button(off, blocked)
+		off.set_meta("obs_pane", true)
+		off.set_meta("obs_back", "hook:%s" % slot)
+		off.set_meta("obs_stop", "off:%s" % slot)
+		obs_pane_stops.append(off)
+		box.add_child(off)
+	else:
+		var on := _button("obs.wear", _obs_wear.bind(slot, id))
+		_style_obs_button(on, blocked)
+		on.set_meta("obs_pane", true)
+		on.set_meta("obs_back", "hook:%s" % slot)
+		on.set_meta("obs_stop", "wear:%s" % id)
+		obs_pane_stops.append(on)
+		box.add_child(on)
+	return box
+
+
+func _obs_hooks() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.add_child(_label("obs.kit_title", 16, true))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 24)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	for slot in MarksKit.SLOTS:
+		row.add_child(_obs_hook(slot))
+	box.add_child(row)
+	return box
+
+
+func _obs_hook(slot: String) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(96, 56 + 18 + 36)
+	col.add_theme_constant_override("separation", 4)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(56, 56)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.focus_mode = Control.FOCUS_ALL
+	var worn := str(game.obs.kit_worn.get(slot, ""))
+	var selected := obs_slot_pick == slot
+	var face := StyleBoxFlat.new()
+	face.bg_color = PAPER
+	face.border_color = Color("e2a63a") if selected else Color(PAPER_EDGE.r, PAPER_EDGE.g, PAPER_EDGE.b, 0.75 if worn == "" else 1.0)
+	face.set_border_width_all(2)
+	face.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", face)
+	btn.add_theme_stylebox_override("hover", face)
+	btn.add_theme_stylebox_override("pressed", face)
+	btn.add_theme_stylebox_override("focus", _obs_focus_face())
+	btn.set_meta("obs_stop", "hook:%s" % slot)
+	if worn != "":
+		var icon := _obs_glyph("kit", worn, 40, PAPER_INK)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btn.add_child(icon)
+	btn.pressed.connect(_obs_pick_slot.bind(slot))
+	obs_hook_stops.append(btn)
+	col.add_child(btn)
+	var slot_lab := _label("obs.slot_%s" % slot, 14, false)
+	slot_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	slot_lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	slot_lab.custom_minimum_size.x = 96
+	col.add_child(slot_lab)
+	var sub := _label("obs.kit_empty" if worn == "" else "obs.kit.%s.name" % worn, 13, false)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sub.clip_text = false
+	sub.custom_minimum_size = Vector2(96, 36)
+	sub.add_theme_color_override("font_color", PAPER_MUTED)
+	col.add_child(sub)
+	return col
+
+
+func _obs_view_mark(id: String) -> void:
+	obs_focus_keep = "mark:%s" % id
+	obs_mark_pick = id
+	obs_slot_pick = ""
+	if not game.obs.seen.has(id):
+		game.obs.seen.append(id)
+	_show_observer()
+
+
+func _obs_pick_slot(slot: String) -> void:
+	obs_focus_keep = "hook:%s" % slot
+	obs_slot_pick = slot
+	_show_observer()
+
+
+func _obs_queue_mark(id: String) -> void:
+	obs_focus_keep = "queue:%s" % id
+	game.obs_queue_ink(id)
+	_show_observer()
+
+
+func _obs_wear(slot: String, id: String) -> void:
+	if not game.obs_can_swap():
+		return
+	obs_focus_keep = "off:%s" % slot
+	var prev := game.obs_swap(slot, id)
+	Sound.play("click")
+	_undo_toast(Copy.fill(MarksKit.swap_toast_key(false), {"item": Copy.t("obs.kit.%s.name" % id)}), func() -> void:
+		_hide_undo_toast()
+		if game == null or not game.obs_can_swap():
+			return
+		game.obs_swap(slot, prev)
+		if deck.top_token() == "observer":
+			_show_observer()
+	)
+	_show_observer()
+
+
+func _obs_take_off(slot: String) -> void:
+	if not game.obs_can_swap():
+		return
+	var prev := str(game.obs.kit_worn.get(slot, ""))
+	if prev == "":
+		return
+	obs_focus_keep = "wear:%s" % prev
+	game.obs_swap(slot, "")
+	_undo_toast(Copy.fill(MarksKit.swap_toast_key(true), {"item": Copy.t("obs.kit.%s.name" % prev)}), func() -> void:
+		_hide_undo_toast()
+		if game == null or not game.obs_can_swap():
+			return
+		game.obs_swap(slot, prev)
+		if deck.top_token() == "observer":
+			_show_observer()
+	)
+	_show_observer()
+
+
+func _obs_scroll_cap(bust: float) -> float:
+	var max_h := size.y - _card_top_limit() - 12.0
+	var chrome := 44.0 + 6.0 + 240.0 * bust + 8.0 + 150.0 + 8.0 + 40.0 + 52.0
+	return maxf(64.0, max_h - chrome)
+
+
+func _obs_collect_stops() -> void:
+	obs_stops = []
+	obs_stops.append_array(obs_row_stops)
+	obs_stops.append_array(obs_hook_stops)
+	obs_stops.append_array(obs_pane_stops)
+	var close := _obs_close_button()
+	if close != null:
+		_style_obs_button(close, false)
+		close.set_meta("obs_stop", "close")
+		obs_stops.append(close)
+	_wire_obs_focus()
+	_obs_grab_focus()
+
+
+func _obs_close_button() -> Button:
+	if card_body == null or card_body.get_child_count() == 0:
+		return null
+	var row := card_body.get_child(0)
+	if row is HBoxContainer:
+		for child in row.get_children():
+			if child is Button:
+				return child
+	return null
+
+
+func _obs_stop(key: String) -> Control:
+	for node in obs_stops:
+		if is_instance_valid(node) and node is Control and str((node as Control).get_meta("obs_stop", "")) == key:
+			return node
+	return null
+
+
+func _wire_obs_focus() -> void:
+	var stops: Array = []
+	for node in obs_stops:
+		if node is Control:
+			stops.append(node)
+	var n := stops.size()
+	if n == 0:
+		return
+	for i in n:
+		var btn: Control = stops[i]
+		var prev: Control = stops[(i - 1 + n) % n]
+		var nxt: Control = stops[(i + 1) % n]
+		btn.focus_neighbor_top = btn.get_path_to(prev)
+		btn.focus_neighbor_bottom = btn.get_path_to(nxt)
+		btn.focus_neighbor_left = btn.get_path_to(prev)
+		btn.focus_neighbor_right = btn.get_path_to(nxt)
+		btn.focus_next = btn.get_path_to(nxt)
+		btn.focus_previous = btn.get_path_to(prev)
+
+
+func _obs_grab_focus() -> void:
+	var want := obs_focus_keep
+	obs_focus_keep = ""
+	if want == "":
+		if obs_slot_pick != "":
+			want = "hook:%s" % obs_slot_pick
+		elif obs_mark_pick != "":
+			want = "mark:%s" % obs_mark_pick
+	var target := _obs_stop(want)
+	if target == null and not obs_stops.is_empty() and obs_stops[0] is Control:
+		target = obs_stops[0] as Control
+	if target != null:
+		target.grab_focus.call_deferred()
+
+
+class ObsRow extends PanelContainer:
+	signal picked
+
+	func _gui_input(event: InputEvent) -> void:
+		var click: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+		if click or event.is_action_pressed("ui_accept"):
+			picked.emit()
+			accept_event()
+
+	func _draw() -> void:
+		if has_focus():
+			draw_rect(Rect2(Vector2.ZERO, size), Color("e9c46a"), false, 2.0)
+
+
+class ObsScroll extends ScrollContainer:
+	var cap_y := 480.0
+
+	func _get_minimum_size() -> Vector2:
+		var child_w := custom_minimum_size.x
+		var child_h := 0.0
+		if get_child_count() > 0 and get_child(0) is Control:
+			var need := (get_child(0) as Control).get_combined_minimum_size()
+			child_w = maxf(child_w, need.x)
+			child_h = need.y
+		return Vector2(child_w, minf(child_h, cap_y))
 
 
 class ToolButton extends Button:
