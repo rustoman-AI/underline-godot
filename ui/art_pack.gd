@@ -267,9 +267,6 @@ static func textures() -> Dictionary:
 		"res://assets/events/refugees_next.webp": preload("res://assets/events/refugees_next.webp"),
 		"res://assets/events/rumble_next.webp": preload("res://assets/events/rumble_next.webp"),
 		"res://assets/events/smuggler_next.webp": preload("res://assets/events/smuggler_next.webp"),
-		## P82 signal mark. No map hook yet; registered so the plate is in the export.
-		"res://assets/icons/map/signal_mark.png": preload("res://assets/icons/map/signal_mark.png"),
-		"res://assets/icons/map/signal_mark_24.png": preload("res://assets/icons/map/signal_mark_24.png"),
 		"res://assets/icons/map/rumor.png": preload("res://assets/icons/map/rumor.png"),
 		"res://assets/icons/map/rumor_24.png": preload("res://assets/icons/map/rumor_24.png"),
 		"res://assets/icons/map/gift.png": preload("res://assets/icons/map/gift.png"),
