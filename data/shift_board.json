@@ -1,0 +1,59 @@
+{
+  "_note": "P79 Shift Board (NEW invent — DEC-SH1…SH3). Spec: /workspace/SHIFT_BOARD_P79_SPEC.md. Namespace shift.* — NEVER salvage.* (P76 owns Salvage Board). Cite existing assign/unassign + assign_preview; P59 People chips (Sick/Away/crew/room/Free — cite, do not reopen sticky P44/P48); room cards; yard clearance P41. Soft dawn: NONE (board open + assign toast ≠ soft dawn chip). Tone: dry metro grit — chalk grid of names, not a spreadsheet. Balance ZERO — no formula/skill-multiplier invent. No auto-assign; no hope/mats invent. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P79",
+  "_owners": "Texts; Code Shift Board panel + assign_preview wire; UIUX desk/yard Board; Art chalk frame optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P79 Shift Board stamped 2026-10-26 (10 shift.*; never salvage.*). Soft dawn NONE. Merge Temur. | Dawn grit 2026-10-27 (RU)",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "assign / unassign / assign_preview — existing gates (sick/away blocked as today; do not change math)",
+    "P59 People chips — Free / Sick / Away / crew / room (cite; do not reopen P44/P48 sticky)",
+    "P41 yard clearance — cite only",
+    "P76 salvage_board.json — different board; namespace collision HARD NO (shift.* only)"
+  ],
+  "_placeholders": [
+    "{skill}"
+  ],
+  "by_key": {
+    "shift.open": {
+      "en": "Shifts",
+      "ru": "Смены"
+    },
+    "shift.first": {
+      "en": "Put people on the board.",
+      "ru": "Поставь людей на доску."
+    },
+    "shift.empty": {
+      "en": "Empty seat.",
+      "ru": "Место свободно."
+    },
+    "shift.full": {
+      "en": "Full.",
+      "ru": "Полно."
+    },
+    "shift.assign": {
+      "en": "Assign",
+      "ru": "Назначить"
+    },
+    "shift.unassign": {
+      "en": "Unassign",
+      "ru": "Снять"
+    },
+    "shift.need_free": {
+      "en": "No Free hands.",
+      "ru": "Нет свободных рук."
+    },
+    "shift.skill_match": {
+      "en": "Fits {skill}.",
+      "ru": "Подходит: {skill}."
+    },
+    "shift.skill_low": {
+      "en": "Low {skill}.",
+      "ru": "Слабо: {skill}."
+    },
+    "shift.title": {
+      "en": "Shift Board",
+      "ru": "Доска смен"
+    }
+  },
+  "_designer": "APPROVED"
+}

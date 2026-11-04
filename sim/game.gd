@@ -3569,6 +3569,180 @@ func assign_preview(person_id: String, uid: String) -> Dictionary:
 	return info
 
 
+## P79-SHIFT-BEGIN
+## Shift Board rows. Online buildable staffed rooms, plus the room under construction.
+## Display only: does not assign, spend, or touch output.
+func shift_board_rows() -> Array:
+	var rows: Array = []
+	for room in rooms:
+		var type := str(room.type)
+		if not catalog.rooms.has(type):
+			continue
+		var defin: Dictionary = catalog.rooms[type]
+		if not bool(defin.get("buildable", false)):
+			continue
+		if int(defin.get("staff_max", 0)) <= 0:
+			continue
+		if bool(room.offline):
+			continue
+		rows.append(_shift_room_row(room, defin))
+	if not build.is_empty():
+		var built := _shift_build_row()
+		if not built.is_empty():
+			rows.append(built)
+	rows.sort_custom(func(a, b):
+		if int(a.level) == int(b.level):
+			return int(a.cell) < int(b.cell)
+		return int(a.level) < int(b.level)
+	)
+	return rows
+
+
+func _shift_room_row(room, defin: Dictionary) -> Dictionary:
+	var cap := int(defin.get("staff_max", 0))
+	var seats: Array = []
+	var filled := 0
+	for id in room.staff:
+		var pid := str(id)
+		var person: Dictionary = people.get(pid, {})
+		seats.append({
+			"person_id": pid,
+			"name": Copy.person(str(person.get("name", ""))),
+		})
+		filled += 1
+	while seats.size() < cap:
+		seats.append({"person_id": null, "name": null})
+	return {
+		"room_id": str(room.uid),
+		"name": Copy.t(str(defin.get("name", ""))),
+		"staff_min": int(defin.get("staff_min", 0)),
+		"staff_max": cap,
+		"seats": seats,
+		"full": cap > 0 and filled >= cap,
+		"skill": str(defin.get("skill", "")),
+		"building": false,
+		"level": int(room.level),
+		"cell": int(room.cell),
+		"weeks": 0,
+	}
+
+
+func _shift_build_row() -> Dictionary:
+	var type := str(build.get("type", ""))
+	if not catalog.rooms.has(type):
+		return {}
+	var defin: Dictionary = catalog.rooms[type]
+	if not bool(defin.get("buildable", false)):
+		return {}
+	var cap := int(defin.get("staff_max", 0))
+	if cap <= 0:
+		return {}
+	var seats: Array = []
+	for _i in cap:
+		seats.append({"person_id": null, "name": null})
+	return {
+		"room_id": "",
+		"name": Copy.t(str(defin.get("name", ""))),
+		"staff_min": int(defin.get("staff_min", 0)),
+		"staff_max": cap,
+		"seats": seats,
+		"full": false,
+		"skill": str(defin.get("skill", "")),
+		"building": true,
+		"level": int(build.get("level", 0)),
+		"cell": int(build.get("cell", 0)),
+		"weeks": int(build.get("left", 0)),
+	}
+
+
+## Free hands who pass assign_preview, plus sick and away shown as blocked.
+## People already seated stay off the Free list (swap is unassign, then assign).
+func shift_picker(uid: String) -> Dictionary:
+	var skill := ""
+	var room = _room(uid)
+	if room != null and catalog.rooms.has(str(room.type)):
+		skill = str(catalog.rooms[str(room.type)].get("skill", ""))
+	var free: Array = []
+	var blocked: Array = []
+	for person in residents:
+		var id := str(person.id)
+		if _is_child(person):
+			continue
+		var name := Copy.person(str(person.get("name", "")))
+		if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			blocked.append({
+				"id": id,
+				"name": name,
+				"state": "sick" if int(person.get("sick", 0)) > 0 else "away",
+				"blocked": true,
+				"band": shift_skill_band(id, skill),
+			})
+			continue
+		if _staff_room_of(id) != "":
+			continue
+		if _locked_ids().has(id):
+			continue
+		if not bool(assign_preview(id, uid).ok):
+			continue
+		free.append({
+			"id": id,
+			"name": name,
+			"state": "free",
+			"blocked": false,
+			"band": shift_skill_band(id, skill),
+			"skill": skill,
+		})
+	free.sort_custom(func(a, b):
+		var am := str(a.band) == "match"
+		var bm := str(b.band) == "match"
+		if am != bm:
+			return am
+		return str(a.name) < str(b.name)
+	)
+	blocked.sort_custom(func(a, b):
+		if str(a.state) != str(b.state):
+			return str(a.state) == "sick"
+		return str(a.name) < str(b.name)
+	)
+	return {"free": free, "blocked": blocked, "need_free": free.is_empty(), "skill": skill}
+
+
+## Display only. Existing output treats a skill above 1 as extra. No new multiplier.
+func shift_skill_band(person_id: String, skill: String) -> String:
+	if skill == "" or not people.has(person_id):
+		return ""
+	var person: Dictionary = people[person_id]
+	var skills: Dictionary = person.get("skills", {})
+	var value := int(skills.get(skill, 1))
+	if value > 1:
+		return "match"
+	return "low"
+
+
+func shift_pip_line(person_id: String, skill: String) -> String:
+	var band := shift_skill_band(person_id, skill)
+	if band == "":
+		return ""
+	var word := Copy.skill(skill, false)
+	if band == "match":
+		return Copy.fill("shift.skill_match", {"skill": word})
+	return Copy.fill("shift.skill_low", {"skill": word})
+
+
+func shift_clip_name(raw: String) -> String:
+	if raw.length() <= 12:
+		return raw
+	return raw.substr(0, 12) + "…"
+
+
+## First open of the board this run. Stored on flags so the save schema stays put.
+func shift_note_seen() -> bool:
+	var first := not bool(flags.get("seen_shift_board", false))
+	flags["seen_shift_board"] = true
+	return first
+## P79-SHIFT-END
+
+
 func room_detail(uid: String) -> Dictionary:
 	var room = _room(uid)
 	if room == null:
@@ -12559,6 +12733,11 @@ func party_away_dawn_chip() -> bool:
 
 ## Always false. P48 cot count is sticky yard chrome, never a soft dawn chip.
 func sick_cots_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P79 Shift Board is a desk panel. Open, assign toast, and the first float are not chips.
+func shift_board_dawn_chip() -> bool:
 	return false
 
 
