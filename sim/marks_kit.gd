@@ -103,6 +103,7 @@ static func fresh() -> Dictionary:
 		"finds": {},
 		"toasts": [],
 		"floats": [],
+		"float_queue": [],
 		"offer_toast_week": 0,
 	}
 
@@ -665,12 +666,90 @@ static func _waiting(bag: Dictionary, kit_id: String) -> bool:
 	return false
 
 
+static func slots_after(inked: int) -> int:
+	return maxi(0, 3 - inked - 1)
+
+
+static func card_focus(kind: String) -> String:
+	return "later" if kind == "ink" else "take"
+
+
+static func swap_toast_key(taking_off: bool) -> String:
+	return "obs.taken_off" if taking_off else "obs.worn"
+
+
+static func layout_plan(view_w: float, view_h: float) -> Dictionary:
+	var width := minf(640.0, maxf(320.0, view_w - 48.0))
+	var cap_h := maxf(160.0, view_h - 48.0)
+	var side := width >= 536.0
+	var bust := 0.75 if (not side or 444.0 > cap_h) else 1.0
+	return {
+		"width": width,
+		"side": side,
+		"bust": bust,
+		"pane": 360.0 if side else width,
+		"scroll": true,
+		"hooks_outside": true,
+		"cap_h": cap_h,
+	}
+
+
+static func greet_once(game, sid: String, cache: Dictionary) -> String:
+	if str(cache.get("sid", "")) == sid and cache.has("line"):
+		return str(cache.get("line", ""))
+	var line := greet(game, sid)
+	cache["sid"] = sid
+	cache["line"] = line
+	cache["src"] = greet_source(game, sid)
+	return line
+
+
+static func greet_clear(cache: Dictionary) -> void:
+	cache.clear()
+
+
+static var _masks := {}
+
+
+static func tinted(tex: Texture2D, tint: Color) -> Texture2D:
+	if tex == null:
+		return null
+	var key := "%s:%s" % [tex.resource_path, tint.to_html(false)]
+	if _masks.has(key) and _masks[key] is Texture2D:
+		return _masks[key]
+	var image := tex.get_image()
+	if image == null:
+		return tex
+	image = image.duplicate()
+	if image.is_compressed():
+		image.decompress()
+	image.convert(Image.FORMAT_RGBA8)
+	for y in image.get_height():
+		for x in image.get_width():
+			var pixel := image.get_pixel(x, y)
+			var lum := (pixel.r + pixel.g + pixel.b) / 3.0
+			var shape := pixel.a * clampf((0.92 - lum) / 0.92, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, shape))
+	var out := ImageTexture.create_from_image(image)
+	_masks[key] = out
+	return out
+
+
 static func _queue_card(game) -> void:
 	var bag := _bag(game)
 	if int(bag.card_week) == int(game.week) or holds_dawn(game):
 		return
 	if bag.marks.size() >= 3:
+		var waiting: Array = []
+		for id in bag.due_ink:
+			waiting.append(id)
+		for id in bag.ink_at:
+			if not waiting.has(id):
+				waiting.append(id)
+		var first := str(waiting[0]) if not waiting.is_empty() else ""
 		_seal(game)
+		if first != "":
+			bag.toasts.append(Copy.fill("obs.mark_noroom", {"name": Copy.t("obs.mark.%s.name" % first)}))
 	var ink_id := ""
 	if bag.marks.size() < 3 and not bag.due_ink.is_empty():
 		ink_id = str(bag.due_ink[0])
@@ -710,7 +789,7 @@ static func _ink_card(game, id: String) -> Dictionary:
 		"obs_id": id,
 		"title": "obs.ink.title",
 		"text": body,
-		"obs_slots": maxi(0, 3 - _bag(game).marks.size()),
+		"obs_slots": slots_after(_bag(game).marks.size()),
 		"choices": [
 			{"id": "yes", "label": "obs.ink.yes"},
 			{"id": "later", "label": "obs.ink.later"},
@@ -753,9 +832,7 @@ static func _ink(game, id: String) -> void:
 	if not bag.fresh.has(id):
 		bag.fresh.append(id)
 	bag.new_flag = true
-	if not bool(game.flags.get("seen_obs_marks", false)):
-		game.flags["seen_obs_marks"] = true
-		bag.floats.append(Copy.t("obs.first_mark"))
+	_queue_float(game, "mark")
 	if bag.marks.size() >= 3:
 		_seal(game)
 
@@ -776,9 +853,28 @@ static func _take(game, id: String) -> void:
 	bag.kit_owned.append(id)
 	bag.kit_lost.erase(id)
 	bag.new_flag = true
-	if not bool(game.flags.get("seen_obs_kit", false)):
-		game.flags["seen_obs_kit"] = true
-		bag.floats.append(Copy.t("obs.first_kit"))
+	_queue_float(game, "kit")
+
+
+static func _queue_float(game, which: String) -> void:
+	var bag := _bag(game)
+	var flag := "seen_obs_marks" if which == "mark" else "seen_obs_kit"
+	if bool(game.flags.get(flag, false)) or bag.float_queue.has(which):
+		return
+	bag.float_queue.append(which)
+
+
+## The yard shows this only after the dawn cards have closed.
+static func take_float(game) -> String:
+	var bag := _bag(game)
+	if bag.float_queue.is_empty():
+		return ""
+	var which := str(bag.float_queue.pop_front())
+	if which == "mark":
+		game.flags["seen_obs_marks"] = true
+		return Copy.t("obs.first_mark")
+	game.flags["seen_obs_kit"] = true
+	return Copy.t("obs.first_kit")
 
 
 static func _blocked(ev: Dictionary) -> bool:

@@ -23,6 +23,7 @@ func _init() -> void:
 	_lines()
 	_swap()
 	_defaults()
+	_chrome()
 	_dawn()
 	_soft_dawn()
 	_bots_skip()
@@ -271,6 +272,162 @@ func _defaults() -> void:
 	_expect(str(taken.obs.kit_worn.lamp) == "carbide", "swap at the home desk", str(taken.obs.kit_worn))
 	_expect(int(taken.stock.food) == food and taken.hope == hope and int(taken.stock.materials) == mats and int(taken.stock.tokens) == tokens,
 		"a swap has no cost", "food %s hope %s" % [taken.stock.food, taken.hope])
+
+
+func _chrome() -> void:
+	## MK48
+	_expect(Game.DAWN_SOFT_STACK == ["rumor", "border.dawn_new", "rail", "homecoming"], "MK48 soft dawn", str(Game.DAWN_SOFT_STACK))
+	var map_src := FileAccess.get_file_as_string("res://ui/network_view.gd")
+	var drawing := false
+	var map_obs := false
+	for line in map_src.split("\n"):
+		if line.begins_with("func _draw"):
+			drawing = true
+		elif line.begins_with("func ") and drawing:
+			drawing = false
+		if drawing and line.find("obs_") >= 0:
+			map_obs = true
+	_expect(not map_obs, "MK48 no map draw from P87", "")
+	## MK49
+	var dawn := _game()
+	dawn.week = 4
+	dawn.pending = [
+		{"id": "toll", "major": true, "choices": [{"id": "pay", "label": "Pay"}]},
+		{"id": "burial_ada", "burial_id": "ada", "choices": [{"id": "bury", "label": "Bury"}]},
+	]
+	dawn.obs.offered = ["ash_hand"]
+	dawn.obs.due_ink = ["ash_hand"]
+	dawn.obs.wait_kit = [{"id": "oilskin", "find": false, "station": "dockyard", "week": 4}]
+	dawn.obs.card_week = 0
+	MarksKit.dawn(dawn)
+	MarksKit.reseat(dawn)
+	_expect(str(dawn.pending[0].get("burial_id", "")) != "" and str(dawn.pending[1].get("obs_kind", "")) == "ink", "MK49 death then ink", str(dawn.pending[1].get("obs_kind", "")))
+	_expect(_obs_cards(dawn) == 1, "MK49 one card", str(_obs_cards(dawn)))
+	_expect(not dawn.obs.wait_kit.is_empty(), "MK49 gift waits behind ink", str(dawn.obs.wait_kit))
+	## MK50
+	_expect(MarksKit.swap_toast_key(false) == "obs.worn" and MarksKit.swap_toast_key(true) == "obs.taken_off", "MK50 one toast key", "")
+	## MK51
+	var desk = load("res://ui/station.gd").new()
+	var blocked := Button.new()
+	desk._style_obs_button(blocked, true)
+	_expect(blocked.disabled and blocked.tooltip_text == Copy.t("obs.swap_blocked"), "MK51 blocked tip", blocked.tooltip_text)
+	_expect(blocked.mouse_filter == Control.MOUSE_FILTER_STOP and blocked.focus_mode != Control.FOCUS_NONE, "MK51 focusable", str(blocked.focus_mode))
+	var closed := _game()
+	closed.obs_narrative = true
+	_expect(not closed.obs_can_swap(), "MK51 narrative blocks swap", "")
+	## MK53
+	var glyph := MarksKit.icon("mark", "rail_stitch", 24)
+	var mask := MarksKit.tinted(glyph, Color("f4efe4"))
+	_expect(mask != null, "MK53 glyph mask", "")
+	if mask != null:
+		var image := mask.get_image()
+		var light := false
+		var soot := false
+		for y in range(0, image.get_height(), 2):
+			for x in range(0, image.get_width(), 2):
+				var pixel := image.get_pixel(x, y)
+				if pixel.a < 0.45:
+					continue
+				if pixel.r > 0.9 and pixel.g > 0.9 and pixel.b > 0.9:
+					light = true
+				if pixel.r < 0.3 and pixel.g < 0.25:
+					soot = true
+		var host := TextureRect.new()
+		host.texture = mask
+		host.modulate = Color("f4efe4")
+		_expect(light and not soot and host.modulate == Color("f4efe4"), "MK53 tint is the label colour", "light %s soot %s" % [light, soot])
+	## MK54
+	var visit := _game()
+	visit.obs.marks = ["rail_stitch"]
+	if visit.stations.has("westfield"):
+		visit.stations.westfield.sympathy = 40
+		var cache := {}
+		var first := MarksKit.greet_once(visit, "westfield", cache)
+		visit.obs.marks = []
+		var again := MarksKit.greet_once(visit, "westfield", cache)
+		_expect(first != "" and first == again, "MK54 greet cached for the visit", first + " / " + again)
+		MarksKit.greet_clear(cache)
+		var fresh := MarksKit.greet_once(visit, "westfield", cache)
+		_expect(fresh == "" and not cache.is_empty(), "MK54 cleared on close", fresh)
+	## MK55
+	var inked := _game()
+	var card := MarksKit._ink_card(inked, "ash_hand")
+	_expect(str(card.title) == "obs.ink.title" and int(card.obs_slots) == 2, "MK55 first ink reads 2 of 3 left", str(card.obs_slots))
+	_expect(MarksKit.slots_after(2) == 0, "MK55 last slot reads 0", str(MarksKit.slots_after(2)))
+	_expect(MarksKit.card_focus("ink") == "later" and MarksKit.card_focus("gift") == "take", "MK55 focus", "")
+	var paint := FileAccess.get_file_as_string("res://ui/station.gd")
+	_expect(paint.find("obs.mark.%s.name") >= 0 and paint.find("grab_focus") >= 0, "MK55 name caption and focus", "")
+	## MK56
+	var full := _game()
+	full.week = 8
+	full.obs.marks = ["ash_hand", "word_knot", "signal_scar"]
+	full.obs.offered = ["raid_tally"]
+	full.obs.due_ink = ["raid_tally"]
+	full.obs.card_week = 0
+	full.pending = []
+	MarksKit.dawn(full)
+	_expect(_obs_cards(full) == 0 and full.obs.noroom.has("raid_tally"), "MK56 no card when full", str(full.obs.noroom))
+	var noroom := false
+	for line in full.obs.toasts:
+		if str(line).find("No skin") >= 0:
+			noroom = true
+	_expect(noroom, "MK56 noroom toast", str(full.obs.toasts))
+	## MK57
+	var shown := _game()
+	MarksKit._ink(shown, "ash_hand")
+	_expect(not bool(shown.flags.get("seen_obs_marks", false)) and shown.obs.float_queue.has("mark"), "MK57 flag waits for the float", str(shown.flags.get("seen_obs_marks", false)))
+	shown.obs_narrative = true
+	_expect(MarksKit.take_float(shown) == Copy.t("obs.first_mark") and bool(shown.flags.get("seen_obs_marks", false)), "MK57 shows once", "")
+	_expect(MarksKit.take_float(shown) == "", "MK57 not twice", "")
+	var saved := shown.export_state()
+	saved["schema"] = 17
+	var loaded := _game()
+	_expect(loaded.import_state(saved) and bool(loaded.flags.get("seen_obs_marks", false)), "MK57 flag round-trips", loaded.load_error)
+	## MK58
+	var lost := _game()
+	MarksKit.note_capture(lost, "dockyard", true)
+	lost.obs.kit_owned = ["oilskin"]
+	_expect(lost.obs.kit_lost.has("oilskin"), "MK58 lost remembered", "")
+	var show_lost: bool = lost.obs.kit_lost.has("oilskin") and not lost.obs.kit_owned.has("oilskin")
+	lost.obs.kit_owned = ["oilskin"]
+	show_lost = lost.obs.kit_lost.has("oilskin") and not lost.obs.kit_owned.has("oilskin")
+	_expect(not show_lost, "MK58 owned piece is not a lost line", "")
+	## MK59
+	var kit_src := FileAccess.get_file_as_string("res://sim/marks_kit.gd")
+	_expect(kit_src.find("player_squad") < 0, "MK59 squad multiplier untouched here", "")
+	var gear_line := false
+	for line in kit_src.split("\n"):
+		if line.strip_edges().begins_with("#"):
+			continue
+		if line.to_lower().find("gear") >= 0 and not line.strip_edges().begins_with("##"):
+			gear_line = true
+	_expect(not gear_line, "MK59 no gear identifier", "")
+	## MK60
+	for scale in [1.0, 1.5]:
+		var view := Vector2(1280.0 / scale, 720.0 / scale)
+		for width in [640.0, 536.0]:
+			var plan := MarksKit.layout_plan(minf(view.x, width + 48.0), view.y)
+			_expect(bool(plan.hooks_outside) and bool(plan.scroll), "MK60 hooks stay outside the scroll", str(plan))
+			if width >= 536.0 and view.x >= 536.0 + 48.0:
+				_expect(bool(plan.side) and float(plan.pane) >= 360.0, "MK60 pane stays 360", str(plan))
+	var narrow := MarksKit.layout_plan(500.0, 720.0)
+	_expect(not bool(narrow.side) and float(narrow.bust) == 0.75, "MK60 stacks under 536", str(narrow))
+	## MK61
+	var list := _game()
+	list.obs.kit_owned = ["oilskin", "carbide"]
+	list.obs.marks = ["ash_hand"]
+	list.obs.offered = ["ash_hand"]
+	var coat := 0
+	var lamp := 0
+	for id in MarksKit.KIT_ORDER:
+		if not list.obs.kit_owned.has(id):
+			continue
+		if MarksKit.slot_of(str(id)) == "coat":
+			coat += 1
+		if MarksKit.slot_of(str(id)) == "lamp":
+			lamp += 1
+	_expect(coat <= 3 and lamp <= 3 and coat == 1 and lamp == 1, "MK61 found kit only", "%s %s" % [coat, lamp])
+	_expect(list.obs.offered.size() + list.obs.marks.size() < 6 or list.obs.marks.has("ash_hand"), "MK61 no unknown rows", str(list.obs.offered))
 
 
 func _dawn() -> void:

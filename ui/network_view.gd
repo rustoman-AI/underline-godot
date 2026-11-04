@@ -5291,13 +5291,20 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+var _obs_greet_cache := {}
+
+
 func open_visit(sid: String) -> void:
 	_cam_origin = origin
 	_cam_zoom = zoom
+	_obs_greet_cache = {}
+	if _game() != null:
+		MarksKit.greet_once(_game(), sid, _obs_greet_cache)
 	_show_visit(sid)
 
 
 func close_visit() -> void:
+	MarksKit.greet_clear(_obs_greet_cache)
 	_visit_sid = ""
 	if _need_float != null:
 		_need_float.visible = false
@@ -5402,11 +5409,9 @@ func _fill_visit(sid: String) -> void:
 	_add_focus_picker(game, sid, _visit_body)
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
-	var greet := ""
-	if game.has_method("obs_greet"):
-		greet = game.obs_greet(sid)
+	var greet := str(_obs_greet_cache.get("line", "")) if str(_obs_greet_cache.get("sid", "")) == sid else ""
 	if greet != "":
-		var src: Dictionary = MarksKit.greet_source(game, sid)
+		var src: Dictionary = _obs_greet_cache.get("src", {})
 		_visit_body.add_child(_obs_sheet_line(game, str(src.get("kind", "mark")), str(src.get("id", "")), greet))
 	_note_station_focus(sid)
 
@@ -5421,9 +5426,11 @@ func _obs_sheet_line(game, kind: String, id: String, text: String) -> HBoxContai
 	glyph.custom_minimum_size = Vector2(16, 16)
 	glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	var tex := MarksKit.icon(kind, id, 16) if id != "" else null
+	var raw := MarksKit.icon(kind, id, 16) if id != "" else null
+	var tex := MarksKit.tinted(raw, Color("d9cbb4")) if raw != null else null
 	if tex != null:
 		glyph.texture = tex
+		glyph.modulate = Color("d9cbb4")
 		row.add_child(glyph)
 	else:
 		var ring := Label.new()
