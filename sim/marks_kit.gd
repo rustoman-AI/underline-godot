@@ -248,6 +248,26 @@ static func ink_queued(game, id: String) -> bool:
 	return false
 
 
+## The mark that takes this week's one ink card keeps obs.ink.queued.
+## Anyone queued behind that mark uses obs.ink.queued_after. A third does too.
+static func queue_label(game, id: String) -> String:
+	if not ink_queued(game, id):
+		return ""
+	var bag := _bag(game)
+	var head := ""
+	for ev in game.pending:
+		if is_card(ev) and str(ev.get("obs_kind", "")) == "ink":
+			head = str(ev.get("obs_id", ""))
+			break
+	if head == "" and not bag.due_ink.is_empty():
+		head = str(bag.due_ink[0])
+	elif head == "" and not bag.ink_at.is_empty():
+		head = str(bag.ink_at[0])
+	if head == id:
+		return "obs.ink.queued"
+	return "obs.ink.queued_after"
+
+
 # --- triggers (no rng, no stock) ---
 
 static func note_bury(game) -> void:

@@ -801,6 +801,23 @@ func _obs_shots() -> void:
 	await _frame()
 	_save("obs_kit_swap")
 	_close_card()
+	game.obs = MarksKit.fresh()
+	game.obs.offered = ["ash_hand", "rail_stitch"]
+	game.obs.earned = {
+		"ash_hand": {"week": 6, "what": "obs.what.ash_hand", "station": ""},
+		"rail_stitch": {"week": 6, "what": "obs.what.rail_stitch", "station": "dockyard"},
+	}
+	game.week = 6
+	game.pending.clear()
+	MarksKit.queue_ink(game, "ash_hand")
+	MarksKit.queue_ink(game, "rail_stitch")
+	obs_mark_pick = "rail_stitch"
+	obs_slot_pick = ""
+	_show_observer()
+	await _frame()
+	await _frame()
+	_save("obs_queued_after")
+	_close_card()
 	game.obs.marks = ["rail_stitch", "ash_hand"]
 	var rumble := {}
 	for row in game.catalog.events:
@@ -15601,7 +15618,7 @@ func _obs_mark_row(id: String, pane_w: float) -> Control:
 	if state != "offered":
 		return face
 	var queued := MarksKit.ink_queued(game, id)
-	var key := "obs.ink.queued" if queued else ("obs.ink_btn" if pane_w < 360.0 else "obs.ink.queue")
+	var key := MarksKit.queue_label(game, id) if queued else ("obs.ink_btn" if pane_w < 360.0 else "obs.ink.queue")
 	var btn := _button(key, _obs_queue_mark.bind(id))
 	_style_obs_button(btn, queued)
 	if queued:

@@ -46,7 +46,9 @@ func _strings() -> void:
 		_bad("marks_kit.json")
 		return
 	var rows: Dictionary = pack.by_key
-	_expect(rows.size() == 108, "108 obs keys", str(rows.size()))
+	_expect(rows.size() == 109, "109 obs keys", str(rows.size()))
+	_expect(str(rows["obs.ink.queued_after"].get("en", "")) == "Inks the dawn after next", "queued_after EN", str(rows["obs.ink.queued_after"].get("en", "")))
+	_expect(str(rows["obs.ink.queued_after"].get("ru", "")) == "Набьют через рассвет", "queued_after RU", str(rows["obs.ink.queued_after"].get("ru", "")))
 	for key in rows:
 		var id := str(key)
 		if not id.begins_with("obs."):
@@ -66,7 +68,19 @@ func _strings() -> void:
 	_expect(Copy.t("obs.title") == "Наблюдатель", "RU title", Copy.t("obs.title"))
 	_expect(Copy.t("obs.kit_title") == "Пожитки", "RU Kit", Copy.t("obs.kit_title"))
 	_expect(Copy.t("obs.ink.yes") == "Набить", "RU ink", Copy.t("obs.ink.yes"))
+	_expect(Copy.t("obs.ink.queued_after") == "Набьют через рассвет", "RU queued_after", Copy.t("obs.ink.queued_after"))
 	Copy.set_lang("en")
+	_expect(Copy.t("obs.ink.queued") == "Inks at next dawn", "queued EN", Copy.t("obs.ink.queued"))
+	_expect(Copy.t("obs.ink.queued_after") == "Inks the dawn after next", "queued_after EN", Copy.t("obs.ink.queued_after"))
+	var queued := _game()
+	queued.obs.offered = ["ash_hand", "rail_stitch", "word_knot"]
+	_expect(MarksKit.queue_ink(queued, "ash_hand"), "queue the first mark", "")
+	_expect(MarksKit.queue_label(queued, "ash_hand") == "obs.ink.queued", "one queued mark says next dawn", MarksKit.queue_label(queued, "ash_hand"))
+	_expect(MarksKit.queue_ink(queued, "rail_stitch"), "queue the second mark", "")
+	_expect(MarksKit.queue_label(queued, "ash_hand") == "obs.ink.queued", "the first mark stays next dawn", MarksKit.queue_label(queued, "ash_hand"))
+	_expect(MarksKit.queue_label(queued, "rail_stitch") == "obs.ink.queued_after", "a second queued mark waits a dawn", MarksKit.queue_label(queued, "rail_stitch"))
+	_expect(MarksKit.queue_ink(queued, "word_knot"), "queue a third mark", "")
+	_expect(MarksKit.queue_label(queued, "word_knot") == "obs.ink.queued_after", "a third queued mark reuses the later line", MarksKit.queue_label(queued, "word_knot"))
 	_expect(Game.DAWN_SOFT_STACK == ["rumor", "border.dawn_new", "rail", "homecoming"], "soft dawn stack", str(Game.DAWN_SOFT_STACK))
 
 
