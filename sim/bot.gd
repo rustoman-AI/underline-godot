@@ -1,6 +1,8 @@
 class_name Bot
 extends RefCounted
 
+const SynodFavor = preload("res://sim/synod_favor.gd")
+
 ## Two stewards. Careful keeps a reserve. Expander takes every station and spends the reserve.
 
 var profile := "careful"
@@ -106,6 +108,9 @@ func _act(game: Game) -> void:
 		spent += 1
 	if profile != "follower" and game.decisions < 2:
 		game.apply({"kind": "staff"})
+	## Careful never asks the chapel, so the 2/60 loss band stays. Expander may buy a blessing.
+	if SynodFavor.bot_may_bless(game, profile):
+		game.apply({"kind": "favor", "id": "blessing"})
 
 
 ## The expander puts the best matching non-councillor in charge of every settled outpost while influence is at 20

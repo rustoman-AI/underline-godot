@@ -1,0 +1,68 @@
+{
+  "_note": "P80 Synod Favor (NEW invent — DEC-SF1…SF4). Spec: /workspace/SYNOD_FAVOR_P80_SPEC.md. Namespace favor.* — thin spend on P60 Synod Score. Cite P60 synod.* tip tone only; do NOT reopen/edit synod_score.json meter strings or geometry. Cite P72 Book of Laws (creed — do not invent Synod as creed); P68 score (optional chronicle weight ≤2 — no epilogue score invent); P20 Tunnel Party/Raid escort tip wire (existing combat proxy — do not invent new combat). Soft dawn: NONE (spend toast / expire / first float ≠ soft dawn chip). Tone: dry metro grit — three quiet asks at the chapel line, not a faith skill tree. Balance FLAG TINY — Texts copy SPEC costs (8/10/12) already in STRING checklist; do not invent new numbers. No Mayor; no standing escort; no AI Synod spend; no meta unlocks. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P80",
+  "_owners": "Texts; Code Ask Favor panel + 3 spends + cooldown; UIUX on P60 surface or Chapel row; Art chapel pip optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P80 Synod Favor stamped 2026-10-26 (12 favor.*; P60 cite-only; synod_score unreopened). Soft dawn NONE. Merge Temur. | Dawn grit 2026-10-27 (RU)",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P60 synod_score.json — tip tone only (chapel favor / listens at 10); meter unreopened",
+    "P72 book_of_laws.json — creed unreopened; Favor is not a creed fork",
+    "P68 epilogues.json — optional chronicle weight ≤2; no score chrome invent",
+    "P20 tunnel_combat.json — escort_tip wires existing combat roll proxy (no new combat system)"
+  ],
+  "_placeholders": [
+    "{favor}",
+    "{n}"
+  ],
+  "by_key": {
+    "favor.open": {
+      "en": "Ask Favor",
+      "ru": "Просить милость"
+    },
+    "favor.need": {
+      "en": "The chapel listens at 10.",
+      "ru": "Часовня слышит с 10."
+    },
+    "favor.blessing": {
+      "en": "Blessing",
+      "ru": "Благословение"
+    },
+    "favor.blessing_tip": {
+      "en": "Hope +1. Discontent −1. Cost 8.",
+      "ru": "Надежда +1. Недовольство −1. Цена 8."
+    },
+    "favor.escort_tip": {
+      "en": "Escort tip",
+      "ru": "Наводка"
+    },
+    "favor.escort_tip_tip": {
+      "en": "Next fight leans your way. Cost 10.",
+      "ru": "Следующий бой клонится к вам. Цена 10."
+    },
+    "favor.quiet_week": {
+      "en": "Quiet week",
+      "ru": "Тихая неделя"
+    },
+    "favor.quiet_week_tip": {
+      "en": "Skip one hard knock at dawn. Cost 12.",
+      "ru": "Пропустить один жёсткий стук на рассвете. Цена 12."
+    },
+    "favor.spent": {
+      "en": "The chapel answers: {favor}.",
+      "ru": "Часовня отвечает: {favor}."
+    },
+    "favor.cooldown": {
+      "en": "The chapel rests. Wait {n} weeks.",
+      "ru": "Часовня отдыхает. Ждите {n} недель."
+    },
+    "favor.first": {
+      "en": "The chapel will answer — for a price.",
+      "ru": "Часовня ответит — за цену."
+    },
+    "favor.expire": {
+      "en": "The escort tip faded. No fight came.",
+      "ru": "Наводка угасла. Боя не было."
+    }
+  },
+  "_designer": "APPROVED"
+}
