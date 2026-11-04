@@ -453,6 +453,8 @@ func apply(action: Dictionary) -> bool:
 		_journal(kind, entry)
 	if ok and watcher.is_valid():
 		watcher.call("action", {"kind": kind, "action": action, "entry": entry, "scene": scene})
+	if ok:
+		signal_sync()
 	return ok
 
 
@@ -1406,6 +1408,7 @@ func _night() -> void:
 	gen_down = false
 	if over == "":
 		telegraphed = _plan_intents()
+	signal_sync()
 
 
 func _finish_checks() -> void:
@@ -4491,7 +4494,7 @@ func order_cost(kind: String, _sid: String = "") -> Dictionary:
 		"breach":
 			return {"materials": int(bal.get("breach_materials", 6))}
 		"probe":
-			return {"tokens": int(bal.get("probe_tokens", 3))}
+			return {"tokens": probe_token_cost(_sid)}
 		"tap":
 			return {"food": 2}
 		_:
@@ -4685,6 +4688,7 @@ func _resolve_queued() -> void:
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		_journal("order_done", {"order": kind, "station": str(action.get("dest", sid)) if kind == "move" else sid, "name": str(row.get("name", "")), "ok": ok})
+	signal_sync()
 
 
 ## Stock, sympathy and the squad, read after the order's cost is refunded and before it resolves.
@@ -9908,6 +9912,128 @@ func listening_active() -> bool:
 	return room.staff.size() >= int(catalog.rooms["listening_post"].get("staff_min", 1))
 
 
+## P82 Signal Chain. Owned hops from a live home Listening Post. No second post, no soft dawn chip.
+## The lean is the spec's one token (minimum cost 2). SIGNAL_LEAN_ON is the only switch: off keeps every probe at probe_tokens.
+const SIGNAL_HOPS := 2
+const SIGNAL_PROBE_CUT := 1
+const SIGNAL_PROBE_MIN := 2
+const SIGNAL_LEAN_ON := true
+
+
+func _signal_joinable(sid: String, st: Dictionary) -> bool:
+	if str(st.get("owner", "")) != str(player):
+		return false
+	if str(st.get("bunker", "")) != "":
+		return false
+	if bool(st.get("hidden", false)):
+		return false
+	if str(st.get("owner", "")) in ["bunker", "ruin", "enemy"]:
+		return false
+	if sid == "":
+		return false
+	return true
+
+
+## Player-owned stations within SIGNAL_HOPS owned hops of home, including home. Empty when the Post is dark.
+func signal_members() -> PackedStringArray:
+	var out := PackedStringArray()
+	if not listening_active():
+		return out
+	var home := str(capital_id)
+	if not stations.has(home) or not _signal_joinable(home, stations[home]):
+		return out
+	var dist := {home: 0}
+	var queue: Array = [home]
+	var qi := 0
+	while qi < queue.size():
+		var cur: String = str(queue[qi])
+		qi += 1
+		if int(dist[cur]) >= SIGNAL_HOPS:
+			continue
+		for n in _neighbors(cur):
+			var nb := str(n)
+			if dist.has(nb) or not stations.has(nb):
+				continue
+			if not _signal_joinable(nb, stations[nb]):
+				continue
+			dist[nb] = int(dist[cur]) + 1
+			queue.append(nb)
+	var ids: Array = dist.keys()
+	ids.sort()
+	for sid in ids:
+		out.append(str(sid))
+	return out
+
+
+func signal_live() -> bool:
+	return not signal_members().is_empty()
+
+
+func signal_on(sid: String) -> bool:
+	return signal_members().has(str(sid))
+
+
+## Target is on the chain, or one open hop from a chained owned station.
+func signal_linked(sid: String) -> bool:
+	if not stations.has(sid) or not signal_live():
+		return false
+	if signal_on(sid):
+		return true
+	for n in _neighbors(sid):
+		if signal_on(str(n)):
+			return true
+	return false
+
+
+func signal_lean_spent() -> bool:
+	return int(flags.get("signal_lean_week", -999)) == int(week)
+
+
+func signal_probe_leans(sid: String) -> bool:
+	if not SIGNAL_LEAN_ON or signal_lean_spent():
+		return false
+	return signal_linked(sid)
+
+
+## Base probe_tokens, or one less when the lean applies. Never below SIGNAL_PROBE_MIN, and never above the base.
+func probe_token_cost(sid: String) -> int:
+	var base := int(bal.get("probe_tokens", 3))
+	if not signal_probe_leans(sid):
+		return base
+	var cut := base - SIGNAL_PROBE_CUT
+	if cut < SIGNAL_PROBE_MIN:
+		return base
+	return cut
+
+
+## Home visit always has a line. A chained outpost has one while the chain is live.
+func signal_status_key(sid: String) -> String:
+	var home := str(sid) == str(capital_id)
+	if signal_live() and (home or signal_on(sid)):
+		return "signal.status"
+	if home:
+		return "signal.status_none"
+	return ""
+
+
+## Lost toast once per drop. Membership itself is derived, so flags only remember the edge and the float.
+func signal_sync() -> void:
+	var live := signal_live()
+	var was := bool(flags.get("signal_was_live", false))
+	if was and not live and int(flags.get("signal_lost_week", -999)) != int(week):
+		flags["signal_lost_week"] = int(week)
+		notices.append(Copy.t("signal.lost"))
+	flags["signal_was_live"] = live
+
+
+## First chain of the run. The network float calls this; a dark post does not set the flag.
+func signal_note() -> String:
+	if bool(flags.get("seen_signal_chain", false)) or not signal_live():
+		return ""
+	flags["seen_signal_chain"] = true
+	return Copy.t("signal.first")
+
+
 func listening_probe_live() -> bool:
 	return str(flags.get("listening_probe_sid", "")) != ""
 
@@ -10040,7 +10166,7 @@ func _probe_block(sid: String) -> String:
 	var st: Dictionary = stations[sid]
 	if not bool(st.get("known", false)) or str(st.owner) == player or str(st.owner) == "bunker" or str(st.get("bunker", "")) != "":
 		return Copy.t("That station is out of reach.")
-	var need := int(bal.get("probe_tokens", 3))
+	var need := probe_token_cost(sid)
 	if int(stock.tokens) < need:
 		return Copy.t("Needs %s, the yard has %s.") % [Words.count(need, "token"), Words.count(int(stock.tokens), "token")]
 	return ""
@@ -10068,17 +10194,21 @@ func _order_probe(sid: String) -> bool:
 	var st: Dictionary = stations[sid]
 	if not bool(st.get("known", false)) or str(st.owner) == player or str(st.owner) == "bunker" or str(st.get("bunker", "")) != "":
 		return false
-	var cost := int(bal.get("probe_tokens", 3))
+	var base := int(bal.get("probe_tokens", 3))
+	var cost := probe_token_cost(sid)
 	if int(stock.tokens) < cost:
 		return false
 	stock.tokens = int(stock.tokens) - cost
+	if cost < base:
+		flags["signal_lean_week"] = int(week)
 	var place := station_text(sid, "community")
 	if place == "":
 		place = str(st.get("name", sid))
 	if net_rng.randf() < listening_blown_chance("probe"):
 		_listening_blown(str(st.owner), place)
 		return true
-	st.intel = clampi(maxi(int(st.get("intel", 0)), 2), 0, 3)
+	var before_intel := int(st.get("intel", 0))
+	st.intel = clampi(maxi(before_intel, 2), 0, 3)
 	st.wired_until = int(week) + 2
 	var faction := Copy.t(_fname(str(st.owner))) if catalog.factions.has(str(st.owner)) else Copy.t("Neutral")
 	var line := Copy.fill("listening.probe_reveal", {
@@ -10088,6 +10218,8 @@ func _order_probe(sid: String) -> bool:
 	})
 	listening_line = line
 	notices.append(line)
+	if before_intel >= 2 and signal_linked(sid):
+		notices.append(Copy.t("signal.quiet"))
 	_log("ORDER probe %s intel %d" % [str(st.name), int(st.intel)])
 	return true
 
@@ -12564,6 +12696,11 @@ func sick_cots_dawn_chip() -> bool:
 
 ## Always false. P52 focus is a visit-sheet choice, never a soft dawn chip.
 func station_focus_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P82 chain float, lost toast, and Probe lean are not a soft dawn chip.
+func signal_dawn_chip() -> bool:
 	return false
 
 

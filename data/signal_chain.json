@@ -1,0 +1,49 @@
+{
+  "_note": "P82 Signal Chain (NEW invent — DEC-SC1…SC3). Spec: /workspace/SIGNAL_CHAIN_P82_SPEC.md. Namespace signal.* — NOT chain.*. Cite P75 Listening Post (listening_post room; st.intel; Probe/Tap/Blown/Listen — do not reopen room card verbs or Blown bands); P74 Night Runs (intel share cite only — shared st.intel 0–3; no second intel track); P78 Relay Posts (supply hops — Signal is intel-only; do not steal Relay path or relay.* marks); P58 Passage Flow / P45 Deal Marks (map slot cite — do not steal). Soft dawn: NONE (chain toast / first float / Probe lean ≠ soft dawn chip). Tone: dry metro grit — one quiet chain of brass ticks, not a spy skill tree. Balance FLAG TINY — Texts do not invent lean numbers. No second Listening Post; no Hub picker; no Relay supply steal. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P82",
+  "_owners": "Texts; Code derive chain + probe_lean once/week; UIUX chain mark + status + Probe cost tip; Art signal_mark_24 optional (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P82 Signal Chain stamped 2026-10-27 (8 signal.*; Probe=Зонд cite P75). Soft dawn NONE. P78–P80 cite-only unreopened. Merge Temur. | Polish t145u 2026-11-03: 2 edit(s) (signal.tip.ru, signal.lost.ru); keys/placeholders unchanged; no balance; see polish_notes.md § Polish t145u. RU-side grit only; locked EN untouched.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P75 listening_post.json — Listening Post online+staffed gate; Probe/Tap/Blown unreopened; Probe=Зонд cite",
+    "P74 night_runs — shared st.intel 0–3 only (no second intel track)",
+    "P78 relay_posts.json — supply hops; Signal is intel-only; relay.* marks unreopened",
+    "P58 Passage Flow / P45 Deal Marks — map slot cite only (do not steal)"
+  ],
+  "_placeholders": [],
+  "by_key": {
+    "signal.name": {
+      "en": "Signal Chain",
+      "ru": "Сигнальная цепь"
+    },
+    "signal.tip": {
+      "en": "Signal Chain. The Post hears along the Line.",
+      "ru": "Сигнальная цепь. Пост слышит по всей Линии."
+    },
+    "signal.first": {
+      "en": "The Line carries a whisper.",
+      "ru": "Линия несёт шёпот."
+    },
+    "signal.lost": {
+      "en": "Signal Chain quiet. Post dark.",
+      "ru": "Сигнальная цепь молчит. Пост погас."
+    },
+    "signal.status": {
+      "en": "Chain live along the Line.",
+      "ru": "Цепь жива вдоль Линии."
+    },
+    "signal.status_none": {
+      "en": "No Signal Chain.",
+      "ru": "Сигнальной цепи нет."
+    },
+    "signal.probe_lean": {
+      "en": "Chain Probe. Costs less this week.",
+      "ru": "Зонд по цепи. На этой неделе дешевле."
+    },
+    "signal.quiet": {
+      "en": "Chain hears nothing new.",
+      "ru": "Цепь ничего нового не слышит."
+    }
+  },
+  "_designer": "APPROVED"
+}

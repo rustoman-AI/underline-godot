@@ -374,6 +374,9 @@ static func textures() -> Dictionary:
 		"res://assets/icons/map/need_tick_24.png": preload("res://assets/icons/map/need_tick_24.png"),
 		"res://assets/icons/status/need_tick.png": preload("res://assets/icons/status/need_tick.png"),
 		"res://assets/icons/map/need_tick.png": preload("res://assets/icons/map/need_tick.png"),
+		## P82. The pin draws signal_mark_24 at 14px. The 256 plate is the same mark, larger.
+		"res://assets/icons/map/signal_mark_24.png": preload("res://assets/icons/map/signal_mark_24.png"),
+		"res://assets/icons/map/signal_mark.png": preload("res://assets/icons/map/signal_mark.png"),
 
 	}
 	return _textures
@@ -483,6 +486,9 @@ static func _icon_names(kind: String) -> PackedStringArray:
 		## P49. Same search order. Callers pass 24 so the hand-pixel plate wins over the 256.
 		"need_tick":
 			return PackedStringArray(["need_tick"])
+		## P82. status/ is searched before map/, so a missing status file falls through to the map plate.
+		"signal_mark":
+			return PackedStringArray(["signal_mark"])
 		_:
 			return PackedStringArray([kind])
 
