@@ -1,17 +1,48 @@
 class_name OutpostLedger
 extends RefCounted
 
-## P85 Outpost Ledger. A Visit glance at stock a station record already stores.
-## Shipment tables (station_goods), weekly yield, and the capital pile are not holdings.
-## This never writes a station, stock, hope, or the soft-dawn stack. No map mark.
+## P85 Outpost Ledger. Last week's flow for one owned outpost, recomputed from state
+## the delivery already used. Reads only. Writes nothing. No RNG. No new fields.
+##
+## mats = flow.materials - flow.upkeep_materials
+## food = flow.food
+## goods = flow.tokens + flow.influence + flow.air
+## Age is stations[sid].held_weeks, the age _deliver_outposts already applied.
+## A station with no delivery yet, a zero flow, or inputs that moved this week stays hidden.
 
 const FLAG := "seen_outpost_ledger"
-const MATS_KEYS: PackedStringArray = ["mats", "materials"]
-const FOOD_KEYS: PackedStringArray = ["food"]
-const GOODS_KEYS: PackedStringArray = ["goods"]
 
 
-static func shows(game, sid: String) -> bool:
+static func map_mark() -> bool:
+	return false
+
+
+static func joins_soft_dawn() -> bool:
+	return false
+
+
+## Existing state the flow is derived from. Printed by the gate.
+static func fields_read() -> PackedStringArray:
+	return PackedStringArray([
+		"stations[sid].held_weeks",
+		"stations[sid].focus",
+		"stations[sid].governor",
+		"Game._supply_hops",
+		"catalog.station_goods",
+		"Formulas.outpost_flow",
+		"Game.governor_bonus",
+		"Game.governor_settle",
+		"Game._with_food_focus_bonus",
+		"flow.materials",
+		"flow.upkeep_materials",
+		"flow.food",
+		"flow.tokens",
+		"flow.influence",
+		"flow.air",
+	])
+
+
+static func _owned_visible(game, sid: String) -> bool:
 	if game == null or str(sid) == "" or not game.stations.has(sid):
 		return false
 	if str(sid) == str(game.capital_id):
@@ -24,64 +55,59 @@ static func shows(game, sid: String) -> bool:
 	return true
 
 
-static func map_mark() -> bool:
+## Focus or governor changed after last dawn, so the stored inputs are not last week's.
+static func _inputs_moved(game, sid: String) -> bool:
+	var st: Dictionary = game.stations[sid]
+	var name := str(st.get("name", ""))
+	var week := int(game.week)
+	var focus_prefix := "ORDER %s focuses on " % name
+	var recall_tail := " from %s" % name
+	for entry in game.log:
+		if typeof(entry) != TYPE_DICTIONARY or int(entry.get("week", -1)) != week:
+			continue
+		var text := str(entry.get("text", ""))
+		if name != "" and (text.begins_with(focus_prefix) or (text.begins_with("RECALL ") and text.ends_with(recall_tail))):
+			return true
+	for row in game.journal:
+		if typeof(row) != TYPE_DICTIONARY or int(row.get("week", -1)) != week:
+			continue
+		if str(row.get("kind", "")) == "governor" and str(row.get("station", "")) == str(sid):
+			return true
 	return false
 
 
-static func joins_soft_dawn() -> bool:
-	return false
-
-
-static func _numeric(value) -> bool:
-	return typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT
-
-
-## A number the station record already has, or 0 when that field is absent.
-## Does not create the key and does not read catalog goods or outpost yield.
-static func _read_key(st: Dictionary, keys: PackedStringArray) -> Dictionary:
-	for key in keys:
-		if st.has(key) and _numeric(st[key]):
-			return {"n": maxi(0, int(st[key])), "exposed": true, "field": str(key)}
-	var stock = st.get("stock", null)
-	if stock is Dictionary:
-		for key in keys:
-			if (stock as Dictionary).has(key) and _numeric((stock as Dictionary)[key]):
-				return {"n": maxi(0, int((stock as Dictionary)[key])), "exposed": true, "field": "stock." + str(key)}
-	return {"n": 0, "exposed": false, "field": ""}
+## The flow dict _deliver_outposts would have applied at the last dawn, from current inputs.
+## Empty when this outpost has not been through a delivery.
+static func _flow(game, sid: String) -> Dictionary:
+	var st: Dictionary = game.stations[sid]
+	var age := int(st.get("held_weeks", 0))
+	if age < 1:
+		return {}
+	var focus := str(st.get("focus", ""))
+	var gov := str(st.get("governor", ""))
+	var flow := Formulas.outpost_flow(age, int(game._supply_hops(str(sid))), focus, int(game.governor_bonus(gov, focus)), int(game.governor_settle(gov)), game.catalog.station_goods(str(sid)))
+	return game._with_food_focus_bonus(flow, focus)
 
 
 static func amounts(game, sid: String) -> Dictionary:
-	var blank := {
-		"mats": 0, "food": 0, "goods": 0,
-		"mats_exposed": false, "food_exposed": false, "goods_exposed": false,
-		"mats_field": "", "food_field": "", "goods_field": "",
-	}
-	if not shows(game, sid):
+	var blank := {"mats": 0, "food": 0, "goods": 0, "show": false}
+	if not _owned_visible(game, sid) or _inputs_moved(game, sid):
 		return blank
-	var st: Dictionary = game.stations[sid]
-	var mats := _read_key(st, MATS_KEYS)
-	var food := _read_key(st, FOOD_KEYS)
-	var goods := _read_key(st, GOODS_KEYS)
-	return {
-		"mats": int(mats.n),
-		"food": int(food.n),
-		"goods": int(goods.n),
-		"mats_exposed": bool(mats.exposed),
-		"food_exposed": bool(food.exposed),
-		"goods_exposed": bool(goods.exposed),
-		"mats_field": str(mats.field),
-		"food_field": str(food.field),
-		"goods_field": str(goods.field),
-	}
+	var flow := _flow(game, sid)
+	if flow.is_empty():
+		return blank
+	var mats := int(flow.get("materials", 0)) - int(flow.get("upkeep_materials", 0))
+	var food := int(flow.get("food", 0))
+	var goods := int(flow.get("tokens", 0)) + int(flow.get("influence", 0)) + int(flow.get("air", 0))
+	var show := mats != 0 or food != 0 or goods != 0
+	return {"mats": mats, "food": food, "goods": goods, "show": show}
 
 
-static func is_empty(row: Dictionary) -> bool:
-	return int(row.get("mats", 0)) == 0 and int(row.get("food", 0)) == 0 and int(row.get("goods", 0)) == 0
+static func shows(game, sid: String) -> bool:
+	return bool(amounts(game, sid).get("show", false))
 
 
 static func status_text(row: Dictionary) -> String:
-	if is_empty(row):
-		return Copy.t("ledger.empty")
 	return Copy.fill("ledger.status", {
 		"mats": int(row.get("mats", 0)),
 		"food": int(row.get("food", 0)),

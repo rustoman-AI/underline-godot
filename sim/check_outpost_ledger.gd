@@ -22,6 +22,16 @@ class Host extends Node:
 
 var _failed := false
 const BASELINE_LOST := 2
+## Outcome hash of careful seeds 1–60 on master (over, hope, discontent, stock, pop, held outposts).
+## Seeds 20 and 52 are the two losses.
+const MASTER_HASH := [
+	685489853, 2077930714, 724780967, 1800880849, 1595480338, 1657721342, 42879747, 1295760337, 1179903042, 1933464561,
+	1712488965, 1434185768, 211814834, 188380414, 21704523, 1921330802, 2048561698, 335701857, 2012426658, 1813892606,
+	14076918, 1150753745, 1229728296, 608757856, 985255655, 1484892223, 1591467274, 561092536, 1331711175, 404484709,
+	426068196, 1959047610, 245661988, 250596865, 336801062, 2026160392, 1246035434, 1127915952, 1979973131, 2037238125,
+	979147680, 1146496327, 555322251, 1917007878, 62025254, 844289426, 1547701616, 1966069534, 438401470, 255897303,
+	634966363, 540671440, 409203915, 746034854, 1727047236, 847580214, 368059940, 861220846, 291082730, 714422925,
+]
 
 
 func _init() -> void:
@@ -50,10 +60,7 @@ func _run() -> void:
 		print("LEDGER FAIL")
 		quit(1)
 		return
-	var lost := _careful_loss(catalog)
-	print("Careful loss: %d/60 (master baseline %d/60)" % [lost, BASELINE_LOST])
-	if lost != BASELINE_LOST:
-		_bad("careful loss %d/60 moved off the measured %d/60 baseline" % [lost, BASELINE_LOST])
+	if not _careful_match(catalog):
 		print("LEDGER FAIL")
 		quit(1)
 		return
@@ -144,73 +151,118 @@ func _pair(game: Game) -> Array:
 	return [owned, foreign]
 
 
+func _linked(game: Game) -> String:
+	for n in game._neighbors(game.capital_id):
+		var sid := str(n)
+		var st: Dictionary = game.stations[sid]
+		if str(st.get("bunker", "")) != "" or str(st.owner) in ["bunker", "ruin"]:
+			continue
+		return sid
+	return ""
+
+
+func _severed(game: Game, skip: String) -> String:
+	for sid in game.stations:
+		if str(sid) == str(game.capital_id) or str(sid) == skip:
+			continue
+		var st: Dictionary = game.stations[sid]
+		if str(st.get("bunker", "")) != "" or str(st.owner) in ["bunker", "ruin"]:
+			continue
+		if int(game._supply_hops(str(sid))) >= 900:
+			return str(sid)
+	return ""
+
+
+func _manual_flow(game: Game, sid: String) -> Dictionary:
+	var st: Dictionary = game.stations[sid]
+	var focus := str(st.get("focus", ""))
+	var gov := str(st.get("governor", ""))
+	var flow := Formulas.outpost_flow(int(st.get("held_weeks", 0)), int(game._supply_hops(sid)), focus, int(game.governor_bonus(gov, focus)), int(game.governor_settle(gov)), game.catalog.station_goods(sid))
+	flow = game._with_food_focus_bonus(flow, focus)
+	return {
+		"mats": int(flow.get("materials", 0)) - int(flow.get("upkeep_materials", 0)),
+		"food": int(flow.get("food", 0)),
+		"goods": int(flow.get("tokens", 0)) + int(flow.get("influence", 0)) + int(flow.get("air", 0)),
+	}
+
+
 func _check_ledger(catalog: Catalog) -> bool:
 	if Ledger.map_mark() or Ledger.joins_soft_dawn():
 		_bad("mark or dawn helper")
 		return false
+	var src := FileAccess.get_file_as_string("res://sim/outpost_ledger.gd")
+	if src.find("rand") >= 0 or src.find("held_weeks =") >= 0 or src.find("ledger.empty") >= 0:
+		_bad("ledger reader rolls, writes, or shows the empty line")
+		return false
+	print("Ledger fields: " + ", ".join(Ledger.fields_read()))
 	var game := _fresh(catalog)
-	var pair := _pair(game)
-	var sid := str(pair[0])
+	var sid := _linked(game)
 	if sid == "":
-		_bad("no outpost")
+		_bad("no linked outpost")
 		return false
-	game.stations[sid].owner = game.player
-	game.stations[sid].known = true
-	game.stations[sid].hidden = false
-	var before_keys: Array = game.stations[sid].keys()
+	var st: Dictionary = game.stations[sid]
+	var before_keys: Array = st.keys()
+	st.owner = game.player
+	st.known = true
+	st.hidden = false
+	st.materials = 9
+	st.food = 9
+	st.goods = 9
+	if Ledger.shows(game, sid):
+		_bad("held_weeks 0 showed a row")
+		return false
+	st.erase("materials")
+	st.erase("food")
+	st.erase("goods")
+	st.erase("stock")
+	if st.keys() != before_keys:
+		_bad("reader wrote a station field")
+		return false
+	st.held_weeks = 6
+	st.focus = "food"
+	st.governor = ""
+	var want := _manual_flow(game, sid)
 	var row: Dictionary = Ledger.amounts(game, sid)
-	if game.stations[sid].keys() != before_keys:
-		_bad("amounts wrote a station field")
+	if int(want.mats) == 0 and int(want.food) == 0 and int(want.goods) == 0:
+		_bad("linked outpost flow is zero")
 		return false
-	var bits: PackedStringArray = []
-	for key in ["mats", "food", "goods"]:
-		if bool(row.get(key + "_exposed", false)):
-			bits.append("%s=%d via %s" % [key, int(row[key]), str(row.get(key + "_field", ""))])
-		else:
-			bits.append("%s not exposed (bound 0)" % key)
-	print("Ledger fields: " + ", ".join(bits))
-	if not Ledger.is_empty(row) or Ledger.status_text(row) != Copy.t("ledger.empty"):
-		_bad("unexposed station did not read empty")
+	if int(row.mats) != int(want.mats) or int(row.food) != int(want.food) or int(row.goods) != int(want.goods) or not Ledger.shows(game, sid):
+		_bad("flow %s want %s" % [str(row), str(want)])
 		return false
-	var shipped: Dictionary = game.catalog.station_goods(sid)
-	if int(shipped.get("food", 0)) + int(shipped.get("materials", 0)) > 0 and (int(row.food) != 0 or int(row.mats) != 0):
-		_bad("shipment table was read as a holding")
+	if Ledger.status_text(row) != Copy.fill("ledger.status", want):
+		_bad("status " + Ledger.status_text(row))
 		return false
-	game.stations[sid].materials = 4
-	game.stations[sid].food = 0
-	game.stations[sid].goods = 7
-	row = Ledger.amounts(game, sid)
-	if int(row.mats) != 4 or int(row.food) != 0 or int(row.goods) != 7 or Ledger.is_empty(row):
-		_bad("bound fields " + str(row))
+	var cut := _severed(game, sid)
+	if cut == "":
+		_bad("no severed outpost")
 		return false
-	if Ledger.status_text(row) != "Holds: 4 mats · 0 food · 7 goods":
-		_bad("status with a zero " + Ledger.status_text(row))
+	var far: Dictionary = game.stations[cut]
+	far.owner = game.player
+	far.known = true
+	far.hidden = false
+	far.held_weeks = 6
+	far.focus = "food"
+	if Ledger.shows(game, cut):
+		_bad("cut line showed a row")
 		return false
-	game.stations[sid].erase("materials")
-	game.stations[sid].erase("food")
-	game.stations[sid].erase("goods")
-	game.stations[sid].stock = {"materials": 1, "food": 2, "goods": 0}
-	row = Ledger.amounts(game, sid)
-	if int(row.mats) != 1 or int(row.food) != 2 or int(row.goods) != 0 or str(row.mats_field) != "stock.materials":
-		_bad("nested stock " + str(row))
+	game.log.append({"week": int(game.week), "text": "ORDER %s focuses on air" % str(st.name), "important": false})
+	if Ledger.shows(game, sid):
+		_bad("focus changed this week still showed")
 		return false
-	game.stations[sid].erase("stock")
+	game.log.pop_back()
 	if Ledger.shows(game, game.capital_id):
 		_bad("home shows")
 		return false
-	var foreign := str(pair[1])
-	if Ledger.shows(game, foreign):
-		_bad("foreign shows")
-		return false
-	game.stations[sid].hidden = true
-	if Ledger.shows(game, sid):
-		_bad("hidden shows")
-		return false
-	game.stations[sid].hidden = false
-	game.stations[sid].owner = "neutral"
+	st.owner = "neutral"
 	if Ledger.shows(game, sid):
 		_bad("unowned shows")
 		return false
+	st.owner = game.player
+	st.hidden = true
+	if Ledger.shows(game, sid):
+		_bad("hidden shows")
+		return false
+	st.hidden = false
 	print("Ledger: ok")
 	return true
 
@@ -247,6 +299,13 @@ func _row(view: NetworkView) -> Node:
 	return found[0]
 
 
+func _visit_text(view: NetworkView) -> String:
+	var bits: PackedStringArray = []
+	for line in _meta(view.visit, "ledger_line"):
+		bits.append(str(line.text))
+	return "\n".join(bits)
+
+
 func _lines(row: Node) -> Array:
 	var found: Array = []
 	if row == null:
@@ -259,10 +318,16 @@ func _lines(row: Node) -> Array:
 
 func _check_visit(catalog: Catalog) -> bool:
 	var game := _fresh(catalog)
-	var pair := _pair(game)
-	var sid := str(pair[0])
-	var foreign := str(pair[1])
-	if sid == "" or foreign == "":
+	var sid := _linked(game)
+	if sid == "":
+		_bad("visit pair")
+		return false
+	var foreign := ""
+	for other in game.stations:
+		if str(other) != sid and str(other) != str(game.capital_id) and str(game.stations[other].owner) != str(game.player):
+			foreign = str(other)
+			break
+	if foreign == "":
 		_bad("visit pair")
 		return false
 	var st: Dictionary = game.stations[sid]
@@ -312,22 +377,34 @@ func _check_visit(catalog: Catalog) -> bool:
 		return false
 	view.close_sheet()
 	view.open_visit(sid)
+	if _row(view) != null or bool(game.flags.get(Ledger.FLAG, false)):
+		_bad("no delivery still showed a row")
+		return false
+	if _visit_text(view).find("Holds nothing counted") >= 0 or _visit_text(view).find(Copy.t("ledger.empty")) >= 0:
+		_bad("empty line was shown")
+		return false
+	st.held_weeks = 6
+	st.focus = "food"
+	st.governor = ""
+	var want := _manual_flow(game, sid)
+	view._fill_visit(sid)
 	var row := _row(view)
-	if row == null or str(row.get_meta("ledger_kind")) != "empty":
-		_bad("empty kind")
+	if row == null or str(row.get_meta("ledger_kind")) != "status":
+		_bad("flow kind " + (str(row.get_meta("ledger_kind")) if row != null else "missing"))
 		return false
 	if row.get_index() != row.get_parent().get_child_count() - 1 or not bool(row.get_meta("ledger_last", false)):
 		_bad("ledger is not the last status row")
 		return false
 	var lines := _lines(row)
-	if lines.size() != 1 or str(lines[0].text) != "Holds nothing counted.":
-		_bad("empty text")
+	var status := Copy.fill("ledger.status", want)
+	if lines.size() != 1 or str(lines[0].text) != status:
+		_bad("flow text " + (str(lines[0].text) if not lines.is_empty() else "missing"))
 		return false
 	var ink: Color = lines[0].get_theme_color("font_color")
-	if not ink.is_equal_approx(NetworkView.MUTED):
-		_bad("empty ink " + str(ink))
+	if not ink.is_equal_approx(NetworkView.INK):
+		_bad("flow ink " + str(ink))
 		return false
-	if str(row.tooltip_text) != "Outpost Ledger. What this station holds." or str(lines[0].tooltip_text) != row.tooltip_text:
+	if str(row.tooltip_text) != Copy.t("ledger.tip") or str(lines[0].tooltip_text) != row.tooltip_text:
 		_bad("tip")
 		return false
 	if not bool(game.flags.get(Ledger.FLAG, false)):
@@ -364,34 +441,17 @@ func _check_visit(catalog: Catalog) -> bool:
 	if view._ledger_float != null and view._ledger_float.visible:
 		_bad("second visit floated again")
 		return false
-	st.materials = 4
-	st.food = 0
-	st.goods = 7
-	view.visit.size = Vector2(1280, 720)
-	view._size_visit()
-	view._fill_visit(sid)
-	row = _row(view)
-	if row == null or str(row.get_meta("ledger_kind")) != "status":
-		_bad("status kind " + (str(row.get_meta("ledger_kind")) if row != null else "missing"))
-		return false
-	lines = _lines(row)
-	if lines.size() != 1 or str(lines[0].text) != "Holds: 4 mats · 0 food · 7 goods":
-		_bad("status text " + (str(lines[0].text) if not lines.is_empty() else "missing"))
-		return false
-	ink = lines[0].get_theme_color("font_color")
-	if not ink.is_equal_approx(NetworkView.INK):
-		_bad("status ink")
-		return false
-	if row.get_index() != row.get_parent().get_child_count() - 1:
-		_bad("status row is not last")
-		return false
 	view.visit.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	var narrow := 520
+	var wide_line := status
 	while narrow > 160:
+		for child in view._visit_body.get_children():
+			view._visit_body.remove_child(child)
+			child.free()
 		view.visit_sheet.custom_minimum_size = Vector2(0, 0)
 		view.visit.size = Vector2(narrow, 720)
 		view._size_visit()
-		if not view._ledger_fits("Holds: 4 mats · 0 food · 7 goods"):
+		if not view._ledger_fits(wide_line):
 			break
 		narrow -= 40
 	view._fill_visit(sid)
@@ -403,7 +463,8 @@ func _check_visit(catalog: Catalog) -> bool:
 	var stacked: PackedStringArray = []
 	for line in lines:
 		stacked.append(str(line.text))
-	if stacked != PackedStringArray(["4 mats", "0 food", "7 goods"]):
+	var stack_want := Ledger.stack_text(want)
+	if stacked != stack_want:
 		_bad("narrow lines " + str(stacked))
 		return false
 	Copy.set_lang("ru")
@@ -414,11 +475,28 @@ func _check_visit(catalog: Catalog) -> bool:
 	view._fill_visit(sid)
 	row = _row(view)
 	lines = _lines(row) if row != null else []
-	if lines.is_empty() or str(lines[0].text) != "На складе: 4 матер. · 0 еды · 7 товара":
+	if lines.is_empty() or str(lines[0].text) != Copy.fill("ledger.status", want):
 		_bad("ru status " + (str(lines[0].text) if not lines.is_empty() else "missing"))
 		Copy.set_lang("en")
 		return false
 	Copy.set_lang("en")
+	var cut := _severed(game, sid)
+	if cut == "":
+		_bad("no severed outpost")
+		return false
+	var far: Dictionary = game.stations[cut]
+	far.owner = game.player
+	far.known = true
+	far.hidden = false
+	far.held_weeks = 6
+	far.focus = "food"
+	far.governor = ""
+	view.visit.size = Vector2(1280, 720)
+	view._size_visit()
+	view._fill_visit(cut)
+	if _row(view) != null or _visit_text(view).find("Holds nothing counted") >= 0:
+		_bad("severed visit showed a row")
+		return false
 	if _meta(view, "ledger_map").size() != 0:
 		_bad("map mark node")
 		return false
@@ -482,8 +560,31 @@ func _check_dawn() -> bool:
 	return true
 
 
-func _careful_loss(catalog: Catalog) -> int:
+func _outcome_hash(game: Game) -> int:
+	var ids: Array = game.stations.keys()
+	ids.sort()
+	var held := PackedStringArray()
+	for sid in ids:
+		var st: Dictionary = game.stations[sid]
+		if str(st.owner) != str(game.player):
+			continue
+		held.append("%s:%s:%s" % [str(sid), str(st.get("held_weeks", 0)), str(st.get("focus", ""))])
+	var line := "%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%s" % [
+		str(game.over), int(game.hope), int(game.discontent),
+		int(game.stock.food), int(game.stock.materials), int(game.stock.air),
+		int(game.stock.power), int(game.stock.tokens), int(game.stock.influence),
+		game.residents.size(), ",".join(held)]
+	var h := 5381
+	for i in line.length():
+		h = ((h << 5) + h) + line.unicode_at(i)
+		h = h & 0x7fffffff
+	return h
+
+
+func _careful_match(catalog: Catalog) -> bool:
 	var lost := 0
+	var matched := 0
+	var lost_seeds := PackedStringArray()
 	for run_seed in range(1, 61):
 		var game := Game.new()
 		game.setup(catalog, run_seed, 40)
@@ -496,8 +597,20 @@ func _careful_loss(catalog: Catalog) -> int:
 			guard += 1
 			bot._act(game)
 			game.end_week()
+		var got := _outcome_hash(game)
+		var want := int(MASTER_HASH[run_seed - 1])
+		var same := got == want
+		if same:
+			matched += 1
+		else:
+			_bad("seed %d hash %d master %d" % [run_seed, got, want])
 		if str(game.over) != "time":
 			lost += 1
-		if run_seed % 15 == 0:
-			print("  careful %d/60 lost %d" % [run_seed, lost])
-	return lost
+			lost_seeds.append(str(run_seed))
+		print("Seed %d: %d %s %s" % [run_seed, got, str(game.over), "match" if same else "DIFF"])
+	print("Seed outcomes: %d/60 match master" % matched)
+	print("Careful loss: %d/60 (master baseline %d/60) seeds %s" % [lost, BASELINE_LOST, ",".join(lost_seeds)])
+	if lost != BASELINE_LOST or lost_seeds != PackedStringArray(["20", "52"]):
+		_bad("careful loss %d/60 seeds %s moved off master 2/60 (20,52)" % [lost, ",".join(lost_seeds)])
+		return false
+	return matched == 60

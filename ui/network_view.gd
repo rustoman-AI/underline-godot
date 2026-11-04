@@ -2328,8 +2328,8 @@ func _hide_focus_float() -> void:
 		_focus_float.visible = false
 
 
-## One thin stock line. Owned non-capital only. Missing stock fields bind 0.
-## The row is the last child of the Visit status column so a later row can sit above it.
+## Last week's flow. The row is omitted when that flow cannot be read.
+## It stays the last child of the Visit status column so a later row can sit above it.
 func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
 	if not Ledger.shows(game, sid):
 		return
@@ -2342,27 +2342,20 @@ func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
 	box.focus_mode = Control.FOCUS_ALL
 	box.set_meta("ledger_row", true)
 	box.set_meta("ledger_last", true)
-	if Ledger.is_empty(row):
-		var line := _ledger_label(Ledger.status_text(row), false)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.set_meta("ledger_line", "empty")
-		box.set_meta("ledger_kind", "empty")
+	var text := Ledger.status_text(row)
+	if _ledger_fits(text):
+		var line := _ledger_label(text, true)
+		line.set_meta("ledger_line", "status")
+		box.set_meta("ledger_kind", "status")
 		box.add_child(line)
 	else:
-		var text := Ledger.status_text(row)
-		if _ledger_fits(text):
-			var line := _ledger_label(text, true)
-			line.set_meta("ledger_line", "status")
-			box.set_meta("ledger_kind", "status")
+		box.set_meta("ledger_kind", "stack")
+		var parts := Ledger.stack_text(row)
+		var kinds := ["mats", "food", "goods"]
+		for i in parts.size():
+			var line := _ledger_label(str(parts[i]), true)
+			line.set_meta("ledger_line", kinds[i])
 			box.add_child(line)
-		else:
-			box.set_meta("ledger_kind", "stack")
-			var parts := Ledger.stack_text(row)
-			var kinds := ["mats", "food", "goods"]
-			for i in parts.size():
-				var line := _ledger_label(str(parts[i]), true)
-				line.set_meta("ledger_line", kinds[i])
-				box.add_child(line)
 	parent.add_child(box)
 
 
