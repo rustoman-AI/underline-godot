@@ -1938,6 +1938,10 @@
   "focus.set": {
     "en": "Focus set to {name}.",
     "ru": "Уклон — {name}."
+  },
+  "people.chip_duty": {
+    "en": "Duty",
+    "ru": "Дозор"
   }
 }
 

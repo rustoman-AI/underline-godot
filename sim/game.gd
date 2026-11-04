@@ -1373,6 +1373,8 @@ func _night() -> void:
 	if _law_on("double_shifts"):
 		_double_shift_sickness()
 	_note_new_sickness()
+	for line in duty_sweep():
+		notices.append(str(line))
 	_apply_flood_if_needed()
 	_season_mood()
 	_tension(_hardship_ids(food_short > 0 or air_short > 0, food_short > 0, dark_now, sick_now))
@@ -3557,6 +3559,9 @@ func assign_preview(person_id: String, uid: String) -> Dictionary:
 	if _locked_ids().has(person_id):
 		info.reason = Copy.t("%s is on a crew.") % Copy.person(str(person.name))
 		return info
+	if PassageDuty.holds(person):
+		info.reason = Copy.t("duty.tip")
+		return info
 	var already := false
 	for id in room.staff:
 		if str(id) == person_id:
@@ -3567,6 +3572,37 @@ func assign_preview(person_id: String, uid: String) -> Dictionary:
 		return info
 	info.ok = true
 	return info
+
+
+## Post a free hand on an owned passage. One decision, no stock, no hope, no dawn chip.
+func duty_post(person_id: String, edge_id: String) -> Dictionary:
+	var info := PassageDuty.preview(self, person_id, edge_id)
+	if not bool(info.ok):
+		return info
+	_unassign(person_id)
+	if people[person_id].has("post"):
+		people[person_id].erase("post")
+	people[person_id]["duty_edge_id"] = edge_id
+	var first := not bool(flags.get("seen_passage_duty", false))
+	if first:
+		flags["seen_passage_duty"] = true
+	info["first"] = first
+	decisions += 1
+	_log("DUTY %s" % str(people[person_id].get("name", person_id)))
+	return info
+
+
+func duty_clear(person_id: String) -> bool:
+	if not people.has(person_id) or not PassageDuty.holds(people[person_id]):
+		return false
+	people[person_id].erase("duty_edge_id")
+	decisions += 1
+	_log("DUTY CLEAR %s" % str(people[person_id].get("name", person_id)))
+	return true
+
+
+func duty_sweep() -> PackedStringArray:
+	return PassageDuty.sweep(self)
 
 
 func room_detail(uid: String) -> Dictionary:
@@ -3666,7 +3702,7 @@ func candidates_for(uid: String) -> Array:
 	var rows: Array = []
 	for person in residents:
 		var id := str(person.id)
-		if _locked_ids().has(id) or int(person.sick) > 0 or int(person.absent) > 0:
+		if _locked_ids().has(id) or int(person.sick) > 0 or int(person.absent) > 0 or PassageDuty.holds(person):
 			continue
 		var value := 0 if skill == "" else int(person.skills.get(skill, 0))
 		var here := false
@@ -6355,6 +6391,8 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	LeafletDust.clear_station(st)
 	NeedTick.clear_station(st)
 	_note_join_pulse(st, prev, fid, force)
+	for line in duty_sweep():
+		notices.append(str(line))
 	return true
 
 
@@ -6817,6 +6855,8 @@ func governor_block(sid: String, pid: String) -> String:
 		return Copy.t("They are not at the station now.")
 	if _locked_ids().has(pid) or bool(person.get("soldier", false)):
 		return Copy.t("They are on a crew or in the guard.")
+	if PassageDuty.holds(person):
+		return Copy.t("duty.tip")
 	if (bal.governor.get("too_young", []) as Array).has(pid):
 		return Copy.t("Too young to hold a station.")
 	if int(stock.influence) < int(bal.governor.appoint_influence):
@@ -7151,7 +7191,7 @@ func _auto_staff() -> void:
 	for id in _locked_ids():
 		used[id] = true
 	for person in residents:
-		if _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0:
+		if _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0 or PassageDuty.holds(person):
 			used[str(person.id)] = true
 	for room in rooms:
 		room.staff = []
@@ -7205,7 +7245,7 @@ func _best_free(skill: String, used: Dictionary) -> String:
 	var best_v := -1
 	for person in residents:
 		var id := str(person.id)
-		if used.has(id) or _is_child(person):
+		if used.has(id) or _is_child(person) or PassageDuty.holds(person):
 			continue
 		var v := 0 if skill == "" else int(person.skills.get(skill, 0))
 		if v > best_v:
@@ -7219,7 +7259,7 @@ func _pull_workers(n: int, skill: String) -> Array:
 	var locked := _locked_ids()
 	for person in residents:
 		var id := str(person.id)
-		if locked.has(id) or _is_child(person) or int(person.absent) > 0 or int(person.sick) > 0:
+		if locked.has(id) or _is_child(person) or int(person.absent) > 0 or int(person.sick) > 0 or PassageDuty.holds(person):
 			continue
 		pool.append(person)
 	if pool.size() < n:
@@ -7252,7 +7292,7 @@ func _free_count() -> int:
 		locked[id] = true
 	var n := 0
 	for person in residents:
-		if locked.has(str(person.id)) or _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0:
+		if locked.has(str(person.id)) or _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0 or PassageDuty.holds(person):
 			continue
 		n += 1
 	return n
@@ -7345,6 +7385,9 @@ func _remove_resident(id: String, notice := false, cause := "", how := "died", p
 			if known:
 				_add_hope(-1, "known")
 				_note_moment("known_lost", {"name": str(who.get("name", id))}, 4)
+	if people.has(id) and PassageDuty.holds(people[id]):
+		notices.append(Copy.t("duty.lost"))
+		people[id].erase("duty_edge_id")
 	var gone := str(people[id].get("name", "")) if people.has(id) else ""
 	var seat := ""
 	if people.has(id):
@@ -7416,7 +7459,7 @@ func _recruit_pick() -> String:
 	var best_v := -1
 	for person in residents:
 		var id := str(person.id)
-		if locked.has(id) or _is_council(id) or _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0:
+		if locked.has(id) or _is_council(id) or _is_child(person) or int(person.sick) > 0 or int(person.absent) > 0 or PassageDuty.holds(person):
 			continue
 		var v := int(person.skills.get("fight", 0)) * 2
 		if _staff_room_of(id) == "":
@@ -12564,6 +12607,11 @@ func sick_cots_dawn_chip() -> bool:
 
 ## Always false. P52 focus is a visit-sheet choice, never a soft dawn chip.
 func station_focus_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P81 Passage Duty is a visit seat, never a soft dawn chip.
+func passage_duty_dawn_chip() -> bool:
 	return false
 
 
