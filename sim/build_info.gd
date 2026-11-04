@@ -20,14 +20,27 @@ static func info() -> Dictionary:
 		data = {}
 	_info = {
 		"version": str(data.get("version", "unknown")),
+		"release_version": str(data.get("release_version", "")),
 		"build": str(data.get("build", "unknown")),
 		"date": str(data.get("date", "")),
 	}
 	return _info
 
 
+## Playtest and debug builds keep `version`. A release export (not debug, not the playtest feature) shows
+## `release_version`. TODO(Temur): that field is 0.1.0 until a release number is locked. docs/RELEASE_PLAN.md
+## names 0.2.0 only as a future Steam build task, not a decided version.
+static func version_for(release_export: bool) -> String:
+	var row := info()
+	if release_export:
+		var release := str(row.get("release_version", ""))
+		if release != "":
+			return release
+	return str(row.get("version", "unknown"))
+
+
 static func version() -> String:
-	return str(info().version)
+	return version_for(not OS.is_debug_build() and not OS.has_feature("playtest"))
 
 
 static func build() -> String:
@@ -60,7 +73,7 @@ static func _git_short() -> String:
 ## One line for the menu, credits and the copied report: "Version 0.1.0-playtest1, build 1a2b3c4, 2026-10-12".
 static func line() -> String:
 	var row := info()
-	var text := Copy.t("Version %s, build %s") % [str(row.version), str(row.build)]
+	var text := Copy.t("Version %s, build %s") % [version(), str(row.build)]
 	if str(row.date) != "":
 		text += ", " + str(row.date)
 	return text

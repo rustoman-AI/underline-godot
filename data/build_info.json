@@ -1,5 +1,6 @@
 {
   "version": "0.1.0-playtest3",
+  "release_version": "0.1.0",
   "build": "dev",
   "date": ""
 }

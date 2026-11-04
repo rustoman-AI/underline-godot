@@ -421,6 +421,10 @@ func drop_tip() -> void:
 	_chip_hover = ""
 	if dirty:
 		_redraw()
+	## A native tip already on screen only drops on the next pointer motion; send one in place.
+	var vp := get_viewport()
+	if vp != null:
+		vp.warp_mouse(vp.get_mouse_position())
 
 
 func close_sheet() -> void:
@@ -2405,7 +2409,7 @@ func _note_first_pin_warmth() -> void:
 func _show_warm_float(line: String) -> void:
 	if _warm_float == null:
 		_warm_float = Label.new()
-		_warm_float.z_index = 8
+		_warm_float.z_index = 11
 		_warm_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_warm_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_warm_float.add_theme_font_size_override("font_size", 18)
