@@ -17,6 +17,7 @@ const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
 const TransferHubs = preload("res://sim/transfer_hubs.gd")
+const Ledger = preload("res://sim/outpost_ledger.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -210,6 +211,9 @@ var _focus_float: Label
 var _focus_float_tween: Tween
 var _transfer_float: Label
 var _transfer_float_tween: Tween
+var _ledger_float: Label
+var _ledger_float_tween: Tween
+var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
 var legend_rows: VBoxContainer
@@ -2540,6 +2544,163 @@ func _hide_focus_float() -> void:
 		_focus_float_tween.kill()
 	if _focus_float != null:
 		_focus_float.visible = false
+
+
+## Last week's flow. Owned non-capital only. A zero or unreadable week is the muted empty line.
+## The row stays the last child of the Visit status column so a later row can sit above it.
+func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
+	if not Ledger.shows(game, sid):
+		return
+	var row: Dictionary = Ledger.amounts(game, sid)
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 0)
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	box.tooltip_text = Ledger.tip()
+	box.focus_mode = Control.FOCUS_ALL
+	box.set_meta("ledger_row", true)
+	box.set_meta("ledger_last", true)
+	if bool(row.get("empty", true)):
+		var quiet := _ledger_label(Ledger.empty_text(), false)
+		quiet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		quiet.set_meta("ledger_line", "empty")
+		box.set_meta("ledger_kind", "empty")
+		box.add_child(quiet)
+		parent.add_child(box)
+		return
+	var text := Ledger.status_text(row)
+	if _ledger_fits(text):
+		var line := _ledger_label(text, true)
+		line.set_meta("ledger_line", "status")
+		box.set_meta("ledger_kind", "status")
+		box.add_child(line)
+	else:
+		box.set_meta("ledger_kind", "stack")
+		var parts := Ledger.stack_text(row)
+		var kinds := ["mats", "food", "goods"]
+		for i in parts.size():
+			var line := _ledger_label(str(parts[i]), true)
+			line.set_meta("ledger_line", kinds[i])
+			box.add_child(line)
+	parent.add_child(box)
+
+
+func _ledger_figure_font() -> Font:
+	if _ledger_figure == null:
+		var variation := FontVariation.new()
+		variation.base_font = ThemeDB.fallback_font
+		variation.opentype_features = {"tnum": 1}
+		_ledger_figure = variation
+	return _ledger_figure
+
+
+func _ledger_label(text: String, primary: bool) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.clip_text = false
+	label.mouse_filter = Control.MOUSE_FILTER_STOP
+	label.focus_mode = Control.FOCUS_ALL
+	label.tooltip_text = Ledger.tip()
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_override("font", _ledger_figure_font())
+	var ink := INK if primary else MUTED
+	if _on_paper:
+		ink = CARD_INK if primary else CARD_MUTED
+	label.add_theme_color_override("font_color", ink)
+	return label
+
+
+## Width the status column can give the line before a token would wrap or clip.
+func _ledger_avail() -> float:
+	var sheet_w := 0.0
+	if visit_sheet != null and visit_sheet.custom_minimum_size.x >= 8.0:
+		sheet_w = visit_sheet.custom_minimum_size.x
+	elif visit_sheet != null and visit_sheet.size.x >= 8.0:
+		sheet_w = visit_sheet.size.x
+	elif visit != null:
+		sheet_w = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
+	var inner := maxf(0.0, sheet_w - 32.0)
+	var portrait := 0.0
+	if host != null and host.has_method("_portrait_box"):
+		portrait = 76.0
+	return maxf(48.0, inner - portrait)
+
+
+func _ledger_fits(text: String) -> bool:
+	var width := _ledger_figure_font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+	return width <= _ledger_avail() - 16.0
+
+
+## First owned non-capital Visit of a run. The flag is saved with the game. Not a dawn chip.
+func _note_outpost_ledger(sid: String) -> void:
+	if not is_inside_tree() or visit == null or not visit.visible:
+		return
+	var game = _game()
+	if not Ledger.shows(game, sid):
+		_hide_ledger_float()
+		return
+	var line := Ledger.note(game)
+	if line == "":
+		return
+	_show_ledger_float(line)
+
+
+func _show_ledger_float(line: String) -> void:
+	if visit == null:
+		return
+	if _ledger_float == null:
+		_ledger_float = Label.new()
+		_ledger_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ledger_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_ledger_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_ledger_float.add_theme_font_size_override("font_size", 18)
+		_ledger_float.add_theme_color_override("font_color", Color("efe6d2"))
+		_ledger_float.add_theme_constant_override("outline_size", 6)
+		_ledger_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_ledger_float.set_meta("ledger_float", true)
+		_ledger_float.z_index = 8
+		add_child(_ledger_float)
+	_ledger_float.text = line
+	_ledger_float.modulate.a = 1.0
+	_ledger_float.visible = true
+	_ledger_float.set_meta("ledger_float_static", _motion_off())
+	if _ledger_float_tween != null and _ledger_float_tween.is_valid():
+		_ledger_float_tween.kill()
+	_place_ledger_float()
+	if not is_inside_tree():
+		return
+	_ledger_float_tween = create_tween()
+	if _motion_off():
+		_ledger_float_tween.tween_interval(4.2)
+	else:
+		_ledger_float_tween.tween_interval(2.4)
+		_ledger_float_tween.tween_property(_ledger_float, "modulate:a", 0.0, 0.8)
+	_ledger_float_tween.tween_callback(func() -> void:
+		if _ledger_float != null:
+			_ledger_float.visible = false)
+
+
+func _place_ledger_float() -> void:
+	if _ledger_float == null or not _ledger_float.visible or visit == null:
+		return
+	var w := clampf(visit.size.x - 48.0, 280.0, 520.0)
+	_ledger_float.custom_minimum_size = Vector2(w, 0)
+	_ledger_float.size = Vector2(w, 36)
+	var y := visit.position.y + 176.0
+	if _focus_float != null and _focus_float.visible:
+		y = maxf(y, _focus_float.position.y + 72.0)
+	if _need_float != null and _need_float.visible:
+		y = maxf(y, visit.position.y + _need_float.position.y + 36.0)
+	_ledger_float.position = Vector2(maxf(8.0, visit.position.x + visit.size.x * 0.5 - w * 0.5), y)
+
+
+func _hide_ledger_float() -> void:
+	if _ledger_float_tween != null and _ledger_float_tween.is_valid():
+		_ledger_float_tween.kill()
+	if _ledger_float != null:
+		_ledger_float.visible = false
 
 
 func _note_first_pin_warmth() -> void:
@@ -5597,6 +5758,7 @@ func _size_visit() -> void:
 		visit_sheet.custom_minimum_size.x = minf(VISIT_MAX_W, maxf(0.0, visit.size.x - 32.0))
 	_place_need_float()
 	_place_focus_float()
+	_place_ledger_float()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -5623,6 +5785,7 @@ func close_visit() -> void:
 	if _need_float != null:
 		_need_float.visible = false
 	_hide_focus_float()
+	_hide_ledger_float()
 	if visit != null:
 		visit.visible = false
 	if sheet != null and selected != "":
@@ -5698,6 +5861,9 @@ func _fill_visit(sid: String) -> void:
 	_add_siege_lines(column, game, sid)
 	_add_transfer_status(game, sid, column)
 	_add_perk_good(game, sid, column)
+	# Ledger stays the last child of this Visit status column.
+	# P84 Transfer Hub stays above it. Quiet Toll inserts its row directly above _add_outpost_ledger.
+	_add_outpost_ledger(column, game, sid)
 	head.add_child(column)
 	_visit_body.add_child(head)
 	var details := _details_box()
@@ -5720,6 +5886,7 @@ func _fill_visit(sid: String) -> void:
 	_add_actions(sid, str(st.owner) == str(game.player), _visit_body, details, false)
 	_add_fold(_visit_body, details)
 	_note_station_focus(sid)
+	_note_outpost_ledger(sid)
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
