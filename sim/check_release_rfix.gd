@@ -308,6 +308,21 @@ func _map(st) -> void:
 	net._show_warm_float("The ring remembers how they feel.")
 	if net._warm_float == null or net._warm_float.z_index != 11:
 		_bad("first float z %s" % (net._warm_float.z_index if net._warm_float != null else "null"))
+	else:
+		var top := float(net._float_top())
+		if top + 0.5 < float(net._hud_top()) + 26.0:
+			_bad("float stack %.1f is not HUD+26" % top)
+		if absf(net._warm_float.position.y - top) > 1.0:
+			_bad("warm float y %.1f, want %.1f" % [net._warm_float.position.y, top])
+		net._show_deal_float("The ring remembers how they feel.")
+		net._place_warm_float()
+		net._show_leaf_float("The ring remembers how they feel.")
+		if net._deal_float == null or absf(net._deal_float.position.y - top) > 1.0:
+			_bad("deal float y %s" % (net._deal_float.position.y if net._deal_float != null else "null"))
+		if absf(net._warm_float.position.y - (top + 34.0)) > 1.0:
+			_bad("warm float stacked y %.1f" % net._warm_float.position.y)
+		if net._leaf_float == null or absf(net._leaf_float.position.y - (top + 68.0)) > 1.0:
+			_bad("leaf float stacked y %s" % (net._leaf_float.position.y if net._leaf_float != null else "null"))
 	if st.dim == null or not st.dim.visible or st.dim.z_index <= net.sheet.z_index:
 		_bad("journal on the map is not dimmed (dim %s)" % (st.dim.z_index if st.dim != null else "null"))
 	st._ensure_menu()

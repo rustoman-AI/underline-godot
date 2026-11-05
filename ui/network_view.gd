@@ -2116,12 +2116,18 @@ func _show_leaf_float(line: String) -> void:
 			_leaf_float.visible = false)
 
 
+## N4b: the top of the map float stack (deal, first warmth, leaflet; 34 px apart). It starts under the HUD with room
+## for the 18 px rise, so no float ends on the black bar. Interim until the X1 stacker lands; spacing unchanged.
+func _float_top() -> float:
+	return _hud_top() + 8.0 + 18.0
+
+
 func _place_leaf_float() -> void:
 	if _leaf_float == null or not _leaf_float.visible:
 		return
 	_leaf_float.custom_minimum_size = Vector2(420, 28)
 	_leaf_float.size = Vector2(420, 28)
-	var y := 78.0
+	var y := _float_top()
 	if _deal_float != null and _deal_float.visible:
 		y += 34.0
 	if _warm_float != null and _warm_float.visible:
@@ -2395,9 +2401,9 @@ func _place_warm_float() -> void:
 		return
 	_warm_float.custom_minimum_size = Vector2(420, 28)
 	_warm_float.size = Vector2(420, 28)
-	var y := 78.0
+	var y := _float_top()
 	if _deal_float != null and _deal_float.visible:
-		y = 112.0
+		y += 34.0
 	_warm_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
 
 
@@ -2446,7 +2452,7 @@ func _place_deal_float() -> void:
 		return
 	_deal_float.custom_minimum_size = Vector2(420, 28)
 	_deal_float.size = Vector2(420, 28)
-	_deal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), 78.0)
+	_deal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), _float_top())
 
 
 func _draw_deal_pips(c: CanvasItem, game) -> void:
