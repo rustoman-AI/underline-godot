@@ -2629,8 +2629,42 @@ func _place_toll_float() -> void:
 	_toll_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
 
 
+## P87 greet and the brass read. Cached in open_visit. Sits under the ledger.
+func _add_obs_visit(parent: Node, game, sid: String) -> void:
+	if _obs_visit_sid != sid:
+		return
+	if _obs_read != "":
+		parent.add_child(_obs_line(game, _obs_read, "kit", "dispatcher_brass"))
+	if _obs_greet.is_empty():
+		return
+	parent.add_child(_obs_line(game, Copy.t(str(_obs_greet.get("key", ""))), str(_obs_greet.get("kind", "mark")), str(_obs_greet.get("id", ""))))
+
+
+func _obs_line(game, text: String, kind: String, id: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.tooltip_text = MarksKit.why_line(kind, id)
+	var glyph := TextureRect.new()
+	glyph.texture = ObsGlyph.texture(kind, id, 16)
+	glyph.custom_minimum_size = Vector2(16, 16)
+	glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	glyph.modulate = Color("d9cbb4")
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(glyph)
+	var lab := _lab(text, 14, false)
+	lab.add_theme_color_override("font_color", Color("d9cbb4"))
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(lab)
+	return row
+
+
 ## Last week's flow. Owned non-capital only. A zero or unreadable week is the muted empty line.
-## The row stays the last child of the Visit status column so a later row can sit above it.
+## The ledger stays above the P87 greet.
 func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
 	if not Ledger.shows(game, sid):
 		return
@@ -4288,7 +4322,15 @@ func _gui_input(event: InputEvent) -> void:
 			var game = _game()
 			tooltip_text = game.rumor_label() if game != null else ""
 		else:
-			tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
+			var run_hit := _run_pin_at(motion.position)
+			if run_hit != "":
+				var game = _game()
+				var extra := MarksKit.read_line(game, "rumor", run_hit) if game != null else ""
+				tooltip_text = Copy.t("run.rumored")
+				if extra != "":
+					tooltip_text = "%s\n%s" % [tooltip_text, extra]
+			else:
+				tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
 		if _drag:
 			origin -= motion.relative / zoom
 			_clamp_view()
@@ -5861,14 +5903,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+var _obs_visit_sid := ""
+var _obs_greet := {}
+var _obs_read := ""
+
+
 func open_visit(sid: String) -> void:
 	_cam_origin = origin
 	_cam_zoom = zoom
+	var game = _game()
+	_obs_visit_sid = sid
+	_obs_greet = MarksKit.greet(game, sid) if game != null else {}
+	_obs_read = MarksKit.read_line(game, "visit", sid) if game != null else ""
 	_show_visit(sid)
 
 
 func close_visit() -> void:
 	_visit_sid = ""
+	_obs_visit_sid = ""
+	_obs_greet = {}
+	_obs_read = ""
 	if _need_float != null:
 		_need_float.visible = false
 	_hide_focus_float()
@@ -5952,6 +6006,7 @@ func _fill_visit(sid: String) -> void:
 	# P84 Transfer Hub stays above Quiet Toll and the ledger.
 	_add_quiet_toll(column, game, sid)
 	_add_outpost_ledger(column, game, sid)
+	_add_obs_visit(column, game, sid)
 	head.add_child(column)
 	_visit_body.add_child(head)
 	var details := _details_box()

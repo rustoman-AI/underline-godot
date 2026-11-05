@@ -1,0 +1,44 @@
+{
+  "_note": "P87 Marks & Kit catalog. Option rows mirror an existing choice at present time. No numbers, no balance. Texts live in marks_kit.json.",
+  "_roadmap": "P87",
+  "banned": ["two_portions", "breathers_price", "the_list", "law_week6"],
+  "marks": {
+    "rail_stitch": {
+      "events": ["rumble", "rumble_next", "clog", "clog_next", "cold_rail", "count_short"],
+      "night_run": true,
+      "effects": ["line", "greet"]
+    },
+    "ash_hand": {
+      "events": ["hymn", "preacher", "preacher_next", "name_scrubbed", "vent_prayer"],
+      "burial": true,
+      "effects": ["line"]
+    },
+    "word_knot": {
+      "events": ["loan", "loan_next", "market_food", "market_next", "smuggler", "smuggler_next"],
+      "effects": ["line"]
+    },
+    "signal_scar": {
+      "events": ["static", "static_next", "wire"],
+      "effects": ["line", "read"]
+    },
+    "raid_tally": {
+      "events": ["toll", "toll_next", "toll_last", "knock", "knock_next", "knock_last", "armband"],
+      "effects": ["line", "greet"]
+    },
+    "open_door": {
+      "events": ["refugees", "refugees_next", "bunks", "side_door", "shoe_gate"],
+      "effects": ["line", "greet"]
+    }
+  },
+  "kit": {
+    "oilskin": {"slot": "coat", "source": "station", "station": "dockyard", "events": ["leak", "leak_next", "wet_bunk", "rust_water"], "effects": ["line", "greet"]},
+    "barrel_quilt": {"slot": "coat", "source": "station", "station": "westfield", "events": ["cold_rail", "frost_glass", "ration_coat"], "effects": ["line", "greet"]},
+    "linesman_vest": {"slot": "coat", "source": "find", "events": ["tools", "scrap", "drill", "belt_squeal"], "effects": ["line", "read"]},
+    "carbide": {"slot": "lamp", "source": "station", "station": "brickworks", "events": ["fever_lamp", "silent_car", "lamps", "lamps_next"], "effects": ["line", "read", "greet"]},
+    "filter_hood": {"slot": "lamp", "source": "station", "station": "eastwater", "events": ["cough", "cough_next", "filter_mesh", "mold_cart"], "effects": ["line", "greet"]},
+    "headset": {"slot": "lamp", "source": "find", "events": [], "effects": ["read"]},
+    "dispatcher_brass": {"slot": "token", "source": "station", "station": "northgate", "events": [], "effects": ["read", "greet"]},
+    "free_mask": {"slot": "token", "source": "station", "station": "central", "events": ["quarrel", "quarrel_next", "desertion", "armband"], "effects": ["line", "greet"]},
+    "whistle": {"slot": "token", "source": "find", "events": ["nightshift", "overtime"], "night_run": true, "effects": ["line"]}
+  }
+}

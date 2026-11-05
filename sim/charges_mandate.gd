@@ -315,6 +315,7 @@ static func _tick_rows(g) -> void:
 		if verdict == "done":
 			_grant(g, row)
 			_close_charge(g, i)
+			MarksKit.note_charge_done(g)
 		elif verdict == "fail":
 			g.notices.append(Copy.t("charge.failed"))
 			_close_charge(g, i)
@@ -848,6 +849,7 @@ static func _eval_mandate(g, sealing: bool) -> void:
 		g.mandate.show_progress = true
 		g.stats["mandate_fulfilled"] = true
 		g.notices.append(Copy.t("mandate.fulfilled"))
+		MarksKit.note_mandate(g)
 		return
 	if sealing or _mandate_impossible(g, ids):
 		g.mandate.missed = true
