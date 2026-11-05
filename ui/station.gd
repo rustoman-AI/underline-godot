@@ -1652,6 +1652,7 @@ func _build() -> void:
 		tray.add_child(button)
 
 	night_button = _button("run.panel_title", open_night_panel)
+	night_button.z_index = 10
 	night_button.custom_minimum_size = Vector2(168, 44)
 	night_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	night_button.add_theme_font_size_override("font_size", 16)
@@ -1684,6 +1685,7 @@ func _build() -> void:
 	network_button.add_theme_font_size_override("font_size", 16)
 	add_child(network_button)
 	wall_button = _button("wall.open", _show_wall)
+	wall_button.z_index = 10
 	wall_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wall_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	wall_button.add_theme_font_size_override("font_size", 16)
@@ -1695,6 +1697,7 @@ func _build() -> void:
 	hub_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hub_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	hub_button.add_theme_font_size_override("font_size", 16)
+	_quiet_station_view(hub_button)
 	add_child(hub_button)
 	end_cover = Control.new()
 	end_cover.z_index = 10
@@ -3377,8 +3380,8 @@ func _end_turn() -> void:
 	_try_home_float()
 
 
-## Between weeks: the screen goes dark over the morning card, the new week is named, and dawn comes up on the
-## card. Skipped with reduce motion; a click during it lets it go at once.
+## R22: between weeks the new week is named inside a 1 px brass hairline and fades in 0.25s.
+## Reduce motion skips it. The veil never takes the mouse, so the dawn card underneath stays clickable.
 var night: ColorRect
 var night_tween: Tween
 
@@ -3387,12 +3390,27 @@ func _play_night() -> void:
 		return
 	if night == null:
 		night = ColorRect.new()
-		night.color = Color(0.02, 0.018, 0.015, 1.0)
+		night.color = Color(0.02, 0.018, 0.015, 0.42)
 		night.set_anchors_preset(Control.PRESET_FULL_RECT)
-		night.mouse_filter = Control.MOUSE_FILTER_STOP
+		night.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		night.z_index = 200
+		var frame := Panel.new()
+		frame.name = "Frame"
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.set_anchors_preset(Control.PRESET_CENTER)
+		frame.offset_left = -320.0
+		frame.offset_right = 320.0
+		frame.offset_top = -46.0
+		frame.offset_bottom = 46.0
+		var edge := StyleBoxFlat.new()
+		edge.bg_color = Color(0.05, 0.04, 0.03, 0.28)
+		edge.border_color = BRASS
+		edge.set_border_width_all(1)
+		edge.set_content_margin_all(10)
+		frame.add_theme_stylebox_override("panel", edge)
 		var title := Label.new()
 		title.name = "Title"
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		title.set_anchors_preset(Control.PRESET_FULL_RECT)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -3400,30 +3418,27 @@ func _play_night() -> void:
 		title.add_theme_color_override("font_color", Color("e8dcc4"))
 		if display_font != null:
 			title.add_theme_font_override("font", display_font)
-		night.add_child(title)
-		night.gui_input.connect(func(event: InputEvent):
-			if event is InputEventMouseButton and event.pressed:
-				_end_night())
+		frame.add_child(title)
+		night.add_child(frame)
 		add_child(night)
 	var season := ""
 	if not game.active_season.is_empty():
 		var name := Copy.season(str(game.active_season.id))
 		season = "
 " + name.substr(0, 1).to_upper() + name.substr(1)
-	var label := night.get_node("Title") as Label
+	var label := night.get_node("Frame/Title") as Label
 	label.text = (Copy.t("Week %d%s") % [game.week, ""]) + season
-	label.modulate.a = 0.0
 	night.visible = true
 	night.modulate.a = 0.0
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
 	night_tween = create_tween()
-	night_tween.tween_property(night, "modulate:a", 1.0, 0.22)
-	night_tween.tween_property(label, "modulate:a", 1.0, 0.3)
-	night_tween.tween_interval(0.55)
-	night_tween.tween_property(label, "modulate:a", 0.0, 0.2)
-	night_tween.tween_property(night, "modulate:a", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	night_tween.finished.connect(func(): night.visible = false)
+	night_tween.tween_property(night, "modulate:a", 1.0, 0.25)
+	night_tween.tween_interval(0.45)
+	night_tween.tween_property(night, "modulate:a", 0.0, 0.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	night_tween.finished.connect(func() -> void:
+		if night != null and night.modulate.a < 0.05:
+			night.visible = false, CONNECT_ONE_SHOT)
 
 
 func _end_night() -> void:
@@ -9864,6 +9879,33 @@ func _ui_click() -> void:
 	Sound.play("map_click")
 
 
+## R26: Station view is the quiet control. A station icon and a 1 px brass hairline, not the filled Network plate.
+func _quiet_station_view(button: Button) -> void:
+	var icon := ArtPack.icon_texture("station_view", 24.0)
+	if icon != null:
+		button.icon = icon
+		button.expand_icon = true
+		button.add_theme_constant_override("icon_max_width", 22)
+		button.add_theme_constant_override("icon_max_height", 22)
+		button.add_theme_constant_override("h_separation", 8)
+	var quiet := _button_face(false, false)
+	quiet.bg_color = Color(0.09, 0.08, 0.07, 0.28)
+	quiet.border_color = Color(BRASS, 0.55)
+	quiet.set_border_width_all(1)
+	var hot := _button_face(false, true)
+	hot.bg_color = Color(0.14, 0.12, 0.09, 0.5)
+	hot.border_color = BRASS
+	hot.set_border_width_all(1)
+	var down := _button_face(true, false)
+	down.bg_color = Color(0.12, 0.1, 0.08, 0.62)
+	down.border_color = BRASS
+	down.set_border_width_all(1)
+	button.add_theme_stylebox_override("normal", quiet)
+	button.add_theme_stylebox_override("hover", hot)
+	button.add_theme_stylebox_override("pressed", down)
+	button.add_theme_stylebox_override("focus", hot)
+
+
 ## A locked button is a faint plate with no edge, so it cannot be read as the quiet Demolish outline.
 func _button_disabled_face() -> StyleBoxFlat:
 	var style := _button_face(false, false)
@@ -12802,13 +12844,38 @@ func _place_sheet() -> void:
 			page.offset_top = clampf(size.y - 12.0 - tall, 12.0, top)
 
 
+## R18: Art's transparent logo lockup (520x92, @2x for 125% and up). The plain "Underline" label stays as the fallback
+## when the texture is missing, so a build without the art still has a title.
+const TITLE_LOGO := "res://assets/ui/title_logo.png"
+const TITLE_LOGO_2X := "res://assets/ui/title_logo@2x.png"
+const TITLE_LOGO_SIZE := Vector2(520, 92)
+
+
+func _title_logo() -> Control:
+	var path := TITLE_LOGO_2X if ResourceLoader.exists(TITLE_LOGO_2X) else TITLE_LOGO
+	if ResourceLoader.exists(path):
+		var tex = load(path)
+		if tex is Texture2D:
+			var logo := TextureRect.new()
+			logo.texture = tex
+			logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+			## 8 px under the art before the place line; keep-aspect draws the logo top-left at 520x92.
+			logo.custom_minimum_size = TITLE_LOGO_SIZE + Vector2(0, 8)
+			logo.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			logo.set_meta("title_logo", true)
+			return logo
+	var title := _label("Underline", 54, true)
+	title.add_theme_color_override("font_color", Color("f4efe4"))
+	return title
+
+
 func _fill_menu_root() -> void:
 	if menu_root == null:
 		return
 	_wipe(menu_root)
-	var title := _label("Underline", 54, true)
-	title.add_theme_color_override("font_color", Color("f4efe4"))
-	menu_root.add_child(title)
+	menu_root.add_child(_title_logo())
 	var place := _label("%s  ·  %s" % [_capital_name(), _community_name()], 20)
 	place.add_theme_color_override("font_color", Color("e2a63a"))
 	menu_root.add_child(place)
@@ -13585,10 +13652,12 @@ func _show_howto(auto: bool) -> void:
 			num.custom_minimum_size = Vector2(22, 0)
 			num.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 			row.add_child(num)
-			var text := _label(str(line.get(lang, line.get("en", ""))), 18)
+			## R21: the first sentence is the display-face lead. The rest of the card is 16 px body. Copy unchanged.
+			var lead := n == 1
+			var text := _label(str(line.get(lang, line.get("en", ""))), 22 if lead else 16, lead)
 			text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			text.set_meta("howto_line", true)
+			text.set_meta("howto_lead" if lead else "howto_line", true)
 			row.add_child(text)
 			box.add_child(row)
 		var check := CheckBox.new()

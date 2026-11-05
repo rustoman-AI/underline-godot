@@ -43,6 +43,7 @@ func _run() -> void:
 	await _room(st)
 	_ahead(st)
 	await _map(st)
+	await _round2(st)
 	_wipe(ProjectSettings.globalize_path(SCRATCH))
 	if bad.is_empty():
 		print("RELEASE RFIX OK")
@@ -59,7 +60,8 @@ func _bad(msg: String) -> void:
 
 
 func _static() -> void:
-	if Game.SAVE_SCHEMA != 14:
+	## #70 asserted schema 14, the schema of its base. This branch is the EA tip: schema 16, and it must stay 16.
+	if Game.SAVE_SCHEMA != 16:
 		_bad("SAVE_SCHEMA is %s" % str(Game.SAVE_SCHEMA))
 	var delay := float(ProjectSettings.get_setting("gui/timers/tooltip_delay_sec"))
 	if not is_equal_approx(delay, 0.35):
@@ -333,6 +335,93 @@ func _map(st) -> void:
 			saw_log = true
 	if not saw_log:
 		_bad("debug build hid the playtest log row")
+
+
+## Round 2 is UI on top of this gate. Schema stays 16 and the 125% default stays held (auto, scale 1.0).
+func _round2(st) -> void:
+	var settings := FileAccess.get_file_as_string("res://sim/settings.gd")
+	if settings.find("static var ui_scale := 1.0") < 0 or settings.find("static var ui_scale_auto := true") < 0:
+		_bad("ui scale default moved off auto 1.0")
+	var shrink := FileAccess.get_file_as_string("res://ui/station.gd")
+	var overflow_at := shrink.find("if h > max_h and card_body.get_child_count() > 0:")
+	if overflow_at < 0 or shrink.find("func _shrink_card") < 0:
+		_bad("dilemma card no longer squeezes only when it overflows")
+	var net = st.network_view
+	if not is_equal_approx(float(net.FOG_ALPHA), 0.6) or not is_equal_approx(float(net.FOG_SCALE), 0.8):
+		_bad("fog pins are not 0.6 ink / 0.8 scale")
+	if not net.has_method("_frame_home"):
+		_bad("map framing nudge is missing")
+	var locked: StyleBoxFlat = net._locked_face("patrol")
+	if locked == null or not is_equal_approx(locked.bg_color.a, 0.85) or locked.get_border_width(SIDE_LEFT) != 1:
+		_bad("locked order face")
+	net._rumor_named_game = 0
+	net._rumor_named_sid = ""
+	if not net._rumor_shows_name(st.game, "first") or not net._rumor_shows_name(st.game, "first") or net._rumor_shows_name(st.game, "later"):
+		_bad("rumor chip does not keep the first name and hide the next")
+	var logo: Control = st._title_logo()
+	if logo == null or not bool(logo.get_meta("title_logo", false)):
+		_bad("title falls back even though the logo texture is present")
+	elif logo is TextureRect:
+		var tex: Texture2D = (logo as TextureRect).texture
+		if tex == null or tex.get_width() < 500:
+			_bad("title logo is not the 520-wide lockup")
+	logo.free()
+	var quiet: StyleBoxFlat = st.hub_button.get_theme_stylebox("normal") as StyleBoxFlat
+	if quiet == null or quiet.get_border_width(SIDE_LEFT) != 1 or quiet.bg_color.a > 0.45:
+		_bad("Station view is not the quiet face")
+	var station_icon := ArtPack.icon_texture("station_view", 24.0) if shrink.find("ArtPack") >= 0 else null
+	if station_icon != null and st.hub_button.icon == null:
+		_bad("Station view icon did not land on the button")
+	elif station_icon == null and shrink.find("icon_texture(\"station_view\"") < 0:
+		_bad("Station view is not wired to the station icon")
+	var was_shot: bool = st.shot_mode
+	var motion := Settings.reduce_motion
+	st.shot_mode = false
+	Settings.reduce_motion = false
+	st._play_night()
+	if st.night == null or st.night.mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		_bad("night card blocks input")
+	else:
+		var frame := st.night.get_node_or_null("Frame") as Panel
+		var hair: StyleBoxFlat = null
+		if frame != null:
+			hair = frame.get_theme_stylebox("panel") as StyleBoxFlat
+		if hair == null or hair.get_border_width(SIDE_LEFT) != 1 or not is_equal_approx(hair.border_color.r, st.BRASS.r):
+			_bad("night card has no brass hairline")
+	Settings.reduce_motion = true
+	st._end_night()
+	st._play_night()
+	if st.night != null and st.night.visible:
+		_bad("reduce motion still fades the night card")
+	Settings.reduce_motion = motion
+	st.shot_mode = was_shot
+	st._end_night()
+	st._show_howto(false)
+	await process_frame
+	var lead_text := ""
+	var lead_px := -1
+	var lead_font: Font = null
+	var body_px := -1
+	var notice: Node = st.notice_layer
+	if notice == null:
+		_bad("how to play did not open")
+	else:
+		for lab in notice.find_children("*", "Label", true, false):
+			if lab.has_meta("howto_lead"):
+				lead_text = str(lab.text)
+				lead_px = int(lab.get_theme_font_size("font_size"))
+				lead_font = lab.get_theme_font("font")
+			elif lab.has_meta("howto_line") and body_px < 0:
+				body_px = int(lab.get_theme_font_size("font_size"))
+		var want := "Your goal: keep your people alive for forty weeks, and find out why the surface went silent."
+		if lead_text != want or lead_px != 22:
+			_bad("how to play lead '%s' at %d" % [lead_text, lead_px])
+		elif st.display_font != null and lead_font != st.display_font:
+			_bad("how to play lead is not the display face")
+		if body_px != 16:
+			_bad("how to play body is %d px" % body_px)
+	if st.has_method("_close_notice"):
+		st._close_notice()
 
 
 func _wipe(path: String) -> void:

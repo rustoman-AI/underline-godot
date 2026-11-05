@@ -751,9 +751,40 @@ func _fit() -> void:
 	zoom = _zoom_min
 	origin = _net_box().get_center() - (_open_area().get_center() - _center()) / zoom
 	_clamp_view()
+	_frame_home()
 	_fitted = true
 	_place_panels()
 	_redraw()
+
+
+## N7: the opening view keeps the home pin out of the End-turn corner, where the Ahead panel opens on hover.
+## Camera framing only (a sideways nudge of the fitted view): no pin, slot or mark moves, zoom is unchanged.
+const HOME_CLEAR := 24.0
+
+
+func _frame_home() -> void:
+	var game = _game()
+	if game == null or host == null:
+		return
+	var cap := str(game.capital_id)
+	var end_b = host.get("end_button")
+	if not (end_b is Control) or not _spots.has(cap):
+		return
+	var end_rect: Rect2 = (end_b as Control).get_global_rect()
+	## The Ahead panel's footprint (248 px square at 100%) until it has been laid out once.
+	var left := minf(end_rect.position.x - 40.0, end_rect.end.x - 252.0)
+	var tall := 248.0
+	var ahead = host.get("ahead")
+	if ahead is Control and (ahead as Control).size.y > 40.0:
+		left = minf(left, (ahead as Control).get_global_rect().position.x)
+		tall = (ahead as Control).size.y
+	var corner := Rect2(Vector2(left, end_rect.position.y - tall - 8.0), Vector2(end_rect.end.x - left, tall + 8.0))
+	corner.position -= get_global_rect().position
+	var home := _view() * (_map_xf * _map_spot(cap))
+	if not corner.grow(HOME_CLEAR).has_point(home):
+		return
+	origin.x += (home.x - (corner.position.x - HOME_CLEAR)) / maxf(zoom, 0.001)
+	_fitted = true
 
 
 func _map_tex(path: String) -> Texture2D:
@@ -2542,10 +2573,18 @@ func _draw_passage_edges(c: CanvasItem, game) -> void:
 			t += PASSAGE_STEP * k
 
 
+## R28: fog pins sit back at fit (60% of the old ink, 0.8 scale) so known pins lead the wide shot. Hover is full
+## size and full ink, so a fog pin still reads as clickable. Only the drawn glyph shrinks: the hit radius, the
+## warmth ring and every mark slot keep row.r.
+const FOG_ALPHA := 0.6
+const FOG_SCALE := 0.8
+
+
 func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
 	var at: Vector2 = row.at
-	var r := float(row.r)
-	var ink := Color(GRAPHITE, 0.95 if sid == _hover else 0.75)
+	var hot := sid == _hover
+	var r := float(row.r) * (1.0 if hot else FOG_SCALE)
+	var ink := Color(GRAPHITE, 0.95 if hot else 0.75 * FOG_ALPHA)
 	var turn := float(_hash(sid) % 7) * 0.4
 	c.draw_arc(at, r, turn, turn + TAU * 0.97, 32, ink, 1.4, true)
 	c.draw_arc(at + Vector2(0.8, -0.6), r * 0.95, turn + 1.2, turn + 1.2 + TAU * 0.8, 28, Color(ink, ink.a * 0.55), 1.0, true)
@@ -2555,7 +2594,7 @@ func _draw_unknown(c: CanvasItem, sid: String, row: Dictionary) -> void:
 	c.draw_string(font, at + Vector2(-w * 0.5, fs * 0.36), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
 	var game = _game()
 	if game != null and game.stations.has(sid):
-		_draw_warmth_ring(c, game, sid, game.stations[sid], at, r, 0.0)
+		_draw_warmth_ring(c, game, sid, game.stations[sid], at, float(row.r), 0.0)
 
 
 func _ready_fonts() -> void:
@@ -2768,6 +2807,22 @@ func _draw_flags(c: CanvasItem, game) -> void:
 	_draw_rumor(c, game)
 
 
+## R13: the first rumor chip of a run carries its name once, so new players learn the mark. Every later rumor is
+## icon-only; the name stays in the chip's tooltip. View-side only: no save field, so a reload names one chip again.
+var _rumor_named_game := 0
+var _rumor_named_sid := ""
+
+
+func _rumor_shows_name(game, sid: String) -> bool:
+	var gid: int = game.get_instance_id()
+	if gid != _rumor_named_game:
+		_rumor_named_game = gid
+		_rumor_named_sid = ""
+	if _rumor_named_sid == "":
+		_rumor_named_sid = sid
+	return sid == _rumor_named_sid
+
+
 func _draw_rumor(c: CanvasItem, game) -> void:
 	if game.rumor_count() != 1:
 		return
@@ -2775,7 +2830,7 @@ func _draw_rumor(c: CanvasItem, game) -> void:
 	if not _layout.has(sid):
 		return
 	var info: Dictionary = _layout[sid]
-	var label: String = game.rumor_label()
+	var label: String = game.rumor_label() if _rumor_shows_name(game, sid) else ""
 	var font := _font()
 	var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x if label != "" else 0.0
 	var w := 8.0 + 14.0 + (6.0 + text_w if label != "" else 0.0) + 6.0
@@ -4409,6 +4464,10 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 		var locked := StyleBoxFlat.new()
 		locked.bg_color = Color(0.24, 0.16, 0.08, 0.7)
 		locked.set_content_margin_all(4)
+		if _on_paper:
+			locked = _locked_face(kind)
+			locked.set_content_margin_all(4)
+			caption.add_theme_color_override("font_color", CARD_MUTED)
 		button.add_theme_stylebox_override("disabled", locked)
 	if game != null:
 		button.tooltip_text = _order_tip(game, kind, sid, why)
@@ -5253,7 +5312,7 @@ func _combat_order_button(kind: String, sid: String, parent: Node) -> void:
 	button.add_theme_stylebox_override("normal", face)
 	button.add_theme_stylebox_override("hover", _combat_face(kind, true))
 	button.add_theme_stylebox_override("pressed", _combat_face(kind, false, true))
-	button.add_theme_stylebox_override("disabled", _combat_face(kind))
+	button.add_theme_stylebox_override("disabled", _locked_face(kind))
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -5293,16 +5352,27 @@ func _combat_order_button(kind: String, sid: String, parent: Node) -> void:
 	caption.text = title
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title_color := Color("c4544a") if kind == "assault" else Color("efe6d2")
+	if why != "":
+		title_color = CARD_MUTED
 	caption.add_theme_color_override("font_color", title_color)
 	words.add_child(caption)
 	var sub := Label.new()
 	sub.text = detail
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sub.add_theme_color_override("font_color", Color("554533") if why != "" else Color("efe6d2"))
+	sub.add_theme_color_override("font_color", CARD_MUTED if why != "" else Color("efe6d2"))
+	if why != "":
+		## R09: the why-line wraps to two lines at most; the full reason is the tooltip (P65 text unchanged).
+		sub.max_lines_visible = 2
+		sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_WORD_ELLIPSIS
 	words.add_child(sub)
 	row.add_child(words)
 	button.add_child(row)
+	if why != "":
+		words.resized.connect(func() -> void:
+			var lines := mini(maxi(sub.get_line_count(), 1), 2)
+			var tall := caption.get_combined_minimum_size().y + float(lines * sub.get_line_height()) + 16.0
+			button.custom_minimum_size.y = maxf(64.0, tall))
 	button.disabled = why != ""
 	if why != "":
 		button.tooltip_text = why
@@ -5317,6 +5387,19 @@ func _combat_order_button(kind: String, sid: String, parent: Node) -> void:
 		else:
 			button.pressed.connect(_issue.bind(kind, sid))
 	parent.add_child(button)
+
+
+## R09 locked order face: paper at 0.85 with a muted hairline, so a closed row reads as closed on the light sheet
+## (the R05/N2 disabled family). Colour only: RP3 corner, margin and icon geometry are _combat_face's.
+const LOCKED_PAPER := Color(0.937, 0.894, 0.784, 0.85)
+
+
+func _locked_face(kind: String) -> StyleBoxFlat:
+	var style := _combat_face(kind)
+	style.bg_color = LOCKED_PAPER
+	style.border_color = Color(CARD_MUTED, 0.45)
+	style.set_border_width_all(1)
+	return style
 
 
 func _combat_face(kind: String, hover := false, pressed := false) -> StyleBoxFlat:
