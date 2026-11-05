@@ -1,6 +1,6 @@
 extends SceneTree
 
-## Salvage board: blueprints, the twelve nodes, strip, the dormant junk hook, save schema 16,
+## Salvage board: blueprints, the twelve nodes, strip, the dormant junk hook, save schema 17,
 ## desk empty states, Listening Post on the build catalog, the first-raid intel line,
 ## and the careful loss band (15–35% of seeds 1–60, 40 weeks).
 ##   godot --headless --path . -s res://sim/check_salvage.gd
@@ -422,7 +422,7 @@ func _raid() -> void:
 
 
 func _save() -> void:
-	_expect(Game.SAVE_SCHEMA == 16, "Save schema is 16", str(Game.SAVE_SCHEMA))
+	_expect(Game.SAVE_SCHEMA == 17, "Save schema is 17", str(Game.SAVE_SCHEMA))
 	var game := _game()
 	game.stock.blueprints = 4
 	game.salvage.strip_week = 9

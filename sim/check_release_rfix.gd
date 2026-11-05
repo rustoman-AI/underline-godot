@@ -61,8 +61,8 @@ func _bad(msg: String) -> void:
 
 
 func _static() -> void:
-	## #70 asserted schema 14, the schema of its base. This branch is the EA tip: schema 16, and it must stay 16.
-	if Game.SAVE_SCHEMA != 16:
+	## #70 asserted schema 14, the schema of its base. P84 raised the tip to schema 17.
+	if Game.SAVE_SCHEMA != 17:
 		_bad("SAVE_SCHEMA is %s" % str(Game.SAVE_SCHEMA))
 	var delay := float(ProjectSettings.get_setting("gui/timers/tooltip_delay_sec"))
 	if not is_equal_approx(delay, 0.35):
