@@ -1,0 +1,572 @@
+class_name ObserverPanel
+extends Control
+
+## P87 desk panel. Marks, kit, free swap. AMBIENT. No face, no stats.
+
+const PAPER := Color("241c14")
+const PAPER_INK := Color("f4efe4")
+const PAPER_MUTED := Color("d9cbb4")
+const PAPER_EDGE := Color("b89a6a")
+const PAPER_BUTTON := Color("3a3126")
+const PAPER_BUTTON_HOVER := Color("4a3f32")
+const PAPER_BUTTON_DOWN := Color("1a140e")
+const BRASS := Color("e2a63a")
+const FOCUS := Color("e9c46a")
+
+var host = null
+var _selected := {"kind": "slot", "id": "coat"}
+var _scroll: ScrollContainer
+var _detail: VBoxContainer
+var _hooks: HBoxContainer
+var _bust: Control
+var _body: VBoxContainer
+var _main: Container
+var _hint: Label
+var _blocked: Label
+var _sliding := false
+
+
+func present(station) -> void:
+	host = station
+	if host != null and host.game != null:
+		MarksKit.clear_pip(host.game)
+		MarksKit.take_anim(host.game)
+	if _selected.is_empty():
+		_selected = MarksKit.default_selection(host.game) if host != null else {"kind": "slot", "id": "coat"}
+	elif str(_selected.get("kind", "")) == "":
+		_selected = MarksKit.default_selection(host.game)
+	visible = true
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	_rebuild()
+
+
+func dismiss() -> void:
+	visible = false
+
+
+func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	set_process_unhandled_input(true)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible or host == null:
+		return
+	if event.is_action_pressed("ui_cancel"):
+		_close()
+		host.get_viewport().set_input_as_handled()
+
+
+func _rebuild() -> void:
+	var stale: Array = get_children()
+	for child in stale:
+		remove_child(child)
+		child.free()
+	var game = host.game if host != null else null
+	if game == null:
+		return
+	var view := get_viewport_rect().size
+	if view.x < 8.0:
+		view = Vector2(1280, 720)
+	var width := minf(640.0, view.x - 48.0)
+	var cap := view.y - 48.0
+	custom_minimum_size = Vector2(width, 0)
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", _paper())
+	add_child(panel)
+	_body = VBoxContainer.new()
+	_body.add_theme_constant_override("separation", 8)
+	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(_body)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var title := _lab(Copy.t("obs.title"), 22, true, PAPER_INK)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	_body.add_child(head)
+	var content_w := width - 20.0
+	var stacked := content_w < 536.0
+	_main = VBoxContainer.new() if stacked else HBoxContainer.new()
+	_main.add_theme_constant_override("separation", 16)
+	_main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_main.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_body.add_child(_main)
+	var bust_scale := 0.75 if stacked or cap < 460.0 else 1.0
+	_bust = _make_bust(game, bust_scale)
+	_main.add_child(_bust)
+	_scroll = ScrollContainer.new()
+	_scroll.custom_minimum_size = Vector2(360 if not stacked else content_w, 120)
+	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_detail = VBoxContainer.new()
+	_detail.add_theme_constant_override("separation", 12)
+	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(_detail)
+	_main.add_child(_scroll)
+	_fill_detail(game)
+	var kit_head := _lab(Copy.t("obs.kit_title"), 16, true, PAPER_INK)
+	_body.add_child(kit_head)
+	_hooks = HBoxContainer.new()
+	_hooks.add_theme_constant_override("separation", 24)
+	_hooks.alignment = BoxContainer.ALIGNMENT_CENTER
+	for slot in MarksKit.SLOT_ORDER:
+		_hooks.add_child(_hook(game, slot))
+	_body.add_child(_hooks)
+	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_body.add_child(_hint)
+	var close := _btn("Close", _close)
+	close.set_meta("obs_focus", "close")
+	close.custom_minimum_size = Vector2(110, 40)
+	_body.add_child(close)
+	_wire_focus()
+	var block := _lab("", 14, false, PAPER_MUTED)
+	block.visible = false
+	_body.add_child(block)
+	position = Vector2(maxi(24.0, (view.x - width) * 0.5), maxi(24.0, (view.y - minf(cap, 520.0)) * 0.5))
+	size = Vector2(width, minf(cap, _body.get_combined_minimum_size().y + 8.0))
+	custom_minimum_size = Vector2(width, minf(cap, maxf(420.0, _body.get_combined_minimum_size().y + 8.0)))
+
+
+func _fill_detail(game) -> void:
+	for child in _detail.get_children():
+		child.queue_free()
+	var kind := str(_selected.get("kind", "slot"))
+	var id := str(_selected.get("id", "coat"))
+	if kind == "mark":
+		_fill_mark(game, id)
+		return
+	_fill_slot(game, id)
+
+
+func _fill_mark(game, id: String) -> void:
+	MarksKit.mark_viewed(game, id)
+	var state := MarksKit.state_of_mark(game, id)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	ObsGlyph.rect(row, "mark", id, 32, PAPER_INK if state == "inked" else PAPER_MUTED)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.add_theme_constant_override("separation", 4)
+	var name := _lab(Copy.t("obs.mark.%s.name" % id), 16, true, PAPER_INK)
+	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.add_child(name)
+	var state_key := "obs.mark_state_%s" % state
+	var state_lab := _lab(Copy.t(state_key), 14, false, PAPER_MUTED)
+	state_lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	state_lab.custom_minimum_size = Vector2(120, 0)
+	words.add_child(state_lab)
+	if MarksKit.boot(game).fresh.has(id):
+		words.add_child(_lab(Copy.t("obs.mark_new"), 14, false, BRASS))
+	row.add_child(words)
+	_detail.add_child(row)
+	var flavor := _lab(Copy.t("obs.mark.%s.flavor" % id), 14, false, PAPER_INK)
+	flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail.add_child(flavor)
+	for line in MarksKit.does_lines(id, "mark"):
+		var does := _lab(line, 14, false, PAPER_MUTED)
+		does.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_detail.add_child(does)
+	_detail.add_child(_lab(Copy.t("obs.earned_from_head"), 14, true, PAPER_MUTED))
+	var earned := _lab(MarksKit.earned_line(game, id), 14, false, PAPER_MUTED)
+	earned.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail.add_child(earned)
+	if state == "offered":
+		var key := MarksKit.ink_button_key(game, id)
+		var narrow := size.x < 400.0
+		var label := Copy.t("obs.ink_btn") if narrow and size.x < 360.0 else Copy.t(key if key != "obs.ink.queue" else "obs.ink.queue")
+		if key != "obs.ink.queue":
+			label = Copy.t(key)
+		var button := _btn(label, _queue.bind(id))
+		button.set_meta("obs_focus", "pane")
+		button.custom_minimum_size = Vector2(120 if Copy.ru() else 110, 44)
+		button.disabled = key != "obs.ink.queue"
+		if button.disabled:
+			_disable_face(button, "")
+		_detail.add_child(button)
+
+
+func _fill_slot(game, slot: String) -> void:
+	var head := _lab(Copy.t("obs.slot_%s" % slot), 16, true, PAPER_INK)
+	_detail.add_child(head)
+	if not MarksKit.can_swap(game):
+		_blocked = _lab(Copy.t("obs.swap_blocked"), 14, false, PAPER_MUTED)
+		_blocked.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_detail.add_child(_blocked)
+	var owned: Array = MarksKit.owned_in(game, slot)
+	if owned.is_empty():
+		var empty := _lab(Copy.t("obs.kit_empty"), 14, false, PAPER_MUTED)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.custom_minimum_size = Vector2(0, 36)
+		_detail.add_child(empty)
+	for id in owned:
+		_detail.add_child(_kit_row(game, slot, str(id)))
+	for line in MarksKit.lost_lines(game, slot):
+		var lost := _lab(line, 14, false, PAPER_MUTED)
+		lost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lost.focus_mode = Control.FOCUS_NONE
+		_detail.add_child(lost)
+
+
+func _kit_row(game, slot: String, id: String) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var icon := ObsGlyph.rect(row, "kit", id, 48, PAPER_INK)
+	icon.custom_minimum_size = Vector2(48, 48)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name := _lab(Copy.t("obs.kit.%s.name" % id), 16, true, PAPER_INK)
+	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.add_child(name)
+	var flavor := _lab(Copy.t("obs.kit.%s.flavor" % id), 14, false, PAPER_MUTED)
+	flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.add_child(flavor)
+	var earned := _lab(MarksKit.earned_line(game, id), 14, false, PAPER_MUTED)
+	earned.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.add_child(earned)
+	var worn := MarksKit.worn_in(game, slot) == id
+	var state := _lab(Copy.t("obs.kit_state_worn" if worn else "obs.kit_state_kept"), 14, false, PAPER_INK if worn else PAPER_MUTED)
+	state.custom_minimum_size = Vector2(120, 18)
+	words.add_child(state)
+	row.add_child(words)
+	box.add_child(row)
+	var verb := "obs.take_off" if worn else "obs.wear"
+	var button := _btn(Copy.t(verb), _swap.bind(slot, "" if worn else id))
+	button.custom_minimum_size = Vector2(120 if Copy.ru() else 110, 44)
+	button.set_meta("obs_swap", true)
+	button.set_meta("obs_focus", "pane")
+	if not MarksKit.can_swap(game) or _sliding:
+		button.disabled = true
+		_disable_face(button, Copy.t("obs.swap_blocked"))
+	box.add_child(button)
+	return box
+
+
+func _hook(game, slot: String) -> Control:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(96, 0)
+	col.add_theme_constant_override("separation", 4)
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(96, 56)
+	button.focus_mode = Control.FOCUS_ALL
+	button.clip_text = false
+	button.text = ""
+	var worn := MarksKit.worn_in(game, slot)
+	var face := _face(false, false)
+	if worn != "":
+		face.border_color = PAPER_EDGE
+		face.set_border_width_all(2)
+	else:
+		face.border_color = Color(PAPER_EDGE, 0.7)
+		face.set_border_width_all(1)
+	if str(_selected.get("kind", "")) == "slot" and str(_selected.get("id", "")) == slot:
+		face.border_color = BRASS
+		face.set_border_width_all(2)
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", _face(false, true))
+	button.add_theme_stylebox_override("pressed", _face(true, false))
+	button.add_theme_stylebox_override("disabled", _flat_disabled())
+	button.add_theme_stylebox_override("focus", _focus_ring())
+	if worn != "":
+		button.icon = ObsGlyph.texture("kit", worn, 48)
+		button.expand_icon = false
+		button.add_theme_constant_override("icon_max_width", 48)
+		button.add_theme_constant_override("icon_max_height", 40)
+		button.add_theme_color_override("icon_normal_color", PAPER_INK)
+		button.add_theme_color_override("icon_hover_color", PAPER_INK)
+		button.add_theme_color_override("icon_focus_color", PAPER_INK)
+	else:
+		button.text = Copy.t("obs.kit_empty")
+		button.add_theme_font_size_override("font_size", 12)
+		button.add_theme_color_override("font_color", PAPER_MUTED)
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		button.clip_text = false
+	button.set_meta("obs_focus", "hook")
+	button.pressed.connect(_select.bind("slot", slot))
+	col.add_child(button)
+	var label := _lab(Copy.t("obs.slot_%s" % slot), 14, false, PAPER_INK)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size = Vector2(96, 18)
+	col.add_child(label)
+	var under := _lab(Copy.t("obs.kit.%s.name" % worn) if worn != "" else Copy.t("obs.kit_empty"), 12, false, PAPER_MUTED)
+	under.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	under.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	under.custom_minimum_size = Vector2(96, 36)
+	under.clip_text = false
+	col.add_child(under)
+	return col
+
+
+func _make_bust(game, scale: float) -> Control:
+	var box := Control.new()
+	var w := 160.0 * scale
+	var h := 240.0 * scale
+	box.custom_minimum_size = Vector2(w, h)
+	var tex := _bust_tex()
+	if tex != null:
+		var face := TextureRect.new()
+		face.texture = tex
+		face.custom_minimum_size = Vector2(w, h)
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(face)
+	else:
+		var outline := _lab("○", 28, false, PAPER_EDGE)
+		outline.position = Vector2(w * 0.35, 8)
+		outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(outline)
+	var rows: Array = MarksKit.rows(game)
+	var spots := ["forearm", "hand", "chest_neck"]
+	for i in 3:
+		var spot := Button.new()
+		spot.focus_mode = Control.FOCUS_NONE
+		spot.mouse_filter = Control.MOUSE_FILTER_STOP
+		spot.custom_minimum_size = Vector2(28 * scale, 28 * scale)
+		spot.position = Vector2(18.0 * scale + float(i) * 36.0 * scale, h * 0.55)
+		var ring := _face(false, false)
+		ring.bg_color = Color(0, 0, 0, 0)
+		ring.border_color = Color(PAPER_EDGE, 0.7)
+		ring.set_border_width_all(1)
+		spot.add_theme_stylebox_override("normal", ring)
+		spot.add_theme_stylebox_override("hover", ring)
+		spot.add_theme_stylebox_override("focus", _focus_ring())
+		spot.tooltip_text = Copy.t("obs.mark_locked")
+		if i < rows.size() and MarksKit.state_of_mark(game, str(rows[i])) == "inked":
+			spot.icon = ObsGlyph.texture("mark", str(rows[i]), 24)
+			spot.expand_icon = false
+			spot.add_theme_color_override("icon_normal_color", PAPER_INK)
+			spot.tooltip_text = Copy.t("obs.mark.%s.name" % str(rows[i]))
+			var mark_id := str(rows[i])
+			spot.pressed.connect(_select.bind("mark", mark_id))
+		box.add_child(spot)
+	var list := VBoxContainer.new()
+	list.position = Vector2(0, h + 8)
+	list.custom_minimum_size = Vector2(w, 0)
+	if rows.is_empty():
+		var locked := _lab(Copy.t("obs.mark_locked"), 14, false, PAPER_MUTED)
+		locked.focus_mode = Control.FOCUS_NONE
+		locked.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		list.add_child(locked)
+	else:
+		for id in rows:
+			var state := MarksKit.state_of_mark(game, str(id))
+			var button := _btn(Copy.t("obs.mark.%s.name" % str(id)), _select.bind("mark", str(id)))
+			button.set_meta("obs_focus", "mark")
+			button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			button.add_theme_color_override("font_color", PAPER_MUTED if state == "noroom" else PAPER_INK)
+			if state == "inked":
+				button.icon = ObsGlyph.texture("mark", str(id), 24)
+				button.add_theme_color_override("icon_normal_color", PAPER_INK)
+				button.add_theme_color_override("icon_hover_color", PAPER_INK)
+			list.add_child(button)
+	box.add_child(list)
+	box.custom_minimum_size.y = h + 8.0 + list.get_combined_minimum_size().y
+	return box
+
+
+func _bust_tex() -> Texture2D:
+	var path := "res://assets/portraits/obs_silhouette.png"
+	if ResourceLoader.exists(path):
+		return load(path)
+	if FileAccess.file_exists(path):
+		var image := Image.new()
+		if image.load(path) == OK:
+			return ImageTexture.create_from_image(image)
+	return null
+
+
+func _select(kind: String, id: String) -> void:
+	_selected = {"kind": kind, "id": id}
+	if host != null and host.game != null and kind == "mark":
+		MarksKit.mark_viewed(host.game, id)
+	_rebuild()
+
+
+func _queue(id: String) -> void:
+	if host == null or host.game == null:
+		return
+	MarksKit.queue_ink(host.game, id)
+	_rebuild()
+
+
+func _swap(slot: String, id: String) -> void:
+	if host == null or host.game == null or _sliding:
+		return
+	if not MarksKit.can_swap(host.game):
+		return
+	var beat: Dictionary = MarksKit.swap(host.game, slot, id)
+	if beat.is_empty():
+		return
+	if host.has_method("_ui_click"):
+		host._ui_click()
+	var motion: bool = host.has_method("_motion_off") and bool(host._motion_off())
+	if not motion:
+		_sliding = true
+	_rebuild()
+	if host.has_method("_undo_toast"):
+		host._undo_toast(str(beat.get("toast", "")), _undo)
+	if not motion:
+		var tween := create_tween()
+		tween.tween_interval(0.15)
+		tween.tween_callback(_slide_done)
+	else:
+		_sliding = false
+
+
+func _slide_done() -> void:
+	_sliding = false
+	if host != null:
+		_rebuild()
+
+
+func _undo() -> void:
+	if host == null or host.game == null:
+		return
+	if not MarksKit.can_swap(host.game):
+		if host.has_method("_hide_undo_toast"):
+			host._hide_undo_toast()
+		return
+	if not MarksKit.undo_swap(host.game):
+		return
+	if host.has_method("_hide_undo_toast"):
+		host._hide_undo_toast()
+	_rebuild()
+
+
+func _close() -> void:
+	dismiss()
+	if host != null and host.has_method("_close_observer"):
+		host._close_observer()
+
+
+func _wire_focus() -> void:
+	var marks: Array = []
+	var hooks: Array = []
+	var pane: Array = []
+	var close: Array = []
+	_collect_focus(self, marks, hooks, pane, close)
+	var order: Array = []
+	order.append_array(marks)
+	order.append_array(hooks)
+	order.append_array(pane)
+	order.append_array(close)
+	for i in order.size():
+		var button: Control = order[i]
+		var prev: Control = order[(i - 1 + order.size()) % order.size()]
+		var nxt: Control = order[(i + 1) % order.size()]
+		button.focus_neighbor_left = button.get_path_to(prev)
+		button.focus_neighbor_right = button.get_path_to(nxt)
+		button.focus_neighbor_top = button.get_path_to(prev)
+		button.focus_neighbor_bottom = button.get_path_to(nxt)
+		button.focus_next = button.get_path_to(nxt)
+		button.focus_previous = button.get_path_to(prev)
+
+
+func _collect_focus(node: Node, marks: Array, hooks: Array, pane: Array, close: Array) -> void:
+	if node is Control and str(node.get_meta("obs_focus", "")) != "":
+		var bucket := str(node.get_meta("obs_focus"))
+		if bucket == "mark":
+			marks.append(node)
+		elif bucket == "hook":
+			hooks.append(node)
+		elif bucket == "pane":
+			pane.append(node)
+		elif bucket == "close":
+			close.append(node)
+	for child in node.get_children():
+		_collect_focus(child, marks, hooks, pane, close)
+
+
+func _paper() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(2)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(2)
+	return style
+
+
+func _face(down: bool, hot: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER_BUTTON_DOWN if down else (PAPER_BUTTON_HOVER if hot else PAPER_BUTTON)
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	return style
+
+
+func _flat_disabled() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER
+	style.border_color = Color(PAPER_EDGE, 0.7)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	return style
+
+
+func _focus_ring() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.draw_center = false
+	style.border_color = FOCUS
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(2)
+	return style
+
+
+func _disable_face(button: Button, tip: String) -> void:
+	button.disabled = true
+	button.focus_mode = Control.FOCUS_ALL
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	button.add_theme_stylebox_override("disabled", _flat_disabled())
+	button.add_theme_color_override("font_disabled_color", PAPER_MUTED)
+	if tip != "":
+		button.tooltip_text = tip
+
+
+func _btn(text: String, cb: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.focus_mode = Control.FOCUS_ALL
+	button.custom_minimum_size = Vector2(110, 40)
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", PAPER_INK)
+	button.add_theme_color_override("font_hover_color", PAPER_INK)
+	button.add_theme_color_override("font_pressed_color", PAPER_INK)
+	button.add_theme_stylebox_override("normal", _face(false, false))
+	button.add_theme_stylebox_override("hover", _face(false, true))
+	button.add_theme_stylebox_override("pressed", _face(true, false))
+	button.add_theme_stylebox_override("disabled", _flat_disabled())
+	button.add_theme_stylebox_override("focus", _focus_ring())
+	button.pressed.connect(cb)
+	return button
+
+
+func _lab(text: String, size: int, bold: bool, color: Color) -> Label:
+	var lab := Label.new()
+	lab.text = text
+	lab.clip_text = false
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.add_theme_font_size_override("font_size", size)
+	lab.add_theme_color_override("font_color", color)
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return lab

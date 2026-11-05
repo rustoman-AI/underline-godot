@@ -300,6 +300,8 @@ static func dawn(game) -> void:
 	st.recover[str(site.id)] = int(game.week) + DEPLETE_WEEKS
 	_save_rng(game, rng)
 	var ev := _card(game, site, pack, encounter, hurt, dead, taken, rested, thin, seen, band, named)
+	MarksKit.note_night(game, site, dead)
+	MarksKit.decorate(game, ev)
 	game.pending.push_front(ev)
 	game._log("NIGHT back %s %s" % [str(site.id), band], true)
 

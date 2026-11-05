@@ -1,0 +1,466 @@
+{
+  "_note": "P87 Marks & Kit (NEW invent — DEC-MK1…MK5, Observer progression). Spec: /workspace/MARKS_AND_KIT_P87_SPEC.md. Namespace obs.* only (obs.mark.*, obs.kit.*, obs.*) — NEVER observer.*. Not a loot game: never gear/level/XP/equip/loot; Kit / wear / ink. Option lines mirror existing choices exactly (labels live in obs.*; locked card copy in events.json untouched). Tone: dry metro grit — soot-and-rust ink by lamplight; a coat someone gave you because you kept your word. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P87",
+  "_owners": "Texts; Code obs dict + triggers + ink/gift queued dawn cards + mirror option lines + obs_read/obs_greet; UIUX Observer desk panel (3 mark spots, 3 kit hooks) + swap undo toast; Art silhouette/glyphs/icons optional (never blocks)",
+  "_status": "Code G1 gap (PR #69, 2026-11-03): +obs.ink.queued_after 'Inks the dawn after next' / «Набьют через рассвет» for a second mark queued behind another (one ink per week); 109 keys. Designer STAMPED 2026-11-03 (RU → «Набьют через рассвет»); third queued mark reuses this key. | UIUX brief merge 2026-11-03 (P87_MARKS_AND_KIT_UI_BRIEFS.md): +11 obs.* UI keys (ink.queue/queued, state_offered/inked/noroom/worn = aliases of mark_state_*/kit_state_* values, swap_blocked, does.line/read/greet, line_why). obs.kit_empty kept as stamped 'Nothing worn'. 108 keys. | Designer APPROVED / Code-ready 2026-11-03 (97 obs.* keys). Final fixes per Designer: added obs.find.body (finds use gift card frame + obs.gift.take, no {station}); obs.mark.raid_tally.flavor reworded for a single tally; then per Designer FYI 2026-11-03 matched to five-stroke Art glyph ('A stroke for every raid…'). Muse lines cleared. | prior: Texts READY at design-gate awaiting Designer stamp — P87 Marks & Kit authored 2026-11-03 (96 obs.* keys EN+RU). Soft dawn NONE. Balance ZERO (no numbers invented; '14' and '3' are SPEC lore/slot counts). RU lexicon: Kit = «Пожитки» (panel/hint only; items are named directly) — chosen over «Вещи» because ru.json already has Keepsake=«Вещь» (collision), over «Снасть» (reads as fishing tackle for a coat), and banned «снаряжение». Mark = «Наколка» (street/yard tattoo, not «Метка» — that is P45 Deal Marks); Ink it = «Набить». Observer = «Наблюдатель» (not «Смотрящий» — criminal connotation); Observer addressed as ты, gender-neutral (no past-tense ты verbs). Locks kept: Дозор/Узел/Этаж not used; Word Knot avoids «узел/узелок» (Relay lock) → «Шнур слова»; Dispatcher's Brass = «Бляха» (not «жетон» — tokens). No «мат./маты» anywhere. UIUX OBSERVER_PROGRESSION_CHROME_IDEAS stubs merged (already obs.*; observer.* never shipped); dropped per SPEC: compare_now/compare_this/better (no compare arrows), kit_open/kit_go (swap at desk panel, no yard panel), mark_earned/marks_earned/first (superseded by mark_offered/first_mark). Texts adds for Designer confirm: obs.when, obs.what.* (earned-from {what}), obs.gift.body, obs.find.title (finds: vest/whistle/headset). EN starter edits: obs.kit_lost 'will not' → 'won't'; obs.greet.barrel_quilt/carbide/filter_hood/dispatcher_brass/free_mask authored new (SPEC stub gave pattern only). P45/P54/P55/P62/P64/P66/P67/P72/P73/P79/P81–P86 unreopened.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P67 Named Lives — bury choice (Ash Hand trigger + Speak the names mirror; cite only)",
+    "P73 Charges/Mandate — charges.closed / mandate.fulfilled (Word Knot trigger; cite only)",
+    "P75 Listening Post — blown report (Signal Scar; cite only)",
+    "P53 Raid Share (Raid Tally; cite only)",
+    "P74 Night Runs (whistle/headset/rail lines; cite only)",
+    "P76 Salvage Board / P55 Junk (vest; cite only)",
+    "P83 Guest Beds (Open Door; cite only)",
+    "P54/P62/P64/P66 host cards — card copy locked; obs option labels only",
+    "P45 Deal Marks — 'mark' there is a map pip (Метка); P87 uses Наколка, no collision"
+  ],
+  "_placeholders": [
+    "{item}",
+    "{name}",
+    "{n}",
+    "{station}",
+    "{week}",
+    "{what}",
+    "{when}"
+  ],
+  "by_key": {
+    "obs.mark.rail_stitch.name": {
+      "en": "Rail Stitch",
+      "ru": "Рельсовый шов"
+    },
+    "obs.mark.rail_stitch.flavor": {
+      "en": "Track stitched up the arm. You've walked further than most.",
+      "ru": "Колея стежками вверх по руке. За тобой больше путей, чем у многих."
+    },
+    "obs.mark.ash_hand.name": {
+      "en": "Ash Hand",
+      "ru": "Пепельная ладонь"
+    },
+    "obs.mark.ash_hand.flavor": {
+      "en": "Ash from three graves, rubbed into the palm.",
+      "ru": "Пепел с трёх могил, втёртый в ладонь."
+    },
+    "obs.mark.word_knot.name": {
+      "en": "Word Knot",
+      "ru": "Шнур слова"
+    },
+    "obs.mark.word_knot.flavor": {
+      "en": "A knot that doesn't come undone. Neither did your word.",
+      "ru": "Затянуто намертво. Как и твоё слово."
+    },
+    "obs.mark.signal_scar.name": {
+      "en": "Signal Scar",
+      "ru": "Сигнальный шрам"
+    },
+    "obs.mark.signal_scar.flavor": {
+      "en": "They heard you listening. You kept your ear.",
+      "ru": "Тебя услышали за прослушкой. Ухо осталось при тебе."
+    },
+    "obs.mark.raid_tally.name": {
+      "en": "Raid Tally",
+      "ru": "Счёт набегов"
+    },
+    "obs.mark.raid_tally.flavor": {
+      "en": "A stroke for every raid. Someone always asks what they count.",
+      "ru": "По черте за каждый набег. Всегда кто-то спросит, что они считают."
+    },
+    "obs.mark.open_door.name": {
+      "en": "Open Door",
+      "ru": "Открытая дверь"
+    },
+    "obs.mark.open_door.flavor": {
+      "en": "A door frame over the heart, left ajar.",
+      "ru": "Дверной косяк над сердцем. Дверь приоткрыта."
+    },
+    "obs.kit.oilskin.name": {
+      "en": "Oilskin Coat",
+      "ru": "Просмолённый плащ"
+    },
+    "obs.kit.oilskin.flavor": {
+      "en": "Barge tar and canal water. Chambers St doesn't give these out.",
+      "ru": "Баржевая смола и вода из канала. Чемберс-стрит такие просто так не отдаёт."
+    },
+    "obs.kit.barrel_quilt.name": {
+      "en": "Barrel-fire Quilt",
+      "ru": "Стёганка с бочки"
+    },
+    "obs.kit.barrel_quilt.flavor": {
+      "en": "Scorched at the hem. It has stood close to a lot of fires.",
+      "ru": "Подпалена по краю. Много раз стояла близко к огню."
+    },
+    "obs.kit.linesman_vest.name": {
+      "en": "Linesman's Vest",
+      "ru": "Жилет путейца"
+    },
+    "obs.kit.linesman_vest.flavor": {
+      "en": "Orange gone to rust. The strips still catch a lamp.",
+      "ru": "Оранжевый давно стал ржавым. Полосы ещё ловят свет лампы."
+    },
+    "obs.kit.carbide.name": {
+      "en": "Carbide Lamp",
+      "ru": "Карбидка"
+    },
+    "obs.kit.carbide.flavor": {
+      "en": "Hisses like it disapproves. Lights the car end to end.",
+      "ru": "Шипит, будто не одобряет. Светит на весь вагон."
+    },
+    "obs.kit.filter_hood.name": {
+      "en": "Filter Hood",
+      "ru": "Капюшон с фильтром"
+    },
+    "obs.kit.filter_hood.flavor": {
+      "en": "One can, no light. You breathe or you see.",
+      "ru": "Одна банка, света нет. Или дышишь, или видишь."
+    },
+    "obs.kit.headset.name": {
+      "en": "Signal Headset",
+      "ru": "Наушники связиста"
+    },
+    "obs.kit.headset.flavor": {
+      "en": "One wire is mended with hair. It still hums.",
+      "ru": "Один провод зашит волосом. Всё ещё гудит."
+    },
+    "obs.kit.dispatcher_brass.name": {
+      "en": "Dispatcher's Brass",
+      "ru": "Бляха диспетчера"
+    },
+    "obs.kit.dispatcher_brass.flavor": {
+      "en": "Number 14. The switch room remembers who carried it.",
+      "ru": "Номер 14. Диспетчерская помнит, кто её носил."
+    },
+    "obs.kit.free_mask.name": {
+      "en": "Free City Mask",
+      "ru": "Маска Свободного города"
+    },
+    "obs.kit.free_mask.flavor": {
+      "en": "One eye painted shut. Nobody's face, nobody's fault.",
+      "ru": "Один глаз закрашен. Ничьё лицо, ничья вина."
+    },
+    "obs.kit.whistle.name": {
+      "en": "Conductor's Whistle",
+      "ru": "Свисток кондуктора"
+    },
+    "obs.kit.whistle.flavor": {
+      "en": "Two notes. Everyone in the tunnel knows the second one.",
+      "ru": "Две ноты. Вторую в тоннеле знает каждый."
+    },
+    "obs.mark.rail_stitch.opt": {
+      "en": "Walk the rails",
+      "ru": "Пройти по путям"
+    },
+    "obs.mark.ash_hand.opt": {
+      "en": "Speak the names",
+      "ru": "Назвать имена"
+    },
+    "obs.mark.word_knot.opt": {
+      "en": "Hold to your word",
+      "ru": "Сдержать слово"
+    },
+    "obs.mark.signal_scar.opt": {
+      "en": "Listen past the hiss",
+      "ru": "Слушать сквозь шипение"
+    },
+    "obs.mark.raid_tally.opt": {
+      "en": "Show the tally",
+      "ru": "Показать счёт"
+    },
+    "obs.mark.open_door.opt": {
+      "en": "Leave the door open",
+      "ru": "Оставить дверь открытой"
+    },
+    "obs.kit.oilskin.opt": {
+      "en": "Wade in",
+      "ru": "Пойти вброд"
+    },
+    "obs.kit.barrel_quilt.opt": {
+      "en": "Share the fire",
+      "ru": "Поделиться огнём"
+    },
+    "obs.kit.linesman_vest.opt": {
+      "en": "Work it like a linesman",
+      "ru": "Сделать по-путейски"
+    },
+    "obs.kit.carbide.opt": {
+      "en": "Raise the carbide",
+      "ru": "Поднять карбидку"
+    },
+    "obs.kit.filter_hood.opt": {
+      "en": "Hood up",
+      "ru": "Надеть капюшон"
+    },
+    "obs.kit.free_mask.opt": {
+      "en": "Speak as nobody",
+      "ru": "Сказать без лица"
+    },
+    "obs.kit.whistle.opt": {
+      "en": "Whistle them in",
+      "ru": "Свистнуть своих"
+    },
+    "obs.title": {
+      "en": "Observer",
+      "ru": "Наблюдатель"
+    },
+    "obs.hint": {
+      "en": "Marks come from what you do. Kit comes from people who trust you.",
+      "ru": "Наколки — за дела. Пожитки — от тех, кто тебе верит."
+    },
+    "obs.slot_coat": {
+      "en": "Coat",
+      "ru": "Плечи"
+    },
+    "obs.slot_lamp": {
+      "en": "Lamp",
+      "ru": "Голова"
+    },
+    "obs.slot_token": {
+      "en": "Token",
+      "ru": "При себе"
+    },
+    "obs.ink.title": {
+      "en": "Needle and soot",
+      "ru": "Игла и сажа"
+    },
+    "obs.ink.body": {
+      "en": "Someone heats the needle in the lamp. It won't come off.",
+      "ru": "Кто-то калит иглу над лампой. Это уже не сойдёт."
+    },
+    "obs.ink.yes": {
+      "en": "Ink it",
+      "ru": "Набить"
+    },
+    "obs.ink.later": {
+      "en": "Not yet",
+      "ru": "Не сейчас"
+    },
+    "obs.ink.slots": {
+      "en": "{n} of 3 left",
+      "ru": "Свободно {n} из 3"
+    },
+    "obs.mark_offered": {
+      "en": "Mark offered: {name}",
+      "ru": "Можно набить: {name}"
+    },
+    "obs.mark_noroom": {
+      "en": "No skin left for {name}.",
+      "ru": "Нет места на коже: {name}."
+    },
+    "obs.first_mark": {
+      "en": "Your first mark is inked.",
+      "ru": "Первая наколка набита."
+    },
+    "obs.gift.title": {
+      "en": "A gift from {station}",
+      "ru": "{station}: подарок"
+    },
+    "obs.gift.take": {
+      "en": "Take it",
+      "ru": "Взять"
+    },
+    "obs.first_kit": {
+      "en": "Someone gave you something to wear.",
+      "ru": "Тебе дали что-то носить."
+    },
+    "obs.worn": {
+      "en": "Wearing {item}",
+      "ru": "Надето: {item}"
+    },
+    "obs.kit_lost": {
+      "en": "{station} won't give it now.",
+      "ru": "{station} теперь не отдаст."
+    },
+    "obs.earned_from": {
+      "en": "{when} · {what}",
+      "ru": "{when} · {what}"
+    },
+    "obs.open": {
+      "en": "Observer",
+      "ru": "Наблюдатель"
+    },
+    "obs.kit_title": {
+      "en": "Kit",
+      "ru": "Пожитки"
+    },
+    "obs.ink_btn": {
+      "en": "Ink",
+      "ru": "Набить"
+    },
+    "obs.mark_locked": {
+      "en": "Not yet earned",
+      "ru": "Ещё не заслужено"
+    },
+    "obs.mark_state_offered": {
+      "en": "Offered",
+      "ru": "Можно набить"
+    },
+    "obs.mark_state_inked": {
+      "en": "Inked",
+      "ru": "Набито"
+    },
+    "obs.mark_state_noroom": {
+      "en": "No skin left",
+      "ru": "Нет места на коже"
+    },
+    "obs.mark_new": {
+      "en": "New",
+      "ru": "Новое"
+    },
+    "obs.kit_state_kept": {
+      "en": "Kept",
+      "ru": "Лежит"
+    },
+    "obs.kit_state_worn": {
+      "en": "Worn",
+      "ru": "Надето"
+    },
+    "obs.kit_state_not_given": {
+      "en": "Not given",
+      "ru": "Не дадут"
+    },
+    "obs.kit_empty": {
+      "en": "Nothing worn",
+      "ru": "Ничего не надето"
+    },
+    "obs.wear": {
+      "en": "Wear",
+      "ru": "Надеть"
+    },
+    "obs.take_off": {
+      "en": "Take off",
+      "ru": "Снять"
+    },
+    "obs.taken_off": {
+      "en": "Took off {item}",
+      "ru": "Снято: {item}"
+    },
+    "obs.earned_from_head": {
+      "en": "Earned from",
+      "ru": "За что"
+    },
+    "obs.when": {
+      "en": "Week {week}",
+      "ru": "Неделя {week}"
+    },
+    "obs.what.rail_stitch": {
+      "en": "Held {station}, far down the line",
+      "ru": "{station}: держим, далеко по линии"
+    },
+    "obs.what.ash_hand": {
+      "en": "Buried your own",
+      "ru": "Свои похоронены"
+    },
+    "obs.what.word_knot": {
+      "en": "Kept your word",
+      "ru": "Слово сдержано"
+    },
+    "obs.what.signal_scar": {
+      "en": "Caught listening. Walked away.",
+      "ru": "Прослушку раскрыли. Обошлось."
+    },
+    "obs.what.raid_tally": {
+      "en": "Raid won at {station}",
+      "ru": "Набег на {station}: взяли"
+    },
+    "obs.what.open_door": {
+      "en": "Took strangers in",
+      "ru": "Чужих пустили"
+    },
+    "obs.gift.body": {
+      "en": "{station} hands you {item}.",
+      "ru": "{station} отдаёт тебе: {item}."
+    },
+    "obs.find.title": {
+      "en": "Found on the line",
+      "ru": "Нашлось на линии"
+    },
+    "obs.find.body": {
+      "en": "{item}. Nobody's coming back for it.",
+      "ru": "{item}. За этим уже никто не вернётся."
+    },
+    "obs.greet.line_walker": {
+      "en": "A line-walker. Mind the third rail.",
+      "ru": "Ходок по путям. Берегись третьего рельса."
+    },
+    "obs.greet.tally": {
+      "en": "They count your knuckles before they talk.",
+      "ru": "Прежде чем говорить, считают твои костяшки."
+    },
+    "obs.greet.open_door": {
+      "en": "They say your door doesn't shut.",
+      "ru": "Говорят, твоя дверь не закрывается."
+    },
+    "obs.greet.oilskin": {
+      "en": "Still wearing it. Good. The canal remembers.",
+      "ru": "Всё ещё носишь. Хорошо. Канал помнит."
+    },
+    "obs.greet.barrel_quilt": {
+      "en": "That quilt has been by our fire. Sit.",
+      "ru": "Эта стёганка грелась у нашего огня. Садись."
+    },
+    "obs.greet.carbide": {
+      "en": "Lamp's still lit. Keep it trimmed.",
+      "ru": "Лампа горит. Следи за ней."
+    },
+    "obs.greet.filter_hood": {
+      "en": "Hood on. You can stay.",
+      "ru": "Капюшон на месте. Можешь остаться."
+    },
+    "obs.greet.dispatcher_brass": {
+      "en": "They read the number on your brass. Then they nod.",
+      "ru": "Читают номер на бляхе. Потом кивают."
+    },
+    "obs.greet.free_mask": {
+      "en": "Nobody's here. Nobody says hello.",
+      "ru": "Никого нет. Никто не здоровается."
+    },
+    "obs.ink.queue": {
+      "en": "Ink at dawn",
+      "ru": "Набить на рассвете"
+    },
+    "obs.ink.queued": {
+      "en": "Inks at next dawn",
+      "ru": "Набьют на рассвете"
+    },
+    "obs.ink.queued_after": {
+      "en": "Inks the dawn after next",
+      "ru": "Набьют через рассвет"
+    },
+    "obs.state_offered": {
+      "en": "Offered",
+      "ru": "Можно набить"
+    },
+    "obs.state_inked": {
+      "en": "Inked",
+      "ru": "Набито"
+    },
+    "obs.state_noroom": {
+      "en": "No skin left",
+      "ru": "Нет места на коже"
+    },
+    "obs.state_worn": {
+      "en": "Worn",
+      "ru": "Надето"
+    },
+    "obs.swap_blocked": {
+      "en": "Finish the card first.",
+      "ru": "Сначала закончи с карточкой."
+    },
+    "obs.does.line": {
+      "en": "Opens a line on some cards.",
+      "ru": "На некоторых карточках даёт ещё один ответ."
+    },
+    "obs.does.read": {
+      "en": "Shows one more line where you look.",
+      "ru": "Там, куда смотришь, видно на строку больше."
+    },
+    "obs.does.greet": {
+      "en": "Some stations notice it.",
+      "ru": "На некоторых станциях это замечают."
+    },
+    "obs.line_why": {
+      "en": "Because of your {name}.",
+      "ru": "Потому что у тебя {name}."
+    }
+  },
+  "_designer": "APPROVED"
+}

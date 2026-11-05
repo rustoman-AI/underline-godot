@@ -110,6 +110,8 @@ func _act(game: Game) -> void:
 			best = _expander_check_choice(game, ev)
 		else:
 			for choice in ev.choices:
+				if bool(choice.get("obs_line", false)):
+					continue
 				if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
 					continue
 				var score := _score_choice(game, choice)
@@ -192,6 +194,8 @@ func _story_pick(ev: Dictionary) -> bool:
 	if not prefer_story:
 		return false
 	for choice in ev.choices:
+		if bool(choice.get("obs_line", false)):
+			continue
 		if _story_value(choice) > 1:
 			return true
 	return false
@@ -205,9 +209,13 @@ func _decision_choice(game: Game, ev: Dictionary) -> Dictionary:
 		order = ENDING_ORDER
 	for id in order:
 		for choice in ev.choices:
+			if bool(choice.get("obs_line", false)):
+				continue
 			if str(choice.id) == id and _open(game, choice):
 				return choice
 	for choice in ev.choices:
+		if bool(choice.get("obs_line", false)):
+			continue
 		if str(choice.get("ending", "")) == "" and _open(game, choice):
 			return choice
 	return {}
@@ -243,7 +251,7 @@ func _scene_choice(game: Game, ev: Dictionary) -> Dictionary:
 	var best_score := -1
 	var best_cost := 0
 	for choice in ev.choices:
-		if not _open(game, choice):
+		if bool(choice.get("obs_line", false)) or not _open(game, choice):
 			continue
 		if not prefer_story:
 			var score := int(choice.get("proof", 0)) * 2 + (1 if str(choice.get("flag", "")) != "" else 0)
@@ -272,6 +280,8 @@ func _listen(game: Game) -> void:
 
 
 func _open(game: Game, choice: Dictionary) -> bool:
+	if bool(choice.get("obs_line", false)):
+		return false
 	return not game.choice_locked(choice) and game.choice_offered(choice) and game.afford_choice(choice)
 
 
@@ -544,6 +554,8 @@ func _all_checks(ev: Dictionary) -> bool:
 	if choices.is_empty():
 		return false
 	for choice in choices:
+		if bool(choice.get("obs_line", false)):
+			continue
 		if not choice.has("check"):
 			return false
 	return true
@@ -553,6 +565,8 @@ func _best_check_choice(game: Game, ev: Dictionary) -> Dictionary:
 	var best := {}
 	var best_p := -1
 	for choice in ev.choices:
+		if bool(choice.get("obs_line", false)):
+			continue
 		if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
 			continue
 		var skill := str(choice.check.get("skill", "wits"))
@@ -567,12 +581,16 @@ func _best_check_choice(game: Game, ev: Dictionary) -> Dictionary:
 func _visible_choice(game: Game, ev: Dictionary, forecasts: Array) -> Dictionary:
 	if _all_checks(ev):
 		for choice in ev.choices:
+			if bool(choice.get("obs_line", false)):
+				continue
 			if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
 				continue
 			return choice
 		return {}
 	var fallback := {}
 	for choice in ev.choices:
+		if bool(choice.get("obs_line", false)):
+			continue
 		if game.choice_locked(choice) or choice.has("bet") or not game.afford_choice(choice):
 			continue
 		if fallback.is_empty():
@@ -1066,6 +1084,8 @@ func _expander_check_choice(game: Game, ev: Dictionary) -> Dictionary:
 	var risk := {}
 	var best_risk := -99999
 	for choice in ev.choices:
+		if bool(choice.get("obs_line", false)):
+			continue
 		if game.choice_locked(choice) or not game.choice_offered(choice) or not game.afford_choice(choice):
 			continue
 		var cyn := _cynicism(choice)
