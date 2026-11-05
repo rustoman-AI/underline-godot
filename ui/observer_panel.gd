@@ -20,6 +20,8 @@ var _detail: VBoxContainer
 var _hooks: HBoxContainer
 var _bust: Control
 var _body: VBoxContainer
+var _tail: VBoxContainer
+var _tail_scroll: ScrollContainer
 var _main: Container
 var _hint: Label
 var _blocked: Label
@@ -92,7 +94,7 @@ func _rebuild() -> void:
 	_main = VBoxContainer.new() if stacked else HBoxContainer.new()
 	_main.add_theme_constant_override("separation", 16)
 	_main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_main.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_main.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_body.add_child(_main)
 	var bust_scale := 0.75 if stacked or cap < 460.0 else 1.0
 	_bust = _make_bust(game, bust_scale)
@@ -109,29 +111,57 @@ func _rebuild() -> void:
 	_scroll.add_child(_detail)
 	_main.add_child(_scroll)
 	_fill_detail(game)
+	## Kit through Close scroll inside the window. The portrait stays put.
+	_tail_scroll = ScrollContainer.new()
+	_tail_scroll.set_meta("obs_tail_scroll", true)
+	_tail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_tail_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	_brass_scroll(_tail_scroll)
+	_tail = VBoxContainer.new()
+	_tail.add_theme_constant_override("separation", 8)
+	_tail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tail_scroll.add_child(_tail)
+	_body.add_child(_tail_scroll)
 	var kit_head := _lab(Copy.t("obs.kit_title"), 16, true, PAPER_INK)
-	_body.add_child(kit_head)
+	_tail.add_child(kit_head)
 	_hooks = HBoxContainer.new()
 	_hooks.add_theme_constant_override("separation", 24)
 	_hooks.alignment = BoxContainer.ALIGNMENT_CENTER
 	for slot in MarksKit.SLOT_ORDER:
 		_hooks.add_child(_hook(game, slot))
-	_body.add_child(_hooks)
+	_tail.add_child(_hooks)
 	_add_faces(game)
 	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body.add_child(_hint)
+	_tail.add_child(_hint)
 	var close := _btn("Close", _close)
 	close.set_meta("obs_focus", "close")
 	close.custom_minimum_size = Vector2(110, 40)
-	_body.add_child(close)
+	_tail.add_child(close)
 	_wire_focus()
 	var block := _lab("", 14, false, PAPER_MUTED)
 	block.visible = false
-	_body.add_child(block)
-	position = Vector2(maxi(24.0, (view.x - width) * 0.5), maxi(24.0, (view.y - minf(cap, 520.0)) * 0.5))
-	size = Vector2(width, minf(cap, _body.get_combined_minimum_size().y + 8.0))
-	custom_minimum_size = Vector2(width, minf(cap, maxf(420.0, _body.get_combined_minimum_size().y + 8.0)))
+	_tail.add_child(block)
+	_fit_panel(view, width, cap, head)
+
+
+## Cap the desk to the window. Kit through Close live in the brass tail scroll.
+func _fit_panel(view: Vector2, width: float, cap: float, head: Control) -> void:
+	var pad := 28.0
+	var sep := float(_body.get_theme_constant("separation"))
+	var top_h := head.get_combined_minimum_size().y + sep + _main.get_combined_minimum_size().y + sep
+	var tail_h := _tail.get_combined_minimum_size().y
+	var need := top_h + tail_h + pad
+	var used := minf(cap, maxf(420.0, need))
+	var tail_view := tail_h
+	if need > cap:
+		tail_view = maxf(96.0, cap - pad - top_h)
+	_tail_scroll.custom_minimum_size = Vector2(0, tail_view)
+	position = Vector2(maxi(24.0, (view.x - width) * 0.5), maxi(24.0, (view.y - used) * 0.5))
+	size = Vector2(width, used)
+	custom_minimum_size = size
 
 
 func _fill_detail(game) -> void:
@@ -460,12 +490,12 @@ func _add_faces(game) -> void:
 		return
 	var head := _lab(Copy.t("regular.title"), 16, true, PAPER_INK)
 	head.set_meta("face_fold", true)
-	_body.add_child(head)
+	_tail.add_child(head)
 	var count := _lab(Copy.fill("regular.count", {"n": rows.size(), "total": PlatformFaces.face_total(game)}), 14, false, PAPER_MUTED)
 	count.set_meta("face_count", true)
 	if rows.size() < PlatformFaces.face_total(game):
 		count.tooltip_text = Copy.t("regular.unmet")
-	_body.add_child(count)
+	_tail.add_child(count)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -478,7 +508,7 @@ func _add_faces(game) -> void:
 	scroll.add_child(list)
 	for entry in rows:
 		list.add_child(_face_button(entry))
-	_body.add_child(scroll)
+	_tail.add_child(scroll)
 
 
 func _face_button(entry: Dictionary) -> Button:

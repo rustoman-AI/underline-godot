@@ -685,11 +685,85 @@ func _ui(catalog: Catalog) -> bool:
 	if view._visit_sid != "brickworks":
 		_bad("list click visit " + str(view._visit_sid))
 		return false
+	if not await _faces_on_screen(catalog):
+		return false
 	view.queue_free()
 	panel.queue_free()
 	host.queue_free()
 	panel_host.queue_free()
 	return true
+
+
+## 100% is 1920×1080. 125% is the 1536×864 logical window. Title, count, every row, and Close stay on screen.
+func _faces_on_screen(catalog: Catalog) -> bool:
+	var game := _fresh(catalog)
+	for sid in ["brickworks", "plaza", "observatory"]:
+		_touch(game, sid)
+		PlatformFaces.meet(game, sid)
+	var host := Host.new()
+	host.game = game
+	root.add_child(host)
+	var panel := ObserverPanel.new()
+	host.add_child(panel)
+	var saved := Copy.lang
+	for case in [["en", Vector2i(1920, 1080)], ["ru", Vector2i(1920, 1080)], ["en", Vector2i(1536, 864)], ["ru", Vector2i(1536, 864)]]:
+		Copy.set_lang(str(case[0]))
+		var sz: Vector2i = case[1]
+		root.size = sz
+		await process_frame
+		panel.present(host)
+		await process_frame
+		await process_frame
+		var vp := Rect2(Vector2.ZERO, Vector2(sz))
+		var desk := panel.get_global_rect()
+		if desk.end.y > vp.end.y + 1.0 or desk.position.y < -1.0 or desk.end.x > vp.end.x + 1.0:
+			_bad("panel off screen %s %s rect %s" % [case[0], sz, desk])
+			Copy.set_lang(saved)
+			return false
+		var scroll := _meta_node(panel, "obs_tail_scroll")
+		if scroll == null:
+			_bad("tail scroll missing")
+			Copy.set_lang(saved)
+			return false
+		var grab: StyleBoxFlat = scroll.theme.get_stylebox("grabber", "VScrollBar") as StyleBoxFlat
+		if grab == null or grab.bg_color.r < 0.4 or grab.bg_color.g < 0.3 or grab.bg_color.b > grab.bg_color.r:
+			_bad("tail scroll is not brass")
+			Copy.set_lang(saved)
+			return false
+		var listed := _metas(panel, "face_list")
+		var fold := _meta_node(panel, "face_fold")
+		var count := _meta_node(panel, "face_count")
+		var close := _focus_bucket(panel, "close")
+		if fold == null or count == null or close == null or listed.size() != 3:
+			_bad("fold chrome %s rows %d" % [case[0], listed.size()])
+			Copy.set_lang(saved)
+			return false
+		var nodes: Array = [fold, count, close]
+		nodes.append_array(listed)
+		for node in nodes:
+			var ctrl := node as Control
+			var rect := ctrl.get_global_rect()
+			var label := ctrl.name
+			if ctrl is Button or ctrl is Label:
+				label = ctrl.text
+			if rect.size.y < 8.0 or not vp.grow(1.0).encloses(rect):
+				_bad("off viewport %s %s %s rect %s" % [case[0], sz, label, rect])
+				Copy.set_lang(saved)
+				return false
+	Copy.set_lang(saved)
+	panel.queue_free()
+	host.queue_free()
+	return true
+
+
+func _focus_bucket(node: Node, bucket: String) -> Control:
+	if node is Control and str(node.get_meta("obs_focus", "")) == bucket:
+		return node
+	for child in node.get_children():
+		var found := _focus_bucket(child, bucket)
+		if found != null:
+			return found
+	return null
 
 
 func _layout(view: NetworkView, sid: String, slot: int, key: String) -> bool:
