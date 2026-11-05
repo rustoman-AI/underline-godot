@@ -367,6 +367,7 @@ var sentence_re := RegEx.create_from_string("[^.!?\u2026]+[.!?\u2026]+[\"'\u00bb
 func _ready() -> void:
 	Copy.boot()
 	Settings.load_file()
+	_apply_cursors()
 	ArtPack.textures()
 	ArtPack.fonts()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -405,6 +406,7 @@ func _ready() -> void:
 		hub_button.visible = _hub_texture() != null
 	if not shot_mode:
 		Settings.apply_display(get_window())
+		_apply_cursors()
 		get_window().size_changed.connect(_rescale)
 		Sound.apply_buses()
 		var score := Music.new()
@@ -14270,6 +14272,7 @@ func _pick_window(full: bool) -> void:
 	Settings.save()
 	if not shot_mode:
 		Settings.apply_display(get_window())
+		_apply_cursors()
 	_fill_settings()
 
 
@@ -14279,6 +14282,7 @@ func _pick_scale(scale: float) -> void:
 	Settings.save()
 	if not shot_mode:
 		Settings.apply_scale(get_window())
+		_apply_cursors()
 	_fill_settings()
 
 
@@ -14287,11 +14291,17 @@ func _pick_auto_scale() -> void:
 	Settings.save()
 	if not shot_mode:
 		Settings.apply_scale(get_window())
+		_apply_cursors()
 	_fill_settings()
 
 
 func _rescale() -> void:
 	Settings.apply_scale(get_window())
+	_apply_cursors()
+
+
+func _apply_cursors() -> void:
+	Cursors.apply(get_window())
 
 
 func _toggle_motion() -> void:
