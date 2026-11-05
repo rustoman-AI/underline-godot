@@ -13201,6 +13201,17 @@ func _close_life_epilogue() -> void:
 		yard.mouse_filter = Control.MOUSE_FILTER_STOP
 
 
+func _life_epilogue_menu() -> void:
+	_close_life_epilogue()
+	_back_to_menu()
+
+
+func _life_epilogue_new_game() -> void:
+	_close_life_epilogue()
+	_close_card()
+	_begin_new_game(true)
+
+
 ## Page 3 Close. Same post-run path as the old ending card: back to the menu.
 func _life_epilogue_close() -> void:
 	Sound.play("click")
