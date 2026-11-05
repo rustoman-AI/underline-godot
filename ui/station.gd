@@ -2223,12 +2223,15 @@ func _place_chrome() -> void:
 		hud.offset_bottom = hud_h
 	chrome_bottom = margin + tool_h + 4.0
 	if night_button != null:
+		## The People rail's round mark sits on the right edge, in the yard and on the map.
+		## Night runs used to share that corner with it. Keep the button above End turn, inset past the rail.
+		var rail := 0.0 if drawer_open else 68.0
 		night_button.anchor_left = 1.0
 		night_button.anchor_right = 1.0
 		night_button.anchor_top = 1.0
 		night_button.anchor_bottom = 1.0
-		night_button.offset_right = -margin
-		night_button.offset_left = -margin - end_w
+		night_button.offset_right = -margin - rail
+		night_button.offset_left = -margin - rail - end_w
 		night_button.offset_bottom = -margin - end_h - 8.0
 		night_button.offset_top = -margin - end_h - 8.0 - 44.0
 		night_button.custom_minimum_size = Vector2(end_w, 44)
@@ -13652,13 +13655,23 @@ func _show_howto(auto: bool) -> void:
 			num.custom_minimum_size = Vector2(22, 0)
 			num.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 			row.add_child(num)
-			## R21: the first sentence is the display-face lead. The rest of the card is 16 px body. Copy unchanged.
-			var lead := n == 1
-			var text := _label(str(line.get(lang, line.get("en", ""))), 22 if lead else 16, lead)
-			text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			text.set_meta("howto_lead" if lead else "howto_line", true)
-			row.add_child(text)
+			## R21: the first sentence of every item is the display-face lead. The rest of that item is 16 px body.
+			var parts := _howto_parts(str(line.get(lang, line.get("en", ""))))
+			var words := VBoxContainer.new()
+			words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			words.add_theme_constant_override("separation", 2)
+			var lead := _label(parts[0], 20, true)
+			lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lead.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lead.set_meta("howto_lead", true)
+			words.add_child(lead)
+			if parts[1] != "":
+				var body := _label(parts[1], 16, false)
+				body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				body.set_meta("howto_line", true)
+				words.add_child(body)
+			row.add_child(words)
 			box.add_child(row)
 		var check := CheckBox.new()
 		check.text = Copy.t("Do not show again")
@@ -13700,6 +13713,14 @@ func _close_howto() -> void:
 		Settings.howto_hidden = howto_check.button_pressed
 		Settings.save()
 	_close_notice()
+
+
+## First sentence of a how-to item, and the remainder. The words are the source line, only split.
+func _howto_parts(text: String) -> PackedStringArray:
+	var found := sentence_re.search(text)
+	if found == null or found.get_start() > 0:
+		return PackedStringArray([text, ""])
+	return PackedStringArray([text.substr(0, found.get_end()), text.substr(found.get_end()).strip_edges()])
 
 
 ## Smaller how-to lines, a step at a time, until the card fits the window height.

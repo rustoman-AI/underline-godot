@@ -349,8 +349,9 @@ func _round2(st) -> void:
 	var net = st.network_view
 	if not is_equal_approx(float(net.FOG_ALPHA), 0.6) or not is_equal_approx(float(net.FOG_SCALE), 0.8):
 		_bad("fog pins are not 0.6 ink / 0.8 scale")
-	if not net.has_method("_frame_home"):
-		_bad("map framing nudge is missing")
+	var map_src := FileAccess.get_file_as_string("res://ui/network_view.gd")
+	if map_src.find("_frame_home") >= 0 or map_src.find("HOME_CLEAR") >= 0:
+		_bad("map framing nudge is still applied")
 	var locked: StyleBoxFlat = net._locked_face("patrol")
 	if locked == null or not is_equal_approx(locked.bg_color.a, 0.85) or locked.get_border_width(SIDE_LEFT) != 1:
 		_bad("locked order face")
@@ -398,30 +399,72 @@ func _round2(st) -> void:
 	st._end_night()
 	st._show_howto(false)
 	await process_frame
-	var lead_text := ""
-	var lead_px := -1
-	var lead_font: Font = null
-	var body_px := -1
 	var notice: Node = st.notice_layer
 	if notice == null:
 		_bad("how to play did not open")
 	else:
+		var leads: Array = []
+		var bodies: Array = []
 		for lab in notice.find_children("*", "Label", true, false):
 			if lab.has_meta("howto_lead"):
-				lead_text = str(lab.text)
-				lead_px = int(lab.get_theme_font_size("font_size"))
-				lead_font = lab.get_theme_font("font")
-			elif lab.has_meta("howto_line") and body_px < 0:
-				body_px = int(lab.get_theme_font_size("font_size"))
-		var want := "Your goal: keep your people alive for forty weeks, and find out why the surface went silent."
-		if lead_text != want or lead_px != 22:
-			_bad("how to play lead '%s' at %d" % [lead_text, lead_px])
-		elif st.display_font != null and lead_font != st.display_font:
-			_bad("how to play lead is not the display face")
-		if body_px != 16:
-			_bad("how to play body is %d px" % body_px)
+				leads.append(lab)
+			elif lab.has_meta("howto_line"):
+				bodies.append(lab)
+		var lines: Array = st._howto().get("lines", [])
+		if leads.size() != lines.size():
+			_bad("how to play leads %d lines %d" % [leads.size(), lines.size()])
+		else:
+			for i in lines.size():
+				var whole := str(lines[i].get("en", ""))
+				var parts: PackedStringArray = st._howto_parts(whole)
+				var lead_lab: Label = leads[i]
+				if str(lead_lab.text) != parts[0] or int(lead_lab.get_theme_font_size("font_size")) != 20:
+					_bad("how to play lead %d '%s'" % [i + 1, lead_lab.text])
+				elif st.display_font != null and lead_lab.get_theme_font("font") != st.display_font:
+					_bad("how to play lead %d is not the display face" % (i + 1))
+				var shown := str(lead_lab.text)
+				if parts[1] != "":
+					var body_lab: Label = null
+					for lab in bodies:
+						if str(lab.text) == parts[1]:
+							body_lab = lab
+							break
+					if body_lab == null or int(body_lab.get_theme_font_size("font_size")) != 16:
+						_bad("how to play body %d missing" % (i + 1))
+					else:
+						shown = parts[0] + " " + parts[1]
+				if shown != whole:
+					_bad("how to play copy %d changed" % (i + 1))
+	await _night_clears_rail(st)
 	if st.has_method("_close_notice"):
 		st._close_notice()
+
+
+## Night runs sits above End turn, clear of the People rail's round mark, in EN and RU at 100% and 125%.
+func _night_clears_rail(st) -> void:
+	var saved := Copy.ru()
+	for case in [["en", Vector2(1920, 1080)], ["en", Vector2(1536, 864)], ["ru", Vector2(1920, 1080)], ["ru", Vector2(1536, 864)]]:
+		Copy.set_lang(str(case[0]))
+		var sz: Vector2 = case[1]
+		st.size = sz
+		if st.network_view != null:
+			st.network_view.size = sz
+			if st.network_view.has_method("_name_zoom_bar"):
+				st.network_view._name_zoom_bar()
+		st._place_chrome()
+		await process_frame
+		var night: Rect2 = st.night_button.get_global_rect()
+		if st.people_tab != null and st.people_tab.visible:
+			var tab: Rect2 = st.people_tab.get_global_rect()
+			var mark := Rect2(tab.position.x, tab.end.y - 40.0, tab.size.x, 40.0)
+			if night.intersects(mark):
+				_bad("night runs covers the people mark %s %s" % [case[0], sz])
+		if st.showing_network and st.network_view != null and st.network_view.legend_button != null:
+			st.network_view._place_panels()
+			var key: Rect2 = st.network_view.legend_button.get_global_rect()
+			if key.size.x > 2.0 and night.intersects(key):
+				_bad("night runs covers the map key %s %s" % [case[0], sz])
+	Copy.set_lang("ru" if saved else "en")
 
 
 func _wipe(path: String) -> void:

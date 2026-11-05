@@ -751,40 +751,9 @@ func _fit() -> void:
 	zoom = _zoom_min
 	origin = _net_box().get_center() - (_open_area().get_center() - _center()) / zoom
 	_clamp_view()
-	_frame_home()
 	_fitted = true
 	_place_panels()
 	_redraw()
-
-
-## N7: the opening view keeps the home pin out of the End-turn corner, where the Ahead panel opens on hover.
-## Camera framing only (a sideways nudge of the fitted view): no pin, slot or mark moves, zoom is unchanged.
-const HOME_CLEAR := 24.0
-
-
-func _frame_home() -> void:
-	var game = _game()
-	if game == null or host == null:
-		return
-	var cap := str(game.capital_id)
-	var end_b = host.get("end_button")
-	if not (end_b is Control) or not _spots.has(cap):
-		return
-	var end_rect: Rect2 = (end_b as Control).get_global_rect()
-	## The Ahead panel's footprint (248 px square at 100%) until it has been laid out once.
-	var left := minf(end_rect.position.x - 40.0, end_rect.end.x - 252.0)
-	var tall := 248.0
-	var ahead = host.get("ahead")
-	if ahead is Control and (ahead as Control).size.y > 40.0:
-		left = minf(left, (ahead as Control).get_global_rect().position.x)
-		tall = (ahead as Control).size.y
-	var corner := Rect2(Vector2(left, end_rect.position.y - tall - 8.0), Vector2(end_rect.end.x - left, tall + 8.0))
-	corner.position -= get_global_rect().position
-	var home := _view() * (_map_xf * _map_spot(cap))
-	if not corner.grow(HOME_CLEAR).has_point(home):
-		return
-	origin.x += (home.x - (corner.position.x - HOME_CLEAR)) / maxf(zoom, 0.001)
-	_fitted = true
 
 
 func _map_tex(path: String) -> Texture2D:
@@ -1601,9 +1570,9 @@ func _draw_run_pins(c: CanvasItem, game) -> void:
 	_run_hits = []
 	if game == null:
 		return
-	var tex: Texture2D = null
-	if ResourceLoader.exists("res://assets/icons/map/rumored_pin_24.png"):
-		tex = load("res://assets/icons/map/rumored_pin_24.png")
+	## The ink layer filters with mipmaps. The imported 24px pin has none, so GL Compatibility
+	## samples an incomplete chain and draws a white square. ArtPack builds the mip chain.
+	var tex := ArtPack.icon_texture("rumored_pin", 24.0)
 	var font: Font = _tag_font if _tag_font != null else ThemeDB.fallback_font
 	var seen := {}
 	for site in NightRuns.rumored_sites(game):
@@ -1615,7 +1584,8 @@ func _draw_run_pins(c: CanvasItem, game) -> void:
 		var at: Vector2 = _screen(_station_world(game.stations[sid])) + Vector2(26.0 + float(slot) * 40.0, -30.0)
 		var label := Copy.t("run.rumored")
 		if tex != null:
-			c.draw_texture_rect(tex, Rect2(at - Vector2(14, 14), Vector2(28, 28)), false)
+			var px := 24.0
+			c.draw_texture_rect(tex, Rect2(at - Vector2(px, px) * 0.5, Vector2(px, px)), false)
 		else:
 			c.draw_circle(at, 10.0, Color("e0a84a"))
 			c.draw_arc(at, 10.0, 0, TAU, 20, Color("3a2a1a"), 1.4, true)
