@@ -1,9 +1,12 @@
 extends SceneTree
 
-## Event VO (data/vo/event_vo.json): every row points at an event, follow-up choice, check option, crunch leg or
-## game-over reason that exists; every audio path loads as a stream; a part with no take returns {} instead of
-## failing. Then, per language, how many takes still say what the card shows and so play (Voice.EVENT_VO_EXACT),
-## and which do not: those need a new recording.
+## Event VO (data/vo/event_vo.json): every row points at an event, follow-up choice, check option, crunch leg,
+## game-over reason, or one of the later panels (law line, mandate, creed tip, rumor, night encounter, judgment,
+## verdict, named-life template). Every audio path that is set loads as a stream; a language with no file stays
+## silent instead of failing. Then, per language, how many takes still say what the card shows and so play
+## (Voice.EVENT_VO_EXACT), and which do not: those need a new recording. A row whose panel is not in this build
+## (obs) is printed as NO CARD and does not fail the check. Named lines compare the unfilled template, so
+## {name}, {a} and {room} stay in the match.
 ##   godot --headless --path . -s res://sim/check_event_vo.gd [-- --rerecord=<file.tsv>]
 ## --rerecord writes the stale takes as a script for the next VO pass: file name, language, the recorded text and
 ## the text the card shows now.
@@ -28,17 +31,25 @@ func _initialize() -> void:
 	if rows.is_empty():
 		bad.append("no event_show rows")
 	var script: PackedStringArray = ["filename\tlanguage\trecorded_text\tcurrent_text"]
+	var nocard: PackedStringArray = []
 	for lang in ["en", "ru"]:
 		Copy.set_lang(lang)
 		var plays := 0
 		var stale: PackedStringArray = []
 		for row in rows:
 			var shown := _shown(game, row)
+			var quiet := shown == "<nocard>"
 			if shown == "<missing>":
 				continue
+			if quiet and not nocard.has(str(row.id)):
+				nocard.append(str(row.id))
 			var path := str(row.get("audio_" + lang, ""))
-			if path == "" or not (ResourceLoader.load(path) is AudioStream):
+			if path == "":
+				continue
+			if not (ResourceLoader.load(path) is AudioStream):
 				bad.append("%s %s: audio does not load (%s)" % [row.id, lang, path])
+				continue
+			if quiet:
 				continue
 			var hit := Voice.event_show(str(row.kind), str(row.event), str(row.part), shown)
 			if hit.is_empty():
@@ -49,6 +60,8 @@ func _initialize() -> void:
 		print("%s: %d of %d takes match the card and play" % [lang.to_upper(), plays, rows.size()])
 		for id in stale:
 			print("  %s stale: %s" % [lang, id])
+	for id in nocard:
+		print("NO CARD %s" % id)
 	Copy.set_lang("en")
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--rerecord="):
@@ -108,5 +121,51 @@ func _shown(game: Game, row: Dictionary) -> String:
 				bad.append("%s: no ending %s" % [row.id, part])
 				return "<missing>"
 			return Copy.t(str(ENDINGS[part]))
+		"law":
+			return _copy_key(row, "law.line_text." + id, "law line")
+		"mandate":
+			var mandate_key := "mandate.pick_body" if id == "pick" else ("mandate.missed" if id == "missed" else "")
+			return _copy_key(row, mandate_key, "mandate")
+		"creed":
+			return _copy_key(row, "creed." + id, "creed tip")
+		"rumor":
+			return _copy_key(row, "run.rumor." + id, "rumor")
+		"encounter":
+			return _copy_key(row, "run.encounter." + id, "encounter")
+		"judgment":
+			for item in game.catalog.epilogues.get("judgments", []):
+				if str(item.get("id", "")) == id:
+					return game.text_pack(item)
+			bad.append("%s: no judgment %s" % [row.id, id])
+			return "<missing>"
+		"verdict":
+			var by_end: Dictionary = game.catalog.epilogues.get("verdicts", {}).get(id, {})
+			var pack = by_end.get(part, {})
+			if not (pack is Dictionary) or (pack as Dictionary).is_empty():
+				bad.append("%s: no verdict %s %s" % [row.id, id, part])
+				return "<missing>"
+			return game.text_pack(pack)
+		"named":
+			if id == "birth" or id == "seasoned":
+				return _copy_key(row, "named." + id, "named line")
+			if id.begins_with("death_"):
+				var cause := id.trim_prefix("death_")
+				for item in game.catalog.names.get("deaths", []):
+					if str(item.get("id", "")) == cause:
+						return game.text_pack(item)
+				bad.append("%s: no death %s" % [row.id, cause])
+				return "<missing>"
+			bad.append("%s: no named line %s" % [row.id, id])
+			return "<missing>"
+		"obs":
+			return "<nocard>"
 	bad.append("%s: unknown kind %s" % [row.id, row.kind])
 	return "<missing>"
+
+
+## A Texts key in the current language, or "<missing>" when this build has no such string.
+func _copy_key(row: Dictionary, key: String, label: String) -> String:
+	if key == "" or not Copy.keys.has(key):
+		bad.append("%s: no %s %s" % [row.id, label, key])
+		return "<missing>"
+	return Copy.t(key)
