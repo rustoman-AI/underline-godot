@@ -2226,14 +2226,17 @@ func _place_chrome() -> void:
 		## The People rail's round mark sits on the right edge, in the yard and on the map.
 		## Night runs used to share that corner with it. Keep the button above End turn, inset past the rail.
 		var rail := 0.0 if drawer_open else 68.0
+		## Network is the tall bottom row (tool_h). End turn is shorter, so a gap above End turn
+		## still left Night runs 2 px onto Network. Clear the whole row by 6 px.
+		var night_clear := 6.0
 		night_button.anchor_left = 1.0
 		night_button.anchor_right = 1.0
 		night_button.anchor_top = 1.0
 		night_button.anchor_bottom = 1.0
 		night_button.offset_right = -margin - rail
 		night_button.offset_left = -margin - rail - end_w
-		night_button.offset_bottom = -margin - end_h - 8.0
-		night_button.offset_top = -margin - end_h - 8.0 - 44.0
+		night_button.offset_bottom = -margin - tool_h - night_clear
+		night_button.offset_top = night_button.offset_bottom - 44.0
 		night_button.custom_minimum_size = Vector2(end_w, 44)
 	if end_button != null:
 		end_button.anchor_left = 1.0

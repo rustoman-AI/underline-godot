@@ -459,6 +459,12 @@ func _night_clears_rail(st) -> void:
 			var mark := Rect2(tab.position.x, tab.end.y - 40.0, tab.size.x, 40.0)
 			if night.intersects(mark):
 				_bad("night runs covers the people mark %s %s" % [case[0], sz])
+		if st.network_button != null:
+			var net: Rect2 = st.network_button.get_global_rect()
+			var shares_x := night.position.x < net.end.x - 1.0 and night.end.x > net.position.x + 1.0
+			var gap := net.position.y - night.end.y
+			if shares_x and gap < 4.0:
+				_bad("night runs gap to network %.1f %s %s" % [gap, case[0], sz])
 		if st.showing_network and st.network_view != null and st.network_view.legend_button != null:
 			st.network_view._place_panels()
 			var key: Rect2 = st.network_view.legend_button.get_global_rect()
