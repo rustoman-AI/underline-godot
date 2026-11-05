@@ -74,7 +74,7 @@
             "effects": {"hope": 1}
           },
           "fail": {
-            "text": {"ru": "Расчёт оказался неверным. Пары вспыхивают и уносят полстойки, огородник наглотался дыма. Половины запасов еды больше нет.", "en": "The sums were wrong. The fumes catch fire and take half the rack with them, and the grower breathes the smoke. Half the food stores are gone."},
+            "text": {"ru": "Расчёт оказался неверным. Пары вспыхивают и уносят полстойки, огородник глотает дым. Половины запасов еды больше нет.", "en": "The sums were wrong. The fumes catch fire and take half the rack with them, and the grower breathes the smoke. Half the food stores are gone."},
             "effects": {"food_pct": -16, "injured": 1, "room_disabled": {"type": "hydroponics", "weeks": 2}}
           }
         }
@@ -107,7 +107,7 @@
         {
           "id": "cut",
           "skill": "senses", "target": 8, "color": "white",
-          "text": {"ru": "Пролезть по соседней трубе и перерезать тросы их люлек. Это решит дело навсегда, и люди будут шептаться.", "en": "Crawl through the next pipe and cut the ropes of their cradles. It works for good, and people will talk."},
+          "text": {"ru": "Пролезть по соседней трубе и перерезать тросы их люлек. Это решит дело навсегда, и люди будут шептаться.", "en": "Crawl through the next pipe and cut the ropes of their cradles. It ends it for good, and people will talk."},
           "success": {
             "text": {"ru": "Один щелчок ножа, и люльки летят вниз по шахте. С этим покончено навсегда. Станция снова дышит, но люди шепчутся о том, как это вышло.", "en": "The knife clicks once and the cradles fall down the shaft. The problem is gone for good. The station breathes again, but people whisper about how."},
             "effects": {"hope": -1, "discontent": 1, "relation": {"moles": -15}}
@@ -151,7 +151,7 @@
           "skill": "grit", "target": 9, "color": "red",
           "text": {"ru": "Выбить лом из шестерён кувалдой. Один неверный удар, и генератор встанет на две недели.", "en": "Knock the crowbar out of the gears with a sledgehammer. One bad swing and the generator is out for two weeks."},
           "success": {
-            "text": {"ru": "Один тяжёлый удар освобождает маховик, и поршни снова качают. Свет вернулся.", "en": "One heavy blow frees the flywheel and the pistons start pumping again. The lights come back."},
+            "text": {"ru": "Один тяжёлый удар освобождает маховик, и поршни снова качают. Свет возвращается.", "en": "One heavy blow frees the flywheel and the pistons start pumping again. The lights come back."},
             "effects": {"brownout": false, "hope": 1}
           },
           "fail": {
@@ -196,7 +196,7 @@
           "fail": {
             "text": {"ru": "«Шоутайм» поднимает тебя на смех, обзывает станцию дырой и уходит, прихватив одного из твоих жителей.", "en": "Showtime laughs at you, calls the station a dump and leaves, taking one of your residents along."},
             "effects": {"residents_lost": 1, "hope": -1},
-            "retry_after": {"skill": "voice", "min": 2, "label": {"ru": "Житель с Речью 2", "en": "A resident with Voice 2"}}
+            "retry_after": {"skill": "voice", "min": 2, "label": {"ru": "Житель с Голосом 2", "en": "A resident with Voice 2"}}
           }
         }
       ]

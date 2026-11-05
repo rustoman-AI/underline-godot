@@ -130,7 +130,7 @@ func _check_strings() -> bool:
 	if Copy.t("warm.tip") != "Симпатия на кольце.":
 		print("Strings: FAIL ru tip ", Copy.t("warm.tip"))
 		return false
-	if Copy.t("warm.first") != "Кольцо помнит, как они к вам.":
+	if Copy.t("warm.first") != "Кольцо помнит, как к вам относятся.":
 		print("Strings: FAIL ru first ", Copy.t("warm.first"))
 		return false
 	var ru = JSON.parse_string(FileAccess.get_file_as_string("res://data/ru.json"))
@@ -139,7 +139,7 @@ func _check_strings() -> bool:
 		return false
 	var want := {
 		"Sympathy sits on the ring.": "Симпатия на кольце.",
-		"The ring remembers how they feel.": "Кольцо помнит, как они к вам.",
+		"The ring remembers how they feel.": "Кольцо помнит, как к вам относятся.",
 		"{band}": "{band}",
 	}
 	for key in want:

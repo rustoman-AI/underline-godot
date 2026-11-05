@@ -350,7 +350,7 @@
       "ru": "На столе нет поручений."
     },
     "charge.due": {
-      "en": "Due in {n} weeks",
+      "en": "Due · {n} wk",
       "ru": "Срок через {n} нед."
     },
     "promise.offer": {
@@ -391,7 +391,7 @@
     },
     "mandate.pick_body": {
       "en": "Week eight. The platform asks for long goals. Pick three of five — then Confirm locks them. Missing is not a loss. Fulfill feeds the epilogue.",
-      "ru": "Восьмая неделя. Платформа просит долгие цели. Выберите три из пяти — Подтверждение закрепит их. Промах — не поражение. Исполнение идёт в эпилог."
+      "ru": "Восьмая неделя. Платформа просит долгие цели. Выбери три из пяти — Подтверждение закрепит их. Промах — не поражение. Исполнение идёт в эпилог."
     },
     "mandate.progress": {
       "en": "Mandate: {title}",
@@ -403,34 +403,34 @@
     },
     "mandate.missed": {
       "en": "Mandate unmet. The run goes on.",
-      "ru": "Мандат не выполнен. Ход продолжается."
+      "ru": "Мандат не выполнен. Игра продолжается."
     },
     "ticker.charge": {
-      "en": "Charge due in {n} weeks",
+      "en": "Charge due · {n} wk",
       "ru": "Поручение через {n} нед."
     },
     "ticker.promise": {
-      "en": "Promise due in {n} weeks",
+      "en": "Promise due · {n} wk",
       "ru": "Обещание через {n} нед."
     },
     "ticker.runners": {
-      "en": "Runners back in {n} weeks",
+      "en": "Runners back · {n} wk",
       "ru": "Бегуны через {n} нед."
     },
     "ticker.build": {
-      "en": "Build done in {n} weeks",
+      "en": "Build done · {n} wk",
       "ru": "Стройка через {n} нед."
     },
     "ticker.ultimatum": {
-      "en": "Ultimatum in {n} weeks",
+      "en": "Ultimatum · {n} wk",
       "ru": "Ультиматум через {n} нед."
     },
     "ticker.season": {
-      "en": "{season} in {n} weeks",
+      "en": "{season} · {n} wk",
       "ru": "{season} через {n} нед."
     },
     "ticker.law_cooldown": {
-      "en": "Law desk ready in {n} weeks",
+      "en": "Law desk · {n} wk",
       "ru": "Стол законов через {n} нед."
     },
     "ticker.empty": {

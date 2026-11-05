@@ -13,7 +13,7 @@
   },
   "hardship.food_short": {
     "en": "Thin food",
-    "ru": "Тонкая еда"
+    "ru": "Скудная еда"
   },
   "hardship.air_short": {
     "en": "Air short",
@@ -89,7 +89,7 @@
   },
   "epilogue.no_creed": {
     "en": "No creed",
-    "ru": "Без вероучения"
+    "ru": "Без кредо"
   },
   "epilogue.continue": {
     "en": "Continue",
@@ -153,7 +153,7 @@
   },
   "merge.shares": {
     "en": "Shares power, sickness and disasters.",
-    "ru": "Общие энергия, болезнь и беды."
+    "ru": "Делят энергию, болезни и беды."
   },
   "merge.tag_hydro_2": {
     "en": "Joins Hydroponics: +10% food, 1 fewer worker. Shares power, sickness and disasters.",
@@ -185,7 +185,7 @@
   },
   "merge.cells": {
     "en": "Level %d, cells %d–%d",
-    "ru": "Уровень %d, клетки %d–%d"
+    "ru": "Ярус %d, клетки %d–%d"
   },
   "merge.output": {
     "en": "%s %+d/wk (+%d merge)",
@@ -204,7 +204,7 @@
     "ru": "Беда здесь бьёт по всем %d клеткам."
   },
   "merge.tag_hydro_3": {
-    "en": "Joins Hydroponics: +20% food, 2 fewer worker. Shares power, sickness and disasters.",
+    "en": "Joins Hydroponics: +20% food, 2 fewer workers. Shares power, sickness and disasters.",
     "ru": "Стыкуется с Гидропоникой: +20% еды, на 2 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_filter_2": {
@@ -212,7 +212,7 @@
     "ru": "Стыкуется с Фильтром воздуха: +10% воздуха, на 1 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_filter_3": {
-    "en": "Joins Air filter: +20% air, 2 fewer worker. Shares power, sickness and disasters.",
+    "en": "Joins Air filter: +20% air, 2 fewer workers. Shares power, sickness and disasters.",
     "ru": "Стыкуется с Фильтром воздуха: +20% воздуха, на 2 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_generator_2": {
@@ -220,7 +220,7 @@
     "ru": "Стыкуется с Генератором: +10% энергии, на 1 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_generator_3": {
-    "en": "Joins Generator: +20% power, 2 fewer worker. Shares power, sickness and disasters.",
+    "en": "Joins Generator: +20% power, 2 fewer workers. Shares power, sickness and disasters.",
     "ru": "Стыкуется с Генератором: +20% энергии, на 2 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_workshop_2": {
@@ -228,7 +228,7 @@
     "ru": "Стыкуется с Мастерской: +10% материалов, на 1 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_workshop_3": {
-    "en": "Joins Workshop: +20% materials, 2 fewer worker. Shares power, sickness and disasters.",
+    "en": "Joins Workshop: +20% materials, 2 fewer workers. Shares power, sickness and disasters.",
     "ru": "Стыкуется с Мастерской: +20% материалов, на 2 меньше рабочих. Общие энергия, болезнь и беды."
   },
   "merge.tag_quarters_2": {
@@ -245,7 +245,7 @@
   },
   "map.chip.bought_faction": {
     "en": "{faction} bought {station}",
-    "ru": "{faction} купили {station}"
+    "ru": "{station}: выкуп — {faction}"
   },
   "map.chip.bought_fail": {
     "en": "Buy failed at {station}",
@@ -253,7 +253,7 @@
   },
   "map.chip.bought_soft": {
     "en": "Soft buy at {station}",
-    "ru": "Мягкая покупка у {station}"
+    "ru": "Тихий выкуп у {station}"
   },
   "map.chip.demanded": {
     "en": "Demanded tokens",
@@ -273,7 +273,7 @@
   },
   "map.chip.marched_faction": {
     "en": "{faction} marched",
-    "ru": "{faction} вышли"
+    "ru": "{faction}: в походе"
   },
   "map.chip.preached": {
     "en": "Preached at {station}",
@@ -313,7 +313,7 @@
   },
   "order.report_gift_body": {
     "en": "Tokens left the yard for {faction}.",
-    "ru": "Жетоны ушли со двора к {faction}."
+    "ru": "Жетоны ушли со двора. Кому: {faction}."
   },
   "order.report_gift_outcome": {
     "en": "They took the tokens without a word.",
@@ -321,7 +321,7 @@
   },
   "order.report_gift_title": {
     "en": "A gift to {faction}",
-    "ru": "Подарок для {faction}"
+    "ru": "Подарок: {faction}"
   },
   "order.report_opinion": {
     "en": "Opinion {before} → {after} (+{n}).",
@@ -329,7 +329,7 @@
   },
   "order.report_pay_body": {
     "en": "The demand from {faction} is settled.",
-    "ru": "Требование {faction} закрыто."
+    "ru": "{faction}: требование закрыто."
   },
   "order.report_pay_outcome": {
     "en": "The ledger marks it paid.",
@@ -365,7 +365,7 @@
   },
   "rumor.line_02": {
     "en": "Someone says the air at {community} tastes thin.",
-    "ru": "Кто-то сказал, что воздух у {community} уже жидкий."
+    "ru": "Кто-то сказал, что воздух у {community} на вкус жидкий."
   },
   "rumor.line_03": {
     "en": "Rumor: {community}'s lamps flicker after midnight.",
@@ -393,7 +393,7 @@
   },
   "breach.confirm_title": {
     "en": "Craft a Breach kit?",
-    "ru": "Скрафтить набор для пролома?"
+    "ru": "Собрать набор для пролома?"
   },
   "breach.cost": {
     "en": "6 materials · 1 order  ·  stock %d/1",
@@ -401,7 +401,7 @@
   },
   "breach.craft": {
     "en": "Craft Breach kit",
-    "ru": "Скрафтить набор для пролома"
+    "ru": "Собрать набор для пролома"
   },
   "breach.disabled_held": {
     "en": "Already holding a Breach kit.",
@@ -413,7 +413,7 @@
   },
   "breach.disabled_shop": {
     "en": "Workshop must be staffed.",
-    "ru": "Мастерская должна быть укомплектована."
+    "ru": "В Мастерской должны быть люди."
   },
   "breach.held": {
     "en": "Breach kit held. Next Assault can skip the pressure gate.",
@@ -421,7 +421,7 @@
   },
   "breach.section": {
     "en": "Craft",
-    "ru": "Крафт"
+    "ru": "Сборка"
   },
   "breach.toast": {
     "en": "Breach kit ready.",
@@ -461,15 +461,15 @@
   },
   "combat.chronicle.raid_loss": {
     "en": "Week {week}: raid on {place} failed.",
-    "ru": "Неделя {week}: налёт на {place} провалился."
+    "ru": "Неделя {week}: набег не удался — {place}."
   },
   "combat.chronicle.raid_win": {
     "en": "Week {week}: raided {place}. Came back with packs full.",
-    "ru": "Неделя {week}: налёт на {place}. Вернулись с полными рюкзаками."
+    "ru": "Неделя {week}: набег — {place}. Вернулись с полными рюкзаками."
   },
   "combat.chronicle.station_taken_force": {
     "en": "Week {week}: took {place} by force.",
-    "ru": "Неделя {week}: взяли {place} силой."
+    "ru": "Неделя {week}: взяли силой станцию {place}."
   },
   "combat.chronicle.unbidden": {
     "en": "Week {week}: Unbidden at {place}.",
@@ -489,15 +489,15 @@
   },
   "combat.dead": {
     "en": "%s — dead",
-    "ru": "%s — мёртв"
+    "ru": "%s — нет в живых"
   },
   "combat.dead_known": {
     "en": "%s — dead (Known)",
-    "ru": "%s — мёртв (Известный)"
+    "ru": "%s — нет в живых (из Известных)"
   },
   "combat.death.battle": {
     "en": "{name} fell on the line. The squad brought back the tag.",
-    "ru": "{name} пал{a} на линии. Отряд вернул жетон."
+    "ru": "{name} пал{a} в бою. Отряд вернул жетон."
   },
   "combat.death.battle_at": {
     "en": "{name} fell at {place}. The party brought back the tag.",
@@ -509,7 +509,7 @@
   },
   "combat.epilogue.force_judgment": {
     "en": "You took stations by force. The chronicle kept the names you spent.",
-    "ru": "Вы брали станции силой. Хроника сохранила имена, которые вы потратили."
+    "ru": "Вы брали станции силой. Хроника сохранила имена, которыми вы заплатили."
   },
   "combat.epilogue.force_moment": {
     "en": "Was the platform worth their names?",
@@ -529,7 +529,7 @@
   },
   "combat.injured": {
     "en": "%s — injured %d weeks",
-    "ru": "%s — ранен на %d нед."
+    "ru": "%s — ранение, %d нед."
   },
   "combat.journal.fought": {
     "en": "Fought at {place}.",
@@ -545,11 +545,11 @@
   },
   "combat.log.assault_win": {
     "en": "Week {week}: fought at {place}. Held the platform.",
-    "ru": "Неделя {week}: бой у {place}. Удержали платформу."
+    "ru": "Неделя {week}: бой у станции {place}. Удержали платформу."
   },
   "combat.log.force_capture": {
     "en": "Week {week}: took {place} by force.",
-    "ru": "Неделя {week}: взяли {place} силой."
+    "ru": "Неделя {week}: взяли силой станцию {place}."
   },
   "combat.log.named_death": {
     "en": "{name} fell at {place}.",
@@ -557,15 +557,15 @@
   },
   "combat.log.named_injury": {
     "en": "{name} came back hurt from {place}.",
-    "ru": "{name} вернулся{a} с {place} — с ранением."
+    "ru": "{name} пришёл{a} назад с {place} — с ранением."
   },
   "combat.log.raid_loss": {
     "en": "Week {week}: raid on {place} broke. The party limped home.",
-    "ru": "Неделя {week}: налёт на {place} сорвался. Партия пришла хромая."
+    "ru": "Неделя {week}: набег сорвался — {place}. Партия приковыляла домой."
   },
   "combat.log.raid_win": {
     "en": "Week {week}: raid on {place} held. Loot came home.",
-    "ru": "Неделя {week}: налёт на {place} удался. Добыча вернулась."
+    "ru": "Неделя {week}: набег удался — {place}. Добыча дома."
   },
   "combat.log.unbidden": {
     "en": "Week {week}: Unbidden at {place}.",
@@ -629,7 +629,7 @@
   },
   "combat.odds.home_guard": {
     "en": "Home yard is staffed: their walls feel higher.",
-    "ru": "Двор у них занят: стены кажутся выше."
+    "ru": "Их двор под охраной: стены кажутся выше."
   },
   "combat.odds.named_risk": {
     "en": "~%d named at risk",
@@ -641,7 +641,7 @@
   },
   "combat.odds.raid_note": {
     "en": "Raid: loot if you win. No station take.",
-    "ru": "Налёт: добыча при победе. Станцию не берёте."
+    "ru": "Набег: добыча при победе. Станцию не берёте."
   },
   "combat.odds.unbidden": {
     "en": "Unbidden: not at war. Extra hope cost.",
@@ -661,7 +661,7 @@
   },
   "combat.order.breach_craft_tip": {
     "en": "Workshop craft. Spend materials and one order. Holds one. Lets the next Assault skip the pressure wait.",
-    "ru": "Крафт в Мастерской. Материалы и один приказ. Хранится один. Следующий Штурм без ожидания давления."
+    "ru": "Сборка в Мастерской. Материалы и один приказ. Хранится один. Следующий Штурм без ожидания давления."
   },
   "combat.order.breach_craft_toast": {
     "en": "Breach kit ready.",
@@ -709,7 +709,7 @@
   },
   "combat.toast.armor": {
     "en": "Platform guard in scrap plate.",
-    "ru": "Платформенная охрана в ломаных пластинах."
+    "ru": "Охрана платформы в латах из лома."
   },
   "combat.toast.assault_loss": {
     "en": "Assault failed. The platform stayed theirs.",
@@ -729,11 +729,11 @@
   },
   "combat.toast.raid_loss": {
     "en": "Raid broke. Hope dips. The yard counts who came back.",
-    "ru": "Налёт сорвался. Надежда просела. Двор считает, кто вернулся."
+    "ru": "Набег сорвался. Надежда просела. Двор считает, кто вернулся."
   },
   "combat.toast.raid_win": {
     "en": "Raid held. Packs heavier. Neighbors colder.",
-    "ru": "Налёт удался. Рюкзаки тяжелее. Соседи холоднее."
+    "ru": "Набег удался. Рюкзаки тяжелее. Соседи холоднее."
   },
   "combat.toast.unbidden": {
     "en": "Unbidden at {place}. Even the war-hungry look away.",
@@ -861,7 +861,7 @@
   },
   "order.toast_raid": {
     "en": "Raid → {station}",
-    "ru": "Рейд → {station}"
+    "ru": "Набег → {station}"
   },
   "order.toast_assault": {
     "en": "Assault → {station}",
@@ -949,27 +949,27 @@
   },
   "push.button": {
     "en": "Push",
-    "ru": "Нажать"
+    "ru": "Выжать"
   },
   "push.confirm_body": {
     "en": "Output doubles tonight. Incident risk ~%d%%.",
-    "ru": "Ночной выход удвоится. Риск аварии ~%d%%."
+    "ru": "Выработка этой ночью удвоится. Риск аварии ~%d%%."
   },
   "push.confirm_title": {
     "en": "Push this room?",
-    "ru": "Нажать эту комнату?"
+    "ru": "Выжать эту комнату?"
   },
   "push.disabled_room": {
     "en": "This room cannot be pushed.",
-    "ru": "Эту комнату нажимать нельзя."
+    "ru": "Эту комнату не выжать."
   },
   "push.disabled_used": {
     "en": "Already pushed this week.",
-    "ru": "На этой неделе уже нажимали."
+    "ru": "На этой неделе уже выжимали."
   },
   "push.incident.air_filter": {
     "en": "Air filter: gate fire. Room off 1 week, 1 injured.",
-    "ru": "Воздушный фильтр: пожар у створки. Комната выключена на неделю, 1 ранен."
+    "ru": "Воздушный фильтр: пожар у створки. Комната встала на неделю, 1 ранен."
   },
   "push.incident.generator": {
     "en": "Generator: blowout. Lost 8 power, 1 injured.",
@@ -977,7 +977,7 @@
   },
   "push.incident.generic": {
     "en": "Push went wrong. Something broke.",
-    "ru": "Нажим сорвался. Что-то сломалось."
+    "ru": "Выжим сорвался. Что-то сломалось."
   },
   "push.incident.hydroponics": {
     "en": "Hydroponics: rot. Lost 4 food.",
@@ -997,11 +997,11 @@
   },
   "push.tip_ok": {
     "en": "Double tonight's output. Incident risk ~%d%%.",
-    "ru": "Удвоить ночной выход. Риск аварии ~%d%%."
+    "ru": "Удвоить выработку этой ночью. Риск аварии ~%d%%."
   },
   "push.toast_ok": {
     "en": "{room} pushed. Output doubles tonight.",
-    "ru": "{room}: нажали. Ночной выход удвоится."
+    "ru": "{room}: выжали. Ночной выход удвоится."
   },
   "order.toast_cancel": {
     "en": "Order cancelled · {role}",
@@ -1032,7 +1032,7 @@
     "ru": "Под давлением · 1 неделя. Ещё одна — и можно штурмовать."
   },
   "pressure.hover_ready": {
-    "en": "Under pressure · {n} weeks. Assault ready.",
+    "en": "Under pressure · {n} wk. Assault ready.",
     "ru": "Под давлением · {n} нед. Штурм готов."
   },
   "pressure.chip_ready": {
@@ -1041,10 +1041,10 @@
   },
   "pressure.hover_by": {
     "en": "{faction} is squeezing this station.",
-    "ru": "{faction} давят на станцию."
+    "ru": "Давят на станцию: {faction}."
   },
   "pressure.claim_hover": {
-    "en": "{faction} claim · {n} weeks",
+    "en": "{faction} claim · {n} wk",
     "ru": "Притязание: {faction} · {n} нед."
   },
   "pressure.claim_note": {
@@ -1089,7 +1089,7 @@
   },
   "station.mill": {
     "en": "Greenpoint Av",
-    "ru": "Гринпойнт-авеню"
+    "ru": "Гринпойнт"
   },
   "station.market": {
     "en": "Spring St",
@@ -1173,7 +1173,7 @@
   },
   "perk.short.observatory": {
     "en": "tokens and flood warning",
-    "ru": "жетоны и вести о паводке"
+    "ru": "жетоны и ранняя весть о паводке"
   },
   "perk.short.quarry": {
     "en": "cheap digs",
@@ -1181,7 +1181,7 @@
   },
   "perk.short.mill": {
     "en": "extra food",
-    "ru": "лишняя еда"
+    "ru": "прибавка еды"
   },
   "perk.short.market": {
     "en": "clean water",
@@ -1213,7 +1213,7 @@
   },
   "good.seeds.sheet": {
     "en": "+1 food per hydroponics room. Opens grow lamps.",
-    "ru": "+1 еды с каждой гидропоники. Открывает лампы."
+    "ru": "+1 еды с каждой гидропоники. Открывает лампы для ростков."
   },
   "good.pork.name": {
     "en": "Pork",
@@ -1253,7 +1253,7 @@
   },
   "good.heat.sheet": {
     "en": "+2 power a week. Sabotage risk comes with it.",
-    "ru": "+2 энергии в неделю. Вместе с риском диверсии."
+    "ru": "+2 энергии в неделю. Риск диверсии идёт с ним."
   },
   "good.salt.name": {
     "en": "Salt",
@@ -1281,7 +1281,7 @@
   },
   "listening.listen_status": {
     "en": "Listening. Rival intents stay visible. Rumors land closer to true.",
-    "ru": "Слушаем. Чужие намерения не прячутся. Слухи ближе к правде."
+    "ru": "Слушаем. Чужие намерения видны. Слухи ближе к правде."
   },
   "listening.probe": {
     "en": "Probe",
@@ -1297,7 +1297,7 @@
   },
   "listening.tap_tip": {
     "en": "2 food · 1 order. Skim a good or preview their plan. Blown 25%. Opinion bite.",
-    "ru": "2 еды · 1 приказ. Снять товар или увидеть их план. Срыв 25%. Бьёт по мнению."
+    "ru": "2 еды · 1 приказ. Снять товар или увидеть их план. Срыв 25%. Минус к мнению."
   },
   "listening.blown": {
     "en": "Cover blown. They heard the tap at {station}.",
@@ -1333,7 +1333,7 @@
   },
   "listening.need_radio": {
     "en": "Needs a staffed Radio room online.",
-    "ru": "Нужна работающая укомплектованная Радиорубка."
+    "ru": "Нужна Радиорубка с людьми — и чтобы работала."
   },
   "listening.upgrade.pipe_taps": {
     "en": "Pipe taps — quieter Probe. Blown less often.",
@@ -1353,7 +1353,7 @@
   },
   "listening.radio_helper": {
     "en": "Listening Post covers intents",
-    "ru": "Пост прослушки закрывает намерения"
+    "ru": "Пост прослушки держит чужие намерения на виду"
   },
   "listening.intel_line": {
     "en": "Intel {n}/3",
@@ -1477,15 +1477,15 @@
   },
   "assign.tip_skill": {
     "en": "Room wants {skill} · {name} has {n}",
-    "ru": "Комнате нужен {skill} · у {name} {n}"
+    "ru": "Комнате нужно: {skill} · {name}: {n}"
   },
   "assign.tip_empty": {
     "en": "Empty seat · wants {skill}",
-    "ru": "Пустое место · нужен {skill}"
+    "ru": "Пустое место · нужно: {skill}"
   },
   "assign.tip_empty_any": {
     "en": "Empty seat · choose a resident",
-    "ru": "Пустое место · выберите жителя"
+    "ru": "Пустое место · выбери жителя"
   },
   "skill.labor": {
     "en": "labor",
@@ -1501,7 +1501,7 @@
   },
   "skill.talk": {
     "en": "talk",
-    "ru": "разговор"
+    "ru": "речь"
   },
   "salvage.title": {
     "en": "Salvage",
@@ -1509,7 +1509,7 @@
   },
   "salvage.tier0": {
     "en": "Tier 0",
-    "ru": "Уровень 0"
+    "ru": "Ступень 0"
   },
   "salvage.tier1": {
     "en": "Tier 1",
@@ -1561,7 +1561,7 @@
   },
   "salvage.node.grow_lamps": {
     "en": "grow lamps",
-    "ru": "лампы роста"
+    "ru": "фитолампы"
   },
   "salvage.node.charcoal": {
     "en": "charcoal",
@@ -1637,7 +1637,7 @@
   },
   "staff.salvage.fit_1": {
     "en": "Fitted. The yard feels it hold.",
-    "ru": "Поставили. Двор чувствует, как держит."
+    "ru": "Поставили. Двор это чувствует."
   },
   "staff.salvage.fit_2": {
     "en": "Bolted in. No speech. Just the wrench.",
@@ -1645,7 +1645,7 @@
   },
   "staff.salvage.fit_3": {
     "en": "Another piece found a home on the board.",
-    "ru": "Ещё одна деталь нашла место на доске."
+    "ru": "Ещё одна деталь встала на доску."
   },
   "staff.salvage.who.Pete": {
     "en": "Pete takes the strip shift. He knows which belts still sing.",
@@ -1657,7 +1657,7 @@
   },
   "staff.salvage.who.June": {
     "en": "June fits quiet. She does not celebrate a bolt.",
-    "ru": "Джун ставит тихо. Болт не празднует."
+    "ru": "Джун ставит молча. Из болта праздника не делает."
   },
   "clear.title_rubble": {
     "en": "Platform rubble",
@@ -1705,7 +1705,7 @@
   },
   "clear.blocked_build": {
     "en": "Clear the pile first.",
-    "ru": "Сначала расчистите кучу."
+    "ru": "Сначала расчисти кучу."
   },
   "clear.chronicle": {
     "en": "Crew hauled the pile off the floor.",
@@ -1789,7 +1789,7 @@
   },
   "away.badge_label": {
     "en": "Away",
-    "ru": "Вне"
+    "ru": "В пути"
   },
   "away.reduce": {
     "en": "Party out.",
@@ -1849,7 +1849,7 @@
   },
   "warm.first": {
     "en": "The ring remembers how they feel.",
-    "ru": "Кольцо помнит, как они к вам."
+    "ru": "Кольцо помнит, как к вам относятся."
   },
   "leaf.tip": {
     "en": "Leaflets still up.",
@@ -1925,7 +1925,7 @@
   },
   "join.first": {
     "en": "When they join, the pin answers.",
-    "ru": "Когда встают рядом — пин отвечает."
+    "ru": "Когда встают рядом — метка отвечает."
   },
   "join.reduce": {
     "en": "Joined.",

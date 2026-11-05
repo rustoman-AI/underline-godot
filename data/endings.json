@@ -8,7 +8,7 @@
       },
       "text": {
         "en": "By the fortieth week the lists hold. Lionel Abelard's ledger covers every platform from Grand Central to the Coney yard, and the lights stay on because the numbers say they must. Nobody asks what the Floor said, or what was burned at Stillwell. The people who are fed do not ask. The ones who are not are no longer on the list.",
-        "ru": "К сороковой неделе списки держатся. Журнал Лайонела Абеларда охватывает каждую платформу от Гранд-Централа до депо Кони, и свет горит, потому что так велят цифры. Никто не спрашивает, что сказал Этаж и что сожгли на Стиллвелле. Те, кого кормят, не спрашивают. Тех, кого нет, уже нет в списке."
+        "ru": "К сороковой неделе списки держатся. Ведомость Лайонела Абеларда охватывает каждую платформу от Гранд-Сентрала до двора Кони, и свет горит, потому что так велят цифры. Никто не спрашивает, что сказал Этаж и что сожгли на Стиллвелле. Те, кого кормят, не спрашивают. Тех, кого нет, уже нет в списке."
       }
     },
     "exodus": {
@@ -18,7 +18,7 @@
       },
       "text": {
         "en": "The pipe taps forty-one and goes quiet. Dr. Reed was right: the weeks were counted, and the count is done. On the forty-first morning the door of the Observatory opens, and the first thirty of your people climb the stairs with lamps they will not need. The wind is real. So is the sound under it, small and regular, like someone counting down.",
-        "ru": "Труба стучит сорок один и замолкает. Доктор Рид был прав: недели были сосчитаны, и счёт закончен. На сорок первое утро дверь Обсерватории открывается, и первые тридцать твоих людей поднимаются по лестнице с лампами, которые им не понадобятся. Ветер настоящий. Как и звук под ним, тихий и ровный, словно кто-то ведёт обратный отсчёт."
+        "ru": "Труба стучит сорок один и замолкает. Доктор Рид был прав: недели и правда считали, и счёт закончен. На сорок первое утро дверь Обсерватории открывается, и первые тридцать твоих людей поднимаются по лестнице с лампами, которые им не понадобятся. Ветер настоящий. Как и звук под ним, тихий и ровный, словно кто-то ведёт обратный отсчёт."
       }
     },
     "open_door": {
@@ -28,7 +28,7 @@
       },
       "text": {
         "en": "You read it on every wire in the network, in your own voice: the order, the ledger, the recording, the minutes. For one night the stations are silent. Then they are not. The Depot goes for the gates, the Synod prays, the Exchange sets a price on what is left, and the Directorate asks that the lists be burned. Nothing is the same, and everyone knows why.",
-        "ru": "Ты читаешь это по каждому проводу сети своим голосом: приказ, журнал, запись, протокол. На одну ночь станции молчат. Потом нет. Депо идёт к воротам, Синод молится, Биржа назначает цену на то, что осталось, а Дирекция просит сжечь списки. Ничто не прежнее, и все знают почему."
+        "ru": "Ты читаешь это по каждому проводу сети своим голосом: приказ, ведомость, запись, протокол. На одну ночь станции молчат. Потом нет. Депо идёт к воротам, Синод молится, Биржа назначает цену на то, что осталось, а Дирекция просит сжечь списки. Прежним не осталось ничего, и все знают почему."
       }
     },
     "winter": {
@@ -38,7 +38,7 @@
       },
       "text": {
         "en": "Week forty. The lights are on and your people are alive, and no one can tell you why the surface went quiet or what the tapping in the pipe is counting. Someone says: one more week. Nobody knows what they mean.",
-        "ru": "Сороковая неделя. Свет горит, твои люди живы, и никто не может сказать тебе, почему замолчала поверхность и кто ведёт счёт, отстукивая его в трубе. Кто-то говорит: ещё одну неделю. Никто не знает, что он имеет в виду."
+        "ru": "Сороковая неделя. Свет горит, твои люди живы, и никто не может сказать тебе, почему замолчала поверхность и что отсчитывает стук в трубе. Кто-то говорит: ещё одну неделю. Никто не знает, что он имеет в виду."
       }
     },
     "collapse": {
@@ -48,7 +48,7 @@
       },
       "text": {
         "en": "The station could not carry its own weight. By the end the lamps are out on every platform, and the last of your people walk the tunnel toward whoever will take them.",
-        "ru": "Станция не смогла нести собственный вес. К концу лампы погасли на каждой платформе, и последние твои люди идут по тоннелю к тем, кто примет их."
+        "ru": "Станция не выдержала собственной тяжести. К концу лампы погасли на каждой платформе, и последние твои люди идут по тоннелю к тем, кто их примет."
       }
     },
     "hope": {
@@ -58,17 +58,17 @@
       },
       "text": {
         "en": "Nobody tells the story anymore. Nobody sits up to listen to the pipe. The lights still burn, and the platform is empty of voices.",
-        "ru": "Больше никто не рассказывает историй. Никто не сидит ночью, прислушиваясь к трубе. Свет ещё горит, а платформа пуста от голосов."
+        "ru": "Больше никто не рассказывает историй. Никто не сидит ночью, прислушиваясь к трубе. Свет ещё горит, а на платформе не слышно голосов."
       }
     },
     "revolt": {
       "title": {
         "en": "The Platform Rises",
-        "ru": "Платформа поднимается"
+        "ru": "Платформа восстаёт"
       },
       "text": {
         "en": "They come down the stairs at night, all of them, with the lamps turned up. They do not shout. They put the keys on the table and wait for you to leave.",
-        "ru": "Они спускаются по лестнице ночью, все, с прибавленными до предела лампами. Они не кричат. Они кладут ключи на стол и ждут, когда ты уйдёшь."
+        "ru": "Они спускаются по лестнице ночью, все, выкрутив лампы на полную. Они не кричат. Они кладут ключи на стол и ждут, когда ты уйдёшь."
       }
     },
     "capital": {
@@ -122,7 +122,7 @@
     "synod": {
       "accepted": {
         "en": "She kept the surface quiet for your people. They sleep well. She does not.",
-        "ru": "Она сохранила поверхность тихой для твоих людей. Они спят хорошо. Она нет."
+        "ru": "Ради твоих людей она молчала о поверхности. Они спят спокойно. Она — нет."
       },
       "refused": {
         "en": "She kept a list of your people who ate at the Synod kitchens. She still has it.",
@@ -148,7 +148,7 @@
       },
       "helped": {
         "en": "He rubbed your name off his arm. It is the only one he ever rubbed out.",
-        "ru": "Он стёр твоё имя со своей руки. Это единственное, которое он когда-либо стёр."
+        "ru": "Он стёр твоё имя со своей руки. Больше он не стёр ни одного."
       },
       "none": {
         "en": "He priced your station without ever visiting it.",

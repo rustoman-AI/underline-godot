@@ -77,7 +77,7 @@
     "hope": {
       "watch": {
         "en": "Hope ran out under the Watch.",
-        "ru": "Надежда кончилась под Дозором."
+        "ru": "Надежда кончилась под Стражей."
       },
       "chapel": {
         "en": "Hope ran out in the Chapel.",
@@ -95,7 +95,7 @@
     "collapse": {
       "watch": {
         "en": "The yard emptied under the Watch.",
-        "ru": "Двор опустел под Дозором."
+        "ru": "Двор опустел под Стражей."
       },
       "chapel": {
         "en": "The yard emptied under the Covenant.",
@@ -143,7 +143,7 @@
     {
       "id": "turned_away",
       "en": "You turned people from the gate. The tags they left are still on the post. Who were you saving?",
-      "ru": "Вы не пустили людей у ворот. Их жетоны всё ещё на столбе. Кого вы спасали?"
+      "ru": "Вы не пустили людей у ворот. Их номерки всё ещё на столбе. Кого вы спасали?"
     },
     {
       "id": "sold_route",
@@ -178,7 +178,7 @@
     {
       "id": "held_stations",
       "en": "You held five stations and lost the people who took them. What did the pins cost?",
-      "ru": "Вы держали пять станций и потеряли тех, кто их брал. Сколько стоили булавки?"
+      "ru": "Вы держали пять станций и потеряли тех, кто их брал. Сколько стоили метки?"
     },
     {
       "id": "floor_papers",
@@ -200,17 +200,17 @@
     {
       "id": "kept_room",
       "en": "{name} kept the {room} until the end.",
-      "ru": "{name} держал{a} {room} до конца."
+      "ru": "{name} держал{a} участок до конца: {room}."
     },
     {
       "id": "kept_room_left",
       "en": "{name} kept the {room} until week {week}, then walked to {place}.",
-      "ru": "{name} держал{a} {room} до {week}-й недели, потом ушёл{a} на {place}."
+      "ru": "{name} держал{a} участок до {week}-й недели ({room}), потом ушёл{a} на {place}."
     },
     {
       "id": "walked_place",
       "en": "{name} walked to {place} in week {week}.",
-      "ru": "{name} ушёл{a} на {place} на {week}-й неделе."
+      "ru": "{name} ушёл{a} на станцию {place} на {week}-й неделе."
     },
     {
       "id": "walked_dilemma",
@@ -225,12 +225,12 @@
     {
       "id": "died_cough",
       "en": "{name} died in the cough in week {week}.",
-      "ru": "{name} умер{a} в кашле на {week}-й неделе."
+      "ru": "{name} умер{a} от кашля на {week}-й неделе."
     },
     {
       "id": "died_food",
       "en": "{name} died in the food shortage in week {week}.",
-      "ru": "{name} умер{a} в нехватку еды на {week}-й неделе."
+      "ru": "{name} умер{a} от голода на {week}-й неделе."
     },
     {
       "id": "died_air",
@@ -240,7 +240,7 @@
     {
       "id": "died_battle",
       "en": "{name} fell in the fight for {place} in week {week}.",
-      "ru": "{name} пал{a} в бою за {place} на {week}-й неделе."
+      "ru": "{name} пал{a} в бою за станцию {place} на {week}-й неделе."
     },
     {
       "id": "died_sealed",
@@ -250,7 +250,7 @@
     {
       "id": "died_accident",
       "en": "{name} died in the {room} in week {week}. The tools were still warm.",
-      "ru": "{name} погиб{a} в {room} на {week}-й неделе. Инструменты ещё были тёплыми."
+      "ru": "{name} погиб{a} на работе ({room}) на {week}-й неделе. Инструменты ещё были тёплыми."
     },
     {
       "id": "buried",
@@ -265,12 +265,12 @@
     {
       "id": "council_held",
       "en": "{name} held the {seat} seat through week 40.",
-      "ru": "{name} держал{a} пост {seat} до 40-й недели."
+      "ru": "{name} до 40-й недели держал{a} пост: {seat}."
     },
     {
       "id": "council_broke",
       "en": "{name} broke under the {seat} orders in week {week}.",
-      "ru": "{name} сломал{a}ся под приказами {seat} на {week}-й неделе."
+      "ru": "{name} не выдержал{a} приказов {seat} на {week}-й неделе."
     },
     {
       "id": "council_replaced",
@@ -280,7 +280,7 @@
     {
       "id": "known_lost",
       "en": "{name} was Known. Losing them cost more than a bunk.",
-      "ru": "{name} был{a} Известным. Потеря стоила больше койки."
+      "ru": "{name} был{a} из Известных. Потеря стоила больше койки."
     },
     {
       "id": "night_runner",
@@ -315,17 +315,17 @@
     {
       "id": "bond_grief",
       "en": "{name} never recovered after losing {other}.",
-      "ru": "{name} так и не оправился{a} после потери {other}."
+      "ru": "{name} так и не пришёл{a} в себя после потери {other}."
     },
     {
       "id": "inspired",
       "en": "{name} stayed Inspired through the worst weeks.",
-      "ru": "{name} оставался{a} Воодушевлённым в худшие недели."
+      "ru": "{name} и в худшие недели не терял{a} Воодушевления."
     },
     {
       "id": "seasoned",
       "en": "{name} became Seasoned in the {room}.",
-      "ru": "{name} стал{a} Бывалым в {room}."
+      "ru": "{name} вошёл{a} в число Бывалых ({room})."
     },
     {
       "id": "sent_line",
@@ -357,7 +357,7 @@
     {
       "kind": "station_taken",
       "en": "Week {week}: took {place}.",
-      "ru": "Неделя {week}: взяли {place}."
+      "ru": "Неделя {week}: взяли станцию {place}."
     },
     {
       "kind": "station_lost",
@@ -392,7 +392,7 @@
     {
       "kind": "battle",
       "en": "Week {week}: fought at {place}. {result}.",
-      "ru": "Неделя {week}: бой у {place}. {result}."
+      "ru": "Неделя {week}: бой у станции {place}. {result}."
     },
     {
       "kind": "mandate",
@@ -417,12 +417,12 @@
     {
       "kind": "known_lost",
       "en": "Week {week}: lost {name}. They were Known.",
-      "ru": "Неделя {week}: потеряли {name}. Он{a} был{a} Известным."
+      "ru": "Неделя {week}: потеряли {name}. Он{a} был{a} из Известных."
     },
     {
       "kind": "birth",
       "en": "Week {week}: {name} was born in the yard.",
-      "ru": "Неделя {week}: во дворе родился{a} {name}."
+      "ru": "Неделя {week}: {name} впервые подал{a} голос во дворе."
     }
   ]
 }

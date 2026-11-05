@@ -669,7 +669,7 @@
       "part": "burn_fail",
       "speaker": "Narrator",
       "en": "The sums were wrong. The fumes catch fire and take half the rack with them, and the grower breathes the smoke. Half the food stores are gone.",
-      "ru": "Расчёт оказался неверным. Пары вспыхивают и уносят полстойки, огородник наглотался дыма. Половины запасов еды больше нет.",
+      "ru": "Расчёт оказался неверным. Пары вспыхивают и уносят полстойки, огородник глотает дым. Половины запасов еды больше нет.",
       "audio_en": "res://assets/audio/vo/events/chk_garden_mold_burn_fail_en.mp3",
       "audio_ru": "res://assets/audio/vo/events/chk_garden_mold_burn_fail_ru.mp3"
     },
@@ -777,7 +777,7 @@
       "part": "hammer_success",
       "speaker": "Narrator",
       "en": "One heavy blow frees the flywheel and the pistons start pumping again. The lights come back.",
-      "ru": "Один тяжёлый удар освобождает маховик, и поршни снова качают. Свет вернулся.",
+      "ru": "Один тяжёлый удар освобождает маховик, и поршни снова качают. Свет возвращается.",
       "audio_en": "res://assets/audio/vo/events/chk_generator_sabotage_hammer_success_en.mp3",
       "audio_ru": "res://assets/audio/vo/events/chk_generator_sabotage_hammer_success_ru.mp3"
     },
@@ -1305,7 +1305,7 @@
       "part": "body",
       "speaker": "Narrator",
       "en": "Bowling Green will sell air, but not for kindness. They want hands, tokens, or a night you will not admit to.",
-      "ru": "Боулинг-Грин продаст воздух, но не из доброты. Им нужны руки, жетоны — или ночь, в которой вы не признаетесь.",
+      "ru": "Боулинг-Грин продаст воздух, но не из доброты. Им нужны руки, жетоны — или ночь, о которой лучше молчать.",
       "audio_en": "res://assets/audio/vo/events/dilemma_breathers_price_body_en.mp3",
       "audio_ru": "res://assets/audio/vo/events/dilemma_breathers_price_body_ru.mp3"
     },

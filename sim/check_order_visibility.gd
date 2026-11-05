@@ -81,7 +81,7 @@ func _check_strings() -> bool:
 	Copy.set_lang("ru")
 	var ru := {
 		"order.toast_patrol": "Патруль → {station}",
-		"order.toast_raid": "Рейд → {station}",
+		"order.toast_raid": "Набег → {station}",
 		"order.toast_assault": "Штурм → {station}",
 	}
 	for key in ru:

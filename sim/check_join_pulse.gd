@@ -120,7 +120,7 @@ func _check_strings() -> bool:
 		return _fail("taken ru " + Copy.t("join.taken"))
 	if Copy.t("join.lost") != "{station} пала.":
 		return _fail("lost ru " + Copy.t("join.lost"))
-	if Copy.t("join.first") != "Когда встают рядом — пин отвечает.":
+	if Copy.t("join.first") != "Когда встают рядом — метка отвечает.":
 		return _fail("first ru " + Copy.t("join.first"))
 	if Copy.t("join.reduce") != "С нами.":
 		return _fail("reduce ru " + Copy.t("join.reduce"))
@@ -132,7 +132,7 @@ func _check_strings() -> bool:
 		return _fail("ru.json taken")
 	if Copy.t("{station} fell.") != "{station} пала.":
 		return _fail("ru.json lost")
-	if Copy.t("When they join, the pin answers.") != "Когда встают рядом — пин отвечает.":
+	if Copy.t("When they join, the pin answers.") != "Когда встают рядом — метка отвечает.":
 		return _fail("ru.json first")
 	if Copy.t("Joined.") != "С нами.":
 		return _fail("ru.json reduce")

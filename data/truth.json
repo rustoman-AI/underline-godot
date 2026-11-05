@@ -7,13 +7,13 @@
       "hint": {"en": "Bernie Shaw's crew burned something at Stillwell on the first morning.", "ru": "Бригада Берни Шоу сожгла что-то на Стиллвелле в первое утро."},
       "text": {
         "en": "At 03:40 on the first day an order came down the line: lock the gates and let no one into the tunnel. Whoever wrote it knew the platforms above would not be safe. Bernie's crew burned the original and walked the trains out by lantern.",
-        "ru": "В 03:40 в первый день по линии пришёл приказ: запереть створки и никого не пускать в тоннель. Тот, кто его написал, знал, что наверху платформы небезопасны. Бригада Берни сожгла оригинал и вывела поезда по сигнальному фонарю."
+        "ru": "В 03:40 в первый день по линии пришёл приказ: закрыть решётки и никого не пускать в тоннель. Тот, кто его написал, знал, что наверху платформы небезопасны. Бригада Берни сожгла оригинал и вывела поезда по сигнальному фонарю."
       }
     },
     {
       "id": "directorate_ledger",
-      "title": {"en": "The reserve ledger", "ru": "Резервный журнал"},
-      "hint": {"en": "Lionel Abelard keeps a ledger from before the Silence. He does not show it.", "ru": "Лайонел Абелард хранит журнал со времён до Тишины. Он его не показывает."},
+      "title": {"en": "The reserve ledger", "ru": "Резервная ведомость"},
+      "hint": {"en": "Lionel Abelard keeps a ledger from before the Silence. He does not show it.", "ru": "Лайонел Абелард хранит ведомость со времён до Тишины. Он её не показывает."},
       "text": {
         "en": "Three months before the Silence, the terminal office bought rations for four thousand people. The terminal had three hundred staff. Lionel saw the figures and signed. His name is on the page.",
         "ru": "За три месяца до Тишины контора терминала закупила пайки на четыре тысячи человек. В терминале работало триста. Лайонел увидел цифры и подписал. Его имя стоит на странице."

@@ -43,7 +43,7 @@
     {
       "id": "marked_crate",
       "en": "A crate stamped Directorate. Seal still warm.",
-      "ru": "Ящик со штампом Директората. Печать ещё тёплая."
+      "ru": "Ящик со штампом Дирекции. Печать ещё тёплая."
     },
     {
       "id": "silent_chapel",
@@ -53,7 +53,7 @@
     {
       "id": "tripwire",
       "en": "A tripwire across the throat of the tunnel. Fresh.",
-      "ru": "Растяжка поперёк горла туннеля. Свежая."
+      "ru": "Растяжка поперёк горла тоннеля. Свежая."
     },
     {
       "id": "wounded_stranger",
@@ -85,12 +85,12 @@
     {
       "id": "bunker_outer",
       "en": "Outer rooms of a bunker left ajar after a raid.",
-      "ru": "Внешние комнаты бункера приоткрыты после рейда."
+      "ru": "Внешние комнаты бункера приоткрыты после набега."
     },
     {
       "id": "neighbor_store",
       "en": "Neighbor station stores lean unlocked at third watch.",
-      "ru": "Склады соседней станции на третьей страже не на замке."
+      "ru": "Склады соседней станции в третью вахту не на замке."
     },
     {
       "id": "ferry_shed",
@@ -105,12 +105,12 @@
     {
       "id": "court_stair",
       "en": "Court St stairwell: medkits under the third landing.",
-      "ru": "Лестница Court St: аптечки под третьей площадкой."
+      "ru": "Лестница Корт-стрит: аптечки под третьей площадкой."
     },
     {
       "id": "myrtle_radio",
       "en": "Myrtle–Willoughby still coughs radio parts at night.",
-      "ru": "Myrtle–Willoughby по ночам ещё кашляет радиодеталями."
+      "ru": "Мертл-Уиллоуби по ночам ещё кашляет радиодеталями."
     },
     {
       "id": "quarantine_gate",
@@ -145,7 +145,7 @@
     {
       "id": "senses_grit",
       "en": "Best Senses or Grit on the roll. The dark does not care which.",
-      "ru": "На броске — что выше, Чутьё или Жила. Темноте всё равно."
+      "ru": "На броске — что выше, Чутьё или Закалка. Темноте всё равно."
     },
     {
       "id": "danger_three",
@@ -160,12 +160,12 @@
     {
       "id": "intel_tier",
       "en": "Intel priority lifts the site tier. Voice band three lifts it twice.",
-      "ru": "Приоритет разведки поднимает ярус места. Голосовая полоса три — дважды."
+      "ru": "Приоритет разведки поднимает разряд места. С Голосом три — дважды."
     },
     {
       "id": "party_conflict",
       "en": "Same boots cannot run and Tunnel Party the same week.",
-      "ru": "Те же сапоги не могут и в ночной выход, и в Туннельную партию за одну неделю."
+      "ru": "Те же сапоги не пойдут и в ночной выход, и в Тоннельную партию за одну неделю."
     },
     {
       "id": "yard_three",
@@ -185,22 +185,22 @@
     {
       "id": "rumor_pin",
       "en": "Intel one puts a rumored pin on the map.",
-      "ru": "Разведка первого уровня ставит на карту метку слуха."
+      "ru": "Разведка первого разряда ставит на карту метку слуха."
     },
     {
       "id": "south_ferry",
       "en": "South Ferry vault outer hall — quiet goods, loud risk.",
-      "ru": "Внешний зал хранилища South Ferry — тихий товар, громкий риск."
+      "ru": "Внешний зал хранилища Саут-Ферри — тихий товар, громкий риск."
     },
     {
       "id": "jay_freight",
       "en": "Jay St freight alcove still smells of diesel and salt.",
-      "ru": "Грузовая ниша Jay St ещё пахнет дизелем и солью."
+      "ru": "Грузовая ниша Джей-стрит ещё пахнет дизелем и солью."
     },
     {
       "id": "bowling_crates",
       "en": "Unmarked crates under Bowling Green. Receipts lie.",
-      "ru": "Ящики без клейма под Bowling Green. Расписки врут."
+      "ru": "Ящики без клейма под Боулинг-Грин. Расписки врут."
     },
     {
       "id": "coney_side",
@@ -210,7 +210,7 @@
     {
       "id": "penn_patrol",
       "en": "Penn patrols thicken on the hour after third watch.",
-      "ru": "Патрули Пенна густеют в час после третьей стражи."
+      "ru": "Патрули Пенна густеют через час после третьей вахты."
     },
     {
       "id": "synod_alms",
@@ -370,7 +370,7 @@
     },
     "run.encounter.marked_crate": {
       "en": "A crate stamped Directorate. Seal still warm.",
-      "ru": "Ящик со штампом Директората. Печать ещё тёплая."
+      "ru": "Ящик со штампом Дирекции. Печать ещё тёплая."
     },
     "run.encounter.silent_chapel": {
       "en": "A silent chapel niche. Candles out. Bowl of tokens.",
@@ -378,7 +378,7 @@
     },
     "run.encounter.tripwire": {
       "en": "A tripwire across the throat of the tunnel. Fresh.",
-      "ru": "Растяжка поперёк горла туннеля. Свежая."
+      "ru": "Растяжка поперёк горла тоннеля. Свежая."
     },
     "run.encounter.wounded_stranger": {
       "en": "A wounded stranger. Pack half-full. Eyes open.",
@@ -402,11 +402,11 @@
     },
     "run.rumor.bunker_outer": {
       "en": "Outer rooms of a bunker left ajar after a raid.",
-      "ru": "Внешние комнаты бункера приоткрыты после рейда."
+      "ru": "Внешние комнаты бункера приоткрыты после набега."
     },
     "run.rumor.neighbor_store": {
       "en": "Neighbor station stores lean unlocked at third watch.",
-      "ru": "Склады соседней станции на третьей страже не на замке."
+      "ru": "Склады соседней станции в третью вахту не на замке."
     },
     "run.rumor.ferry_shed": {
       "en": "Ferry shed cache turns over every six weeks.",
@@ -418,11 +418,11 @@
     },
     "run.rumor.court_stair": {
       "en": "Court St stairwell: medkits under the third landing.",
-      "ru": "Лестница Court St: аптечки под третьей площадкой."
+      "ru": "Лестница Корт-стрит: аптечки под третьей площадкой."
     },
     "run.rumor.myrtle_radio": {
       "en": "Myrtle–Willoughby still coughs radio parts at night.",
-      "ru": "Myrtle–Willoughby по ночам ещё кашляет радиодеталями."
+      "ru": "Мертл-Уиллоуби по ночам ещё кашляет радиодеталями."
     },
     "run.rumor.quarantine_gate": {
       "en": "Quarantine bunker gate stuck half-open since week 10.",
@@ -450,7 +450,7 @@
     },
     "run.rumor.senses_grit": {
       "en": "Best Senses or Grit on the roll. The dark does not care which.",
-      "ru": "На броске — что выше, Чутьё или Жила. Темноте всё равно."
+      "ru": "На броске — что выше, Чутьё или Закалка. Темноте всё равно."
     },
     "run.rumor.danger_three": {
       "en": "Danger-three miss can name a death. Or a ransom card.",
@@ -462,11 +462,11 @@
     },
     "run.rumor.intel_tier": {
       "en": "Intel priority lifts the site tier. Voice band three lifts it twice.",
-      "ru": "Приоритет разведки поднимает ярус места. Голосовая полоса три — дважды."
+      "ru": "Приоритет разведки поднимает разряд места. С Голосом три — дважды."
     },
     "run.rumor.party_conflict": {
       "en": "Same boots cannot run and Tunnel Party the same week.",
-      "ru": "Те же сапоги не могут и в ночной выход, и в Туннельную партию за одну неделю."
+      "ru": "Те же сапоги не пойдут и в ночной выход, и в Тоннельную партию за одну неделю."
     },
     "run.rumor.yard_three": {
       "en": "Yard stage lets a third runner into the dark.",
@@ -482,19 +482,19 @@
     },
     "run.rumor.rumor_pin": {
       "en": "Intel one puts a rumored pin on the map.",
-      "ru": "Разведка первого уровня ставит на карту метку слуха."
+      "ru": "Разведка первого разряда ставит на карту метку слуха."
     },
     "run.rumor.south_ferry": {
       "en": "South Ferry vault outer hall — quiet goods, loud risk.",
-      "ru": "Внешний зал хранилища South Ferry — тихий товар, громкий риск."
+      "ru": "Внешний зал хранилища Саут-Ферри — тихий товар, громкий риск."
     },
     "run.rumor.jay_freight": {
       "en": "Jay St freight alcove still smells of diesel and salt.",
-      "ru": "Грузовая ниша Jay St ещё пахнет дизелем и солью."
+      "ru": "Грузовая ниша Джей-стрит ещё пахнет дизелем и солью."
     },
     "run.rumor.bowling_crates": {
       "en": "Unmarked crates under Bowling Green. Receipts lie.",
-      "ru": "Ящики без клейма под Bowling Green. Расписки врут."
+      "ru": "Ящики без клейма под Боулинг-Грин. Расписки врут."
     },
     "run.rumor.coney_side": {
       "en": "Side tunnel off Coney yard — wet, short, sometimes full.",
@@ -502,7 +502,7 @@
     },
     "run.rumor.penn_patrol": {
       "en": "Penn patrols thicken on the hour after third watch.",
-      "ru": "Патрули Пенна густеют в час после третьей стражи."
+      "ru": "Патрули Пенна густеют через час после третьей вахты."
     },
     "run.rumor.synod_alms": {
       "en": "Synod alms box left outside a sealed shrine — bait or gift.",

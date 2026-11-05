@@ -45,7 +45,7 @@
     {
       "id": "thin_food",
       "en": "Thin food",
-      "ru": "Тонкая еда"
+      "ru": "Скудная еда"
     },
     {
       "id": "food_shortage",
@@ -117,7 +117,7 @@
     {
       "id": "thin_and_cough",
       "en": "Thin food and the cough are pushing it.",
-      "ru": "Тонкая еда и кашель давят."
+      "ru": "Скудная еда и кашель давят."
     }
   ]
 }
