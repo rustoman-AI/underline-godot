@@ -468,10 +468,12 @@ func _sicken(game: Game, n: int) -> void:
 
 
 func _coney() -> void:
+	## plate, mood tag, opening copy. stores_turn and ration_coat use their own
+	## plates, the same rule as the three dilemmas. diesel keeps the dark plate.
 	var want := {
-		"stores_turn": ["hunger", "Bait opens the food store"],
-		"diesel": ["dark", "Salty Maggie knocks"],
-		"ration_coat": ["cough", "Old Man Coney caught Barnum"],
+		"stores_turn": ["stores_turn", "hunger", "Bait opens the food store"],
+		"diesel": ["dark", "dark", "Salty Maggie knocks"],
+		"ration_coat": ["ration_coat", "cough", "Old Man Coney caught Barnum"],
 	}
 	var bad: PackedStringArray = []
 	var game := _game()
@@ -481,11 +483,16 @@ func _coney() -> void:
 		if ev.is_empty():
 			bad.append(id + " missing")
 			continue
-		if str(ev.get("banner", "")) != str(want[id][0]) or str(ev.get("tag", "")) != str(want[id][0]):
+		var plate := str(want[id][0])
+		var mood := str(want[id][1])
+		if str(ev.get("banner", "")) != plate or str(ev.get("tag", "")) != mood:
 			bad.append(id + " banner")
+		var resolved := ArtPack.resolve_event_banner(ev)
+		if resolved != plate or (plate != "cough" and resolved == "cough"):
+			bad.append(id + " plate")
 		if ev.has("trigger") or int(ev.get("weight", 0)) <= 0 or not bool(ev.get("sasha", false)):
 			bad.append(id + " pool row")
-		if not _text(ev).contains(str(want[id][1])):
+		if not _text(ev).contains(str(want[id][2])):
 			bad.append(id + " copy")
 		var pack = ev.get("text", {})
 		if not (pack is Dictionary) or str(pack.get("ru", "")) == "":

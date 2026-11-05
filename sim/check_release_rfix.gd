@@ -44,6 +44,7 @@ func _run() -> void:
 	_ahead(st)
 	await _map(st)
 	await _round2(st)
+	_round3(st)
 	_wipe(ProjectSettings.globalize_path(SCRATCH))
 	if bad.is_empty():
 		print("RELEASE RFIX OK")
@@ -311,20 +312,33 @@ func _map(st) -> void:
 	if net._warm_float == null or net._warm_float.z_index != 11:
 		_bad("first float z %s" % (net._warm_float.z_index if net._warm_float != null else "null"))
 	else:
+		var warm_plate: Control = net._float_plate(net._warm_float)
+		if warm_plate == null or warm_plate == net._warm_float or not bool(warm_plate.get_meta("map_float_plate", false)) or warm_plate.z_index != 11:
+			_bad("warm float has no map plate")
 		var top := float(net._float_top())
 		if top + 0.5 < float(net._hud_top()) + 26.0:
 			_bad("float stack %.1f is not HUD+26" % top)
-		if absf(net._warm_float.position.y - top) > 1.0:
-			_bad("warm float y %.1f, want %.1f" % [net._warm_float.position.y, top])
+		if absf(warm_plate.position.y - top) > 1.0:
+			_bad("warm float y %.1f, want %.1f" % [warm_plate.position.y, top])
+		if warm_plate.size.y > 34.5:
+			_bad("warm plate height %.1f exceeds the 34 px slot" % warm_plate.size.y)
+		var slip: StyleBoxFlat = st._map_toast_face()
+		var face: StyleBoxFlat = warm_plate.get_theme_stylebox("panel")
+		if face == null or slip == null or not face.bg_color.is_equal_approx(slip.bg_color):
+			_bad("warm float plate is not the map slip")
+		if net._warm_float.get_theme_constant("outline_size") != 0 or not net._warm_float.get_theme_color("font_color").is_equal_approx(Color("2b2118")):
+			_bad("warm float is still bare outlined ink")
 		net._show_deal_float("The ring remembers how they feel.")
 		net._place_warm_float()
 		net._show_leaf_float("The ring remembers how they feel.")
-		if net._deal_float == null or absf(net._deal_float.position.y - top) > 1.0:
-			_bad("deal float y %s" % (net._deal_float.position.y if net._deal_float != null else "null"))
-		if absf(net._warm_float.position.y - (top + 34.0)) > 1.0:
-			_bad("warm float stacked y %.1f" % net._warm_float.position.y)
-		if net._leaf_float == null or absf(net._leaf_float.position.y - (top + 68.0)) > 1.0:
-			_bad("leaf float stacked y %s" % (net._leaf_float.position.y if net._leaf_float != null else "null"))
+		var deal_plate: Control = net._float_plate(net._deal_float) if net._deal_float != null else null
+		var leaf_plate: Control = net._float_plate(net._leaf_float) if net._leaf_float != null else null
+		if deal_plate == null or not bool(deal_plate.get_meta("map_float_plate", false)) or absf(deal_plate.position.y - top) > 1.0:
+			_bad("deal float y %s" % (deal_plate.position.y if deal_plate != null else "null"))
+		if absf(warm_plate.position.y - (top + 34.0)) > 1.0:
+			_bad("warm float stacked y %.1f" % warm_plate.position.y)
+		if leaf_plate == null or not bool(leaf_plate.get_meta("map_float_plate", false)) or absf(leaf_plate.position.y - (top + 68.0)) > 1.0:
+			_bad("leaf float stacked y %s" % (leaf_plate.position.y if leaf_plate != null else "null"))
 	if st.dim == null or not st.dim.visible or st.dim.z_index <= net.sheet.z_index:
 		_bad("journal on the map is not dimmed (dim %s)" % (st.dim.z_index if st.dim != null else "null"))
 	st._ensure_menu()
@@ -438,6 +452,46 @@ func _round2(st) -> void:
 	await _night_clears_rail(st)
 	if st.has_method("_close_notice"):
 		st._close_notice()
+
+
+## Round 3 plates yard toasts and map first-floats. No new strings, and the 125% default stays in _round2.
+func _round3(st) -> void:
+	var station := FileAccess.get_file_as_string("res://ui/station.gd")
+	var switch_at := station.find("func _room_switch")
+	var switch_end := station.find("func _room_status_lines", switch_at)
+	if switch_at < 0 or switch_end < switch_at:
+		_bad("room switch missing")
+	else:
+		var switch_fn := station.substr(switch_at, switch_end - switch_at)
+		if switch_fn.find("if not bool(info.can) and str(info.reason) == \"\":") < 0:
+			_bad("N9 still shows Switch off with an empty reason")
+	if station.find("burn_button.tooltip_text = Copy.t(\"Burn salvage\")") < 0:
+		_bad("burn tip is raw English")
+	if station.find("power_button.tooltip_text = Copy.t(\"Power order\")") < 0:
+		_bad("power tip is raw English")
+	if station.find("people_button.tooltip_text = Copy.t(\"Residents\")") < 0:
+		_bad("people tip is raw English")
+	var theme: Theme = st._tooltip_theme()
+	var grab: StyleBoxFlat = theme.get_stylebox("grabber", "VScrollBar") as StyleBoxFlat
+	var track: StyleBoxFlat = theme.get_stylebox("scroll", "HScrollBar") as StyleBoxFlat
+	if grab == null or grab.bg_color.r < 0.4 or grab.bg_color.g < 0.3:
+		_bad("scrollbar grabber is not brass")
+	if track == null or track.bg_color.a < 0.4 or track.bg_color.r > 0.2:
+		_bad("scrollbar track is not the dark brass well")
+	var motion := Settings.reduce_motion
+	Settings.reduce_motion = true
+	st.showing_network = false
+	st._toast("Order sent. The result comes at next dawn.")
+	Settings.reduce_motion = motion
+	if st.toast_plate == null or not st.toast_plate.visible or st.toast_label.get_parent() != st.toast_plate:
+		_bad("yard toast is still bare")
+	else:
+		var yard: StyleBoxFlat = st.toast_plate.get_theme_stylebox("panel")
+		var tip: StyleBoxFlat = st._tip_plate_style()
+		if yard == null or tip == null or not yard.bg_color.is_equal_approx(tip.bg_color):
+			_bad("yard toast is not the tip plate")
+		if st.toast_label.get_theme_constant("outline_size") != 0:
+			_bad("yard toast is still outlined")
 
 
 ## Night runs sits above End turn, clear of the People rail's round mark, in EN and RU at 100% and 125%.
