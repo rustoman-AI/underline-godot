@@ -91,7 +91,7 @@
       },
       "lila": {
         "en": "Mapped the upper vents for the Diggers. Never liked the closed ones.",
-        "ru": "Снимала карту верхних вентов для Копателей. Закрытые не любила."
+        "ru": "Снимала карту верхних отдушин для Диггеров. Закрытые не любила."
       },
       "pete": {
         "en": "Haul crew on the Canal scrap run. Strong back, few words.",
@@ -177,7 +177,7 @@
       {
         "id": "past_pool_8",
         "en": "Walked a beat at Chambers. The badge outlasted the precinct.",
-        "ru": "Патрулировал{a} Чамберс. Жетон пережил участок."
+        "ru": "Патрулировал{a} у Чемберс. Жетон пережил участок."
       },
       {
         "id": "past_pool_9",
@@ -574,7 +574,7 @@
       {
         "id": "injured_1",
         "en": "{name} came back hurt. Two weeks off the tools.",
-        "ru": "{name} вернулся{a} с ранением. Две недели без станков."
+        "ru": "{name} пришёл{a} назад с ранением. Две недели без станков."
       },
       {
         "id": "injured_2",
@@ -606,7 +606,7 @@
       {
         "id": "sick_1",
         "en": "{name} is coughing into a sleeve. The infirmary knows the name.",
-        "ru": "{name} кашляет в рукав. Медпункт знает это имя."
+        "ru": "{name} кашляет в рукав. Лазарет знает это имя."
       },
       {
         "id": "sick_2",
@@ -648,7 +648,7 @@
       {
         "id": "named_dilemma_3",
         "en": "{name} stood in the middle of a bad choice. The platform watched.",
-        "ru": "{name} оказался{a} меж двух плохих дорог. Платформа смотрела."
+        "ru": "{name} стоял{a} между двух плохих дорог. Платформа смотрела."
       },
       {
         "id": "named_dilemma_4",
