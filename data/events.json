@@ -186,7 +186,7 @@
   ]},
   {"id": "ration_coat", "banner": "ration_coat", "tag": "cough", "title": {"en": "A ration in Barnum's coat", "ru": "Паёк за пазухой у Барнума"}, "sasha": true, "major": false, "min_week": 4, "weight": 2, "cooldown": 8, "who": "Old Man Coney", "text": {"en": "Old Man Coney caught Barnum leaving the kitchen with a ration inside his coat. Barnum says it was for Sylvia, who has been too sick to stand in line for two days. The whole platform saw it.", "ru": "Старик Кони поймал Барнума на выходе из кухни с пайком за пазухой. Барнум говорит, что нёс его Сильвии: она второй день не может выстоять очередь. Это видела вся платформа."}, "choices": [
     {"id": "dock", "label": {"en": "Dock Barnum's share for a week", "ru": "Урезать Барнуму паёк на неделю"}, "discontent": -1, "hope": -1},
-    {"id": "feed", "label": {"en": "Let it go and bring Sylvia her bowl", "ru": "Простить и носить Сильвии еду в койку"}, "cost": {"food": 2}, "hope": 1, "discontent": 1},
+    {"id": "feed", "label": {"en": "Let it go and bring Sylvia her bowl", "ru": "Простить, а Сильвии отнести миску"}, "cost": {"food": 2}, "hope": 1, "discontent": 1},
     {"id": "vote", "label": {"en": "Let the platform decide", "ru": "Пусть решает платформа"}, "cost": {"influence": 2}, "discontent": -2}
   ]},
   {"id": "armband", "title": "The man without an armband", "major": false, "min_week": 9, "weight": 2, "cooldown": 99, "who": "Owen", "text": "Owen found a Directorate man asleep behind the generator. He took his armband off before he lay down. He asks not to be sent back to Rhee.", "choices": [
@@ -199,7 +199,7 @@
     {"id": "share", "label": {"en": "Share equally", "ru": "Делить поровну"}},
     {"id": "pier", "label": {"en": "Send Bait to the Dead Pier", "ru": "Послать Наживку на Мёртвый пирс"}, "map": true}
   ]},
-  {"id": "breathers_price", "banner": "breathers_price", "tag": "dark", "title": {"en": "The Breathers' price", "ru": "Цена Дышащих"}, "text": {"en": "Bowling Green will sell air, but not for kindness. They want hands, tokens, or a night you will not admit to.", "ru": "Боулинг-Грин продаст воздух, но не из доброты. Им нужны руки, жетоны — или ночь, в которой вы не признаетесь."}, "major": true, "weight": 0, "chain_only": false, "trigger": {"air_weeks_lt": 1, "station_known": "bowling"}, "choices": [
+  {"id": "breathers_price", "banner": "breathers_price", "tag": "dark", "title": {"en": "The Breathers' price", "ru": "Цена Дышащих"}, "text": {"en": "Bowling Green will sell air, but not for kindness. They want hands, tokens, or a night you will not admit to.", "ru": "Боулинг-Грин продаст воздух, но не из доброты. Им нужны руки, жетоны — или ночь, о которой лучше молчать."}, "major": true, "weight": 0, "chain_only": false, "trigger": {"air_weeks_lt": 1, "station_known": "bowling"}, "choices": [
     {"id": "lend", "label": {"en": "Lend two residents for four weeks", "ru": "Отдать двоих жителей на четыре недели"}},
     {"id": "pay", "label": {"en": "Pay in tokens", "ru": "Заплатить жетонами"}},
     {"id": "night", "label": {"en": "Take it at night", "ru": "Взять ночью"}, "map": true}

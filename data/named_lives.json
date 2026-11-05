@@ -12,7 +12,7 @@
     {
       "id": "food_shortage",
       "en": "{name} did not wake. The bowls had been short for too many days.",
-      "ru": "{name} не проснулся{a}. Мискам не хватало слишком много дней."
+      "ru": "{name} не встал{a} утром. Мискам не хватало слишком много дней."
     },
     {
       "id": "air_shortage",
@@ -22,12 +22,12 @@
     {
       "id": "battle",
       "en": "{name} fell on the line. The squad brought back the tag.",
-      "ru": "{name} пал{a} на линии. Отряд вернул жетон."
+      "ru": "{name} пал{a} в бою. Отряд вернул жетон."
     },
     {
       "id": "cough",
       "en": "{name} drowned in the cough. The bunk next to them is empty.",
-      "ru": "{name} захлебнулся{a} кашлем. Соседняя койка пуста."
+      "ru": "{name} умер{a}, захлёбываясь кашлем. Соседняя койка пуста."
     },
     {
       "id": "sealed",
@@ -83,7 +83,7 @@
       },
       "samira": {
         "en": "Machinist on the Fulton dig. Kept a spare drill bit behind her ear.",
-        "ru": "Механик на копке Фултон. Запасное сверло держала за ухом."
+        "ru": "Механик на проходке у Фултон. Запасное сверло держала за ухом."
       },
       "owen": {
         "en": "Platform guard at Spring St. Counted bowls the way he counted rifles.",
@@ -91,7 +91,7 @@
       },
       "lila": {
         "en": "Mapped the upper vents for the Diggers. Never liked the closed ones.",
-        "ru": "Снимала карту верхних вентов для Копателей. Закрытые не любила."
+        "ru": "Снимала карту верхних отдушин для Диггеров. Закрытые не любила."
       },
       "pete": {
         "en": "Haul crew on the Canal scrap run. Strong back, few words.",
@@ -103,7 +103,7 @@
       },
       "hal": {
         "en": "Night watch on the generator. Sleep never suited him anyway.",
-        "ru": "Ночной у генератора. Сон ему и раньше не шёл."
+        "ru": "Ночной сторож у генератора. Сон ему и раньше не шёл."
       },
       "nora": {
         "en": "Water tester for the Keepers. Could taste salt before the meters moved.",
@@ -135,7 +135,7 @@
       },
       "fran": {
         "en": "Ran the quiet crate line with Benny. Preferred doors that did not ask names.",
-        "ru": "Тянула тихую ящичную линию с Бенни. Любила двери, которые не спрашивают имён."
+        "ru": "Вместе с Бенни тихо возила ящики. Любила двери, которые не спрашивают имён."
       }
     },
     "pool": [
@@ -152,7 +152,7 @@
       {
         "id": "past_pool_3",
         "en": "Kept books for a Wall St office that locked its doors mid-sentence.",
-        "ru": "Вёл{a} книги в офисе на Уолл-стрит; двери закрыли на полуслове."
+        "ru": "Вёл{a} бухгалтерию в конторе на Уолл-стрит; двери закрыли на полуслове."
       },
       {
         "id": "past_pool_4",
@@ -162,7 +162,7 @@
       {
         "id": "past_pool_5",
         "en": "Patched cable for the MTA. Still smells like burnt copper after rain.",
-        "ru": "Чинил{a} кабель для MTA. После дождя всё ещё пахнет горелой медью."
+        "ru": "Чинил{a} кабель для метро. После дождя всё ещё пахнет горелой медью."
       },
       {
         "id": "past_pool_6",
@@ -177,7 +177,7 @@
       {
         "id": "past_pool_8",
         "en": "Walked a beat at Chambers. The badge outlasted the precinct.",
-        "ru": "Патрулировал{a} Чамберс. Жетон пережил участок."
+        "ru": "Патрулировал{a} у Чемберс. Жетон пережил участок."
       },
       {
         "id": "past_pool_9",
@@ -252,7 +252,7 @@
       {
         "id": "past_pool_23",
         "en": "Ran numbers for a clerk who vanished with the first flood.",
-        "ru": "Считал{a} цифры для клерка; тот пропал с первым паводком."
+        "ru": "Принимал{a} ставки для клерка; тот пропал с первым паводком."
       },
       {
         "id": "past_pool_24",
@@ -287,7 +287,7 @@
       {
         "id": "past_pool_30",
         "en": "Came up from Flushing with nothing but a name and a cough.",
-        "ru": "Поднялся{a} из Флашинга — только имя и кашель."
+        "ru": "Пришёл{a} из Флашинга — только имя и кашель."
       }
     ]
   },
@@ -552,7 +552,7 @@
       {
         "id": "check_rolled_5",
         "en": "{name} failed a check and came back anyway.",
-        "ru": "{name} провалил{a} проверку и всё равно вернулся{a}."
+        "ru": "{name} провалил{a} проверку и всё равно пришёл{a} назад."
       },
       {
         "id": "check_rolled_6",
@@ -562,7 +562,7 @@
       {
         "id": "check_rolled_7",
         "en": "{name} volunteered before the names were drawn.",
-        "ru": "{name} вызвался{a}, прежде чем тянули имена."
+        "ru": "{name} сам{a} поднял{a} руку, прежде чем тянули имена."
       },
       {
         "id": "check_rolled_8",
@@ -574,7 +574,7 @@
       {
         "id": "injured_1",
         "en": "{name} came back hurt. Two weeks off the tools.",
-        "ru": "{name} вернулся{a} с ранением. Две недели без станков."
+        "ru": "{name} пришёл{a} назад с ранением. Две недели без станков."
       },
       {
         "id": "injured_2",
@@ -594,7 +594,7 @@
       {
         "id": "injured_5",
         "en": "{name} burned a hand on the belt. Still tried to finish the shift.",
-        "ru": "{name} обжёг{a} руку о ленту. Всё равно пытался{a} дотянуть смену."
+        "ru": "{name} обжёг{a} руку о ленту. Всё равно хотел{a} дотянуть смену."
       },
       {
         "id": "injured_6",
@@ -606,12 +606,12 @@
       {
         "id": "sick_1",
         "en": "{name} is coughing into a sleeve. The infirmary knows the name.",
-        "ru": "{name} кашляет в рукав. Медпункт знает это имя."
+        "ru": "{name} кашляет в рукав. Лазарет знает это имя."
       },
       {
         "id": "sick_2",
         "en": "{name} went down with the sickness. The bunk has a bowl beside it.",
-        "ru": "{name} свалился{a} с болезнью. У койки стоит миска."
+        "ru": "{name} заболел{a} и не встаёт. У койки стоит миска."
       },
       {
         "id": "sick_3",
@@ -626,7 +626,7 @@
       {
         "id": "sick_5",
         "en": "{name} is sick in the {room}. The others step around the bed.",
-        "ru": "{name} болеет в {room}. Остальные обходят койку."
+        "ru": "{name} болеет ({room}). Остальные обходят койку."
       },
       {
         "id": "sick_6",
@@ -648,7 +648,7 @@
       {
         "id": "named_dilemma_3",
         "en": "{name} stood in the middle of a bad choice. The platform watched.",
-        "ru": "{name} оказался{a} меж двух плохих дорог. Платформа смотрела."
+        "ru": "{name} стоял{a} между двух плохих дорог. Платформа смотрела."
       },
       {
         "id": "named_dilemma_4",
@@ -670,17 +670,17 @@
       {
         "id": "staffed_shortage_1",
         "en": "{name} kept the {room} through the shortage week.",
-        "ru": "{name} держал{a} {room} всю неделю нехватки."
+        "ru": "{name} не бросил{a} пост ({room}) всю неделю нехватки."
       },
       {
         "id": "staffed_shortage_2",
         "en": "While stores ran thin, {name} stayed on the tools.",
-        "ru": "Пока запасы таяли, {name} оставался{a} у станков."
+        "ru": "Пока запасы таяли, {name} не отходил{a} от станков."
       },
       {
         "id": "staffed_shortage_3",
         "en": "{name} did not leave the {room} when the numbers went red.",
-        "ru": "{name} не ушёл{a} из {room}, когда цифры стали красными."
+        "ru": "{name} не ушёл{a} с места ({room}), когда цифры стали красными."
       },
       {
         "id": "staffed_shortage_4",
@@ -695,7 +695,7 @@
       {
         "id": "staffed_shortage_6",
         "en": "The {room} did not stop. {name} was why.",
-        "ru": "{room} не остановилась. Из-за {name}."
+        "ru": "{room}: работа не встала. Заслуга — {name}."
       },
       {
         "id": "staffed_shortage_7",
@@ -712,7 +712,7 @@
       {
         "id": "night_run_2",
         "en": "{name} came back with a pack and less sleep.",
-        "ru": "{name} вернулся{a} с котомкой и без сна."
+        "ru": "{name} пришёл{a} назад с котомкой и без сна."
       },
       {
         "id": "night_run_3",
@@ -752,7 +752,7 @@
     },
     "named.seasoned": {
       "en": "Seasoned in the {room}.",
-      "ru": "Бывалый в {room}."
+      "ru": "Из Бывалых ({room})."
     },
     "named.known": {
       "en": "Known",
@@ -760,7 +760,7 @@
     },
     "named.birth": {
       "en": "{name} was born in the yard.",
-      "ru": "{name} родился{a} во дворе."
+      "ru": "{name} впервые подал{a} голос во дворе."
     }
   },
   "meta": {

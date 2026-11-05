@@ -229,7 +229,7 @@
       },
       "title": {
         "en": "Speaker of the Rate",
-        "ru": "Председатель Расчётного совета"
+        "ru": "Голос Курса"
       },
       "voice_note": "48, warm and relentless, feeds you first, writes debts on his own forearm in marker, laughs at himself and never at the debtor",
       "first_contact": {
@@ -272,7 +272,7 @@
       },
       "accepted": {
         "en": "Good. The sacks are at your gate. Don't count them in front of me. It hurts my feelings.",
-        "ru": "Хорошо. Мешки у ваших ворот. Не считай их при мне, я обижаюсь."
+        "ru": "Хорошо. Мешки у твоих ворот. Не считай их при мне, я обижаюсь."
       },
       "declined": {
         "en": "Suit yourself. The store isn't going anywhere. Neither is the price.",
@@ -301,7 +301,7 @@
       },
       "title": {
         "en": "Head of Lamps",
-        "ru": "Старший по фонарям"
+        "ru": "Старшая по фонарям"
       },
       "voice_note": "35, quiet, counts steps out loud, never sits with her back to the door, speaks of the dead in the first person plural",
       "first_contact": {

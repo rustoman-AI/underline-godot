@@ -10,7 +10,7 @@ const Map = preload("res://ui/network_view.gd")
 
 const LINES := [
 	["salvage.title", "Salvage", "Утиль"],
-	["salvage.tier0", "Tier 0", "Уровень 0"],
+	["salvage.tier0", "Tier 0", "Ступень 0"],
 	["salvage.tier1", "Tier 1", "Уровень 1"],
 	["salvage.tier2", "Tier 2", "Уровень 2"],
 	["salvage.strip", "Strip scrap", "Разобрать лом"],
@@ -24,7 +24,7 @@ const LINES := [
 	["salvage.need_listening", "Needs Listening Post", "Нужен пост прослушки"],
 	["listening.need_intel", "Need intel 2", "Нужна разведка 2"],
 	["salvage.need_blueprint", "Need a blueprint.", "Нужен чертёж."],
-	["salvage.node.grow_lamps", "grow lamps", "лампы роста"],
+	["salvage.node.grow_lamps", "grow lamps", "фитолампы"],
 	["salvage.node.charcoal", "charcoal", "уголь"],
 	["salvage.node.dynamo", "dynamo", "динамо"],
 	["salvage.node.drill_heads", "drill heads", "буровые головки"],
@@ -43,12 +43,12 @@ const LINES := [
 	["staff.salvage.strip_1", "Stripped a useful plate from the scrap.", "Сняли с лома полезную пластину."],
 	["staff.salvage.strip_2", "Hours over cold metal. Something worth drawing.", "Часы над холодным металлом. Что-то стоит начертить."],
 	["staff.salvage.strip_3", "The scrap gave up a line. Blueprint chalked.", "Лом отдал линию. Чертёж наметили мелом."],
-	["staff.salvage.fit_1", "Fitted. The yard feels it hold.", "Поставили. Двор чувствует, как держит."],
+	["staff.salvage.fit_1", "Fitted. The yard feels it hold.", "Поставили. Двор это чувствует."],
 	["staff.salvage.fit_2", "Bolted in. No speech. Just the wrench.", "Закрутили. Без речей. Только ключ."],
-	["staff.salvage.fit_3", "Another piece found a home on the board.", "Ещё одна деталь нашла место на доске."],
+	["staff.salvage.fit_3", "Another piece found a home on the board.", "Ещё одна деталь встала на доску."],
 	["staff.salvage.who.Pete", "Pete takes the strip shift. He knows which belts still sing.", "Пит берёт смену на разбор. Знает, какие ремни ещё поют."],
 	["staff.salvage.who.Benny", "Benny sorts scrap like names on a board — nothing left blank.", "Бенни сортирует лом, как имена на доске — ничего пустого."],
-	["staff.salvage.who.June", "June fits quiet. She does not celebrate a bolt.", "Джун ставит тихо. Болт не празднует."],
+	["staff.salvage.who.June", "June fits quiet. She does not celebrate a bolt.", "Джун ставит молча. Из болта праздника не делает."],
 ]
 
 var catalog: Catalog
@@ -160,7 +160,7 @@ func _strings() -> void:
 		_expect(en == str(row[1]) and ru == str(row[2]), str(row[0]), "%s en=%s ru=%s" % [row[0], en, ru])
 	Copy.set_lang("ru")
 	_expect(Copy.t("grow lamps") == "фитолампы", "Room card keeps фитолампы", "grow lamps -> %s" % Copy.t("grow lamps"))
-	_expect(Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node.grow_lamps")}) == "Поставили: лампы роста",
+	_expect(Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node.grow_lamps")}) == "Поставили: фитолампы",
 		"Fitted line fills the node name", Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node.grow_lamps")}))
 	Copy.set_lang("en")
 	_expect(Copy.fill("salvage.fitted", {"name": "grow lamps"}) == "Fitted grow lamps", "English fitted line", Copy.fill("salvage.fitted", {"name": "grow lamps"}))

@@ -270,7 +270,7 @@
         "ru": "Гроссбух мёртвых"
       },
       "blurb": {
-        "en": "Names go in the book. Mats from what they leave. Cite P67 death card.",
+        "en": "Names go in the book. Mats from what they leave.",
         "ru": "Имена — в книгу. Маты с того, что осталось. См. карточку смерти P67."
       }
     },
@@ -293,7 +293,7 @@
         "ru": "Погребальный ход"
       },
       "blurb": {
-        "en": "Six mats and a dug level-three cell. Each burial: hope up one. Cite P67 Bury.",
+        "en": "Six mats and a dug level-three cell. Each burial: hope up one.",
         "ru": "Шесть матов и вырытая камера третьего яруса. Каждые похороны: надежда +1. См. P67 Похоронить."
       }
     },
@@ -316,7 +316,7 @@
       },
       "blurb": {
         "en": "Lights out early. Discontent eases. Influence thins. Watch opens.",
-        "ru": "Свет гасят рано. Недовольство тише. Влияние жиже. Дозор открыт."
+        "ru": "Свет гасят рано. Недовольство тише. Влияние жиже. Стража открыта."
       }
     },
     {
@@ -373,7 +373,7 @@
         "ru": "Постоянная линия. Бунта нет, пока отряд дома и надежда держится. Каждую неделю при высоком недовольстве один именной уходит вниз по линии."
       },
       "line_text": {
-        "en": "The Timetable does not bend. While the squad sleeps under our roof and hope holds the floor, revolt stays quiet. When discontent runs hot, one named name walks the line down. Hope pays. This does not unwrite.",
+        "en": "The Timetable does not bend. While the squad sleeps under our roof and hope holds the floor, revolt stays quiet. When discontent runs hot, one named resident walks the line down. Hope pays. This does not unwrite.",
         "ru": "Расписание не гнётся. Пока отряд спит под нашей крышей и надежда держится, бунт молчит. Когда недовольство кипит — один именной идёт вниз по линии. Надежда платит. Это не переписывается."
       }
     },
@@ -454,7 +454,7 @@
       },
       "line_text": {
         "en": "The Covenant binds the platform. Sermons do not leave. Hope keeps a floor. The Synod counts us among its own. Ex-drivers and the Directorate will not forgive it. This does not unwrite.",
-        "ru": "Завет вяжет платформу. Проповеди не уходят. У надежды есть порог. Синод считает нас своими. Бывшие водители и Директорат этого не простят. Это не переписывается."
+        "ru": "Завет вяжет платформу. Проповеди не уходят. У надежды есть порог. Синод считает нас своими. Бывшие машинисты и Дирекция этого не простят. Это не переписывается."
       }
     },
     {
@@ -534,7 +534,7 @@
       },
       "line_text": {
         "en": "Everything has a price on this platform. A resident can be sold. A migrant bought. Hope purchased once a week — for those who can pay. Devout and Ex-drivers will not forget the ledger. This does not unwrite.",
-        "ru": "На этой платформе у всего есть цена. Жителя можно продать. Переселенца — купить. Надежду — раз в неделю, для тех кто платит. Набожные и бывшие водители гроссбух не забудут. Это не переписывается."
+        "ru": "На этой платформе у всего есть цена. Жителя можно продать. Переселенца — купить. Надежду — раз в неделю, для тех кто платит. Набожные и бывшие машинисты гроссбух не забудут. Это не переписывается."
       }
     }
   ],
@@ -601,7 +601,7 @@
     },
     "creed.watch": {
       "en": "Watch",
-      "ru": "Дозор"
+      "ru": "Стража"
     },
     "creed.chapel": {
       "en": "Chapel",
@@ -617,7 +617,7 @@
     },
     "creed.watch_tip": {
       "en": "Directorate leans in. Exchange cools. Order over warmth.",
-      "ru": "Директорат ближе. Биржа холодеет. Порядок важнее тепла."
+      "ru": "Дирекция ближе. Биржа холодеет. Порядок важнее тепла."
     },
     "creed.chapel_tip": {
       "en": "Synod leans in. Penn cools. Faith over freight.",
@@ -625,7 +625,7 @@
     },
     "creed.market_tip": {
       "en": "Exchange leans in. Directorate cools. Price over creed.",
-      "ru": "Биржа ближе. Директорат холодеет. Цена важнее кредо."
+      "ru": "Биржа ближе. Дирекция холодеет. Цена важнее кредо."
     },
     "creed.none_tip": {
       "en": "Engineers' Charter stays Depot root. Epilogue remembers the Depot.",
@@ -692,7 +692,7 @@
       "ru": "Гроссбух мёртвых"
     },
     "law.blurb.ledger": {
-      "en": "Names go in the book. Mats from what they leave. Cite P67 death card.",
+      "en": "Names go in the book. Mats from what they leave.",
       "ru": "Имена — в книгу. Маты с того, что осталось. См. карточку смерти P67."
     },
     "law.name.burial_tunnel": {
@@ -700,7 +700,7 @@
       "ru": "Погребальный ход"
     },
     "law.blurb.burial_tunnel": {
-      "en": "Six mats and a dug level-three cell. Each burial: hope up one. Cite P67 Bury.",
+      "en": "Six mats and a dug level-three cell. Each burial: hope up one.",
       "ru": "Шесть матов и вырытая камера третьего яруса. Каждые похороны: надежда +1. См. P67 Похоронить."
     },
     "law.name.curfew": {
@@ -709,7 +709,7 @@
     },
     "law.blurb.curfew": {
       "en": "Lights out early. Discontent eases. Influence thins. Watch opens.",
-      "ru": "Свет гасят рано. Недовольство тише. Влияние жиже. Дозор открыт."
+      "ru": "Свет гасят рано. Недовольство тише. Влияние жиже. Стража открыта."
     },
     "law.name.conscription": {
       "en": "Conscription",
@@ -736,7 +736,7 @@
       "ru": "Постоянная линия. Бунта нет, пока отряд дома и надежда держится. Каждую неделю при высоком недовольстве один именной уходит вниз по линии."
     },
     "law.line_text.timetable": {
-      "en": "The Timetable does not bend. While the squad sleeps under our roof and hope holds the floor, revolt stays quiet. When discontent runs hot, one named name walks the line down. Hope pays. This does not unwrite.",
+      "en": "The Timetable does not bend. While the squad sleeps under our roof and hope holds the floor, revolt stays quiet. When discontent runs hot, one named resident walks the line down. Hope pays. This does not unwrite.",
       "ru": "Расписание не гнётся. Пока отряд спит под нашей крышей и надежда держится, бунт молчит. Когда недовольство кипит — один именной идёт вниз по линии. Надежда платит. Это не переписывается."
     },
     "law.name.sermons": {
@@ -773,7 +773,7 @@
     },
     "law.line_text.covenant": {
       "en": "The Covenant binds the platform. Sermons do not leave. Hope keeps a floor. The Synod counts us among its own. Ex-drivers and the Directorate will not forgive it. This does not unwrite.",
-      "ru": "Завет вяжет платформу. Проповеди не уходят. У надежды есть порог. Синод считает нас своими. Бывшие водители и Директорат этого не простят. Это не переписывается."
+      "ru": "Завет вяжет платформу. Проповеди не уходят. У надежды есть порог. Синод считает нас своими. Бывшие машинисты и Дирекция этого не простят. Это не переписывается."
     },
     "law.name.open_market": {
       "en": "Open market",
@@ -809,7 +809,7 @@
     },
     "law.line_text.everything_has_a_price": {
       "en": "Everything has a price on this platform. A resident can be sold. A migrant bought. Hope purchased once a week — for those who can pay. Devout and Ex-drivers will not forget the ledger. This does not unwrite.",
-      "ru": "На этой платформе у всего есть цена. Жителя можно продать. Переселенца — купить. Надежду — раз в неделю, для тех кто платит. Набожные и бывшие водители гроссбух не забудут. Это не переписывается."
+      "ru": "На этой платформе у всего есть цена. Жителя можно продать. Переселенца — купить. Надежду — раз в неделю, для тех кто платит. Набожные и бывшие машинисты гроссбух не забудут. Это не переписывается."
     },
     "law.tab_adaptation": {
       "en": "Adaptation",

@@ -69,21 +69,21 @@ func _check_strings() -> bool:
 		print("Strings: FAIL en tip")
 		return false
 	Copy.set_lang("ru")
-	if Copy.t("push.button") != "Нажать" or Copy.t("Push") != "Нажать":
+	if Copy.t("push.button") != "Выжать" or Copy.t("Push") != "Выжать":
 		print("Strings: FAIL ru button ", Copy.t("push.button"), " / ", Copy.t("Push"))
 		return false
 	var pairs := {
-		"push.disabled_room": "Эту комнату нажимать нельзя.",
-		"push.disabled_used": "На этой неделе уже нажимали.",
-		"push.confirm_title": "Нажать эту комнату?",
+		"push.disabled_room": "Эту комнату не выжать.",
+		"push.disabled_used": "На этой неделе уже выжимали.",
+		"push.confirm_title": "Выжать эту комнату?",
 		"push.incident.hydroponics": "Гидропоника: гниль. −4 еды.",
-		"push.incident.air_filter": "Воздушный фильтр: пожар у створки. Комната выключена на неделю, 1 ранен.",
+		"push.incident.air_filter": "Воздушный фильтр: пожар у створки. Комната встала на неделю, 1 ранен.",
 		"push.incident.generator": "Генератор: выброс. −8 энергии, 1 ранен.",
 		"push.incident.workshop": "Мастерская: авария. 1 ранен.",
 		"push.incident.meeting_hall": "Зал собраний: крик. Недовольство +4.",
-		"push.incident.generic": "Нажим сорвался. Что-то сломалось.",
+		"push.incident.generic": "Выжим сорвался. Что-то сломалось.",
 		"push.incident_known": "{name} пострадал{a}.",
-		"push.toast_ok": "{room}: нажали. Ночной выход удвоится.",
+		"push.toast_ok": "{room}: выжали. Ночной выход удвоится.",
 	}
 	for key in pairs:
 		if Copy.t(str(key)) != str(pairs[key]):

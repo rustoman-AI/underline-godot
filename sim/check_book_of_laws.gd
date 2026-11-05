@@ -92,7 +92,7 @@ func _strings() -> bool:
 		"law.cooldown": ["Meeting hall cooling down — {n} weeks.", "Зал собраний остывает — {n} нед."],
 		"law.enact_tip": ["Pass this law. Next sitting in {n} weeks.", "Принять этот закон. Следующее заседание через {n} нед."],
 		"law.in_force": ["In force.", "Действует."],
-		"creed.watch": ["Watch", "Дозор"],
+		"creed.watch": ["Watch", "Стража"],
 		"creed.chapel": ["Chapel", "Часовня"],
 		"creed.market": ["Market", "Рынок"],
 		"creed.none_hint": ["No creed — Depot holds.", "Без кредо — держит Депо."],

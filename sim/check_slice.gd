@@ -793,7 +793,7 @@ func _check_merge(catalog: Catalog) -> bool:
 	if not bool(mid.joins) or int(mid.width) != 3:
 		print("Merge: FAIL width 3 ", mid.width, " ", mid.joins)
 		return false
-	if str(mid.bonus_line) != "Joins Hydroponics: +20% food, 2 fewer worker. Shares power, sickness and disasters.":
+	if str(mid.bonus_line) != "Joins Hydroponics: +20% food, 2 fewer workers. Shares power, sickness and disasters.":
 		print("Merge: FAIL tag3 ", mid.bonus_line)
 		return false
 	game._place_room("hydroponics", 2, 1)

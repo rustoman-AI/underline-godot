@@ -58,10 +58,10 @@ func _check_strings() -> bool:
 	if Copy.t("pressure.chip_ready") != "Assault ready":
 		_bad("chip en")
 		return false
-	if Copy.fill("pressure.hover_ready", {"n": 2}) != "Under pressure · 2 weeks. Assault ready.":
+	if Copy.fill("pressure.hover_ready", {"n": 2}) != "Under pressure · 2 wk. Assault ready.":
 		_bad("hover_ready en")
 		return false
-	if Copy.fill("pressure.claim_hover", {"faction": "Exchange", "n": 9}) != "Exchange claim · 9 weeks":
+	if Copy.fill("pressure.claim_hover", {"faction": "Exchange", "n": 9}) != "Exchange claim · 9 wk":
 		_bad("claim hover en")
 		return false
 	if Copy.fill("pressure.visit_line", {"n": 2, "name": "Iron Directorate"}) != "Pressure 2/2 · Claim: Iron Directorate":
@@ -246,7 +246,7 @@ func _check_rules(catalog: Catalog) -> bool:
 		_bad("chip at 1 week")
 		return false
 	var hover := "\n".join(siege.hover)
-	if not hover.contains("Under pressure · 1 week") or not hover.contains("Iron Directorate is squeezing") or not hover.contains("Iron Directorate claim · 7 weeks"):
+	if not hover.contains("Under pressure · 1 week") or not hover.contains("Iron Directorate is squeezing") or not hover.contains("Iron Directorate claim · 7 wk"):
 		_bad("hover " + hover)
 		return false
 	st.low_weeks = 2
