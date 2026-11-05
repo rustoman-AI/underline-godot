@@ -2140,13 +2140,13 @@ func _show_leaf_float(line: String) -> void:
 		_leaf_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_leaf_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_leaf_float.add_theme_font_size_override("font_size", 18)
-		_leaf_float.add_theme_color_override("font_color", LeafletDust.INK)
-		_leaf_float.add_theme_constant_override("outline_size", 6)
-		_leaf_float.add_theme_color_override("font_outline_color", Color(LeafletDust.PAPER, 0.92))
-		add_child(_leaf_float)
+		_bind_float_plate(_leaf_float)
+	var plate := _float_plate(_leaf_float)
 	_leaf_float.text = line
 	_leaf_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
 	_leaf_float.visible = true
+	plate.visible = true
 	if _leaf_float_tween != null and _leaf_float_tween.is_valid():
 		_leaf_float_tween.kill()
 	_place_leaf_float()
@@ -2156,31 +2156,85 @@ func _show_leaf_float(line: String) -> void:
 	if _motion_off():
 		_leaf_float_tween.tween_interval(4.2)
 	else:
-		var rise := _leaf_float.position.y - 18.0
-		_leaf_float_tween.tween_property(_leaf_float, "position:y", rise, 2.4)
-		_leaf_float_tween.parallel().tween_property(_leaf_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+		var rise := plate.position.y - 18.0
+		_leaf_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_leaf_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
 	_leaf_float_tween.tween_callback(func() -> void:
 		if _leaf_float != null:
-			_leaf_float.visible = false)
+			_leaf_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
 
 
 ## N4b: the top of the map float stack (deal, first warmth, leaflet; 34 px apart). It starts under the HUD with room
-## for the 18 px rise, so no float ends on the black bar. Interim until the X1 stacker lands; spacing unchanged.
+## for the 18 px rise, so no float ends on the black bar. X1 plates these chips; this y math stays.
 func _float_top() -> float:
 	return _hud_top() + 8.0 + 18.0
+
+
+## X1 / N10 / R12: the map toast slip, tightened so a 28 px line plus paper still fits the 34 px N4b slot.
+func _map_float_face() -> StyleBoxFlat:
+	var face: StyleBoxFlat
+	if host != null and host.has_method("_map_toast_face"):
+		face = host._map_toast_face()
+	else:
+		face = StyleBoxFlat.new()
+		face.bg_color = TAG_PAPER
+		face.border_color = Color(TAG_INK, 0.85)
+		face.set_border_width_all(1)
+		face.shadow_color = Color(0, 0, 0, 0.35)
+		face.shadow_size = 3
+		face.shadow_offset = Vector2(1, 2)
+	face.content_margin_top = 2
+	face.content_margin_bottom = 2
+	face.content_margin_left = 12
+	face.content_margin_right = 12
+	return face
+
+
+func _bind_float_plate(label: Label) -> void:
+	var plate := PanelContainer.new()
+	plate.set_meta("map_float_plate", true)
+	plate.z_index = label.z_index
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_theme_stylebox_override("panel", _map_float_face())
+	label.add_theme_color_override("font_color", TAG_INK)
+	label.add_theme_constant_override("outline_size", 0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	plate.add_child(label)
+	add_child(plate)
+
+
+func _float_plate(label: Label) -> Control:
+	var parent := label.get_parent()
+	if parent is PanelContainer and bool(parent.get_meta("map_float_plate", false)):
+		return parent
+	return label
+
+
+func _place_float_chip(label: Label, y: float) -> void:
+	var plate := _float_plate(label)
+	label.custom_minimum_size = Vector2(420, 28)
+	var extra := Vector2(24, 4)
+	if plate is PanelContainer:
+		var face := plate.get_theme_stylebox("panel")
+		if face != null:
+			extra = Vector2(face.get_margin(SIDE_LEFT) + face.get_margin(SIDE_RIGHT), face.get_margin(SIDE_TOP) + face.get_margin(SIDE_BOTTOM))
+	plate.size = Vector2(420.0 + extra.x, 28.0 + extra.y)
+	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
 
 
 func _place_leaf_float() -> void:
 	if _leaf_float == null or not _leaf_float.visible:
 		return
-	_leaf_float.custom_minimum_size = Vector2(420, 28)
-	_leaf_float.size = Vector2(420, 28)
 	var y := _float_top()
 	if _deal_float != null and _deal_float.visible:
 		y += 34.0
 	if _warm_float != null and _warm_float.visible:
 		y += 34.0
-	_leaf_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+	_place_float_chip(_leaf_float, y)
 
 
 ## First need tick of a run, and only once the visit sheet for that station is open.
@@ -2420,13 +2474,13 @@ func _show_warm_float(line: String) -> void:
 		_warm_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_warm_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_warm_float.add_theme_font_size_override("font_size", 18)
-		_warm_float.add_theme_color_override("font_color", PinWarmth.WARM)
-		_warm_float.add_theme_constant_override("outline_size", 6)
-		_warm_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		add_child(_warm_float)
+		_bind_float_plate(_warm_float)
+	var plate := _float_plate(_warm_float)
 	_warm_float.text = line
 	_warm_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
 	_warm_float.visible = true
+	plate.visible = true
 	if _warm_float_tween != null and _warm_float_tween.is_valid():
 		_warm_float_tween.kill()
 	_place_warm_float()
@@ -2436,23 +2490,23 @@ func _show_warm_float(line: String) -> void:
 	if _motion_off():
 		_warm_float_tween.tween_interval(4.2)
 	else:
-		var rise := _warm_float.position.y - 18.0
-		_warm_float_tween.tween_property(_warm_float, "position:y", rise, 2.4)
-		_warm_float_tween.parallel().tween_property(_warm_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+		var rise := plate.position.y - 18.0
+		_warm_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_warm_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
 	_warm_float_tween.tween_callback(func() -> void:
 		if _warm_float != null:
-			_warm_float.visible = false)
+			_warm_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
 
 
 func _place_warm_float() -> void:
 	if _warm_float == null or not _warm_float.visible:
 		return
-	_warm_float.custom_minimum_size = Vector2(420, 28)
-	_warm_float.size = Vector2(420, 28)
 	var y := _float_top()
 	if _deal_float != null and _deal_float.visible:
 		y += 34.0
-	_warm_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+	_place_float_chip(_warm_float, y)
 
 
 func _note_first_deal_marks() -> void:
@@ -2471,13 +2525,13 @@ func _show_deal_float(line: String) -> void:
 		_deal_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_deal_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_deal_float.add_theme_font_size_override("font_size", 18)
-		_deal_float.add_theme_color_override("font_color", DEAL_BRASS)
-		_deal_float.add_theme_constant_override("outline_size", 6)
-		_deal_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		add_child(_deal_float)
+		_bind_float_plate(_deal_float)
+	var plate := _float_plate(_deal_float)
 	_deal_float.text = line
 	_deal_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
 	_deal_float.visible = true
+	plate.visible = true
 	if _deal_float_tween != null and _deal_float_tween.is_valid():
 		_deal_float_tween.kill()
 	_place_deal_float()
@@ -2487,20 +2541,20 @@ func _show_deal_float(line: String) -> void:
 	if _motion_off():
 		_deal_float_tween.tween_interval(4.2)
 	else:
-		var rise := _deal_float.position.y - 18.0
-		_deal_float_tween.tween_property(_deal_float, "position:y", rise, 2.4)
-		_deal_float_tween.parallel().tween_property(_deal_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+		var rise := plate.position.y - 18.0
+		_deal_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_deal_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
 	_deal_float_tween.tween_callback(func() -> void:
 		if _deal_float != null:
-			_deal_float.visible = false)
+			_deal_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
 
 
 func _place_deal_float() -> void:
 	if _deal_float == null or not _deal_float.visible:
 		return
-	_deal_float.custom_minimum_size = Vector2(420, 28)
-	_deal_float.size = Vector2(420, 28)
-	_deal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), _float_top())
+	_place_float_chip(_deal_float, _float_top())
 
 
 func _draw_deal_pips(c: CanvasItem, game) -> void:
