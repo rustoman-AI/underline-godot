@@ -1648,9 +1648,9 @@ func _build() -> void:
 	var journal_button := _tool("journal", "Journal", _show_journal)
 	pending_button = _tool("lock", "Pending", _show_pending)
 	pending_button.visible = false
-	burn_button.tooltip_text = "Burn salvage"
-	power_button.tooltip_text = "Power order"
-	people_button.tooltip_text = "Residents"
+	burn_button.tooltip_text = Copy.t("Burn salvage")
+	power_button.tooltip_text = Copy.t("Power order")
+	people_button.tooltip_text = Copy.t("Residents")
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
 	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, charges_button, salvage_button, journal_button, pending_button]:
 		tray.add_child(button)
@@ -5500,6 +5500,10 @@ func _room_switch(uid: String) -> void:
 	var info: Dictionary = game.switch_preview(uid)
 	if int(info.saves) <= 0:
 		return
+	## N9: Platform returns can=false with an empty reason. Hide the row so a disabled Switch off
+	## never sits next to "Switch it off to stop both." with an empty tip.
+	if not bool(info.can) and str(info.reason) == "":
+		return
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -6451,27 +6455,20 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	if not on_map:
 		toast_y = _yard_toast_y(toast_y)
 	var origin := Vector2(16.0 + icon_w, toast_y)
-	if on_map:
-		if toast_plate == null:
-			toast_plate = PanelContainer.new()
-			toast_plate.z_index = 30
-			toast_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			toast_plate.add_theme_stylebox_override("panel", _map_toast_face())
-			add_child(toast_plate)
-		_park_toast_label(toast_plate)
-		toast_label.add_theme_color_override("font_color", SLIP_INK)
-		toast_label.add_theme_constant_override("outline_size", 0)
-		toast_plate.position = origin
-		toast_plate.visible = true
-		toast_plate.modulate.a = 1.0
-	else:
-		_park_toast_label(self)
-		toast_label.add_theme_color_override("font_color", INK)
-		toast_label.add_theme_constant_override("outline_size", 6)
-		toast_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		toast_label.position = origin
-		if toast_plate != null:
-			toast_plate.visible = false
+	## R10 / YA1: yard toasts were bare outlined ink over the skyline. Plate every toast.
+	## Map keeps the paper slip; yard uses the dark tip plate so it reads on the skyline.
+	if toast_plate == null:
+		toast_plate = PanelContainer.new()
+		toast_plate.z_index = 30
+		toast_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(toast_plate)
+	toast_plate.add_theme_stylebox_override("panel", _map_toast_face() if on_map else _tip_plate_style())
+	_park_toast_label(toast_plate)
+	toast_label.add_theme_color_override("font_color", SLIP_INK if on_map else Color("efe6d2"))
+	toast_label.add_theme_constant_override("outline_size", 0)
+	toast_plate.position = origin
+	toast_plate.visible = true
+	toast_plate.modulate.a = 1.0
 	if blown_flash != null and blown:
 		blown_flash.position = Vector2(8.0, origin.y - 18.0)
 		blown_flash.modulate.a = 1.0
@@ -6483,7 +6480,7 @@ func _toast(text: String, hold: float = 1.8) -> void:
 	toast_fade = create_tween()
 	var fade := toast_fade
 	fade.tween_interval(hold)
-	var fade_node: CanvasItem = toast_plate if on_map and toast_plate != null else toast_label
+	var fade_node: CanvasItem = toast_plate if toast_plate != null else toast_label
 	if not _motion_off():
 		fade.tween_property(fade_node, "modulate:a", 0.0, 0.35)
 		if blown_flash != null and blown:
@@ -7597,6 +7594,20 @@ func _tooltip_theme() -> Theme:
 	tips.set_stylebox("panel", "TooltipPanel", _tip_plate_style())
 	tips.set_color("font_color", "TooltipLabel", Color("efe6d2"))
 	tips.set_font_size("font_size", "TooltipLabel", 16)
+	## P2: Journal / sheet / people drawer used the default grey Godot scrollbar.
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.08, 0.07, 0.06, 0.55)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	for kind in ["VScrollBar", "HScrollBar"]:
+		tips.set_stylebox("scroll", kind, track)
+		tips.set_stylebox("scroll_focus", kind, track)
+		tips.set_stylebox("grabber", kind, grab)
+		tips.set_stylebox("grabber_highlight", kind, grab)
+		tips.set_stylebox("grabber_pressed", kind, grab)
 	return tips
 
 
@@ -10593,6 +10604,11 @@ func _show_menu() -> void:
 	load_button.disabled = not SaveGame.has_manual()
 	if load_button.disabled:
 		load_button.tooltip_text = Copy.t("No saved game.")
+		## R4: N2's borderless disabled face makes the pause grid look like a missing cell. Keep a muted hairline here only.
+		var face := _button_disabled_face()
+		face.set_border_width_all(1)
+		face.border_color = Color(PAPER_EDGE if on_paper else Color(1, 1, 1, 0.16), 0.55)
+		load_button.add_theme_stylebox_override("disabled", face)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 8)
@@ -14148,6 +14164,48 @@ func _fill_credits() -> void:
 	on_paper = false
 
 
+## R4: Settings HSliders used the default grey Godot track and grabber.
+## Brass track, fill, and thumb in the tip-plate / scrollbar family. `_tip_plate_style` is the dark plate
+## and the Color(0.93, 0.78, 0.42) hairline; the scrollbar grabber is the darker brass body.
+func _style_volume_slider(slider: HSlider) -> void:
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	track.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	track.set_border_width_all(1)
+	track.set_corner_radius_all(2)
+	## Slot height follows the content margin. 3 + 3 keeps a thin brass groove under the thumb.
+	track.content_margin_top = 3
+	track.content_margin_bottom = 3
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.93, 0.78, 0.42, 0.95)
+	fill.set_corner_radius_all(2)
+	var hot := fill.duplicate() as StyleBoxFlat
+	hot.bg_color = Color(0.98, 0.86, 0.55, 1.0)
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", fill)
+	slider.add_theme_stylebox_override("grabber_area_highlight", hot)
+	slider.add_theme_icon_override("grabber", _brass_slider_grabber(false))
+	slider.add_theme_icon_override("grabber_highlight", _brass_slider_grabber(true))
+	slider.add_theme_icon_override("grabber_disabled", _brass_slider_grabber(false))
+
+
+## 12×18 thumb. Dark brass body, tip-brass rim. Corners cut so it reads as the scrollbar's radius-2 grabber.
+func _brass_slider_grabber(hot: bool) -> Texture2D:
+	var w := 12
+	var h := 18
+	var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var edge := Color(0.93, 0.78, 0.42, 0.95 if hot else 0.7)
+	var body := Color(0.72, 0.58, 0.32, 1.0) if hot else Color(0.55, 0.44, 0.26, 1.0)
+	image.fill(edge)
+	image.fill_rect(Rect2i(1, 1, w - 2, h - 2), body)
+	var clear := Color(0, 0, 0, 0)
+	image.set_pixel(0, 0, clear)
+	image.set_pixel(w - 1, 0, clear)
+	image.set_pixel(0, h - 1, clear)
+	image.set_pixel(w - 1, h - 1, clear)
+	return ImageTexture.create_from_image(image)
+
+
 func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -14163,6 +14221,8 @@ func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:
 	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	slider.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	slider.value_changed.connect(cb)
+	## R4: Settings used the default grey Godot slider. Brass track + grabber to match tip chrome.
+	_style_volume_slider(slider)
 	row.add_child(slider)
 	var num := _label("%d" % int(round(value * 100.0)), 16)
 	num.custom_minimum_size = Vector2(42, 0)
