@@ -365,6 +365,7 @@ func _redraw() -> void:
 
 
 func open_sheet(sid: String) -> void:
+	drop_tip()
 	_details_open = false
 	selected = sid
 	## The map tip points at one station; once its card is open the pointer has done its job.
@@ -404,6 +405,20 @@ func _clear_of_sheet(sid: String) -> void:
 		return
 	var goal := (FIT_PAD + edge) * 0.5
 	_glide_to(origin + Vector2((at.x - goal) / zoom, 0.0))
+
+
+## The map hover tag must not stay up over a sheet, a card, or a notice.
+func drop_tip() -> void:
+	var dirty := tooltip_text != "" or _hover != "" or _chip_hover != ""
+	tooltip_text = ""
+	_hover = ""
+	_chip_hover = ""
+	if dirty:
+		_redraw()
+	## A native tip already on screen only drops on the next pointer motion; send one in place.
+	var vp := get_viewport()
+	if vp != null:
+		vp.warp_mouse(vp.get_mouse_position())
 
 
 func close_sheet() -> void:
@@ -1273,7 +1288,7 @@ func _draw_legend(c: CanvasItem, game) -> void:
 		bottom = _zoom_bar.position.y - 8.0
 	var slip := Vector2(widest + icon + 26.0, step * rows.size() + 12.0)
 	var box := Rect2(Vector2((FIT_PAD + 4.0) if schematic else (area.position.x + 4.0), bottom - slip.y), slip)
-	if council != null and council.visible and box.intersects(council.get_rect().grow(6.0)):
+	if _legend_blocked(box):
 		return
 	for sid in _layout:
 		var info: Dictionary = _layout[sid]
@@ -1300,6 +1315,17 @@ func _draw_legend(c: CanvasItem, game) -> void:
 			text_x += swatch + 6.0
 		c.draw_string(_tag_font, Vector2(text_x, base), str(rows[i][1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, TAG_INK)
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## Council and the voice caption are chrome. The legend slips away rather than paint over them.
+func _legend_blocked(box: Rect2) -> bool:
+	if council != null and council.visible and box.intersects(council.get_rect().grow(6.0)):
+		return true
+	if host != null and host.get("vo_pill") != null:
+		var pill: Control = host.vo_pill
+		if pill.visible and box.intersects(pill.get_rect().grow(6.0)):
+			return true
+	return false
 
 
 func _edge_key(a: String, b: String) -> String:
@@ -2090,12 +2116,18 @@ func _show_leaf_float(line: String) -> void:
 			_leaf_float.visible = false)
 
 
+## N4b: the top of the map float stack (deal, first warmth, leaflet; 34 px apart). It starts under the HUD with room
+## for the 18 px rise, so no float ends on the black bar. Interim until the X1 stacker lands; spacing unchanged.
+func _float_top() -> float:
+	return _hud_top() + 8.0 + 18.0
+
+
 func _place_leaf_float() -> void:
 	if _leaf_float == null or not _leaf_float.visible:
 		return
 	_leaf_float.custom_minimum_size = Vector2(420, 28)
 	_leaf_float.size = Vector2(420, 28)
-	var y := 78.0
+	var y := _float_top()
 	if _deal_float != null and _deal_float.visible:
 		y += 34.0
 	if _warm_float != null and _warm_float.visible:
@@ -2336,7 +2368,7 @@ func _note_first_pin_warmth() -> void:
 func _show_warm_float(line: String) -> void:
 	if _warm_float == null:
 		_warm_float = Label.new()
-		_warm_float.z_index = 8
+		_warm_float.z_index = 11
 		_warm_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_warm_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_warm_float.add_theme_font_size_override("font_size", 18)
@@ -2369,9 +2401,9 @@ func _place_warm_float() -> void:
 		return
 	_warm_float.custom_minimum_size = Vector2(420, 28)
 	_warm_float.size = Vector2(420, 28)
-	var y := 78.0
+	var y := _float_top()
 	if _deal_float != null and _deal_float.visible:
-		y = 112.0
+		y += 34.0
 	_warm_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
 
 
@@ -2420,7 +2452,7 @@ func _place_deal_float() -> void:
 		return
 	_deal_float.custom_minimum_size = Vector2(420, 28)
 	_deal_float.size = Vector2(420, 28)
-	_deal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), 78.0)
+	_deal_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), _float_top())
 
 
 func _draw_deal_pips(c: CanvasItem, game) -> void:
@@ -3913,6 +3945,7 @@ func _track_hops() -> void:
 
 func _build_sheet() -> void:
 	sheet = PanelContainer.new()
+	sheet.z_index = 8
 	sheet.visible = false
 	sheet.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
@@ -4837,7 +4870,9 @@ func _add_own_facts(game, st: Dictionary, sid: String, parent: Node, details: No
 		parent.add_child(_lab("%s: %s" % [Copy.t("Sends home"), Copy.t(_focus_word(str(st.get("focus", "food"))))], 14, false))
 		_add_governor(game, st, str(sid), parent)
 	parent.add_child(_lab(_supply_text(game, sid), 14, false))
-	parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
+	## The capital already says "This is the capital." The ships row would print it a second time.
+	if str(sid) != str(game.capital_id):
+		parent.add_child(_lab(_ships_text(game, st, sid), 14, false))
 	_add_needs(st, details, sid)
 
 
@@ -4869,10 +4904,11 @@ func _ships_text(game, st: Dictionary, sid: String) -> String:
 func _add_actions(sid: String, own: bool, parent: Node, details: Node, with_visit: bool = true) -> void:
 	var game_now = _game()
 	var home: bool = game_now != null and str(sid) == str(game_now.capital_id)
-	if with_visit:
+	## The capital's bottom bar already says "Back to your station". The sheet keeps "Back to the map" only.
+	if with_visit and not home:
 		var open_b := Button.new()
-		open_b.text = Copy.t("Back to your station") if home else Copy.t("Visit station")
-		open_b.tooltip_text = Copy.t("Close the map and return to your own station.") if home else Copy.t("See the station up close: its people, leader and needs. Spends nothing.")
+		open_b.text = Copy.t("Visit station")
+		open_b.tooltip_text = Copy.t("See the station up close: its people, leader and needs. Spends nothing.")
 		open_b.set_meta("visit_station", sid)
 		open_b.pressed.connect(_open_station.bind(sid))
 		parent.add_child(open_b)
@@ -4928,25 +4964,42 @@ func _add_guard(game, parent: Node) -> void:
 		var who := _lab(Copy.t("On the gate: %s.") % ", ".join(names), 13, false)
 		who.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		parent.add_child(who)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 6)
+	row.add_theme_constant_override("v_separation", 6)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(row)
 	var recruit := Button.new()
 	var price := int(game.bal.guard.recruit_materials)
 	recruit.text = Copy.t("Recruit soldier") if price == 0 else "%s  −%d %s" % [Copy.t("Recruit soldier"), price, Copy.res("materials")]
 	recruit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	recruit.clip_text = false
 	var why: String = game.recruit_block()
 	recruit.disabled = why != ""
 	recruit.tooltip_text = why if why != "" else Copy.t("%s leaves their work and joins the guard.") % str(game.recruit_preview())
 	recruit.pressed.connect(_guard_action.bind("recruit"))
+	_fit_guard_button(recruit)
 	row.add_child(recruit)
 	var dismiss := Button.new()
 	dismiss.text = Copy.t("Release")
+	dismiss.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dismiss.clip_text = false
 	var why_d: String = game.dismiss_block()
 	dismiss.disabled = why_d != ""
 	dismiss.tooltip_text = why_d if why_d != "" else Copy.t("One soldier goes back to work.")
 	dismiss.pressed.connect(_guard_action.bind("dismiss"))
+	_fit_guard_button(dismiss)
 	row.add_child(dismiss)
+
+
+## Wide enough for the whole label, so Release / Отпустить wraps onto the next line instead of being cut off.
+func _fit_guard_button(button: Button) -> void:
+	var font: Font = ThemeDB.fallback_font
+	var px := 16
+	if host != null and host.get("body_font") != null:
+		font = host.body_font
+	var width := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x + 28.0
+	button.custom_minimum_size = Vector2(maxf(width, 120.0), 40.0)
 
 
 func _guard_action(kind: String) -> void:

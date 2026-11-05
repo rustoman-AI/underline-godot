@@ -20,24 +20,60 @@ static func info() -> Dictionary:
 		data = {}
 	_info = {
 		"version": str(data.get("version", "unknown")),
+		"release_version": str(data.get("release_version", "")),
 		"build": str(data.get("build", "unknown")),
 		"date": str(data.get("date", "")),
 	}
 	return _info
 
 
+## Playtest and debug builds keep `version`. A release export (not debug, not the playtest feature) shows
+## `release_version`. TODO(Temur): that field is 0.1.0 until a release number is locked. docs/RELEASE_PLAN.md
+## names 0.2.0 only as a future Steam build task, not a decided version.
+static func version_for(release_export: bool) -> String:
+	var row := info()
+	if release_export:
+		var release := str(row.get("release_version", ""))
+		if release != "":
+			return release
+	return str(row.get("version", "unknown"))
+
+
 static func version() -> String:
-	return str(info().version)
+	return version_for(not OS.is_debug_build() and not OS.has_feature("playtest"))
 
 
 static func build() -> String:
 	return str(info().build)
 
 
+## The playtest log row is dev chrome. A debug run and a playtest export show it. A release export does not.
+static func show_log_chrome(debug_build: bool, playtest_feature: bool) -> bool:
+	return debug_build or playtest_feature
+
+
+## A release pack must not ship the editor's "dev" build id. A real id is kept. "dev" and "unknown" become the
+## git short hash, or "release" when git is not there.
+static func release_build_id(raw: String) -> String:
+	var id := raw.strip_edges()
+	if id != "" and id != "dev" and id != "unknown":
+		return id
+	var hash := _git_short()
+	return hash if hash != "" else "release"
+
+
+static func _git_short() -> String:
+	var output: Array = []
+	var code := OS.execute("git", PackedStringArray(["-C", ProjectSettings.globalize_path("res://"), "rev-parse", "--short", "HEAD"]), output, true)
+	if code != 0 or output.is_empty():
+		return ""
+	return str(output[0]).strip_edges()
+
+
 ## One line for the menu, credits and the copied report: "Version 0.1.0-playtest1, build 1a2b3c4, 2026-10-12".
 static func line() -> String:
 	var row := info()
-	var text := Copy.t("Version %s, build %s") % [str(row.version), str(row.build)]
+	var text := Copy.t("Version %s, build %s") % [version(), str(row.build)]
 	if str(row.date) != "":
 		text += ", " + str(row.date)
 	return text

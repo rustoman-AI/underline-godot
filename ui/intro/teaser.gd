@@ -132,13 +132,13 @@ func _ready() -> void:
 	add_child(place)
 	band = _band()
 	add_child(band)
-	subtitle = _label("", _font(false), 26, PAPER)
+	subtitle = _label("", _font(false), 34, PAPER)
 	subtitle.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	subtitle.offset_top = -150
+	subtitle.offset_top = -190
 	subtitle.offset_bottom = -48
 	subtitle.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	subtitle.add_theme_constant_override("outline_size", 8)
-	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	subtitle.add_theme_constant_override("outline_size", 6)
+	subtitle.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	if portrait:
 		subtitle.add_theme_font_size_override("font_size", 46)
 		subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -412,13 +412,13 @@ void fragment() {
 func _band() -> ColorRect:
 	var b := ColorRect.new()
 	b.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	b.offset_top = -200
+	b.offset_top = -260
 	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	var sh := Shader.new()
 	sh.code = """shader_type canvas_item;
 void fragment() {
-	COLOR = vec4(0.0, 0.0, 0.0, smoothstep(0.0, 0.7, UV.y) * 0.72);
+	COLOR = vec4(0.0, 0.0, 0.0, smoothstep(0.0, 0.45, UV.y) * 0.88);
 }"""
 	mat.shader = sh
 	b.material = mat

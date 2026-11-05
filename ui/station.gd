@@ -1040,9 +1040,11 @@ func _build() -> void:
 	add_child(network_view)
 
 	hud = _top_bar()
+	hud.z_index = 10
 	add_child(hud)
 
 	tray = HBoxContainer.new()
+	tray.z_index = 10
 	tray.add_theme_constant_override("separation", 6)
 	tray.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(tray)
@@ -1064,6 +1066,7 @@ func _build() -> void:
 		tray.add_child(button)
 
 	end_button = _button("End turn", _end_turn)
+	end_button.z_index = 10
 	end_button.custom_minimum_size = Vector2(168, 58)
 	end_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_button.add_theme_font_size_override("font_size", 26)
@@ -1081,17 +1084,20 @@ func _build() -> void:
 	end_button.mouse_exited.connect(_show_ahead.bind(false))
 	add_child(end_button)
 	network_button = _button("Network", _toggle_network)
+	network_button.z_index = 10
 	network_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	network_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	network_button.add_theme_font_size_override("font_size", 16)
 	add_child(network_button)
 	hub_button = _button("Station view", _show_hub_view)
+	hub_button.z_index = 10
 	hub_button.visible = false
 	hub_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hub_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	hub_button.add_theme_font_size_override("font_size", 16)
 	add_child(hub_button)
 	end_cover = Control.new()
+	end_cover.z_index = 10
 	end_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	end_cover.mouse_entered.connect(_show_ahead.bind(true))
 	end_cover.mouse_exited.connect(_show_ahead.bind(false))
@@ -1692,6 +1698,11 @@ func _show_ahead(show: bool) -> void:
 	if ahead.visible:
 		_fill_ahead()
 		_place_ahead()
+		## The panel already says what the week does. The native "End the week" tip would sit on top of it.
+		if end_button != null:
+			end_button.tooltip_text = ""
+	elif end_button != null:
+		_sync_waiting()
 
 
 func _fill_ahead() -> void:
@@ -1761,6 +1772,7 @@ func _place_drawer() -> void:
 
 func _build_overlay() -> void:
 	ahead = PanelContainer.new()
+	ahead.z_index = 10
 	ahead.visible = false
 	ahead.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ahead.add_theme_stylebox_override("panel", _paper_style())
@@ -2477,6 +2489,8 @@ func _sync_waiting() -> void:
 		end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
 	elif game.over != "":
 		end_button.tooltip_text = _ending()
+	elif ahead != null and ahead.visible:
+		end_button.tooltip_text = ""
 	else:
 		end_button.tooltip_text = Copy.t("End the week")
 
@@ -4011,7 +4025,7 @@ func _show_room(uid: String) -> void:
 		_breach_craft_card()
 		card_body.add_child(_strip_card(false))
 	_body(Brief.demolish_line(game, uid))
-	card_body.add_child(_button("Demolish", _confirm_demolish.bind(uid)))
+	card_body.add_child(_quiet_demolish("Demolish", _confirm_demolish.bind(uid)))
 	if str(detail.type) == "meeting_hall":
 		card_body.add_child(_button("Laws", _show_laws))
 	_room_push(uid)
@@ -5568,16 +5582,34 @@ func _tick_voice() -> void:
 	vo_bars.visible = spoken
 	vo_sub.text = sub
 	vo_sub.visible = sub != ""
+	var card_open := card != null and dim != null and dim.visible
 	var width := 480.0
-	if card != null and dim != null and dim.visible:
+	if card_open:
 		width = clampf(card.get_global_rect().position.x - 48.0, 240.0, 480.0)
 	vo_sub.custom_minimum_size.x = width
 	vo_pill.visible = true
 	vo_pill.reset_size()
+	var pill_size := vo_pill.get_combined_minimum_size()
 	var bottom := size.y - chrome_bottom - 8.0
 	if radio_panel != null and radio_panel.visible:
 		bottom = radio_panel.position.y - 8.0
-	vo_pill.position = Vector2(16.0, bottom - vo_pill.get_combined_minimum_size().y)
+	## Centre on the open map only. A card (the Journal) keeps the left rule, stopped 48 px before the card.
+	var x := 16.0
+	if showing_network and not card_open:
+		x = maxf(16.0, (size.x - pill_size.x) * 0.5)
+	elif card_open:
+		var limit := card.get_global_rect().position.x - 48.0
+		if x + pill_size.x > limit:
+			x = limit - pill_size.x
+		x = maxf(8.0, x)
+	var next := Vector2(x, bottom - pill_size.y)
+	var shifted := vo_pill.position.distance_to(next) > 1.0
+	vo_pill.position = next
+	## Moving the pill off a card leaves its native tip behind until the pointer moves.
+	if card_open and shifted:
+		var vp := get_viewport()
+		if vp != null:
+			vp.warp_mouse(vp.get_mouse_position())
 	vo_bars.queue_redraw()
 
 
@@ -8037,6 +8069,7 @@ func _claim(priority: int, token: String, restore: Callable) -> bool:
 ## tag: a small word in front of the title saying what kind of card this is ("Event").
 func _open_card(heading: String, with_close: bool = true, tag: String = "") -> void:
 	_show_ahead(false)
+	_drop_map_tip()
 	if room_open != "":
 		room_open = ""
 		_sync_room_sound()
@@ -8044,6 +8077,8 @@ func _open_card(heading: String, with_close: bool = true, tag: String = "") -> v
 	card_roomy = false
 	_wipe(card_body)
 	card_body.add_theme_constant_override("separation", 6)
+	## Same full-screen veil on the yard and on the map. It stays above the map sheet and the unit sprites.
+	dim.z_index = 20
 	dim.visible = true
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -8238,11 +8273,14 @@ func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	if display_font != null:
 		button.add_theme_font_override("font", display_font)
 	button.add_theme_color_override("font_color", PAPER_INK if on_paper else INK)
-	button.add_theme_color_override("font_disabled_color", PAPER_MUTED if on_paper else MUTED)
+	var disabled_ink := PAPER_MUTED if on_paper else MUTED
+	disabled_ink.a = 0.6
+	button.add_theme_color_override("font_disabled_color", disabled_ink)
 	button.add_theme_stylebox_override("normal", _button_face(false, false))
 	button.add_theme_stylebox_override("hover", _button_face(false, true))
 	button.add_theme_stylebox_override("pressed", _button_face(true, false))
-	button.add_theme_stylebox_override("disabled", _button_face(false, false))
+	button.add_theme_stylebox_override("focus", _button_face(false, true))
+	button.add_theme_stylebox_override("disabled", _button_disabled_face())
 	button.custom_minimum_size.y = 64 if Copy.ru() else 48
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -8274,6 +8312,51 @@ func _ui_pressed(button: Button) -> void:
 ## Called by the network map for a station pick or a zoom button.
 func _ui_click() -> void:
 	Sound.play("map_click")
+
+
+## A locked button is a faint plate with no edge, so it cannot be read as the quiet Demolish outline.
+func _button_disabled_face() -> StyleBoxFlat:
+	var style := _button_face(false, false)
+	style.bg_color.a = 0.18
+	style.set_border_width_all(0)
+	return style
+
+
+## Demolish sits quiet on the right. The ink turns danger-coloured only while the pointer is on it.
+func _quiet_demolish(text: String, cb: Callable) -> Control:
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.set_meta("demolish_row", true)
+	var push := Control.new()
+	push.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	push.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(push)
+	var button := _button(text, cb)
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.size_flags_horizontal = Control.SIZE_SHRINK_END
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var font: Font = display_font if display_font != null else body_font
+	if font == null:
+		font = ThemeDB.fallback_font
+	var label_w := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 40.0
+	button.custom_minimum_size = Vector2(maxf(label_w, 140.0), 64.0 if Copy.ru() else 48.0)
+	button.add_theme_color_override("font_color", PAPER_INK)
+	button.add_theme_color_override("font_hover_color", DELTA_DOWN)
+	button.add_theme_color_override("font_pressed_color", DELTA_DOWN)
+	button.add_theme_color_override("font_focus_color", DELTA_DOWN)
+	var quiet := _button_face(false, false)
+	quiet.border_color = PAPER_EDGE
+	quiet.set_border_width_all(1)
+	var hot := _button_face(false, true)
+	hot.border_color = DELTA_DOWN
+	hot.set_border_width_all(1)
+	button.add_theme_stylebox_override("normal", quiet)
+	button.add_theme_stylebox_override("hover", hot)
+	button.add_theme_stylebox_override("pressed", hot)
+	button.add_theme_stylebox_override("focus", hot)
+	row.add_child(button)
+	return row
 
 
 func _button_face(pressed: bool, hover: bool) -> StyleBoxFlat:
@@ -8718,16 +8801,19 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	var cost := HBoxContainer.new()
 	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost.add_theme_constant_override("separation", 4)
+	var cost_mats := int(info.get("materials", 0))
+	var cost_short := int(game.stock.get("materials", 0)) < cost_mats
+	var cost_ink := DELTA_DOWN if cost_short else PAPER_INK
 	var cost_lab := _label("cost", 14)
 	cost_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cost_lab.add_theme_color_override("font_color", DELTA_DOWN)
+	cost_lab.add_theme_color_override("font_color", cost_ink)
 	cost.add_child(cost_lab)
 	var cost_icon := _mini_glyph("materials")
-	cost_icon.ink = DELTA_DOWN
+	cost_icon.ink = cost_ink
 	cost.add_child(cost_icon)
-	var cost_n := _label(str(int(info.get("materials", 0))), 14)
+	var cost_n := _label(str(cost_mats), 14)
 	cost_n.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cost_n.add_theme_color_override("font_color", DELTA_DOWN)
+	cost_n.add_theme_color_override("font_color", cost_ink)
 	cost_n.set_meta("upgrade_cost", int(info.get("materials", 0)))
 	cost.add_child(cost_n)
 	if uname != "":
@@ -8853,7 +8939,8 @@ func _show_menu() -> void:
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		grid.add_child(button)
 	card_body.add_child(grid)
-	card_body.add_child(_log_row(true))
+	if BuildInfo.show_log_chrome(OS.is_debug_build(), OS.has_feature("playtest")):
+		card_body.add_child(_log_row(true))
 	var version := _label(BuildInfo.line(), 13)
 	version.add_theme_color_override("font_color", PAPER_MUTED)
 	card_body.add_child(version)
@@ -10967,7 +11054,8 @@ func _fill_menu_root() -> void:
 	menu_root.add_child(_menu_choice("Settings", _open_settings.bind(false), false))
 	menu_root.add_child(_menu_choice("Credits", _open_credits, false))
 	menu_root.add_child(_menu_choice("Quit", _quit_game, false))
-	menu_root.add_child(_log_row(false))
+	if BuildInfo.show_log_chrome(OS.is_debug_build(), OS.has_feature("playtest")):
+		menu_root.add_child(_log_row(false))
 	var push := Control.new()
 	push.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	push.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -11490,7 +11578,13 @@ func _playtest_prompts() -> void:
 
 
 ## A paper card over everything, menus included. `fill` adds the body to the card's column.
+func _drop_map_tip() -> void:
+	if showing_network and network_view != null and network_view.has_method("drop_tip"):
+		network_view.drop_tip()
+
+
 func _notice(heading: String, fill: Callable) -> void:
+	_drop_map_tip()
 	_close_notice()
 	var was := on_paper
 	on_paper = true
@@ -12819,9 +12913,9 @@ class Yard extends Control:
 					next = Vector2i(int(over.level), int(over.cell))
 				if next != hover:
 					hover = next
-					mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hover.x >= 0 else Control.CURSOR_ARROW
 					if station != null:
 						station._yard_hover(hover.x, hover.y)
+				mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hover.x >= 0 or not _more_at(event.position).is_empty() else Control.CURSOR_ARROW
 			queue_redraw()
 
 	func flash_at(level: int, cell: int) -> void:
@@ -14273,7 +14367,16 @@ class Yard extends Control:
 				return mark
 		return {}
 
+	func _more_at(at_position: Vector2) -> Dictionary:
+		for mark in more_hits:
+			if (mark.rect as Rect2).has_point(at_position):
+				return mark
+		return {}
+
 	func _get_tooltip(at_position: Vector2) -> String:
+		var extra := _more_at(at_position)
+		if not extra.is_empty():
+			return str(extra.get("tip", ""))
 		var mark := _help_at(at_position)
 		if mark.is_empty():
 			return tooltip_text
@@ -14606,20 +14709,28 @@ class Yard extends Control:
 		if extra > 0:
 			_draw_more(rect, extra)
 
+	func _more_sentence(extra: int) -> String:
+		return ("ещё %s" % Words.count(extra, "person")) if Copy.ru() else "%d more %s" % [extra, "person" if extra == 1 else "people"]
+
+	## A small brass "+N" in the corner. The full "N more people" sentence is the hover tip, not a black box.
 	func _draw_more(rect: Rect2, extra: int, filter_id: String = "") -> void:
-		var label := ("ещё %s" % Words.count(extra, "person")) if Copy.ru() else "%d more %s" % [extra, "person" if extra == 1 else "people"]
 		var font: Font = ThemeDB.fallback_font
-		if station.body_font != null:
+		if station.number_font != null:
+			font = station.number_font
+		elif station.body_font != null:
 			font = station.body_font
-		var font_size := 13
-		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-		var box := Vector2(text_size.x + 10.0, text_size.y + 4.0)
-		var origin := Vector2(rect.position.x + rect.size.x - box.x - 4.0 - _wall_inset(), rect.position.y + rect.size.y - box.y - 24.0)
-		draw_rect(Rect2(origin, box), Color(0.09, 0.06, 0.04, 0.88))
-		draw_string(font, origin + Vector2(5.0, text_size.y * 0.82), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("efe6d2"))
-		if filter_id != "":
-			var screen := Rect2(pan + origin * zoom, box * zoom)
-			more_hits.append({"rect": screen.grow(6.0), "filter": filter_id})
+		var mark := "+%d" % extra
+		var font_size := 15
+		var text_size := font.get_string_size(mark, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+		var pip := Vector2(text_size.x + 26.0, 22.0)
+		var origin := Vector2(rect.position.x + rect.size.x - pip.x - 6.0 - _wall_inset(), rect.position.y + rect.size.y - pip.y - 28.0)
+		var box := Rect2(origin, pip)
+		draw_rect(box, station.BRASS)
+		draw_rect(box, Color("5a3d12"), false, 1.0)
+		_paint_mini(origin + Vector2(3.0, 3.0), "people", Color("24180e"))
+		draw_string(font, origin + Vector2(20.0, 16.0), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("24180e"))
+		var screen := Rect2(pan + origin * zoom, pip * zoom)
+		more_hits.append({"rect": screen.grow(4.0), "filter": filter_id, "tip": _more_sentence(extra)})
 
 	func _pose_size(sprite: Texture2D, cell_h: float) -> Vector2:
 		var target_h := cell_h * 0.58
