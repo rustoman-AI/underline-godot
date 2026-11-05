@@ -3,6 +3,7 @@ extends RefCounted
 const Brief = preload("res://sim/brief.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const ChargesMandate = preload("res://sim/charges_mandate.gd")
 const JOURNAL_MAX := 200
 ## Each week at hope 0 this many residents leave; this many weeks in a row at 0 end the run.
@@ -229,6 +230,8 @@ var creed := ""
 var records_path := "user://records.cfg"
 ## P77 Line Wall. Brass plates for this run. Not a soft dawn chip. Hope +1 once is the only meter touch.
 var wall_plates: Array = []
+## P84 Transfer Hubs. Station ids derived from ownership and open-passage degree. Rebuilt each night.
+var transfer_hub_sids: Array = []
 var wall_hoped := false
 var wall_first_hope := false
 var notices: Array = []
@@ -264,6 +267,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	wall_plates = []
 	wall_hoped = false
 	wall_first_hope = false
+	transfer_hub_sids = []
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -326,6 +330,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	_init_people()
 	_init_grid()
 	_init_map()
+	transfer_hub_sids = TransferHubs.current_ids(self)
 	_init_squads()
 	_muster_start_guard()
 	_init_standing()
@@ -1545,6 +1550,7 @@ func _night() -> void:
 	gen_down = false
 	if over == "":
 		telegraphed = _plan_intents()
+	TransferHubs.sync(self)
 
 
 func _finish_checks() -> void:
@@ -11830,6 +11836,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
+	"transfer_hub_sids",
 ]
 
 
@@ -11845,7 +11852,8 @@ const PERSIST := [
 ## Version 14 added the yard clear job. Older saves start with nobody clearing.
 ## Version 15 added charges, the one promise, and the week-8 mandate. Older saves start with none.
 ## Version 16 added the Line Wall. Older saves start with nothing hung.
-const SAVE_SCHEMA := 16
+## Version 17 added the Transfer Hub cache. Older saves start empty and rebuild at night.
+const SAVE_SCHEMA := 17
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11887,6 +11895,8 @@ const V13_ADDED := ["clear"]
 const V14_ADDED := ["charges", "promise", "mandate"]
 ## Fields a version 1 to 15 save may lack: no plates on the Line Wall yet.
 const V15_ADDED := ["wall_plates", "wall_hoped", "wall_first_hope"]
+## Fields a version 1 to 16 save may lack: no Transfer Hub cache yet.
+const V16_ADDED := ["transfer_hub_sids"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -11944,7 +11954,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13362,6 +13372,11 @@ func order_why_dawn_chip() -> bool:
 
 ## Always false. P77 Wall is a yard/desk surface. Plates and the first-plate toast are not a fifth soft dawn.
 func wall_dawn_chip() -> bool:
+	return false
+
+
+## Always false. P84 Transfer Hubs are a visit line, a map mark, and a once-per-run float. Not a fifth soft dawn.
+func transfer_joins_soft_dawn() -> bool:
 	return false
 
 

@@ -16,6 +16,7 @@ const DealMarks = preload("res://sim/deal_marks.gd")
 const PinWarmth = preload("res://sim/pin_warmth.gd")
 const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
+const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -207,6 +208,8 @@ var _need_float: Label
 var _need_float_tween: Tween
 var _focus_float: Label
 var _focus_float_tween: Tween
+var _transfer_float: Label
+var _transfer_float_tween: Tween
 var legend_button: Button
 var legend_panel: PanelContainer
 var legend_rows: VBoxContainer
@@ -361,6 +364,7 @@ func refresh() -> void:
 	_note_first_deal_marks()
 	_note_first_pin_warmth()
 	_note_first_leaflet()
+	_note_first_transfer()
 
 
 func _redraw() -> void:
@@ -1748,6 +1752,7 @@ func _draw_pin(c: CanvasItem, game, sid: String, row: Dictionary) -> void:
 	_draw_good_pip(c, game, sid, at, r, lift)
 	_draw_join_pulse(c, game, sid, at, r, lift)
 	_draw_listening_chips(c, game, sid, st, at, r, lift)
+	_draw_transfer_mark(c, game, sid, at, r, lift)
 	if str(sid) == str(game.capital_id):
 		_draw_away_pip(c, game, at, r, lift)
 
@@ -2235,6 +2240,85 @@ func _place_leaf_float() -> void:
 	if _warm_float != null and _warm_float.visible:
 		y += 34.0
 	_place_float_chip(_leaf_float, y)
+
+
+## Visit status. Hub live is the line; owned but not a Hub is muted. No desk, no picker.
+func _add_transfer_status(game, sid: String, parent: Node) -> void:
+	var row: Dictionary = TransferHubs.visit_row(game, sid)
+	if str(row.get("status", "")) == "":
+		return
+	var status := _lab(Copy.t(str(row.status)), 15, not bool(row.get("muted", false)))
+	status.set_meta("transfer_status", str(row.status))
+	parent.add_child(status)
+	if str(row.get("tip", "")) == "":
+		return
+	var tip := _lab(Copy.t(str(row.tip)), 13, false)
+	tip.set_meta("transfer_tip", str(row.tip))
+	parent.add_child(tip)
+
+
+## Brass Y-fork on the locked lower-outer slot. Missing art or a crowded slot draws nothing.
+func _draw_transfer_mark(c: CanvasItem, game, sid: String, at: Vector2, r: float, lift: float) -> void:
+	if game == null or not TransferHubs.shows_mark(game, sid):
+		return
+	var icon := ArtPack.icon_texture("transfer_mark", 24.0)
+	if icon == null:
+		return
+	var pos := TransferHubs.mark_center(at, r) - Vector2(0, 2.0 * lift)
+	var sz := TransferHubs.MARK_PX
+	c.draw_circle(pos, sz * 0.5, Color(TAG_PAPER, 0.96))
+	c.draw_texture_rect(icon, Rect2(pos - Vector2(sz, sz) * 0.5, Vector2(sz, sz)), false)
+
+
+func _note_first_transfer() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := TransferHubs.note(_game())
+	if line == "":
+		return
+	_show_transfer_float(line)
+
+
+func _show_transfer_float(line: String) -> void:
+	if _transfer_float == null:
+		_transfer_float = Label.new()
+		_transfer_float.z_index = 8
+		_transfer_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_transfer_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_transfer_float.add_theme_font_size_override("font_size", 18)
+		_transfer_float.set_meta("transfer_float", true)
+		_bind_float_plate(_transfer_float)
+	var plate := _float_plate(_transfer_float)
+	_transfer_float.text = line
+	_transfer_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_transfer_float.visible = true
+	plate.visible = true
+	if _transfer_float_tween != null and _transfer_float_tween.is_valid():
+		_transfer_float_tween.kill()
+	_place_transfer_float()
+	if not is_inside_tree():
+		return
+	_transfer_float_tween = create_tween()
+	_transfer_float_tween.tween_interval(4.2)
+	_transfer_float_tween.tween_callback(func() -> void:
+		if _transfer_float != null:
+			_transfer_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_transfer_float() -> void:
+	if _transfer_float == null or not _transfer_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	_place_float_chip(_transfer_float, y)
 
 
 ## First need tick of a run, and only once the visit sheet for that station is open.
@@ -4054,6 +4138,8 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in need_lines(game, sid, _motion_off()):
 		lines.append(str(extra))
+	for extra in TransferHubs.hover_lines(game, sid):
+		lines.append(str(extra))
 	return "\n".join(lines)
 
 
@@ -4397,6 +4483,7 @@ func _fill_sheet_body(sid: String) -> void:
 		_sheet_body.add_child(head)
 	_sheet_body.add_child(_lab(Copy.t(str(st.name)), 14, false))
 	_add_siege_lines(_sheet_body, game, sid)
+	_add_transfer_status(game, sid, _sheet_body)
 	var known := _known_for(game, sid)
 	if known != "":
 		_sheet_body.add_child(_lab(known, 14, false))
@@ -5609,6 +5696,7 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
+	_add_transfer_status(game, sid, column)
 	_add_perk_good(game, sid, column)
 	head.add_child(column)
 	_visit_body.add_child(head)
