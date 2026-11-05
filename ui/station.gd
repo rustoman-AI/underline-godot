@@ -10591,6 +10591,11 @@ func _show_menu() -> void:
 	load_button.disabled = not SaveGame.has_manual()
 	if load_button.disabled:
 		load_button.tooltip_text = Copy.t("No saved game.")
+		## R4: N2's borderless disabled face makes the pause grid look like a missing cell. Keep a muted hairline here only.
+		var face := _button_disabled_face()
+		face.set_border_width_all(1)
+		face.border_color = Color(PAPER_EDGE if on_paper else Color(1, 1, 1, 0.16), 0.55)
+		load_button.add_theme_stylebox_override("disabled", face)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 8)
@@ -14146,6 +14151,48 @@ func _fill_credits() -> void:
 	on_paper = false
 
 
+## R4: Settings HSliders used the default grey Godot track and grabber.
+## Brass track, fill, and thumb in the tip-plate / scrollbar family. `_tip_plate_style` is the dark plate
+## and the Color(0.93, 0.78, 0.42) hairline; the scrollbar grabber is the darker brass body.
+func _style_volume_slider(slider: HSlider) -> void:
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	track.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	track.set_border_width_all(1)
+	track.set_corner_radius_all(2)
+	## Slot height follows the content margin. 3 + 3 keeps a thin brass groove under the thumb.
+	track.content_margin_top = 3
+	track.content_margin_bottom = 3
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.93, 0.78, 0.42, 0.95)
+	fill.set_corner_radius_all(2)
+	var hot := fill.duplicate() as StyleBoxFlat
+	hot.bg_color = Color(0.98, 0.86, 0.55, 1.0)
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", fill)
+	slider.add_theme_stylebox_override("grabber_area_highlight", hot)
+	slider.add_theme_icon_override("grabber", _brass_slider_grabber(false))
+	slider.add_theme_icon_override("grabber_highlight", _brass_slider_grabber(true))
+	slider.add_theme_icon_override("grabber_disabled", _brass_slider_grabber(false))
+
+
+## 12×18 thumb. Dark brass body, tip-brass rim. Corners cut so it reads as the scrollbar's radius-2 grabber.
+func _brass_slider_grabber(hot: bool) -> Texture2D:
+	var w := 12
+	var h := 18
+	var image := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var edge := Color(0.93, 0.78, 0.42, 0.95 if hot else 0.7)
+	var body := Color(0.72, 0.58, 0.32, 1.0) if hot else Color(0.55, 0.44, 0.26, 1.0)
+	image.fill(edge)
+	image.fill_rect(Rect2i(1, 1, w - 2, h - 2), body)
+	var clear := Color(0, 0, 0, 0)
+	image.set_pixel(0, 0, clear)
+	image.set_pixel(w - 1, 0, clear)
+	image.set_pixel(0, h - 1, clear)
+	image.set_pixel(w - 1, h - 1, clear)
+	return ImageTexture.create_from_image(image)
+
+
 func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -14161,6 +14208,8 @@ func _volume_row(caption: String, value: float, cb: Callable) -> HBoxContainer:
 	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	slider.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	slider.value_changed.connect(cb)
+	## R4: Settings used the default grey Godot slider. Brass track + grabber to match tip chrome.
+	_style_volume_slider(slider)
 	row.add_child(slider)
 	var num := _label("%d" % int(round(value * 100.0)), 16)
 	num.custom_minimum_size = Vector2(42, 0)
