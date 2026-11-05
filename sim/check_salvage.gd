@@ -1,10 +1,12 @@
 extends SceneTree
 
-## Salvage board: blueprints, the twelve nodes, strip, the dormant junk hook, save schema 12,
-## desk empty states, and the careful loss band (15–35% of seeds 1–60, 40 weeks).
+## Salvage board: blueprints, the twelve nodes, strip, the dormant junk hook, save schema 16,
+## desk empty states, Listening Post on the build catalog, the first-raid intel line,
+## and the careful loss band (15–35% of seeds 1–60, 40 weeks).
 ##   godot --headless --path . -s res://sim/check_salvage.gd
 
 const Desk = preload("res://ui/station.gd")
+const Map = preload("res://ui/network_view.gd")
 
 const LINES := [
 	["salvage.title", "Salvage", "Утиль"],
@@ -20,6 +22,7 @@ const LINES := [
 	["salvage.locked", "Need a blueprint.", "Нужен чертёж."],
 	["salvage.blueprints", "Blueprints", "Чертежи"],
 	["salvage.need_listening", "Needs Listening Post", "Нужен пост прослушки"],
+	["listening.need_intel", "Need intel 2", "Нужна разведка 2"],
 	["salvage.need_blueprint", "Need a blueprint.", "Нужен чертёж."],
 	["salvage.node.grow_lamps", "grow lamps", "фитолампы"],
 	["salvage.node.charcoal", "charcoal", "уголь"],
@@ -118,6 +121,34 @@ func _row(game: Game, id: String) -> Dictionary:
 		if str(row.id) == id:
 			return row
 	return {}
+
+
+func _control_text(node: Node) -> PackedStringArray:
+	var out: PackedStringArray = []
+	if node is Label:
+		out.append((node as Label).text)
+	if node is BaseButton:
+		var tip := (node as BaseButton).tooltip_text
+		if tip != "":
+			out.append(tip)
+	for child in node.get_children():
+		out.append_array(_control_text(child))
+	return out
+
+
+## The visit-sheet raid row: title, the gate line, and the tooltip the player reads.
+func _raid_row(game: Game, dest: String) -> PackedStringArray:
+	var desk := Desk.new()
+	desk.game = game
+	var map := Map.new()
+	map.host = desk
+	var parent := Control.new()
+	map._combat_order_button("raid", dest, parent)
+	var lines := _control_text(parent)
+	parent.free()
+	map.free()
+	desk.free()
+	return lines
 
 
 func _strings() -> void:
@@ -280,22 +311,38 @@ func _junk() -> void:
 
 func _listening() -> void:
 	var game := _game()
-	_expect(not game.catalog.rooms.has("listening_post"), "Listening Post is not a room on this master", "catalog has it")
+	var defin: Dictionary = game.catalog.rooms.get("listening_post", {})
+	_expect(not defin.is_empty() and bool(defin.get("buildable", false)) and str(defin.get("name", "")) == "Listening Post",
+		"Listening Post is listed in the catalog", "catalog room %s" % defin)
+	_expect(game.buildable_types().has("listening_post"),
+		"The build list includes Listening Post", str(game.buildable_types()))
+	var desk := Desk.new()
+	desk.game = game
+	var card := desk._build_card("listening_post", 0, 0)
+	var listed := _control_text(card)
+	card.free()
+	_expect(listed.has(Copy.t("Listening Post")), "The build card names Listening Post", " ".join(listed))
 	var gate := game.salvage_gate(game.salvage_def("pipe_taps"))
 	var row := _row(game, "pipe_taps")
 	_expect(gate == Copy.t("salvage.need_listening") and str(row.gate) == "listening",
-		"Pipe taps stay locked until a Listening Post exists", "gate=%s row=%s" % [gate, row.gate])
+		"Pipe taps stay locked until a Listening Post is built", "gate=%s row=%s" % [gate, row.gate])
+	var node := desk._salvage_node(row)
+	var board := _control_text(node)
+	node.free()
+	_expect(board.has(Copy.t("salvage.node.pipe_taps")) and board.has(Copy.t("salvage.need_listening")),
+		"The salvage board lists pipe taps as needing a Listening Post", " ".join(board))
+	desk.free()
 	_expect(is_equal_approx(game.blown_scale(), 1.0), "Blown chance is unchanged without pipe taps", str(game.blown_scale()))
 	game.rooms.append({"uid": "lp-test", "type": "listening_post", "upgrade": 1, "offline": false, "staff": []})
 	var scaled := game.blown_scale()
 	game.rooms.pop_back()
 	_expect(is_equal_approx(scaled, 0.95), "Pipe taps cut blown chance by 5% once that upgrade is online", str(scaled))
-	game.catalog.rooms["listening_post"] = {"id": "listening_post"}
 	game.rooms.append({"uid": "lp-test", "type": "listening_post", "upgrade": 0, "offline": false, "staff": []})
 	var hidden := game.intent_hide_chance()
 	game.rooms.pop_back()
-	game.catalog.rooms.erase("listening_post")
 	_expect(is_equal_approx(hidden, 0.0), "An online Listening Post hides nothing", str(hidden))
+	_expect(game.catalog.rooms.has("listening_post") and str(game.catalog.rooms["listening_post"].get("name", "")) == "Listening Post",
+		"The catalog still lists Listening Post", "catalog lost the room")
 
 
 func _effects() -> void:
@@ -347,14 +394,25 @@ func _raid() -> void:
 		print("raid gate: capital has no neighbour")
 		return
 	game.stations[dest].known = true
+	game.stations[dest].intel = 0
 	game.stations[dest].garrison = 1
 	game.stations[dest].fort = 0.2
 	game.squads[game.player].gear = 40.0
 	game.stock.food = 40
 	var gate := game._raid_gate(dest)
-	if gate != "":
-		print("raid gate: " + gate)
-		_expect(false, "First raid win grants a blueprint", "blocked: " + gate)
+	var sheet := game.order_block("raid", dest)
+	_expect(gate == Copy.t("listening.need_intel") and sheet == gate,
+		"First raid shows Need intel 2", "gate=%s sheet=%s" % [gate, sheet])
+	var row := _raid_row(game, dest)
+	_expect(row.has(Copy.t("listening.need_intel")) and row.has(Copy.t("combat.order.raid")),
+		"The station sheet raid row says Need intel 2", " ".join(row))
+	_expect(not game._order_raid(dest, true) and int(game.stock.blueprints) == 0 and not bool(game.salvage.raid_bp),
+		"The intel gate blocks the first raid blueprint", "bp %s raid_bp %s" % [game.stock.blueprints, game.salvage.raid_bp])
+	game.stations[dest].intel = 2
+	var open := game._raid_gate(dest)
+	if open != "":
+		print("raid gate: " + open)
+		_expect(false, "First raid win grants a blueprint", "blocked: " + open)
 		return
 	var ok := game._order_raid(dest, true)
 	_expect(ok and int(game.stock.blueprints) == 1, "First raid win grants a blueprint", "ok=%s bp=%s win=%s" % [ok, game.stock.blueprints, game.last_combat_report.get("win", "?")])

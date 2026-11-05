@@ -314,10 +314,22 @@ func _check_plate() -> bool:
 		print("Plate: FAIL map plate")
 		Settings.reduce_motion = motion
 		return false
+	var map_face: StyleBoxFlat = st.toast_plate.get_theme_stylebox("panel")
+	var slip: StyleBoxFlat = st._map_toast_face()
+	if map_face == null or slip == null or not map_face.bg_color.is_equal_approx(slip.bg_color):
+		print("Plate: FAIL map face")
+		Settings.reduce_motion = motion
+		return false
 	st.showing_network = false
 	st._toast("Order sent. The result comes at next dawn.")
-	if st.toast_plate.visible or st.toast_label.get_parent() != st:
+	if st.toast_plate == null or not st.toast_plate.visible or st.toast_label.get_parent() != st.toast_plate:
 		print("Plate: FAIL station toast")
+		Settings.reduce_motion = motion
+		return false
+	var yard_face: StyleBoxFlat = st.toast_plate.get_theme_stylebox("panel")
+	var tip: StyleBoxFlat = st._tip_plate_style()
+	if yard_face == null or tip == null or not yard_face.bg_color.is_equal_approx(tip.bg_color) or st.toast_label.get_theme_constant("outline_size") != 0:
+		print("Plate: FAIL yard face")
 		Settings.reduce_motion = motion
 		return false
 	Settings.reduce_motion = motion
