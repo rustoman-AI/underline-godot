@@ -300,7 +300,7 @@
     {
       "id": "refuge_taken",
       "en": "{name} came in at the gate and stayed until the end.",
-      "ru": "{name} вошёл{a} у ворот и остался{a} до конца."
+      "ru": "{name} пришёл{a} к воротам и пробыл{a} до конца."
     },
     {
       "id": "child_grew",
