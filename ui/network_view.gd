@@ -18,6 +18,7 @@ const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
 const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const Ledger = preload("res://sim/outpost_ledger.gd")
+const QuietToll = preload("res://sim/quiet_toll.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -213,6 +214,8 @@ var _transfer_float: Label
 var _transfer_float_tween: Tween
 var _ledger_float: Label
 var _ledger_float_tween: Tween
+var _toll_float: Label
+var _toll_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -369,6 +372,7 @@ func refresh() -> void:
 	_note_first_pin_warmth()
 	_note_first_leaflet()
 	_note_first_transfer()
+	_note_first_quiet_toll()
 
 
 func _redraw() -> void:
@@ -2546,6 +2550,85 @@ func _hide_focus_float() -> void:
 		_focus_float.visible = false
 
 
+## One line on the owned station's Visit status column. Omitted unless Duty is posted.
+## status is the qualifying watch. status_none is muted, and only when Duty is up but nothing qualifies.
+## The row sits directly above the ledger, which stays last.
+func _add_quiet_toll(parent: Node, game, sid: String) -> void:
+	var kind := QuietToll.visit_kind(game, sid)
+	if kind == "":
+		return
+	var muted := kind == "none"
+	var line := _lab(QuietToll.visit_line(kind), 15, not muted)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.set_meta("toll_row", true)
+	line.set_meta("toll_kind", kind)
+	line.set_meta("toll_muted", muted)
+	if muted:
+		line.add_theme_color_override("font_color", CARD_MUTED if _on_paper else MUTED)
+	parent.add_child(line)
+
+
+## First qualifying tip of a run. The flag is saved with the game. Not a dawn chip.
+func _note_first_quiet_toll() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := QuietToll.note(_game())
+	if line == "":
+		return
+	_show_toll_float(line)
+
+
+func _show_toll_float(line: String) -> void:
+	if _toll_float == null:
+		_toll_float = Label.new()
+		_toll_float.z_index = 8
+		_toll_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_toll_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_toll_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_toll_float.add_theme_font_size_override("font_size", 18)
+		_toll_float.add_theme_color_override("font_color", DEAL_BRASS)
+		_toll_float.add_theme_constant_override("outline_size", 6)
+		_toll_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_toll_float.set_meta("toll_float", true)
+		add_child(_toll_float)
+	_toll_float.text = line
+	_toll_float.modulate.a = 1.0
+	_toll_float.visible = true
+	if _toll_float_tween != null and _toll_float_tween.is_valid():
+		_toll_float_tween.kill()
+	_place_toll_float()
+	if not is_inside_tree():
+		return
+	_toll_float_tween = create_tween()
+	if _motion_off():
+		_toll_float.set_meta("toll_float_static", true)
+		_toll_float_tween.tween_interval(4.2)
+	else:
+		_toll_float.set_meta("toll_float_static", false)
+		var rise := _toll_float.position.y - 18.0
+		_toll_float_tween.tween_property(_toll_float, "position:y", rise, 2.4)
+		_toll_float_tween.parallel().tween_property(_toll_float, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_toll_float_tween.tween_callback(func() -> void:
+		if _toll_float != null:
+			_toll_float.visible = false)
+
+
+func _place_toll_float() -> void:
+	if _toll_float == null or not _toll_float.visible:
+		return
+	_toll_float.custom_minimum_size = Vector2(420, 28)
+	_toll_float.size = Vector2(420, 28)
+	var y := 78.0
+	if _deal_float != null and _deal_float.visible:
+		y = 112.0
+	if _leaf_float != null and _leaf_float.visible:
+		y = maxf(y, 146.0)
+	if _transfer_float != null and _transfer_float.visible:
+		y = maxf(y, 180.0)
+	_toll_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+
+
 ## Last week's flow. Owned non-capital only. A zero or unreadable week is the muted empty line.
 ## The row stays the last child of the Visit status column so a later row can sit above it.
 func _add_outpost_ledger(parent: Node, game, sid: String) -> void:
@@ -4301,6 +4384,9 @@ func _tip(sid: String) -> String:
 		lines.append(str(extra))
 	for extra in TransferHubs.hover_lines(game, sid):
 		lines.append(str(extra))
+	var toll := QuietToll.tip_line(game, sid)
+	if toll != "":
+		lines.append(toll)
 	return "\n".join(lines)
 
 
@@ -5759,6 +5845,7 @@ func _size_visit() -> void:
 	_place_need_float()
 	_place_focus_float()
 	_place_ledger_float()
+	_place_toll_float()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -5862,7 +5949,8 @@ func _fill_visit(sid: String) -> void:
 	_add_transfer_status(game, sid, column)
 	_add_perk_good(game, sid, column)
 	# Ledger stays the last child of this Visit status column.
-	# P84 Transfer Hub stays above it. Quiet Toll inserts its row directly above _add_outpost_ledger.
+	# P84 Transfer Hub stays above Quiet Toll and the ledger.
+	_add_quiet_toll(column, game, sid)
 	_add_outpost_ledger(column, game, sid)
 	head.add_child(column)
 	_visit_body.add_child(head)
@@ -5887,6 +5975,7 @@ func _fill_visit(sid: String) -> void:
 	_add_fold(_visit_body, details)
 	_note_station_focus(sid)
 	_note_outpost_ledger(sid)
+	_note_first_quiet_toll()
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
