@@ -7,7 +7,7 @@ const EVENT_KEYS := ["id", "title", "major", "weight", "cooldown", "needs", "for
 ## What Game._apply_deltas and _apply_standing_choice understand on a plain choice.
 const CHOICE_KEYS := ["id", "label", "cost", "food", "air", "power", "materials", "tokens", "influence", "hope",
 	"discontent", "people", "sick", "efficiency", "papers", "synod", "opinion_exchange", "opinion_directorate",
-	"trait_hope", "trait_absent", "power_double", "hydro_down", "shop_down", "gen_down", "standing",
+	"trait_hope", "trait_discontent", "trait_absent", "power_double", "hydro_down", "shop_down", "gen_down", "standing",
 	"artifacts", "fragment", "how", "flag", "requires", "proof", "ending", "ru_own"]
 const STOCK := ["food", "air", "power", "materials", "tokens", "influence"]
 

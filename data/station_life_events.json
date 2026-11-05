@@ -1,0 +1,293 @@
+{
+  "_note": "P62 Station Life Events (DEC-SL1…SL2). Five new5 standalones on existing event card. Cite /workspace/STATION_LIFE_EVENTS_SPEC.md. Source release_events_new5.json — lock EN+RU here. effects_words only — Code maps numbers. ≥1 free choice each. silent_car follow: optional dawn Listening Post flavor if staffed — no intel/Probe invent. Out: new8/new9; P54 chains; EA stores_turn/diesel/ration_coat. Not soft dawn.",
+  "_roadmap": "P62",
+  "_owners": "Texts; Code pool wire + gate; UIUX cite-only existing card; Art optional plates",
+  "events": [
+    {
+      "id": "chalk_marks",
+      "title": {
+        "en": "Chalk on the pillar",
+        "ru": "Мел на столбе"
+      },
+      "who": "Fran",
+      "text": {
+        "en": "Fran found fresh chalk marks on the platform pillar. Three hashes and a curve. Nobody claims them. They were not there at dawn count.",
+        "ru": "Фрэн нашла на столбе платформы свежие меловые метки. Три черты и дуга — своими никто не зовёт. На утреннем пересчёте их ещё не было."
+      },
+      "choices": [
+        {
+          "id": "leave",
+          "label": {
+            "en": "Leave them. Watch who looks twice",
+            "ru": "Оставить. Смотреть, кто глянет дважды"
+          },
+          "effects_words": "small hope gain; small discontent rise (unease)",
+          "free": true
+        },
+        {
+          "id": "scrub",
+          "label": {
+            "en": "Scrub the pillar clean",
+            "ru": "Стереть столб начисто"
+          },
+          "effects_words": "small discontent drop; small hope loss",
+          "free": true
+        },
+        {
+          "id": "copy",
+          "label": {
+            "en": "Copy the marks into the log",
+            "ru": "Срисовать метки в журнал"
+          },
+          "effects_words": "costs small influence; small hope gain",
+          "free": false
+        }
+      ],
+      "min_week": 2,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_chalk_marks_body_en.mp3",
+            "text": "Fran found fresh chalk marks on the platform pillar. Three hashes and a curve. Nobody claims them. They were not there at dawn count."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_chalk_marks_body_ru.mp3",
+            "text": "Фрэн нашла на столбе платформы свежие меловые метки. Три черты и дуга — своими никто не зовёт. На утреннем пересчёте их ещё не было."
+          }
+        ]
+      }
+    },
+    {
+      "id": "silent_car",
+      "title": {
+        "en": "A handcar with no crest",
+        "ru": "Дрезина без герба"
+      },
+      "who": "Leo",
+      "text": {
+        "en": "Leo's dig crew heard a handcar roll past the cut — no crest, no lamp. The rider did not answer the call. Tracks still warm.",
+        "ru": "Бригада Лео слышала дрезину мимо забоя — без герба и без фонаря. На оклик не ответили. Рельсы ещё тёплые."
+      },
+      "choices": [
+        {
+          "id": "follow",
+          "label": {
+            "en": "Send two along the warm track",
+            "ru": "Послать двоих по тёплому следу"
+          },
+          "effects_words": "costs small food; small hope gain; optional dawn \"Logged at the Listening Post\" if Post staffed (no intel / no Probe)",
+          "free": false
+        },
+        {
+          "id": "bar",
+          "label": {
+            "en": "Bar that spur for the night",
+            "ru": "Перекрыть этот отвод на ночь"
+          },
+          "effects_words": "small discontent rise; small hope held",
+          "free": true
+        },
+        {
+          "id": "ignore",
+          "label": {
+            "en": "Log it and keep digging",
+            "ru": "Записать и копать дальше"
+          },
+          "effects_words": "small hope loss; small discontent rise",
+          "free": true
+        }
+      ],
+      "min_week": 4,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_silent_car_body_en.mp3",
+            "text": "Leo's dig crew heard a handcar roll past the cut — no crest, no lamp. The rider did not answer the call. Tracks still warm."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_silent_car_body_ru.mp3",
+            "text": "Бригада Лео слышала дрезину мимо забоя — без герба и без фонаря. На оклик не ответили. Рельсы ещё тёплые."
+          }
+        ]
+      }
+    },
+    {
+      "id": "mold_cart",
+      "title": {
+        "en": "Mold in the cartridge",
+        "ru": "Плесень в кассете"
+      },
+      "who": "Ada",
+      "text": {
+        "en": "Ada pulled the air-filter cartridge and found green mold along the fold. The stack still draws, but the air tastes sweet in the wrong way.",
+        "ru": "Ада вытащила кассету воздушного фильтра и нашла зелёную плесень по сгибу. Фильтр ещё тянет, но воздух сладковат — не так, как надо."
+      },
+      "choices": [
+        {
+          "id": "replace",
+          "label": {
+            "en": "Swap the cartridge from stores",
+            "ru": "Поставить кассету со склада"
+          },
+          "effects_words": "costs small materials; air held; small hope gain",
+          "free": false
+        },
+        {
+          "id": "scrape",
+          "label": {
+            "en": "Scrape it and run another week",
+            "ru": "Соскоблить и протянуть ещё неделю"
+          },
+          "effects_words": "small air loss risk; small discontent rise",
+          "free": true
+        },
+        {
+          "id": "boil",
+          "label": {
+            "en": "Boil the mesh by the generator",
+            "ru": "Прокипятить сетку у генератора"
+          },
+          "effects_words": "small power loss this week; air held",
+          "free": true
+        }
+      ],
+      "min_week": 3,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_mold_cart_body_en.mp3",
+            "text": "Ada pulled the air-filter cartridge and found green mold along the fold. The stack still draws, but the air tastes sweet in the wrong way."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_mold_cart_body_ru.mp3",
+            "text": "Ада вытащила кассету воздушного фильтра и нашла зелёную плесень по сгибу. Фильтр ещё тянет, но воздух сладковат — не так, как надо."
+          }
+        ]
+      }
+    },
+    {
+      "id": "shift_trade",
+      "title": {
+        "en": "Sleep sold for tokens",
+        "ru": "Сон за жетоны"
+      },
+      "who": "Vic",
+      "text": {
+        "en": "Vic says two on night watch have been selling their sleep shifts for tokens. The posts stay filled on paper. The eyes on them do not.",
+        "ru": "Вик говорит, что двое с ночной вахты продают свои смены за жетоны. На бумаге посты заняты. А глаз на постах нет."
+      },
+      "choices": [
+        {
+          "id": "ban",
+          "label": {
+            "en": "Ban the trade. Name them on the platform",
+            "ru": "Запретить торг. Назвать их на платформе"
+          },
+          "effects_words": "small discontent rise; small hope held",
+          "free": true
+        },
+        {
+          "id": "tax",
+          "label": {
+            "en": "Take a cut for the yard chest",
+            "ru": "Взять долю в сундук двора"
+          },
+          "effects_words": "small tokens gain; small hope loss; small discontent rise",
+          "free": true
+        },
+        {
+          "id": "cover",
+          "label": {
+            "en": "Pay them to stay awake from stores",
+            "ru": "Доплатить из запасов — пусть не спят"
+          },
+          "effects_words": "costs small tokens; small discontent drop; watch held",
+          "free": false
+        }
+      ],
+      "min_week": 5,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_shift_trade_body_en.mp3",
+            "text": "Vic says two on night watch have been selling their sleep shifts for tokens. The posts stay filled on paper. The eyes on them do not."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_shift_trade_body_ru.mp3",
+            "text": "Вик говорит, что двое с ночной вахты продают свои смены за жетоны. На бумаге посты заняты. А глаз на постах нет."
+          }
+        ]
+      }
+    },
+    {
+      "id": "pickle_stamp",
+      "title": {
+        "en": "Pickles with a stamp",
+        "ru": "Соленья со штампом"
+      },
+      "who": "Samira",
+      "text": {
+        "en": "Samira opened a sealed jar of pickles behind the hydroponics racks. The lid still carries a Directorate stamp. No one admits who brought it in.",
+        "ru": "Самира открыла запечатанную банку солений за стеллажами гидропоники. На крышке ещё штамп Управления. Кто принёс — никто на себя не берёт."
+      },
+      "choices": [
+        {
+          "id": "eat",
+          "label": {
+            "en": "Share the jar at evening ration",
+            "ru": "Разделить банку на вечерней пайке"
+          },
+          "effects_words": "small food gain; small hope gain; small Directorate opinion risk",
+          "free": true
+        },
+        {
+          "id": "return",
+          "label": {
+            "en": "Send it back stamped as found",
+            "ru": "Вернуть со штампом «найдено»"
+          },
+          "effects_words": "small Directorate opinion rise; no food",
+          "free": true
+        },
+        {
+          "id": "hide",
+          "label": {
+            "en": "Hide it for a lean week",
+            "ru": "Спрятать на голодную неделю"
+          },
+          "effects_words": "small food held in reserve; small discontent rise (rumor)",
+          "free": true
+        }
+      ],
+      "min_week": 6,
+      "weight": 2,
+      "vo": {
+        "en": [
+          {
+            "filename": "evt_pickle_stamp_body_en.mp3",
+            "text": "Samira opened a sealed jar of pickles behind the hydroponics racks. The lid still carries a Directorate stamp. No one admits who brought it in."
+          }
+        ],
+        "ru": [
+          {
+            "filename": "evt_pickle_stamp_body_ru.mp3",
+            "text": "Самира открыла запечатанную банку солений за стеллажами гидропоники. На крышке ещё штамп Управления. Кто принёс — никто на себя не берёт."
+          }
+        ]
+      }
+    }
+  ],
+  "_status": "Designer APPROVED / locked 2026-10-26 — P62 Station Life Events; Texts release polish 2026-10-26 (RU grit only; EN untouched); evening grit 2026-10-26 (RU)."
+}

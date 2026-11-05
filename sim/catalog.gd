@@ -41,6 +41,8 @@ var communities: Dictionary = {}
 ## English community, who, conflict and art per station id; the Russian text lives in `communities`.
 var communities_en: Dictionary = {}
 var geo: Dictionary = {}
+## P73 charges, promises, mandates, and ticker strings (data/charges.json).
+var charges_pack: Dictionary = {}
 var error: String = ""
 
 
@@ -58,6 +60,7 @@ func load_all() -> bool:
 	pool_ru = add_events(_obj("events_pool.json"), base_ru)
 	leader_ru = add_events(_obj("events_leaders.json"), base_ru)
 	story_ru = add_events(_obj("events_story.json"), base_ru)
+	_install_station_life()
 	truth = _index(_obj("truth.json").get("fragments", []), "id")
 	endings = _obj("endings.json")
 	epilogues = _obj("epilogues.json")
@@ -68,10 +71,22 @@ func load_all() -> bool:
 	profiles = _obj("resident_profiles.json")
 	residents = _arr("residents.json")
 	names = _obj("names.json")
+	## P67 Named Lives. Locked pack wins for pasts, keepsakes, deaths and journals.
+	## Coney cast bios stay in characters_coney.json and are not copied here.
+	var lives := _obj("named_lives.json")
+	if error == "":
+		for key in ["pasts", "keepsakes", "deaths", "journals"]:
+			if not lives.has(key):
+				error = "named_lives.json missing %s" % key
+				break
+			names[key] = lives[key]
 	grid = _obj("start_grid.json")
 	communities = _obj("station_communities.json")
 	communities_en = _obj("station_communities_en.json")
 	geo = _obj("map_geo.json")
+	_install_tunnel_life()
+	_install_deep_life()
+	charges_pack = _obj("charges.json")
 	var bad_goods := goods_problems()
 	if error == "" and not bad_goods.is_empty():
 		error = "station goods: " + "; ".join(bad_goods)
@@ -220,6 +235,465 @@ func _arr(name: String) -> Array:
 	if error == "":
 		error = "%s is not a list" % name
 	return []
+
+
+## P62. Five station-life one-shots join the mid-week pool from the locked pack.
+## Numbers come from balance.station_life_scale. Text stays the pack's EN+RU.
+## effects_words → fields. A leading '-' is the drop. "dawn_flavor" copies the quoted log line.
+const STATION_LIFE_MAP := {
+	"chalk_marks": {
+		"leave": {"hope": "hope_small", "discontent": "discontent_small"},
+		"scrub": {"hope": "-hope_small", "discontent": "-discontent_small"},
+		"copy": {"cost": {"influence": "influence_small"}, "hope": "hope_small"},
+	},
+	"silent_car": {
+		"follow": {"cost": {"food": "food_small"}, "hope": "hope_small", "dawn_flavor": true},
+		"bar": {"discontent": "discontent_small"},
+		"ignore": {"hope": "-hope_small", "discontent": "discontent_small"},
+	},
+	"mold_cart": {
+		"replace": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"scrape": {"air": "-air_small", "discontent": "discontent_small"},
+		"boil": {"power": "-power_small"},
+	},
+	"shift_trade": {
+		"ban": {"discontent": "discontent_small"},
+		"tax": {"tokens": "tokens_small", "hope": "-hope_small", "discontent": "discontent_small"},
+		"cover": {"cost": {"tokens": "tokens_small"}, "discontent": "-discontent_small"},
+	},
+	"pickle_stamp": {
+		"eat": {"food": "food_small", "hope": "hope_small", "opinion_directorate": "-opinion_small"},
+		"return": {"opinion_directorate": "opinion_small"},
+		"hide": {"food": "food_small", "discontent": "discontent_small"},
+	},
+}
+
+
+func _install_station_life() -> void:
+	if error != "":
+		return
+	var data = _read("station_life_events.json")
+	if not (data is Dictionary):
+		if error == "":
+			error = "station_life_events.json is not an object"
+		return
+	var scale: Dictionary = balance.get("station_life_scale", {})
+	if scale.is_empty():
+		error = "station life: no station_life_scale"
+		return
+	var have := {}
+	for ev in events:
+		have[str(ev.get("id", ""))] = true
+	for raw in data.get("events", []):
+		if not (raw is Dictionary):
+			continue
+		var id := str(raw.get("id", ""))
+		if id == "" or have.has(id):
+			error = "station life: duplicate or blank id %s" % id
+			return
+		var built := _station_life_event(raw, scale)
+		if error != "":
+			return
+		events.append(built)
+		have[id] = true
+
+
+func _station_life_event(raw: Dictionary, scale: Dictionary) -> Dictionary:
+	var id := str(raw.get("id", ""))
+	var spec: Dictionary = STATION_LIFE_MAP.get(id, {})
+	if spec.is_empty():
+		error = "station life: no number map for %s" % id
+		return {}
+	var choices: Array = []
+	for raw_choice in raw.get("choices", []):
+		if not (raw_choice is Dictionary):
+			continue
+		var cid := str(raw_choice.get("id", ""))
+		if not spec.has(cid):
+			error = "station life: %s choice %s has no number map" % [id, cid]
+			return {}
+		var built := {"id": cid, "label": raw_choice.get("label", {})}
+		var fx: Dictionary = spec[cid]
+		for key in fx:
+			if str(key) == "dawn_flavor":
+				var quote := _station_life_quote(str(raw_choice.get("effects_words", "")))
+				if quote == "":
+					error = "station life: %s %s flavor quote missing" % [id, cid]
+					return {}
+				built["dawn_flavor"] = {"en": quote}
+				continue
+			if str(key) == "cost":
+				built["cost"] = _station_life_nums(fx.cost, scale, id, cid)
+				if error != "":
+					return {}
+				continue
+			var n := _station_life_one(scale, str(fx[key]))
+			if n == 0:
+				error = "station life: %s %s %s is 0" % [id, cid, str(key)]
+				return {}
+			built[str(key)] = n
+		choices.append(built)
+	if choices.is_empty():
+		error = "station life: %s has no choices" % id
+		return {}
+	return {
+		"id": id,
+		"title": raw.get("title", {}),
+		"text": raw.get("text", {}),
+		"who": str(raw.get("who", "")),
+		"major": false,
+		"min_week": int(raw.get("min_week", 1)),
+		"weight": int(raw.get("weight", 2)),
+		"cooldown": 8,
+		"station_life": true,
+		"choices": choices,
+	}
+
+
+func _station_life_nums(spec: Dictionary, scale: Dictionary, id: String, cid: String) -> Dictionary:
+	var out := {}
+	for key in spec:
+		var n := _station_life_one(scale, str(spec[key]))
+		if n == 0:
+			error = "station life: %s %s cost %s is 0" % [id, cid, str(key)]
+			return {}
+		out[str(key)] = n
+	return out
+
+
+func _station_life_one(scale: Dictionary, name: String) -> int:
+	var neg := name.begins_with("-")
+	var key := name.trim_prefix("-")
+	var n := int(scale.get(key, 0))
+	return -n if neg else n
+
+
+func _station_life_quote(words: String) -> String:
+	var open := words.find("\"")
+	if open < 0:
+		return ""
+	var close := words.find("\"", open + 1)
+	if close <= open:
+		return ""
+	return words.substr(open + 1, close - open - 1)
+
+
+## P64. Eight tunnel-life one-shots join the mid-week pool from the locked pack.
+## Numbers come from balance.tunnel_life_scale. Text stays the pack's EN+RU.
+## effects_words → fields. A leading '-' is the drop. Held lines are omitted.
+const TUNNEL_LIFE_MAP := {
+	"wet_bunk": {
+		"patch": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"move": {"discontent": "discontent_small", "hope": "-hope_small"},
+		"ration_dry": {"power": "-power_small", "discontent": "-discontent_small"},
+	},
+	"vent_prayer": {
+		"listen": {"synod": "synod_small", "trait_hope": {"Devout": "hope_small"}},
+		"seal_vent": {"hope": "-hope_small", "trait_discontent": {"Devout": "discontent_small"}},
+		"trace": {"cost": {"influence": "influence_small"}, "synod": "synod_small", "hope": "hope_small"},
+	},
+	"crate_blank": {
+		"keep": {"food": "food_medium", "opinion_exchange": "-opinion_small"},
+		"return": {"opinion_exchange": "opinion_small"},
+		"open_quiet": {"materials": "materials_small", "discontent": "discontent_small"},
+	},
+	"filter_mesh": {
+		"replace": {"cost": {"materials": "materials_small"}},
+		"shame": {"discontent": "-discontent_small", "hope": "-hope_small"},
+		"live": {"efficiency": "-efficiency_small", "hope": "hope_small"},
+	},
+	"shelf_feud": {
+		"split": {"cost": {"materials": "materials_small"}, "discontent": "-discontent_small"},
+		"move_one": {"hope": "-hope_small", "discontent": "-discontent_small"},
+		"ignore": {"discontent": "discontent_small", "hope": "-hope_small"},
+	},
+	"fever_lamp": {
+		"keep_on": {"power": "-power_soft", "hope": "hope_small"},
+		"share_shift": {"discontent": "discontent_small"},
+		"cut_hydro": {"food": "-food_soft", "hope": "hope_small"},
+	},
+	"count_short": {
+		"search": {"discontent": "discontent_small", "materials": "materials_small"},
+		"buy": {"cost": {"tokens": "tokens_small"}, "opinion_exchange": "opinion_small", "materials": "materials_small"},
+		"lock": {"hope": "-hope_small", "discontent": "-discontent_small"},
+	},
+	"cold_rail": {
+		"burn_scrap": {"cost": {"materials": "materials_small"}, "discontent": "-discontent_small"},
+		"bundle": {"food": "-food_soft", "hope": "-hope_small"},
+		"trade_coal": {"cost": {"tokens": "tokens_small"}, "opinion_exchange": "opinion_small", "hope": "hope_small"},
+	},
+}
+
+
+func _install_tunnel_life() -> void:
+	if error != "":
+		return
+	var data = _read("tunnel_life_events.json")
+	if not (data is Dictionary):
+		if error == "":
+			error = "tunnel_life_events.json is not an object"
+		return
+	var scale: Dictionary = balance.get("tunnel_life_scale", {})
+	if scale.is_empty():
+		error = "tunnel life: no tunnel_life_scale"
+		return
+	var have := {}
+	for ev in events:
+		have[str(ev.get("id", ""))] = true
+	for raw in data.get("events", []):
+		if not (raw is Dictionary):
+			continue
+		var id := str(raw.get("id", ""))
+		if id == "" or have.has(id):
+			error = "tunnel life: duplicate or blank id %s" % id
+			return
+		var built := _tunnel_life_event(raw, scale)
+		if error != "":
+			return
+		events.append(built)
+		have[id] = true
+
+
+func _tunnel_life_event(raw: Dictionary, scale: Dictionary) -> Dictionary:
+	var id := str(raw.get("id", ""))
+	var spec: Dictionary = TUNNEL_LIFE_MAP.get(id, {})
+	if spec.is_empty():
+		error = "tunnel life: no number map for %s" % id
+		return {}
+	var choices: Array = []
+	for raw_choice in raw.get("choices", []):
+		if not (raw_choice is Dictionary):
+			continue
+		var cid := str(raw_choice.get("id", ""))
+		if not spec.has(cid):
+			error = "tunnel life: %s choice %s has no number map" % [id, cid]
+			return {}
+		var built := {"id": cid, "label": raw_choice.get("label", {})}
+		var fx: Dictionary = spec[cid]
+		for key in fx:
+			if str(key) == "cost" or str(key) == "trait_hope" or str(key) == "trait_discontent":
+				built[str(key)] = _tunnel_life_nums(fx[key], scale, id, cid, str(key))
+				if error != "":
+					return {}
+				continue
+			var n = _tunnel_life_one(scale, str(fx[key]))
+			if _tunnel_life_blank(n):
+				error = "tunnel life: %s %s %s is 0" % [id, cid, str(key)]
+				return {}
+			built[str(key)] = n
+		choices.append(built)
+	if choices.is_empty():
+		error = "tunnel life: %s has no choices" % id
+		return {}
+	return {
+		"id": id,
+		"title": raw.get("title", {}),
+		"text": raw.get("text", {}),
+		"who": str(raw.get("who", "")),
+		"major": false,
+		"min_week": int(raw.get("min_week", 1)),
+		"weight": int(raw.get("weight", 2)),
+		"cooldown": 8,
+		"tunnel_life": true,
+		"choices": choices,
+	}
+
+
+func _tunnel_life_nums(spec: Dictionary, scale: Dictionary, id: String, cid: String, field: String) -> Dictionary:
+	var out := {}
+	for key in spec:
+		var n = _tunnel_life_one(scale, str(spec[key]))
+		if _tunnel_life_blank(n):
+			error = "tunnel life: %s %s %s %s is 0" % [id, cid, field, str(key)]
+			return {}
+		out[str(key)] = n
+	return out
+
+
+func _tunnel_life_one(scale: Dictionary, name: String):
+	var neg := name.begins_with("-")
+	var key := name.trim_prefix("-")
+	if not scale.has(key):
+		return 0
+	var raw = scale[key]
+	if raw is float and not is_equal_approx(float(raw), float(int(raw))):
+		var f := float(raw)
+		return -f if neg else f
+	var n := int(raw)
+	return -n if neg else n
+
+
+func _tunnel_life_blank(value) -> bool:
+	if value is float:
+		return is_zero_approx(float(value))
+	return int(value) == 0
+
+
+## P66. Nine deep-life one-shots join the mid-week pool from the locked pack.
+## Numbers come from balance.deep_life_scale. Text stays the pack's EN+RU.
+## effects_words → fields. A leading '-' is the drop. Held lines are omitted.
+## dawn_flavor copies the pack's Listening Post line. No intel, no Probe.
+const DEEP_LIFE_FLAVOR := "Logged at the Listening Post"
+const DEEP_LIFE_MAP := {
+	"rust_water": {
+		"boil": {"power": "-power_small", "hope": "hope_small"},
+		"scrape": {"discontent": "discontent_small", "hope": "-hope_small"},
+		"filter": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+	},
+	"shoe_gate": {
+		"bring": {"hope": "hope_small", "discontent": "discontent_small"},
+		"leave": {"discontent": "discontent_small"},
+		"burn": {"hope": "-hope_small", "discontent": "-discontent_small"},
+	},
+	"belt_squeal": {
+		"replace": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"oil": {"power": "-power_soft", "discontent": "discontent_small"},
+		"watch": {"discontent": "discontent_small"},
+	},
+	"synod_sheet": {
+		"burn": {"hope": "-hope_small"},
+		"read": {"discontent": "discontent_small", "hope": "hope_small", "synod": "synod_small"},
+		"log": {"cost": {"influence": "influence_small"}, "discontent": "discontent_small"},
+	},
+	"side_door": {
+		"refuse": {"opinion_exchange": "-opinion_small"},
+		"take": {"food": "food_small", "hope": "-hope_small", "discontent": "discontent_small"},
+		"watch": {"cost": {"food": "food_small"}, "hope": "hope_small", "dawn_flavor": true},
+	},
+	"frost_glass": {
+		"seal": {"cost": {"materials": "materials_small"}, "hope": "hope_small"},
+		"heat": {"power": "-power_soft", "discontent": "-discontent_small"},
+		"ignore": {"hope": "-hope_small", "discontent": "discontent_small"},
+	},
+	"name_scrubbed": {
+		"rewrite": {"discontent": "discontent_small"},
+		"blank": {"hope": "-hope_small", "discontent": "discontent_small"},
+		"talk": {"cost": {"influence": "influence_small"}, "hope": "hope_small", "discontent": "-discontent_small"},
+	},
+	"twin_marks": {
+		"scrub": {"discontent": "-discontent_small", "hope": "-hope_small"},
+		"copy": {"cost": {"influence": "influence_small"}, "hope": "hope_small", "dawn_flavor": true},
+		"leave": {"discontent": "discontent_small"},
+	},
+	"warm_smell": {
+		"send": {"cost": {"food": "food_small"}, "hope": "hope_small", "dawn_flavor": true},
+		"bar": {"discontent": "discontent_small"},
+		"ignore": {"hope": "-hope_small", "discontent": "discontent_small"},
+	},
+}
+
+
+func _install_deep_life() -> void:
+	if error != "":
+		return
+	var data = _read("deep_life_events.json")
+	if not (data is Dictionary):
+		if error == "":
+			error = "deep_life_events.json is not an object"
+		return
+	var scale: Dictionary = balance.get("deep_life_scale", {})
+	if scale.is_empty():
+		error = "deep life: no deep_life_scale"
+		return
+	var have := {}
+	for ev in events:
+		have[str(ev.get("id", ""))] = true
+	for raw in data.get("events", []):
+		if not (raw is Dictionary):
+			continue
+		var id := str(raw.get("id", ""))
+		if id == "" or have.has(id):
+			error = "deep life: duplicate or blank id %s" % id
+			return
+		var built := _deep_life_event(raw, scale)
+		if error != "":
+			return
+		events.append(built)
+		have[id] = true
+
+
+func _deep_life_event(raw: Dictionary, scale: Dictionary) -> Dictionary:
+	var id := str(raw.get("id", ""))
+	var spec: Dictionary = DEEP_LIFE_MAP.get(id, {})
+	if spec.is_empty():
+		error = "deep life: no number map for %s" % id
+		return {}
+	var choices: Array = []
+	for raw_choice in raw.get("choices", []):
+		if not (raw_choice is Dictionary):
+			continue
+		var cid := str(raw_choice.get("id", ""))
+		if not spec.has(cid):
+			error = "deep life: %s choice %s has no number map" % [id, cid]
+			return {}
+		var built := {"id": cid, "label": raw_choice.get("label", {})}
+		var fx: Dictionary = spec[cid]
+		for key in fx:
+			if str(key) == "dawn_flavor":
+				var quote := _deep_life_quote(id, cid, str(raw_choice.get("effects_words", "")))
+				if quote != DEEP_LIFE_FLAVOR:
+					error = "deep life: %s %s flavor quote missing" % [id, cid]
+					return {}
+				built["dawn_flavor"] = {"en": quote}
+				continue
+			if str(key) == "cost":
+				built["cost"] = _deep_life_nums(fx.cost, scale, id, cid)
+				if error != "":
+					return {}
+				continue
+			var n := _deep_life_one(scale, str(fx[key]))
+			if n == 0:
+				error = "deep life: %s %s %s is 0" % [id, cid, str(key)]
+				return {}
+			built[str(key)] = n
+		choices.append(built)
+	if choices.is_empty():
+		error = "deep life: %s has no choices" % id
+		return {}
+	return {
+		"id": id,
+		"title": raw.get("title", {}),
+		"text": raw.get("text", {}),
+		"who": str(raw.get("who", "")),
+		"major": false,
+		"min_week": int(raw.get("min_week", 1)),
+		"weight": int(raw.get("weight", 2)),
+		"cooldown": 8,
+		"deep_life": true,
+		"choices": choices,
+	}
+
+
+func _deep_life_nums(spec: Dictionary, scale: Dictionary, id: String, cid: String) -> Dictionary:
+	var out := {}
+	for key in spec:
+		var n := _deep_life_one(scale, str(spec[key]))
+		if n == 0:
+			error = "deep life: %s %s cost %s is 0" % [id, cid, str(key)]
+			return {}
+		out[str(key)] = n
+	return out
+
+
+func _deep_life_one(scale: Dictionary, name: String) -> int:
+	var neg := name.begins_with("-")
+	var key := name.trim_prefix("-")
+	var n := int(scale.get(key, 0))
+	return -n if neg else n
+
+
+## The quoted Listening Post line, when the pack wrote one. twin_marks.copy names the same
+## dawn flavor in the pack note and does not repeat the sentence.
+func _deep_life_quote(id: String, cid: String, words: String) -> String:
+	var open := words.find("\"")
+	if open < 0:
+		if id == "twin_marks" and cid == "copy":
+			return DEEP_LIFE_FLAVOR
+		return ""
+	var close := words.find("\"", open + 1)
+	if close <= open:
+		return ""
+	return words.substr(open + 1, close - open - 1)
 
 
 func _index(rows: Array, key: String) -> Dictionary:

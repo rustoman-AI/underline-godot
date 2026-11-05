@@ -345,6 +345,16 @@ static func _load_keys() -> void:
 	else:
 		keys = {}
 	_merge_pack("res://data/raid_share.json")
+	_merge_pack("res://data/release_polish.json")
+	_merge_pack("res://data/order_why.json")
+	_merge_pack("res://data/people_chips.json")
+	_merge_pack("res://data/named_lives.json")
+	## P68 chrome. by_key wins over the older ui_strings epilogue labels.
+	_merge_pack("res://data/epilogues.json")
+	_merge_pack("res://data/book_of_laws.json")
+	_merge_pack("res://data/charges.json")
+	_merge_pack("res://data/night_runs.json")
+	_merge_pack("res://data/line_wall.json")
 
 
 ## A locked Texts pack. `by_key` wins over ui_strings for the same id. Meta keys are skipped.

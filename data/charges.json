@@ -1,0 +1,660 @@
+{
+  "_note": "P73 Charges · Promises · Mandate · Week Ticker (historic P17 / DEC-6 → P73). Spec: /workspace/CHARGES_MANDATE_P73_SPEC.md. Cite P68 Epilogue score (+100 Mandate fulfill — hook only, do NOT invent score chrome / epilogue.score); P67 Named Lives (burial Mandate); P63 Approach Floor (Reach the Floor Mandate). Soft dawn: NONE (Mandate/Promise/Charge cards = event/dawn card family ≠ soft dawn chip). Charge fail costs nothing. Promise break hope −3 / discontent +15 (SPEC). Tone: dry metro grit — desk goals, not quest-log bloat. Floor RU = Этаж in Reach the Floor.",
+  "_roadmap": "P73",
+  "_owners": "Texts; Code charges/promise/mandate PERSIST + ticker; UIUX strip/panel/cards; Art optional mandate seals (never blocks)",
+  "_status": "Designer APPROVED / Code-ready — P73 chrome expand stamped 2026-10-26 (promise.refused|cooldown · mandate.confirm|need_three · mandate.pick_body 3-of-5 Confirm). Soft dawn NONE. Floor RU Этаж. Prior pack content remains APPROVED. Night grit 2026-10-26 (RU mandate.missed). Late grit 2026-10-26 (RU pick_body). | Dawn grit 2026-10-27 (RU)",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P68 epilogues.json — Mandate +100 score hook only (do not invent epilogue.score / score chrome)",
+    "P67 named_lives.json — burial Mandate (Keep faith with the dead)",
+    "P63 approach_floor.json — Reach the Floor Mandate (Этаж)"
+  ],
+  "charges": [
+    {
+      "id": "food_store_wk9",
+      "en": "Hold a two-week food store by week 9.",
+      "ru": "Держать двухнедельный запас еды к 9-й неделе.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "no_food_short_3",
+      "en": "No food shortage for three weeks running.",
+      "ru": "Три недели подряд без нехватки еды.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "hydro_staffed",
+      "en": "Keep hydroponics staffed for four weeks.",
+      "ru": "Держать гидропонику с людьми четыре недели.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "scout_botanic",
+      "en": "Scout Botanic by week 14.",
+      "ru": "Разведать Ботаник к 14-й неделе.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "seeds_x2"
+    },
+    {
+      "id": "scout_ferry",
+      "en": "Scout the Ferry approach before week 12.",
+      "ru": "Разведать подход к Парому до 12-й недели.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "scout_neighbor",
+      "en": "Mark three neighbor stations on the map.",
+      "ru": "Отметить на карте три соседние станции.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "exchange_20",
+      "en": "Raise Exchange opinion to 20.",
+      "ru": "Поднять мнение Биржи до 20.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "influence_6"
+    },
+    {
+      "id": "synod_15",
+      "en": "Hold Synod opinion at 15 or better for two weeks.",
+      "ru": "Держать мнение Синода не ниже 15 две недели.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "influence_4"
+    },
+    {
+      "id": "directorate_deal",
+      "en": "Close one Deal step with the Directorate.",
+      "ru": "Закрыть один шаг Сделки с Директоратом.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "penn_cool",
+      "en": "Keep Penn opinion from falling below −10 for three weeks.",
+      "ru": "Три недели не давать мнению Пенна упасть ниже −10.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "dig_level_3",
+      "en": "Dig to level 3 by week 12.",
+      "ru": "Докопаться до 3-го яруса к 12-й неделе.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "build_quarters",
+      "en": "Build a new quarters room.",
+      "ru": "Построить новую жилую комнату.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "build_infirmary",
+      "en": "Have an infirmary staffed and stocked.",
+      "ru": "Держать лазарет с людьми и запасом.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "meeting_hall",
+      "en": "Staff the meeting hall for three weeks.",
+      "ru": "Три недели держать зал собраний с людьми.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "influence_4"
+    },
+    {
+      "id": "hope_40",
+      "en": "Hold hope at 40 or above for two weeks.",
+      "ru": "Держать надежду не ниже 40 две недели.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "influence_6"
+    },
+    {
+      "id": "discontent_under_50",
+      "en": "Keep discontent under 50 for four weeks.",
+      "ru": "Четыре недели держать недовольство ниже 50.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "pop_30",
+      "en": "Reach 30 residents on the platform.",
+      "ru": "Довести платформу до 30 жителей.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "no_named_death_4",
+      "en": "Four weeks with no named death.",
+      "ru": "Четыре недели без именной смерти.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "influence_4"
+    },
+    {
+      "id": "squad_home_3",
+      "en": "Keep the squad home three weeks running.",
+      "ru": "Три недели подряд держать отряд дома.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "win_patrol",
+      "en": "Win one Patrol on the line.",
+      "ru": "Отбить один Патруль на линии.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "push_twice",
+      "en": "Push a room twice without a named injury.",
+      "ru": "Дважды выжать комнату без именного ранения.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "mats_store",
+      "en": "Hold a 20-mat store by week 10.",
+      "ru": "Держать запас в 20 матов к 10-й неделе.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "medkits_3",
+      "en": "Stock three medkits in the infirmary.",
+      "ru": "Положить в лазарет три аптечки.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "power_steady",
+      "en": "No power shortage for three weeks.",
+      "ru": "Три недели без нехватки энергии.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "air_ok",
+      "en": "Keep air need met for four weeks.",
+      "ru": "Четыре недели закрывать нужду в воздухе.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "hold_station",
+      "en": "Hold one station beyond the home yard.",
+      "ru": "Удержать одну станцию за пределами домашнего двора.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    },
+    {
+      "id": "papers_1",
+      "en": "Collect one set of papers from a bunker.",
+      "ru": "Добыть один комплект бумаг из бункера.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "approach_mark",
+      "en": "Put a mark on the Approach to the Floor.",
+      "ru": "Поставить метку на Подходе к Этажу.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "intel"
+    },
+    {
+      "id": "night_run_2",
+      "en": "Complete two night runs that bring loot home.",
+      "ru": "Завершить два ночных выхода с добычей домой.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "goods"
+    },
+    {
+      "id": "law_adapt_2",
+      "en": "Enact two Adaptation laws.",
+      "ru": "Ввести два закона Приспособления.",
+      "deadline_weeks": "3–6",
+      "reward_kind": "blueprint"
+    }
+  ],
+  "promises": [
+    {
+      "id": "no_shortage_3",
+      "en": "No shortage for three weeks.",
+      "ru": "Три недели без нехватки."
+    },
+    {
+      "id": "build_quarters",
+      "en": "Build quarters before the month turns.",
+      "ru": "Построить жильё до смены месяца."
+    },
+    {
+      "id": "repeal_double",
+      "en": "Repeal Double shifts within four weeks.",
+      "ru": "Отменить Двойные смены за четыре недели."
+    },
+    {
+      "id": "bury_next",
+      "en": "Bury the next named dead — no Ledger.",
+      "ru": "Похоронить следующего именного — не в Гроссбух."
+    },
+    {
+      "id": "squad_rest",
+      "en": "Keep the squad home two weeks.",
+      "ru": "Держать отряд дома две недели."
+    },
+    {
+      "id": "feed_full",
+      "en": "Full bowls for four weeks running.",
+      "ru": "Полные миски четыре недели подряд."
+    },
+    {
+      "id": "hall_open",
+      "en": "Keep the meeting hall staffed a month.",
+      "ru": "Месяц держать зал собраний с людьми."
+    },
+    {
+      "id": "no_push_week",
+      "en": "No Push on any room for three weeks.",
+      "ru": "Три недели без Выжима ни в одной комнате."
+    }
+  ],
+  "mandates": [
+    {
+      "id": "hold_coney",
+      "title": {
+        "en": "Hold the Coney line",
+        "ru": "Удержать линию Кони"
+      },
+      "body": {
+        "en": "Population 50 or more. No shortage in weeks 33–40.",
+        "ru": "Население 50 и больше. Без нехватки на неделях 33–40."
+      }
+    },
+    {
+      "id": "unite_brooklyn",
+      "title": {
+        "en": "Unite Brooklyn",
+        "ru": "Объединить Бруклин"
+      },
+      "body": {
+        "en": "Five stations held or under vassal.",
+        "ru": "Пять станций удержаны или под вассалом."
+      }
+    },
+    {
+      "id": "reach_floor",
+      "title": {
+        "en": "Reach the Floor",
+        "ru": "Дойти до Этажа"
+      },
+      "body": {
+        "en": "Papers ×3 and the Approach complete.",
+        "ru": "Бумаги ×3 и Подход закрыт."
+      }
+    },
+    {
+      "id": "faith_dead",
+      "title": {
+        "en": "Keep faith with the dead",
+        "ru": "Верность мёртвым"
+      },
+      "body": {
+        "en": "No more than five named deaths — and all of them buried.",
+        "ru": "Не больше пяти именных смертей — и все похоронены."
+      }
+    },
+    {
+      "id": "line_capital",
+      "title": {
+        "en": "Line capital",
+        "ru": "Столица линии"
+      },
+      "body": {
+        "en": "Reach the capital stage on the line.",
+        "ru": "Дойти до стадии столицы на линии."
+      }
+    }
+  ],
+  "by_key": {
+    "charge.done": {
+      "en": "Charge complete — blueprint.",
+      "ru": "Поручение закрыто — чертёж."
+    },
+    "charge.done_goods": {
+      "en": "Charge complete — goods.",
+      "ru": "Поручение закрыто — товар."
+    },
+    "charge.done_intel": {
+      "en": "Charge complete — intel.",
+      "ru": "Поручение закрыто — разведка."
+    },
+    "charge.done_influence": {
+      "en": "Charge complete — influence.",
+      "ru": "Поручение закрыто — влияние."
+    },
+    "charge.failed": {
+      "en": "Charge lapsed.",
+      "ru": "Поручение сорвалось."
+    },
+    "charge.active": {
+      "en": "Charges",
+      "ru": "Поручения"
+    },
+    "charge.empty": {
+      "en": "No charges on the desk.",
+      "ru": "На столе нет поручений."
+    },
+    "charge.due": {
+      "en": "Due in {n} weeks",
+      "ru": "Срок через {n} нед."
+    },
+    "promise.offer": {
+      "en": "The platform wants a promise.",
+      "ru": "Платформа хочет обещание."
+    },
+    "promise.offer_title": {
+      "en": "A promise",
+      "ru": "Обещание"
+    },
+    "promise.accept": {
+      "en": "Promise it",
+      "ru": "Обещать"
+    },
+    "promise.decline": {
+      "en": "Not now",
+      "ru": "Не сейчас"
+    },
+    "promise.kept": {
+      "en": "Promise kept. Hope steadies.",
+      "ru": "Обещание сдержано. Надежда крепче."
+    },
+    "promise.broke": {
+      "en": "Promise broken. The platform remembers.",
+      "ru": "Обещание нарушено. Платформа помнит."
+    },
+    "promise.active": {
+      "en": "Promise: {text}",
+      "ru": "Обещание: {text}"
+    },
+    "mandate.pick": {
+      "en": "Choose Mandates.",
+      "ru": "Выберите Мандаты."
+    },
+    "mandate.pick_title": {
+      "en": "Mandate",
+      "ru": "Мандат"
+    },
+    "mandate.pick_body": {
+      "en": "Week eight. The platform asks for long goals. Pick three of five — then Confirm locks them. Missing is not a loss. Fulfill feeds the epilogue.",
+      "ru": "Восьмая неделя. Платформа просит долгие цели. Выберите три из пяти — Подтверждение закрепит их. Промах — не поражение. Исполнение идёт в эпилог."
+    },
+    "mandate.progress": {
+      "en": "Mandate: {title}",
+      "ru": "Мандат: {title}"
+    },
+    "mandate.fulfilled": {
+      "en": "Mandate fulfilled. The epilogue will know.",
+      "ru": "Мандат исполнен. Эпилог будет знать."
+    },
+    "mandate.missed": {
+      "en": "Mandate unmet. The run goes on.",
+      "ru": "Мандат не выполнен. Ход продолжается."
+    },
+    "ticker.charge": {
+      "en": "Charge due in {n} weeks",
+      "ru": "Поручение через {n} нед."
+    },
+    "ticker.promise": {
+      "en": "Promise due in {n} weeks",
+      "ru": "Обещание через {n} нед."
+    },
+    "ticker.runners": {
+      "en": "Runners back in {n} weeks",
+      "ru": "Бегуны через {n} нед."
+    },
+    "ticker.build": {
+      "en": "Build done in {n} weeks",
+      "ru": "Стройка через {n} нед."
+    },
+    "ticker.ultimatum": {
+      "en": "Ultimatum in {n} weeks",
+      "ru": "Ультиматум через {n} нед."
+    },
+    "ticker.season": {
+      "en": "{season} in {n} weeks",
+      "ru": "{season} через {n} нед."
+    },
+    "ticker.law_cooldown": {
+      "en": "Law desk ready in {n} weeks",
+      "ru": "Стол законов через {n} нед."
+    },
+    "ticker.empty": {
+      "en": "Nothing on the ticker.",
+      "ru": "На ленте пусто."
+    },
+    "charge.text.food_store_wk9": {
+      "en": "Hold a two-week food store by week 9.",
+      "ru": "Держать двухнедельный запас еды к 9-й неделе."
+    },
+    "charge.text.no_food_short_3": {
+      "en": "No food shortage for three weeks running.",
+      "ru": "Три недели подряд без нехватки еды."
+    },
+    "charge.text.hydro_staffed": {
+      "en": "Keep hydroponics staffed for four weeks.",
+      "ru": "Держать гидропонику укомплектованной четыре недели."
+    },
+    "charge.text.scout_botanic": {
+      "en": "Scout Botanic by week 14.",
+      "ru": "Разведать Ботаник к 14-й неделе."
+    },
+    "charge.text.scout_ferry": {
+      "en": "Scout the Ferry approach before week 12.",
+      "ru": "Разведать подход к Парому до 12-й недели."
+    },
+    "charge.text.scout_neighbor": {
+      "en": "Mark three neighbor stations on the map.",
+      "ru": "Отметить на карте три соседние станции."
+    },
+    "charge.text.exchange_20": {
+      "en": "Raise Exchange opinion to 20.",
+      "ru": "Поднять мнение Биржи до 20."
+    },
+    "charge.text.synod_15": {
+      "en": "Hold Synod opinion at 15 or better for two weeks.",
+      "ru": "Держать мнение Синода не ниже 15 две недели."
+    },
+    "charge.text.directorate_deal": {
+      "en": "Close one Deal step with the Directorate.",
+      "ru": "Закрыть один шаг Сделки с Директоратом."
+    },
+    "charge.text.penn_cool": {
+      "en": "Keep Penn opinion from falling below −10 for three weeks.",
+      "ru": "Три недели не давать мнению Пенна упасть ниже −10."
+    },
+    "charge.text.dig_level_3": {
+      "en": "Dig to level 3 by week 12.",
+      "ru": "Докопаться до 3-го яруса к 12-й неделе."
+    },
+    "charge.text.build_quarters": {
+      "en": "Build a new quarters room.",
+      "ru": "Построить новую жилую комнату."
+    },
+    "charge.text.build_infirmary": {
+      "en": "Have an infirmary staffed and stocked.",
+      "ru": "Держать лазарет укомплектованным и со складом."
+    },
+    "charge.text.meeting_hall": {
+      "en": "Staff the meeting hall for three weeks.",
+      "ru": "Три недели держать зал собраний укомплектованным."
+    },
+    "charge.text.hope_40": {
+      "en": "Hold hope at 40 or above for two weeks.",
+      "ru": "Держать надежду не ниже 40 две недели."
+    },
+    "charge.text.discontent_under_50": {
+      "en": "Keep discontent under 50 for four weeks.",
+      "ru": "Четыре недели держать недовольство ниже 50."
+    },
+    "charge.text.pop_30": {
+      "en": "Reach 30 residents on the platform.",
+      "ru": "Довести платформу до 30 жителей."
+    },
+    "charge.text.no_named_death_4": {
+      "en": "Four weeks with no named death.",
+      "ru": "Четыре недели без именной смерти."
+    },
+    "charge.text.squad_home_3": {
+      "en": "Keep the squad home three weeks running.",
+      "ru": "Три недели подряд держать отряд дома."
+    },
+    "charge.text.win_patrol": {
+      "en": "Win one Patrol on the line.",
+      "ru": "Выиграть один Патруль на линии."
+    },
+    "charge.text.push_twice": {
+      "en": "Push a room twice without a named injury.",
+      "ru": "Дважды выжать комнату без именного ранения."
+    },
+    "charge.text.mats_store": {
+      "en": "Hold a 20-mat store by week 10.",
+      "ru": "Держать запас в 20 матов к 10-й неделе."
+    },
+    "charge.text.medkits_3": {
+      "en": "Stock three medkits in the infirmary.",
+      "ru": "Положить в лазарет три аптечки."
+    },
+    "charge.text.power_steady": {
+      "en": "No power shortage for three weeks.",
+      "ru": "Три недели без нехватки энергии."
+    },
+    "charge.text.air_ok": {
+      "en": "Keep air need met for four weeks.",
+      "ru": "Четыре недели закрывать нужду в воздухе."
+    },
+    "charge.text.hold_station": {
+      "en": "Hold one station beyond the home yard.",
+      "ru": "Удержать одну станцию за пределами домашнего двора."
+    },
+    "charge.text.papers_1": {
+      "en": "Collect one set of papers from a bunker.",
+      "ru": "Добыть один комплект бумаг из бункера."
+    },
+    "charge.text.approach_mark": {
+      "en": "Put a mark on the Approach to the Floor.",
+      "ru": "Поставить метку на Подходе к Этажу."
+    },
+    "charge.text.night_run_2": {
+      "en": "Complete two night runs that bring loot home.",
+      "ru": "Завершить два ночных выхода с добычей домой."
+    },
+    "charge.text.law_adapt_2": {
+      "en": "Enact two Adaptation laws.",
+      "ru": "Ввести два закона Приспособления."
+    },
+    "promise.text.no_shortage_3": {
+      "en": "No shortage for three weeks.",
+      "ru": "Три недели без нехватки."
+    },
+    "promise.text.build_quarters": {
+      "en": "Build quarters before the month turns.",
+      "ru": "Построить жильё до смены месяца."
+    },
+    "promise.text.repeal_double": {
+      "en": "Repeal Double shifts within four weeks.",
+      "ru": "Отменить Двойные смены за четыре недели."
+    },
+    "promise.text.bury_next": {
+      "en": "Bury the next named dead — no Ledger.",
+      "ru": "Похоронить следующего именного — не в Гроссбух."
+    },
+    "promise.text.squad_rest": {
+      "en": "Keep the squad home two weeks.",
+      "ru": "Держать отряд дома две недели."
+    },
+    "promise.text.feed_full": {
+      "en": "Full bowls for four weeks running.",
+      "ru": "Полные миски четыре недели подряд."
+    },
+    "promise.text.hall_open": {
+      "en": "Keep the meeting hall staffed a month.",
+      "ru": "Месяц держать зал собраний с людьми."
+    },
+    "promise.text.no_push_week": {
+      "en": "No Push on any room for three weeks.",
+      "ru": "Три недели без Выжима ни в одной комнате."
+    },
+    "mandate.title.hold_coney": {
+      "en": "Hold the Coney line",
+      "ru": "Удержать линию Кони"
+    },
+    "mandate.body.hold_coney": {
+      "en": "Population 50 or more. No shortage in weeks 33–40.",
+      "ru": "Население 50 и больше. Без нехватки на неделях 33–40."
+    },
+    "mandate.title.unite_brooklyn": {
+      "en": "Unite Brooklyn",
+      "ru": "Объединить Бруклин"
+    },
+    "mandate.body.unite_brooklyn": {
+      "en": "Five stations held or under vassal.",
+      "ru": "Пять станций удержаны или под вассалом."
+    },
+    "mandate.title.reach_floor": {
+      "en": "Reach the Floor",
+      "ru": "Дойти до Этажа"
+    },
+    "mandate.body.reach_floor": {
+      "en": "Papers ×3 and the Approach complete.",
+      "ru": "Бумаги ×3 и Подход закрыт."
+    },
+    "mandate.title.faith_dead": {
+      "en": "Keep faith with the dead",
+      "ru": "Верность мёртвым"
+    },
+    "mandate.body.faith_dead": {
+      "en": "No more than five named deaths — and all of them buried.",
+      "ru": "Не больше пяти именных смертей — и все похоронены."
+    },
+    "mandate.title.line_capital": {
+      "en": "Line capital",
+      "ru": "Столица линии"
+    },
+    "mandate.body.line_capital": {
+      "en": "Reach the capital stage on the line.",
+      "ru": "Дойти до стадии столицы на линии."
+    },
+    "promise.refused": {
+      "en": "They heard no.",
+      "ru": "Они услышали отказ."
+    },
+    "promise.cooldown": {
+      "en": "Not asking again yet.",
+      "ru": "Пока снова не просят."
+    },
+    "mandate.confirm": {
+      "en": "Confirm Mandates",
+      "ru": "Подтвердить мандаты"
+    },
+    "mandate.need_three": {
+      "en": "Pick three.",
+      "ru": "Выберите три."
+    }
+  },
+  "meta": {
+    "charges": 30,
+    "promises": 8,
+    "mandates": 5,
+    "active_charges_cap": 3,
+    "promise_one_at_a_time": true,
+    "mandate_offer": "3 of 5 at week 8",
+    "mandate_score_hook": "P68 +100 on fulfill — Texts does not ship score chrome",
+    "ticker_cap": 4
+  },
+  "_designer": "APPROVED / Code-ready — P73 expand B4/CM3 2026-10-26"
+}

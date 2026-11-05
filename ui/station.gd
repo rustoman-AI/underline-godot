@@ -12,6 +12,13 @@ const PAPER_BUTTON := Color("3a3126")
 const PAPER_BUTTON_HOVER := Color("4a3f32")
 const PAPER_BUTTON_DOWN := Color("1a140e")
 const PAPER_EDGE := Color("b89a6a")
+## RELEASE_POLISH RP1. Week leads. Stocks sit one step under. Meters stay secondary.
+const HUD_WEEK_SIZE := 22
+const HUD_STOCK_SIZE := 20
+const HUD_DELTA_SIZE := 12
+const HUD_METER_LABEL := 12
+const HUD_TRACK_H := 6
+const HUD_METER_MIN_W := 88.0
 const CARD_PAPER := Color("30261b")
 const CARD_EDGE := Color("d9ac4f")
 ## Extra space above each button row in a card.
@@ -179,6 +186,11 @@ var hints_late := false
 const CARD_CLICK_GUARD_MS := 350
 ## The audience card may be wider (800 px) and reach over the dimmed ticker row; reset by every _open_card.
 var card_roomy := false
+## Book of Laws. Adaptation is the default leaf. Creed opens from the week-6 card.
+var laws_tab := "adapt"
+var laws_open_after := false
+var law_art := {}
+var book_host: Control = null
 var portraits: Array = []
 var portrait_names: Array = []
 ## Playtest: consent, how-to and crash cards sit on their own layer above the menu.
@@ -195,6 +207,10 @@ var shelved_event := ""
 var check_picks := {}
 var check_flash := false
 var pending_button: Button
+var charges_button: Button
+var week_tip_n := 0
+var mandate_picks: Array = []
+var mandate_hold_picks := false
 var end_cover: Control
 var ahead_box: VBoxContainer
 var source_panel: Panel
@@ -273,6 +289,9 @@ var address_button: Button
 var dis_pulse: Tween
 var hub_button: Button
 var network_button: Button
+var night_button: Button
+var night_panel: Control
+var wall_button: Button
 var network_view: Control
 var showing_network := false
 var hub_layer: Control
@@ -328,6 +347,8 @@ var audience_key := ""
 var audience_heard := false
 var dawn_heard := ""
 var event_vo_heard := ""
+## Panels other than the event card (law line, mandate, verdict, …). One play per week per line.
+var panel_vo_heard := {}
 ## Room type -> "<game id>:<week>" for the week an event's data named that room; its yard sign shows a warning.
 var incident_rooms := {}
 ## The leader line last voiced; a redraw that shows the same line again stays silent.
@@ -375,7 +396,9 @@ func _ready() -> void:
 	hold_dawn = false
 	resized.connect(_layout)
 	_layout()
-	if _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms():
+	var tunnel_shots := _dev_args().has("--tunnel-life")
+	var deep_shots := _dev_args().has("--deep-life")
+	if deep_shots or tunnel_shots or _want_shots() or _want_clarity() or _want_review() or _want_hub() or _want_polish() or _want_network() or _want_checks() or _want_ux() or _want_visual() or _want_lore() or _want_drawer() or _want_rooms() or _want_rp_shots() or _want_people_chips() or _want_named() or _want_epilogue() or _want_laws() or _want_p73() or _want_night() or _want_wall():
 		shot_mode = true
 		Lore.dry = true
 	if hub_button != null:
@@ -391,7 +414,7 @@ func _ready() -> void:
 		PlaytestLog.begin(_session_info())
 		_playtest_prompts.call_deferred()
 	if shot_mode:
-		if not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms():
+		if not deep_shots and not tunnel_shots and not _want_hub() and not _want_polish() and not _want_network() and not _want_checks() and not _want_ux() and not _want_visual() and not _want_lore() and not _want_drawer() and not _want_rooms() and not _want_rp_shots() and not _want_people_chips() and not _want_named() and not _want_epilogue() and not _want_laws() and not _want_p73() and not _want_night() and not _want_wall():
 			_show_dawn()
 	elif Settings.resume and game != null and SaveGame.load_latest(game):
 		Settings.resume = false
@@ -412,6 +435,8 @@ func _ready() -> void:
 			_play_intro()
 	if _want_checks():
 		await _check_shots()
+	elif _want_wall():
+		await _wall_shots()
 	elif _want_polish():
 		await _polish_shots()
 	elif _want_shots():
@@ -432,12 +457,356 @@ func _ready() -> void:
 		await _lore_shots()
 	elif _want_drawer():
 		await _drawer_shots()
+	elif _want_people_chips():
+		await _people_chip_shots()
 	elif _want_rooms():
 		await _rooms_shots()
+	elif _want_named():
+		await _named_shots()
+	elif _want_epilogue():
+		await _epilogue_shots()
+	elif _want_laws():
+		await _laws_shots()
 	elif _want_vo():
 		await _vo_shots()
+	elif _want_rp_shots():
+		await _release_polish_shots()
+	elif _want_p73():
+		await _p73_shots()
 	elif _dev_args().has("--journal"):
 		await _journal_shots()
+	elif _want_night():
+		await _night_shots()
+	elif _dev_args().has("--station-life"):
+		await _station_life_shots()
+	elif _dev_args().has("--tunnel-life"):
+		await _tunnel_life_shots()
+	elif _dev_args().has("--deep-life"):
+		await _deep_life_shots()
+
+
+## Dev shots of the P62 one-shots on the existing event card. Not player chrome.
+func _station_life_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	for id in ["chalk_marks", "silent_car", "mold_cart"]:
+		game.pending.clear()
+		game.week_event_ids = {}
+		event_mode = "one"
+		game._present_event(game._event_by_id(id))
+		_show_dawn()
+		await _frame()
+		await _frame()
+		await _frame()
+		_save("station_life_%s" % id)
+		_close_card()
+	Copy.set_lang("ru")
+	game.pending.clear()
+	game.week_event_ids = {}
+	event_mode = "one"
+	game._present_event(game._event_by_id("pickle_stamp"))
+	_show_dawn()
+	await _frame()
+	await _frame()
+	await _frame()
+	_save("station_life_pickle_stamp_ru")
+	_close_card()
+	get_tree().quit(0)
+
+
+## Dev shots of the P64 one-shots on the existing event card. Not player chrome.
+func _tunnel_life_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	for id in ["wet_bunk", "vent_prayer", "crate_blank"]:
+		game.pending.clear()
+		game.week_event_ids = {}
+		event_mode = "one"
+		game._present_event(game._event_by_id(id))
+		_show_dawn()
+		await _frame()
+		await _frame()
+		await _frame()
+		print("TUNNEL LIFE CARD %s / %s" % [id, game.line_of(game.front_event(), "title")])
+		_save("tunnel_life_%s" % id)
+		_close_card()
+	Copy.set_lang("ru")
+	game.pending.clear()
+	game.week_event_ids = {}
+	event_mode = "one"
+	game._present_event(game._event_by_id("cold_rail"))
+	_show_dawn()
+	await _frame()
+	await _frame()
+	await _frame()
+	print("TUNNEL LIFE CARD cold_rail / %s" % game.line_of(game.front_event(), "title"))
+	_save("tunnel_life_cold_rail_ru")
+	_close_card()
+	get_tree().quit(0)
+
+
+## Dev shots of the P66 one-shots on the existing event card. Not player chrome.
+func _deep_life_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	for id in ["rust_water", "synod_sheet", "name_scrubbed"]:
+		game.pending.clear()
+		game.week_event_ids = {}
+		event_mode = "one"
+		game._present_event(game._event_by_id(id))
+		_show_dawn()
+		await _frame()
+		await _frame()
+		await _frame()
+		print("DEEP LIFE CARD %s / %s" % [id, game.line_of(game.front_event(), "title")])
+		_save("deep_life_%s" % id)
+		_close_card()
+	Copy.set_lang("ru")
+	game.pending.clear()
+	game.week_event_ids = {}
+	event_mode = "one"
+	game._present_event(game._event_by_id("shoe_gate"))
+	_show_dawn()
+	await _frame()
+	await _frame()
+	await _frame()
+	print("DEEP LIFE CARD shoe_gate / %s" % game.line_of(game.front_event(), "title"))
+	_save("deep_life_shoe_gate_ru")
+	_close_card()
+	get_tree().quit(0)
+
+
+## P68 stills: verdict, chronicle, fates. Motion stays off (shot_mode). Writes /opt/cursor/artifacts.
+func _epilogue_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	await _settle(Vector2i(1100, 820))
+	_close_card()
+	await _frame()
+	_stage_epilogue_run()
+	_show_ending()
+	await _frame()
+	await _frame()
+	_save_epilogue("p68_ep1_verdict")
+	_life_epilogue_go(1)
+	await _frame()
+	await _frame()
+	_save_epilogue("p68_ep2_chronicle")
+	_life_epilogue_go(2)
+	await _frame()
+	await _frame()
+	_save_epilogue("p68_ep3_fates")
+	var plate := Image.new()
+	var plate_path := ProjectSettings.globalize_path("res://assets/events/ending_time.webp")
+	if plate.load(plate_path) == OK:
+		var out := "/opt/cursor/artifacts/p68_ending_time_plate.png"
+		DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+		print("EPILOGUE PLATE %s err %s" % [out, plate.save_png(out)])
+	get_tree().quit(0)
+
+
+func _stage_epilogue_run() -> void:
+	game.chronicle.clear()
+	game.creed = "watch"
+	game.over = ""
+	var beats := [
+		[38, "named_death", {"name": "Rhee", "cause": "cough"}, 5],
+		[32, "creed_line", {"law": "sealed the sick"}, 5],
+		[28, "station_taken", {"place": "Coney Island"}, 3],
+		[22, "dilemma", {"title": "The Gate", "choice": "turn away"}, 3],
+		[16, "season", {"season": "cold"}, 2],
+		[10, "creed_chosen", {"creed": "Watch"}, 2],
+		[8, "clear", {}, 1],
+	]
+	for beat in beats:
+		game.week = int(beat[0])
+		game._note_moment(str(beat[1]), beat[2], int(beat[3]))
+	var bury_id := "pete"
+	if game.people.has(bury_id):
+		var person: Dictionary = game.people[bury_id]
+		game._unassign(bury_id)
+		var keep: Array = []
+		for row in game.residents:
+			if str(row.get("id", "")) != bury_id:
+				keep.append(row)
+		game.residents = keep
+		game.people.erase(bury_id)
+		game.departed.append({
+			"id": bury_id,
+			"name": str(person.get("name", "Pete Navarro")),
+			"name_ru": str(person.get("name_ru", "")),
+			"memory": 90,
+			"week": 38,
+			"how": "died",
+			"cause_id": "sickness",
+			"cause": "sickness",
+			"room": "",
+			"place": game._home_name(),
+			"burial": "bury",
+			"seasoned": false,
+			"grew_week": 0,
+			"night_runs": 0,
+			"checks_passed": 0,
+			"role": "",
+		})
+	for pair in [["ruth", 70], ["benny", 60], ["ellis", 50], ["samira", 40]]:
+		if game.people.has(str(pair[0])):
+			game.people[str(pair[0])].memory = int(pair[1])
+	game.week = 40
+	game.stats.named_dead = 1
+	game.hope = 482 - game.week * 10 - game.residents.size() * 2 - game.owned_count() * 15 + int(game.stats.named_dead) * 5
+	game.over = "time"
+	game.stats.scored = false
+	var cfg := ConfigFile.new()
+	cfg.set_value("scores", "best", 510)
+	cfg.save(game.records_path)
+
+
+func _save_epilogue(shot_name: String) -> void:
+	var img := get_viewport().get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	var path := "/opt/cursor/artifacts/%s.png" % shot_name
+	var err := img.save_png(path)
+	print("EPILOGUE SHOT %s %dx%d err %s" % [shot_name, img.get_width(), img.get_height(), err])
+
+
+func _p73_shots() -> void:
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	if menu_layer != null:
+		menu_layer.visible = false
+	game.charges.active = [
+		{"id": "food_store_wk9", "due": game.week + 3, "reward": "blueprint", "streak": 0, "base": 0, "born": game.week},
+		{"id": "scout_botanic", "due": game.week + 5, "reward": "seeds_x2", "streak": 0, "base": 0, "born": game.week},
+		{"id": "dig_level_3", "due": game.week + 4, "reward": "blueprint", "streak": 0, "base": 0, "born": game.week},
+	]
+	game.mandate.picked = ["hold_coney", "reach_floor", "faith_dead"]
+	game.mandate.show_progress = true
+	game.mandate.offered = true
+	game.mandate.missed = false
+	game.pending.clear()
+	game.order_reports.clear()
+	game.demands.clear()
+	game.audience = {}
+	game.raid_share = {}
+	for season in game.seasons:
+		season["week"] = 0
+	_show_charges()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_charges")
+	_close_card()
+	game.pending = [_p73_promise_event()]
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_promise")
+	_close_card()
+	game.week = 8
+	game.pending = [_p73_mandate_event()]
+	mandate_picks = ["hold_coney", "unite_brooklyn", "reach_floor"]
+	mandate_hold_picks = true
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_mandate")
+	_close_card()
+	game.pending.clear()
+	game.expedition = {"left": 2, "tunnel": "to_ferry"}
+	game.build = {"left": 1, "type": "quarters", "level": 0, "cell": 2, "workers": []}
+	game.law_lock = 2
+	game.charges.active = [
+		{"id": "dig_level_3", "due": game.week + 3, "reward": "blueprint", "streak": 0, "base": 0, "born": game.week},
+	]
+	ambient_restore = Callable()
+	while not deck.is_empty():
+		deck.pop()
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_fit_card()
+	await _frame()
+	_shot_artifact("p73_ticker_dawn")
+	_close_card()
+	_show_ahead(true)
+	await _frame()
+	await _frame()
+	_shot_artifact("p73_ticker_end")
+	print("P73 SHOTS DONE")
+	get_tree().quit()
+
+
+func _p73_promise_event() -> Dictionary:
+	return {
+		"id": "promise_offer",
+		"major": true,
+		"cm": "promise",
+		"promise_id": "no_shortage_3",
+		"title": Copy.pack("promise.offer_title"),
+		"text": Copy.pack("promise.offer"),
+		"choices": [
+			{"id": "decline", "label": Copy.pack("promise.decline")},
+			{"id": "accept", "label": Copy.pack("promise.accept")},
+		],
+	}
+
+
+func _p73_mandate_event() -> Dictionary:
+	return {
+		"id": "mandate_pick",
+		"major": true,
+		"cm": "mandate",
+		"title": Copy.pack("mandate.pick"),
+		"text": Copy.pack("mandate.pick_body"),
+		"choices": [
+			{"id": "confirm", "label": Copy.pack("mandate.confirm")},
+		],
+	}
+
+
+func _shot_artifact(shot_name: String) -> void:
+	_save(shot_name)
+	var img := get_viewport().get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	var err := img.save_png("/opt/cursor/artifacts/%s.png" % shot_name)
+	print("ARTIFACT %s err %s" % [shot_name, err])
 
 
 func _journal_shots() -> void:
@@ -588,6 +957,10 @@ func _want_drawer() -> bool:
 	return _dev_args().has("--drawer")
 
 
+func _want_people_chips() -> bool:
+	return _dev_args().has("--people-chips")
+
+
 func _drawer_shots() -> void:
 	hold_dawn = false
 	await _settle(_shot_size())
@@ -667,6 +1040,93 @@ func _drawer_shots() -> void:
 	get_tree().quit()
 
 
+## Dev-only. Stages one Sick, one Away, one crew, and leaves room staff and the free list so the drawer shows every chip.
+func _people_chip_shots() -> void:
+	hold_dawn = false
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	game.pending.clear()
+	hold_dawn = true
+	_stage_people_chip_shot()
+	_refresh()
+	_close_card()
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_scroll_people_to_chip("free")
+	await _frame()
+	_save("people_chips_free")
+	_scroll_people_to_chip("sick")
+	await _frame()
+	_save("people_chips_sick")
+	_scroll_people_to_chip("away")
+	await _frame()
+	_save("people_chips_away")
+	_scroll_people_to_chip("room")
+	await _frame()
+	_save("people_chips_room")
+	_scroll_people_to_chip("crew")
+	await _frame()
+	_save("people_chips_crew")
+	get_tree().quit()
+
+
+func _stage_people_chip_shot() -> void:
+	var free: Array = []
+	for person in game.residents:
+		var id := str(person.id)
+		if bool(person.get("soldier", false)) or _staff_room(id) != "":
+			continue
+		free.append(id)
+	if free.size() < 3:
+		return
+	var sick_id := str(free[0])
+	var away_id := str(free[1])
+	var crew_id := str(free[2])
+	game.people[sick_id].sick = 3
+	game.people[sick_id].absent = 0
+	game.people[away_id].sick = 0
+	game.people[away_id].absent = 2
+	game.dig = {"workers": [crew_id], "left": 1, "level": 0, "cell": 0}
+	_unassign_shot(crew_id)
+
+
+func _unassign_shot(id: String) -> void:
+	for room in game.rooms:
+		var keep: Array = []
+		for sid in room.staff:
+			if str(sid) != id:
+				keep.append(sid)
+		room.staff = keep
+
+
+func _scroll_people_to_chip(kind: String) -> void:
+	if people_scroll == null or people_box == null:
+		return
+	var chip := _find_people_chip(people_box, kind)
+	if chip == null:
+		return
+	var delta := chip.get_global_rect().position.y - people_scroll.get_global_rect().position.y
+	people_scroll.scroll_vertical = maxi(0, int(people_scroll.scroll_vertical + delta - 28.0))
+
+
+func _find_people_chip(node: Node, kind: String) -> Control:
+	if node is Control and str(node.name) == "PeopleChip" and str(node.get_meta("people_chip", "")) == kind:
+		return node
+	for child in node.get_children():
+		var found := _find_people_chip(child, kind)
+		if found != null:
+			return found
+	return null
+
+
 func _lore_shots() -> void:
 	hold_dawn = false
 	await _settle(_shot_size())
@@ -743,6 +1203,10 @@ func _want_shots() -> bool:
 	return _dev_args().has("--shots") or (OS.is_debug_build() and OS.get_environment("UNDERLINE_SHOTS") == "1")
 
 
+func _want_p73() -> bool:
+	return _dev_args().has("--p73")
+
+
 ## Screenshot and review switches. Empty in a release export, so a player's build cannot reach them.
 func _dev_args() -> PackedStringArray:
 	return OS.get_cmdline_user_args() if OS.is_debug_build() else PackedStringArray()
@@ -764,8 +1228,130 @@ func _want_checks() -> bool:
 	return _dev_args().has("--checks")
 
 
+func _want_wall() -> bool:
+	return _dev_args().has("--wall")
+
+
 func _want_rooms() -> bool:
 	return _dev_args().has("--rooms")
+
+
+func _want_rp_shots() -> bool:
+	return _rp_shot_tag() != ""
+
+
+func _rp_shot_tag() -> String:
+	for arg in _dev_args():
+		if str(arg).begins_with("--rp-shots="):
+			return str(arg).trim_prefix("--rp-shots=")
+	return ""
+
+
+func _want_named() -> bool:
+	return _dev_args().has("--named-lives")
+
+
+func _want_epilogue() -> bool:
+	return _dev_args().has("--epilogue")
+
+
+func _want_laws() -> bool:
+	return _dev_args().has("--laws")
+
+
+## Book of Laws stills. Writes /opt/cursor/artifacts/p72_*.png.
+func _laws_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_laws_staff_hall()
+	game.week = 4
+	game.law_lock = 0
+	game.pending.clear()
+	laws_tab = "adapt"
+	_show_laws()
+	await _laws_paint()
+	_save_artifact("p72_book_shell")
+	if game.apply({"kind": "law", "law": "rationing"}):
+		game.law_lock = 0
+	_show_laws()
+	await _laws_paint()
+	_save_artifact("p72_adaptation_forks")
+	game.week = 6
+	game.law_lock = 0
+	for step in ["curfew", "conscription", "informers"]:
+		game.law_lock = 0
+		game.apply({"kind": "law", "law": step})
+	game.law_lock = 0
+	game.stock.influence = maxi(int(game.stock.influence), 12)
+	laws_tab = "creed"
+	_show_laws()
+	await _laws_paint()
+	_save_artifact("p72_creed_branches")
+	var defin: Dictionary = game.catalog.laws.timetable
+	_ask_line("timetable", defin, game.enact_reason("timetable"))
+	await _laws_paint()
+	_save_artifact("p72_line_confirm")
+	_close_card()
+	game.pending.clear()
+	game.audience.clear()
+	game.order_reports.clear()
+	game.week = 6
+	game.flags.erase("law_week6")
+	game._offer_week6_creed()
+	hold_dawn = false
+	_show_dawn()
+	await _laws_paint()
+	_save_artifact("p72_week6_card")
+	get_tree().quit()
+
+
+func _laws_staff_hall() -> void:
+	if game._room_ready("meeting_hall"):
+		game.law_lock = 0
+		return
+	var spot := Vector2i(-1, -1)
+	for key in game.cells:
+		var cell: Dictionary = game.cells[key]
+		if not bool(cell.get("dug", false)) or str(cell.get("room", "")) != "":
+			continue
+		if bool(cell.get("flooded", false)) or str(cell.get("pile", "")) != "":
+			continue
+		spot = Vector2i(int(cell.level), int(cell.cell))
+		break
+	if spot.x < 0:
+		return
+	game._place_room("meeting_hall", spot.x, spot.y)
+	var who := ""
+	for person in game.residents:
+		if game._is_child(person):
+			continue
+		who = str(person.id)
+		break
+	for room in game.rooms:
+		if str(room.type) == "meeting_hall" and who != "":
+			room.staff = [who]
+	game.law_lock = 0
+
+
+func _laws_paint() -> void:
+	for _i in 8:
+		await _frame()
+
+
+func _save_artifact(shot_name: String) -> void:
+	var dir := "/opt/cursor/artifacts"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var img := get_viewport().get_texture().get_image()
+	var path := dir + "/%s.png" % shot_name
+	var err := img.save_png(path)
+	print("ARTIFACT %s %dx%d err %s" % [path, img.get_width(), img.get_height(), err])
 
 
 ## The station built out by a careful bot to week 12, for judging how rooms read as separate spaces: the whole
@@ -977,6 +1563,7 @@ func _who_row(who: String) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.set_meta("who_row", true)
 	row.add_child(_portrait_box(id, 84))
 	var lab := _label(Copy.person(str(game.people[id].name)), 18)
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1051,6 +1638,7 @@ func _build() -> void:
 	burn_button = _tool("burn", "Burn", _ask_burn)
 	power_button = _tool("power", "Power", _show_power)
 	people_button = _tool("people", "People", _toggle_drawer)
+	charges_button = _tool("blueprint", "charge.active", _show_charges)
 	var salvage_button := _tool("salvage_open", "salvage.title", _show_salvage)
 	salvage_button.tooltip_text = Copy.t("salvage.title")
 	var journal_button := _tool("journal", "Journal", _show_journal)
@@ -1060,9 +1648,17 @@ func _build() -> void:
 	power_button.tooltip_text = "Power order"
 	people_button.tooltip_text = "Residents"
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
-	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, salvage_button, journal_button, pending_button]:
+	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, charges_button, salvage_button, journal_button, pending_button]:
 		tray.add_child(button)
 
+	night_button = _button("run.panel_title", open_night_panel)
+	night_button.custom_minimum_size = Vector2(168, 44)
+	night_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	night_button.add_theme_font_size_override("font_size", 16)
+	night_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(night_button)
+	night_panel = preload("res://ui/night_panel.gd").new()
+	add_child(night_panel)
 	end_button = _button("End turn", _end_turn)
 	end_button.custom_minimum_size = Vector2(168, 58)
 	end_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1085,6 +1681,12 @@ func _build() -> void:
 	network_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	network_button.add_theme_font_size_override("font_size", 16)
 	add_child(network_button)
+	wall_button = _button("wall.open", _show_wall)
+	wall_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wall_button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	wall_button.add_theme_font_size_override("font_size", 16)
+	wall_button.tooltip_text = Copy.t("wall.desc")
+	add_child(wall_button)
 	hub_button = _button("Station view", _show_hub_view)
 	hub_button.visible = false
 	hub_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1143,18 +1745,27 @@ func _style_tool(button: Button) -> void:
 
 
 ## The top bar is the station's ceiling beam: dark riveted steel with a brass lip and a shadow on the rooms below.
-func _top_bar() -> PanelContainer:
-	var panel := PanelContainer.new()
+## 1 px brass/paper hairline under the shared yard and Network strip. Not a second card.
+func hud_edge_style() -> StyleBoxFlat:
 	var beam := _steel_style()
 	beam.bg_color = Color(0.085, 0.085, 0.095, 0.97)
-	beam.border_color = Color(0.62, 0.5, 0.3, 0.75)
+	beam.border_color = Color(PAPER_EDGE, 0.7)
 	beam.set_border_width_all(0)
-	beam.border_width_bottom = 2
+	beam.border_width_bottom = 1
 	beam.set_corner_radius_all(0)
 	beam.shadow_color = Color(0, 0, 0, 0.55)
 	beam.shadow_size = 10
 	beam.shadow_offset = Vector2(0, 5)
-	beam.content_margin_bottom = 10
+	beam.content_margin_top = 10
+	beam.content_margin_bottom = 12
+	return beam
+
+
+func _top_bar() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = "Hud"
+	panel.set_meta("hud_edge", true)
+	var beam := hud_edge_style()
 	panel.add_theme_stylebox_override("panel", beam)
 	panel.draw.connect(_draw_beam_rivets.bind(panel))
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1166,7 +1777,7 @@ func _top_bar() -> PanelContainer:
 	title_row = HBoxContainer.new()
 	title_row.add_theme_constant_override("separation", 10)
 	box.add_child(title_row)
-	week_label = _label("Week 1", 22, true)
+	week_label = _label("Week 1", HUD_WEEK_SIZE, true)
 	week_label.custom_minimum_size = Vector2(108, 28)
 	week_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	week_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1217,7 +1828,7 @@ func _top_bar() -> PanelContainer:
 		icon_col.add_child(icon)
 		icon_col.add_child(name)
 		var life := str(key) in LIFE_KEYS
-		var value := _label("0", 26 if life else 21)
+		var value := _label("0", HUD_STOCK_SIZE)
 		value.add_theme_constant_override("outline_size", 4)
 		value.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1226,16 +1837,17 @@ func _top_bar() -> PanelContainer:
 			value.add_theme_font_override("font", number_font)
 		var digit := 12.0
 		if number_font != null:
-			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 26 if life else 21).x
+			digit = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_STOCK_SIZE).x
 		value.custom_minimum_size = Vector2(digit * 3.4 + 2.0, 24)
-		var delta := _label("", 11)
+		var delta := _label("", HUD_DELTA_SIZE)
+		delta.add_theme_color_override("font_color", MUTED)
 		delta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		delta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		if number_font != null:
 			delta.add_theme_font_override("font", number_font)
 		var small := 8.0
 		if number_font != null:
-			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			small = number_font.get_string_size("0", HORIZONTAL_ALIGNMENT_LEFT, -1, HUD_DELTA_SIZE).x
 		delta.custom_minimum_size = Vector2(small * 3.0 + 2.0, 13)
 		chip.tooltip_text = Copy.res(str(key))
 		chip.add_child(icon_col)
@@ -1405,7 +2017,7 @@ func _sync_people_pill() -> void:
 func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.custom_minimum_size = Vector2(88, 0)
+	box.custom_minimum_size = Vector2(HUD_METER_MIN_W, 0)
 	box.mouse_filter = Control.MOUSE_FILTER_STOP
 	var meter_key := "hope" if hope else "discontent"
 	box.gui_input.connect(_chip_input.bind(meter_key))
@@ -1418,17 +2030,19 @@ func _meter(fill_color: Color, hope: bool) -> VBoxContainer:
 	var dial := Dial.new()
 	dial.needle = fill_color
 	dial.danger_high = not hope
-	dial.custom_minimum_size = Vector2(46, 30)
+	dial.custom_minimum_size = Vector2(46, 24)
 	dial.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(dial)
-	var lab := _label("Hope", 12)
+	var lab := _label("Hope", HUD_METER_LABEL)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(lab)
 	var track := ColorRect.new()
 	track.color = Color(1, 1, 1, 0.14)
-	track.custom_minimum_size = Vector2(0, 4)
-	track.visible = false
+	track.custom_minimum_size = Vector2(0, HUD_TRACK_H)
+	track.visible = true
+	track.set_meta("hud_track", true)
 	var fill := ColorRect.new()
 	fill.color = fill_color
 	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1601,6 +2215,16 @@ func _place_chrome() -> void:
 		hud.offset_top = 0.0
 		hud.offset_bottom = hud_h
 	chrome_bottom = margin + tool_h + 4.0
+	if night_button != null:
+		night_button.anchor_left = 1.0
+		night_button.anchor_right = 1.0
+		night_button.anchor_top = 1.0
+		night_button.anchor_bottom = 1.0
+		night_button.offset_right = -margin
+		night_button.offset_left = -margin - end_w
+		night_button.offset_bottom = -margin - end_h - 8.0
+		night_button.offset_top = -margin - end_h - 8.0 - 44.0
+		night_button.custom_minimum_size = Vector2(end_w, 44)
 	if end_button != null:
 		end_button.anchor_left = 1.0
 		end_button.anchor_right = 1.0
@@ -1633,6 +2257,21 @@ func _place_chrome() -> void:
 		network_button.offset_top = -margin - tool_h
 		network_button.text = Copy.t("Back to your station") if showing_network else Copy.t("Network")
 		network_button.tooltip_text = Copy.t("Close the map and return to your own station.") if showing_network else Copy.t("Open the map of the tunnels.")
+	if wall_button != null:
+		var wall_w := 112.0
+		wall_button.visible = not showing_network
+		wall_button.anchor_left = 1.0
+		wall_button.anchor_right = 1.0
+		wall_button.anchor_top = 1.0
+		wall_button.anchor_bottom = 1.0
+		wall_button.custom_minimum_size = Vector2(wall_w, tool_h)
+		var wall_right := -margin - end_w - 8.0 - (240.0 if showing_network else 132.0) - 8.0
+		wall_button.offset_right = wall_right
+		wall_button.offset_left = wall_right - wall_w
+		wall_button.offset_bottom = -margin
+		wall_button.offset_top = -margin - tool_h
+		wall_button.text = Copy.t("wall.open")
+		wall_button.tooltip_text = Copy.t("wall.desc")
 	if hub_button != null and hub_button.visible:
 		var view_w := 210.0
 		var tray_right := margin + tool_w * 5.0 + 48.0
@@ -1712,6 +2351,13 @@ func _fill_ahead() -> void:
 	var dis_line := _label(Copy.t("Discontent %d") % int(proj.get("discontent", 0)), 16)
 	dis_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ahead_box.add_child(dis_line)
+	week_tip_n = 0
+	if game.has_method("ticker_rows"):
+		for line in game.ticker_rows():
+			var tip := _label(str(line), 16, false, false)
+			tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ahead_box.add_child(tip)
+			week_tip_n += 1
 	on_paper = was
 
 
@@ -1720,6 +2366,8 @@ func _place_ahead() -> void:
 		return
 	var w := 248.0
 	var h := 248.0
+	if week_tip_n > 0:
+		h += 18.0 * float(week_tip_n)
 	ahead.anchor_left = 0.0
 	ahead.anchor_top = 0.0
 	ahead.anchor_right = 0.0
@@ -1910,15 +2558,14 @@ func _shrink_card() -> void:
 		return
 	if h > max_h and card_body.get_child_count() > 0:
 		var top_child := card_body.get_child(0)
-		if top_child is TextureRect and top_child.has_meta("banner") and top_child.visible:
-			## The banner gives up only the height the card lacks, down to a strip; below that it goes.
+		if top_child is Control and top_child.has_meta("banner") and top_child.visible:
+			## The banner gives up only the height the card lacks, and never drops below the reserved band.
 			var shorter: float = top_child.custom_minimum_size.y - (h - max_h)
-			if shorter >= BANNER_MIN_H:
-				top_child.custom_minimum_size.y = roundf(shorter)
-			else:
-				top_child.visible = false
-			_queue_shrink()
-			return
+			var floor_h := maxf(BANNER_MIN_H, shorter)
+			if floor_h < top_child.custom_minimum_size.y - 0.5:
+				top_child.custom_minimum_size.y = roundf(floor_h)
+				_queue_shrink()
+				return
 		if card_body.get_theme_constant("separation") > 2:
 			card_body.add_theme_constant_override("separation", 2)
 			_space_buttons(0.0)
@@ -1943,6 +2590,11 @@ func _refresh() -> void:
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
 		_toast_chain(notes)
+	_drain_named_voice()
+	if charges_button != null:
+		var cool := game.promise_cooldown_line()
+		charges_button.tooltip_text = cool if cool != "" else Copy.t("charge.active")
+	_drain_wall_toast()
 	_show_perk_floats()
 	_watch_work()
 	var season := ""
@@ -2411,6 +3063,8 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	var name_label := _label(Copy.person(str(person.name)), 15)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_line.add_child(name_label)
+	if game.is_known(person):
+		name_line.add_child(_known_tag())
 	if _story_state(id) == "new":
 		var dot := _label("•", 15, true)
 		dot.add_theme_color_override("font_color", Color("e2a63a"))
@@ -2422,9 +3076,118 @@ func _people_row(person: Dictionary, skill_name: String) -> PersonRow:
 	skill_label.add_theme_color_override("font_color", MUTED)
 	skill_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(skill_label)
+	line.alignment = BoxContainer.ALIGNMENT_CENTER
 	line.add_child(box)
+	line.add_child(_people_status_chip(id))
 	row.add_child(line)
 	return row
+
+
+## Right-aligned status chip. Sick beats Away, then a dig/build/clear crew, then the room, else Free.
+## Away uses person.absent and the same party-out read as the P44 yard bar. The chip never moves to that bar.
+## Static at every motion setting: no bob, no tween.
+const PEOPLE_CHIP_ROOM := 14
+
+
+func _people_chip(id: String) -> Dictionary:
+	var person: Dictionary = game.people[id]
+	if int(person.get("sick", 0)) > 0:
+		return _people_chip_row("sick", "people.chip_sick", "#c4544a", false, "")
+	if _people_chip_away(id):
+		return _people_chip_row("away", "people.chip_away", "#3a3126", false, "")
+	if _people_chip_on_crew(id):
+		return _people_chip_row("crew", "people.chip_crew", "#3a3126", false, "")
+	var room := _people_chip_room_name(id)
+	if room != "":
+		return _people_chip_row("room", "people.chip_room", "#3a3126", false, room)
+	return _people_chip_row("free", "people.chip_free", "muted", true, "")
+
+
+func _people_chip_row(kind: String, key: String, fill: String, muted: bool, room: String) -> Dictionary:
+	var text := Copy.fill(key, {"room": room}) if kind == "room" else Copy.t(key)
+	return {
+		"kind": kind,
+		"key": key,
+		"fill": fill,
+		"muted": muted,
+		"room": room,
+		"text": text,
+		"static": true,
+	}
+
+
+## Tunnel party / expedition: the same position check the P44 away bar uses, plus a person already marked absent.
+func _people_chip_away(id: String) -> bool:
+	if int(game.people[id].get("absent", 0)) > 0:
+		return true
+	if not game.squads.has(game.player):
+		return false
+	var sq: Dictionary = game.squads[game.player]
+	if not game._party_position_away(sq) or game._party_living_count(sq) <= 0:
+		return false
+	for wid in sq.get("roster", []):
+		if str(wid) == id:
+			return true
+	return false
+
+
+## Site crews only. The guard is not a dig/build crew and does not take this chip.
+func _people_chip_on_crew(id: String) -> bool:
+	for job in [game.dig, game.build, game.clear]:
+		if typeof(job) != TYPE_DICTIONARY:
+			continue
+		var crew: Dictionary = job
+		if crew.is_empty():
+			continue
+		for wid in crew.get("workers", []):
+			if str(wid) == id:
+				return true
+	return false
+
+
+func _people_chip_room_name(id: String) -> String:
+	for room in game.rooms:
+		for sid in room.staff:
+			if str(sid) == id:
+				return _people_chip_clip(room_title(room))
+	return ""
+
+
+func _people_chip_clip(line: String) -> String:
+	if line.length() <= PEOPLE_CHIP_ROOM:
+		return line
+	return line.substr(0, PEOPLE_CHIP_ROOM) + "…"
+
+
+func _people_status_chip(id: String) -> Control:
+	var chip := _people_chip(id)
+	var panel := PanelContainer.new()
+	panel.name = "PeopleChip"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	panel.custom_minimum_size = Vector2(72, 22)
+	panel.set_meta("people_chip", str(chip.kind))
+	panel.set_meta("people_chip_static", true)
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER if bool(chip.muted) else Color(str(chip.fill))
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 1
+	style.content_margin_bottom = 1
+	panel.add_theme_stylebox_override("panel", style)
+	var lab := _label(str(chip.text), 11, false, false)
+	lab.add_theme_color_override("font_color", MUTED if bool(chip.muted) else INK)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(lab)
+	return panel
 
 
 func _main_skill_text(person: Dictionary, prefer: String) -> String:
@@ -2555,6 +3318,8 @@ func _end_cover_input(event: InputEvent) -> void:
 func _end_turn() -> void:
 	if game.over != "":
 		return
+	if night_panel != null and night_panel.has_method("close_panel"):
+		night_panel.close_panel()
 	if game.raid_share_open() or game.dawn_held():
 		_show_raid_share()
 		return
@@ -3286,17 +4051,36 @@ func _ask_rally() -> void:
 	var why := game.rally_reason()
 	var lines: PackedStringArray = [Copy.t("The hall pulls the platform back from a revolt. Discontent %+d. Hope %+d.") % [int(game.bal.rally_discontent), int(game.bal.rally_hope)]]
 	if why != "":
-		lines.append(why)
+		lines.append(OrderWhy.show(game, "rally", why, {}))
 	_confirm("Hold a rally?", lines, why == "", {"kind": "rally"})
 
 
 func _ask_law(law_id: String) -> void:
 	var defin: Dictionary = game.catalog.laws[law_id]
 	var why := game.enact_reason(law_id)
-	var lines: PackedStringArray = [_law_blurb(defin)]
+	if bool(defin.get("line", false)):
+		_ask_line(law_id, defin, why)
+		return
+	var lines: PackedStringArray = [_law_body(defin)]
+	lines.append(Copy.fill("law.enact_tip", {"n": int(game.bal.law_cooldown)}))
 	if why != "":
 		lines.append(why)
-	_confirm(Copy.t(str(defin.name)) + "?", lines, why == "", {"kind": "law", "law": law_id})
+	_confirm(_law_title(defin) + "?", lines, why == "", {"kind": "law", "law": law_id}, Copy.t("law.enact"))
+
+
+## Dig-shaped confirm (P69 / P56 cite). Full line text, permanent, 10 influence.
+func _ask_line(law_id: String, defin: Dictionary, why: String) -> void:
+	var lines: PackedStringArray = [Copy.t("law.line_confirm_title"), _law_title(defin)]
+	var text_key := "law.line_text." + law_id
+	if Copy.keys.has(text_key):
+		var line_text := Copy.t(text_key)
+		lines.append(line_text)
+		_show_voice("law", law_id, "line", line_text)
+	lines.append(Copy.t("law.line_confirm"))
+	var muted := PackedStringArray()
+	if why == Copy.t("law.influence_short"):
+		muted.append("law.line_need_influence")
+	_confirm(_law_title(defin), lines, why == "", {"kind": "law", "law": law_id}, Copy.t("law.enact"), why, muted)
 
 
 func _ask_repeal(law_id: String) -> void:
@@ -3402,7 +4186,7 @@ func _tap_cell(level: int, cell: int) -> void:
 			Copy.t("%s left.") % Words.count(int(game.dig.left), "week"),
 			Copy.t("%s on the crew.") % Words.count(game.dig.workers.size(), "person", "people"),
 		]
-		_confirm("Dig this cell?", digging, false, {"kind": "dig", "level": level, "cell": cell}, "Dig", _brigade_busy_reason())
+		_confirm("Dig this cell?", digging, false, {"kind": "dig", "level": level, "cell": cell}, "Dig", OrderWhy.show(game, "dig", _brigade_busy_reason(), {"level": level, "cell": cell}))
 		return
 	if not game.build.is_empty() and int(game.build.level) == level and int(game.build.cell) == cell:
 		var name := str(game.catalog.rooms[str(game.build.type)].name)
@@ -3417,6 +4201,8 @@ func _tap_cell(level: int, cell: int) -> void:
 			Words.count(int(info.materials), "material"),
 		]
 		var why := _brigade_busy_reason() if not game.dig.is_empty() else str(info.reason)
+		if not bool(info.ok):
+			why = OrderWhy.show(game, "dig", why, {"level": level, "cell": cell})
 		_confirm("Dig this cell?", lines, bool(info.ok), {"kind": "dig", "level": level, "cell": cell}, "Dig", why)
 		return
 	_show_build(level, cell)
@@ -3434,7 +4220,7 @@ func _tap_clear(level: int, cell: int, spot: Dictionary) -> void:
 			Copy.fill("clear.progress", {"n": str(int(game.clear.left))}),
 			Copy.t("%s on the crew.") % Words.count(game.clear.workers.size(), "person", "people"),
 		]
-		_confirm("clear.confirm", busy, false, {"kind": "clear", "level": level, "cell": cell}, "clear.go", Copy.t("clear.busy"))
+		_confirm("clear.confirm", busy, false, {"kind": "clear", "level": level, "cell": cell}, "clear.go", OrderWhy.show(game, "clear", Copy.t("clear.busy"), {"level": level, "cell": cell}))
 		return
 	var info := game.clear_preview(level, cell)
 	var lines: PackedStringArray = [
@@ -3450,7 +4236,10 @@ func _tap_clear(level: int, cell: int, spot: Dictionary) -> void:
 		muted.append(Copy.t("clear.risk_coal"))
 	elif int(info.risk_pct) > 0:
 		muted.append(Copy.fill("clear.risk", {"pct": str(int(info.risk_pct))}))
-	_confirm("clear.confirm", lines, bool(info.ok), {"kind": "clear", "level": level, "cell": cell}, "clear.go", str(info.reason), muted)
+	var why := ""
+	if not bool(info.ok):
+		why = OrderWhy.show(game, "clear", str(info.reason), {"level": level, "cell": cell})
+	_confirm("clear.confirm", lines, bool(info.ok), {"kind": "clear", "level": level, "cell": cell}, "clear.go", why, muted)
 
 
 func _drop_person(person_id: String, uid: String) -> void:
@@ -3605,8 +4394,13 @@ func _confirm_build(type: String, level: int, cell: int) -> void:
 	if bool(join.get("joins", false)) and str(join.get("bonus_line", "")) != "":
 		lines.append(str(join.bonus_line))
 	lines.append(Copy.t("Power use once it is running: %d.") % int(info.power))
-	if str(info.reason) != "":
-		lines.append(str(info.reason))
+	if bool(info.ok):
+		if str(info.reason) != "":
+			lines.append(str(info.reason))
+	else:
+		var why := OrderWhy.show(game, "build", str(info.get("reason", "")), {"level": level, "cell": cell, "type": type})
+		if why != "":
+			lines.append(why)
 	if yard != null:
 		yard.place_lock = true
 		yard.show_place(type, level, cell)
@@ -3686,6 +4480,285 @@ func _salvage_panel(rows: Array) -> String:
 			return "res://assets/ui/salvage_board_no_blueprint.webp"
 		_:
 			return "res://assets/ui/salvage_board_panel.webp"
+
+
+func _show_charges() -> void:
+	if game == null:
+		return
+	if not _claim(ModalDeck.AMBIENT, "charges", _show_charges):
+		return
+	_open_card(Copy.t("charge.active"))
+	var prog := game.mandate_progress_line()
+	if prog != "":
+		_body_muted(prog)
+	var rows: Array = game.charge_panel_rows()
+	if rows.is_empty():
+		_body("charge.empty")
+	else:
+		var n := 1
+		for row in rows:
+			_body("%d. %s" % [n, str(row.get("text", ""))])
+			_body_muted("%s    %s" % [str(row.get("due", "")), str(row.get("reward", ""))])
+			n += 1
+	var active := game.promise_panel_line()
+	if active != "":
+		_body(active)
+	var cool := game.promise_cooldown_line()
+	if cool != "":
+		_body_muted(cool)
+
+
+func _paint_promise_card(ev: Dictionary) -> void:
+	_open_card(Copy.t("promise.offer_title"), false, "Event")
+	_body("promise.offer")
+	var pid := str(ev.get("promise_id", ""))
+	if pid != "":
+		_body_muted(Copy.t("promise.text." + pid))
+	_choice_divider()
+	card_body.add_child(_choice_button("promise.accept", {}, _pick_promise.bind("accept")))
+	card_body.add_child(_choice_button("promise.decline", {}, _pick_promise.bind("decline")))
+	_week_strip()
+
+
+func _pick_promise(choice_id: String) -> void:
+	if game == null or game.pending.is_empty():
+		return
+	var ev: Dictionary = game.front_event()
+	if str(ev.get("cm", "")) != "promise":
+		return
+	if not game.apply({"kind": "event", "event_id": str(ev.get("id", "")), "choice_id": choice_id}):
+		return
+	_refresh()
+	_show_dawn()
+
+
+func _paint_mandate_card(ev: Dictionary) -> void:
+	if mandate_hold_picks:
+		mandate_hold_picks = false
+	elif mandate_picks.is_empty() and not game.mandate.get("picked", []).is_empty() and bool(game.mandate.get("show_progress", false)):
+		mandate_picks = game.mandate.picked.duplicate()
+	_open_card(Copy.t("mandate.pick"), false, "Event")
+	_body("mandate.pick_body")
+	_show_voice("mandate", "pick", "body", Copy.t("mandate.pick_body"))
+	for id in ["hold_coney", "unite_brooklyn", "reach_floor", "faith_dead", "line_capital"]:
+		card_body.add_child(_mandate_row(id))
+	var confirm := _choice_button("mandate.confirm", {}, _confirm_mandate)
+	confirm.disabled = mandate_picks.size() != 3
+	card_body.add_child(confirm)
+	if mandate_picks.size() != 3:
+		_body_muted("mandate.need_three")
+	var preview := _mandate_preview_line()
+	if preview != "":
+		_body_muted(preview)
+	_week_strip()
+
+
+func _mandate_row(id: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var path := "res://assets/icons/ui/mandate_%s.png" % id
+	if ResourceLoader.exists(path):
+		var tex := ArtPack.load_texture(path)
+		if tex != null:
+			var mark := TextureRect.new()
+			mark.texture = tex
+			mark.custom_minimum_size = Vector2(36, 36)
+			mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(mark)
+	var mark_text := "[x]" if mandate_picks.has(id) else "[ ]"
+	var button := _choice_button("%s %s" % [mark_text, Copy.t("mandate.title." + id)], {}, _toggle_mandate.bind(id))
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(button)
+	return row
+
+
+func _toggle_mandate(id: String) -> void:
+	if mandate_picks.has(id):
+		mandate_picks.erase(id)
+	elif mandate_picks.size() < 3:
+		mandate_picks.append(id)
+	_paint_dawn()
+
+
+func _confirm_mandate() -> void:
+	if game == null or mandate_picks.size() != 3:
+		return
+	if not game.commit_mandate(mandate_picks.duplicate()):
+		return
+	_open_card(Copy.t("mandate.pick_title"), true, "Event")
+	var line := game.mandate_progress_line()
+	if line != "":
+		_body_muted(line)
+	_body("mandate.pick_body")
+	card_body.add_child(_button("Close", _close_card))
+	_week_strip()
+	_refresh()
+
+
+func _mandate_preview_line() -> String:
+	if mandate_picks.size() == 3:
+		var titles: PackedStringArray = []
+		for id in mandate_picks:
+			titles.append(Copy.t("mandate.title." + str(id)))
+		return Copy.fill("mandate.progress", {"title": " · ".join(titles)})
+	return game.mandate_progress_line() if game != null else ""
+
+
+func _week_strip() -> void:
+	if game == null:
+		return
+	var rows: Array = game.ticker_rows()
+	if rows.is_empty():
+		return
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 8)
+	flow.add_theme_constant_override("v_separation", 6)
+	for line in rows:
+		var chip := PanelContainer.new()
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color(0.16, 0.12, 0.08, 0.92)
+		face.border_color = Color("c4923a")
+		face.set_border_width_all(1)
+		face.set_corner_radius_all(4)
+		face.content_margin_left = 8
+		face.content_margin_right = 8
+		face.content_margin_top = 4
+		face.content_margin_bottom = 4
+		chip.add_theme_stylebox_override("panel", face)
+		var lab := _label(str(line), 14, false, false)
+		lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(lab)
+		flow.add_child(chip)
+	card_body.add_child(flow)
+func _show_wall() -> void:
+	if game == null or game.over != "":
+		return
+	if not _claim(ModalDeck.AMBIENT, "wall", _show_wall):
+		return
+	var view: Dictionary = game.wall_open()
+	_open_card(Copy.t("wall.title"))
+	card_roomy = true
+	_fit_card()
+	var desc := _label("wall.desc", 15)
+	desc.add_theme_color_override("font_color", PAPER_MUTED)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_body.add_child(desc)
+	if bool(view.get("empty", true)):
+		var empty_art := _wall_art("res://assets/ui/wall_panel_empty.webp")
+		if empty_art != null:
+			var banner := TextureRect.new()
+			banner.texture = empty_art
+			banner.custom_minimum_size = Vector2(0, 180)
+			banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card_body.add_child(banner)
+		var empty := _label("wall.empty", 16)
+		empty.add_theme_color_override("font_color", PAPER_MUTED)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.custom_minimum_size = Vector2(480, 0)
+		card_body.add_child(empty)
+	else:
+		var meta := HBoxContainer.new()
+		meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var showing := _label("wall.showing", 14)
+		showing.add_theme_color_override("font_color", PAPER_MUTED)
+		showing.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		meta.add_child(showing)
+		var count := _label(Copy.fill("wall.count", {"n": str(int(view.get("count", 0)))}), 14, false, false)
+		count.add_theme_color_override("font_color", PAPER_MUTED)
+		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		meta.add_child(count)
+		card_body.add_child(meta)
+		for plate in view.get("plates", []):
+			var row := _wall_row(plate)
+			if row != null:
+				card_body.add_child(row)
+	_fit_card()
+	_drain_wall_toast()
+
+
+func _drain_wall_toast() -> void:
+	if game == null or not game.wall_take_first_hope():
+		return
+	_toast(Copy.clip(Copy.t("wall.first"), 72), 1.6)
+
+
+func _wall_art(path: String) -> Texture2D:
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	var tex := ArtPack.load_texture(path)
+	if tex == null or tex.get_width() <= 1:
+		return null
+	return tex
+
+
+func _wall_row(plate: Dictionary) -> Control:
+	var label := str(plate.get("label", ""))
+	if label == "":
+		return null
+	var kind := str(plate.get("kind", ""))
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(0, 64)
+	var frame := _wall_art("res://assets/ui/wall_plate_frame.webp")
+	if frame != null:
+		var face := StyleBoxTexture.new()
+		face.texture = frame
+		face.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+		face.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+		face.content_margin_left = 28
+		face.content_margin_right = 22
+		face.content_margin_top = 14
+		face.content_margin_bottom = 14
+		panel.add_theme_stylebox_override("panel", face)
+		panel.modulate = _wall_kind_tint(kind)
+	else:
+		var flat := StyleBoxFlat.new()
+		flat.bg_color = _wall_kind_flat(kind)
+		flat.set_corner_radius_all(3)
+		flat.set_content_margin_all(12)
+		panel.add_theme_stylebox_override("panel", flat)
+	var line := _label(label, 16, true, false)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if frame != null:
+		line.add_theme_color_override("font_color", Color("f3e6c4"))
+		line.add_theme_constant_override("outline_size", 4)
+		line.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.85))
+	else:
+		line.add_theme_color_override("font_color", Color("2a2116"))
+	panel.add_child(line)
+	return panel
+
+
+func _wall_kind_tint(kind: String) -> Color:
+	match kind:
+		"law", "mandate_pick", "mandate_done":
+			return Color(1.0, 0.94, 0.78)
+		"bury", "ledger":
+			return Color(0.82, 0.76, 0.7)
+		_:
+			return Color(0.9, 0.92, 0.8)
+
+
+func _wall_kind_flat(kind: String) -> Color:
+	match kind:
+		"law", "mandate_pick", "mandate_done":
+			return Color("c4a15a")
+		"bury", "ledger":
+			return Color("8a7564")
+		_:
+			return Color("9a8b6a")
 
 
 func _show_salvage() -> void:
@@ -4646,26 +5719,17 @@ func _show_laws() -> void:
 	if not _claim(ModalDeck.AMBIENT, "laws", _show_laws):
 		return
 	_open_card("Laws")
+	card_roomy = true
+	_fit_card()
 	if not game._room_ready("meeting_hall"):
 		_body(Copy.t("Staff the meeting hall. The hall can pass one law, then it waits %s.") % Words.count(int(game.bal.law_cooldown), "week"))
 	elif game.law_lock > 0:
 		_body(Copy.t("A law was just passed. The next one is %s away.") % Words.count(game.law_lock, "week"))
 	else:
 		_body(Copy.t("One law this sitting. The next sitting is %s later.") % Words.count(int(game.bal.law_cooldown), "week"))
-	for id in game.catalog.laws:
-		var defin: Dictionary = game.catalog.laws[id]
-		_heading(Copy.t(str(defin.name)))
-		_body(_law_blurb(defin))
-		if game.laws_on.has(id):
-			_body("In force.")
-		else:
-			var why := game.enact_reason(str(id))
-			var label := Copy.t("Enact %s") % Copy.t(str(defin.name))
-			if why == "":
-				card_body.add_child(_button(label, _enact.bind(str(id))))
-			else:
-				_blocked_pair(label, why)
+	_law_book()
 	card_body.add_child(_button("Close", _close_card))
+	_fit_card()
 
 
 func _enact(law_id: String) -> void:
@@ -4714,6 +5778,250 @@ func _law_blurb(defin: Dictionary) -> String:
 	if defin.has("opinion_on_enact"):
 		bits.append(Copy.t("Every rival's opinion %+d.") % int(defin.opinion_on_enact))
 	return " ".join(bits)
+
+
+const BOOK_ROWS := [
+	["food", "law.row.food", "rationing", "soup_line"],
+	["work", "law.row.work", "double_shifts", "night_shift"],
+	["sickness", "law.row.sickness", "triage", "quarantine"],
+	["dead", "law.row.dead", "ledger", "burial_tunnel"],
+]
+const BOOK_CREEDS := [
+	["watch", "creed.watch", "curfew", "conscription", "informers", "timetable"],
+	["chapel", "creed.chapel", "sermons", "chapel_shift", "penance", "covenant"],
+	["market", "creed.market", "open_market", "tunnel_tax", "token_wages", "everything_has_a_price"],
+]
+const LAW_ART := {
+	"frame": ["res://assets/ui/law_page_frame.webp", "40b6b1ec2b891e73164f52ffea834f34"],
+	"watch": ["res://assets/icons/factions/creed_watch.png", "8bfd0666baffc8c01eace8164a92dca9"],
+	"chapel": ["res://assets/icons/factions/creed_chapel.png", "db3af2ded47c31d426d5a589fc7ce5dc"],
+	"market": ["res://assets/icons/factions/creed_market.png", "bcce1451cada463c53c4dda6b487f54a"],
+}
+
+
+func _book_add(node: Node) -> void:
+	if book_host != null:
+		book_host.add_child(node)
+	elif card_body != null:
+		card_body.add_child(node)
+
+
+func _law_book() -> void:
+	book_host = null
+	var frame := _law_texture("frame")
+	if frame != null:
+		var plate := PanelContainer.new()
+		plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var style := StyleBoxTexture.new()
+		style.texture = frame
+		style.texture_margin_left = 110
+		style.texture_margin_right = 110
+		style.texture_margin_top = 78
+		style.texture_margin_bottom = 78
+		style.content_margin_left = 22
+		style.content_margin_right = 22
+		style.content_margin_top = 16
+		style.content_margin_bottom = 16
+		plate.add_theme_stylebox_override("panel", style)
+		var inner := VBoxContainer.new()
+		inner.add_theme_constant_override("separation", 6)
+		inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		plate.add_child(inner)
+		card_body.add_child(plate)
+		book_host = inner
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.add_child(_law_tab("adapt", "law.tab_adaptation"))
+	tabs.add_child(_law_tab("creed", "law.tab_creed"))
+	_book_add(tabs)
+	if laws_tab == "creed":
+		_law_creed_body()
+	else:
+		_law_adapt_body()
+	book_host = null
+
+
+func _law_tab(id: String, key: String) -> Button:
+	var button := _button(key, _law_pick_tab.bind(id))
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var on := laws_tab == id
+	var face := StyleBoxFlat.new()
+	face.bg_color = PAPER_BUTTON if on else Color(PAPER_BUTTON, 0.35)
+	face.border_color = BRASS if on else Color(PAPER_EDGE, 0.28)
+	face.set_border_width_all(1)
+	face.set_corner_radius_all(2)
+	face.content_margin_left = 10
+	face.content_margin_right = 10
+	face.content_margin_top = 6
+	face.content_margin_bottom = 6
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", face)
+	button.add_theme_stylebox_override("pressed", face)
+	button.add_theme_stylebox_override("disabled", face)
+	if not on:
+		button.add_theme_color_override("font_color", PAPER_MUTED)
+	return button
+
+
+func _law_pick_tab(id: String) -> void:
+	laws_tab = id
+	_show_laws()
+
+
+func _law_adapt_body() -> void:
+	if game._law_on("engineers_charter"):
+		_body("%s — %s" % [_law_title(game.catalog.laws.engineers_charter), Copy.t("law.in_force")])
+		_body_muted("creed.none_hint")
+	for row in BOOK_ROWS:
+		_heading(Copy.t(str(row[1])))
+		var sides: PackedStringArray = [str(row[2]), str(row[3])]
+		var box := HBoxContainer.new()
+		box.add_theme_constant_override("separation", 8)
+		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var tip := ""
+		for law_id in sides:
+			var why := ""
+			if not game.laws_on.has(law_id):
+				why = game.enact_reason(law_id)
+			if tip == "" and why != "":
+				tip = why
+			box.add_child(_law_side(law_id, why))
+		_book_add(box)
+		if tip != "":
+			_body_muted(tip)
+
+
+func _law_side(law_id: String, why: String) -> Button:
+	var defin: Dictionary = game.catalog.laws[law_id]
+	var on := game.laws_on.has(law_id)
+	var label := _law_title(defin)
+	if on:
+		label = "%s  ✓  %s" % [label, Copy.t("law.in_force")]
+	var button := _button(label, _ask_law.bind(law_id) if not on else func() -> void: pass)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var face := _button_face(false, false)
+	face.set_border_width_all(1)
+	if on:
+		face.border_color = BRASS
+		button.disabled = true
+	elif why != "":
+		button.disabled = true
+		button.modulate = Color(1, 1, 1, 0.55)
+		face.border_color = Color(PAPER_EDGE, 0.35)
+	if bool(defin.get("line", false)):
+		face.border_color = BRASS
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", face)
+	button.add_theme_stylebox_override("pressed", face)
+	button.add_theme_stylebox_override("disabled", face)
+	return button
+
+
+func _law_creed_body() -> void:
+	if game.week < 6:
+		_body_muted("law.creed_locked_week")
+	elif game._creed_branch() == "":
+		_body_muted("creed.none_hint")
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for branch in BOOK_CREEDS:
+		row.add_child(_law_branch(branch))
+	_book_add(row)
+	if game._law_on("everything_has_a_price"):
+		_law_price_trades()
+
+
+func _law_branch(branch: Array) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 4)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	var seal := _law_texture(str(branch[0]))
+	if seal != null:
+		var icon := TextureRect.new()
+		icon.texture = seal
+		icon.custom_minimum_size = Vector2(28, 28)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(icon)
+	var title := _label(Copy.t(str(branch[1])), 16, true)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	col.add_child(head)
+	var tipped := false
+	for i in range(2, branch.size()):
+		var law_id := str(branch[i])
+		var why := "" if game.laws_on.has(law_id) else game.enact_reason(law_id)
+		col.add_child(_law_side(law_id, why))
+		if why != "" and not tipped and game.week >= 6:
+			var lab := _label(why, 13)
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.add_theme_color_override("font_color", PAPER_MUTED)
+			col.add_child(lab)
+			tipped = true
+	return col
+
+
+func _law_price_trades() -> void:
+	_body_muted("law.blurb.everything_has_a_price")
+	for pair in [["sell", "law.trade_sell"], ["migrant", "law.trade_migrant"], ["hope", "law.trade_hope"]]:
+		var why := game.law_trade_reason(str(pair[0]))
+		if why == "":
+			_book_add(_button(str(pair[1]), _law_trade.bind(str(pair[0]))))
+		else:
+			_blocked_pair(Copy.t(str(pair[1])), why)
+
+
+func _law_trade(which: String) -> void:
+	if not game.apply({"kind": "law_trade", "trade": which}):
+		footer.text = Copy.t("The hall did not pass that.")
+		footer.visible = true
+	_refresh()
+	_show_laws()
+
+
+func _law_title(defin: Dictionary) -> String:
+	var key := "law.name." + str(defin.get("id", ""))
+	if Copy.keys.has(key):
+		return Copy.t(key)
+	return Copy.t(str(defin.get("name", "")))
+
+
+func _law_body(defin: Dictionary) -> String:
+	var key := "law.blurb." + str(defin.get("id", ""))
+	if Copy.keys.has(key):
+		return Copy.t(key)
+	var built := _law_blurb(defin)
+	return built if built != "" else Copy.t(str(defin.get("name", "")))
+
+
+func _law_texture(kind: String) -> Texture2D:
+	if law_art.has(kind):
+		var cached = law_art[kind]
+		return cached if cached is Texture2D else null
+	var spec: Array = LAW_ART.get(kind, [])
+	if spec.size() < 2:
+		law_art[kind] = false
+		return null
+	var path := str(spec[0])
+	var abs := ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(abs) or FileAccess.get_md5(abs) != str(spec[1]):
+		law_art[kind] = false
+		return null
+	var img := Image.new()
+	if img.load(abs) != OK:
+		law_art[kind] = false
+		return null
+	var tex := ImageTexture.create_from_image(img)
+	law_art[kind] = tex
+	return tex
 
 
 func _blown_toast(text: String) -> bool:
@@ -5705,6 +7013,56 @@ func _event_voice(ev: Dictionary) -> void:
 		return
 	event_vo_heard = key
 	Voice.play(Voice.event_show(kind, str(ev.get("id", "")), part, Copy.t(game.line_of(ev, "text"))), "")
+	_named_death_voice(ev)
+
+
+## A named death card. The recording keeps {name} and {a}, so the match is the unfilled template.
+func _named_death_voice(ev: Dictionary) -> void:
+	var bid := str(ev.get("burial_id", ""))
+	if bid == "":
+		return
+	var cause := ""
+	for row in game.burials:
+		if str(row.get("id", "")) == bid:
+			cause = str(row.get("cause", ""))
+			break
+	if cause == "":
+		return
+	var template := ""
+	for row in game.catalog.names.get("deaths", []):
+		if str(row.get("id", "")) == cause:
+			template = game.text_pack(row)
+			break
+	_show_voice("named", "death_" + cause, "body", template, false)
+
+
+## Birth and seasoned toasts. Same placeholder match as the death card.
+func _drain_named_voice() -> void:
+	if game == null:
+		return
+	while not game.pending_named_voice.is_empty():
+		var which := str(game.pending_named_voice.pop_front())
+		var shown := ""
+		if which == "birth":
+			shown = Copy.t("named.birth")
+		elif which == "seasoned":
+			shown = Copy.t("named.seasoned")
+		_show_voice("named", which, "body", shown, false)
+
+
+## Plays a non-event line when its recorded text is the string on screen. once skips a redraw of the same line.
+func _show_voice(kind: String, event_id: String, part: String, shown: String, once := true) -> void:
+	if game == null or shown == "":
+		return
+	var key := "%d:%s:%s:%s" % [game.week, kind, event_id, part]
+	if once and panel_vo_heard.has(key):
+		return
+	var row := Voice.event_show(kind, event_id, part, shown)
+	if row.is_empty():
+		return
+	if once:
+		panel_vo_heard[key] = true
+	Voice.play(row, "")
 
 
 ## A check's outcome read aloud (chk_<check>_<option>_<success|fail>); true when it plays.
@@ -6167,16 +7525,21 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _tooltip_theme() -> Theme:
-	var tips := Theme.new()
-	tips.default_font = body_font
-	tips.default_font_size = 16
+## One dark brass plate for tooltips and Network order tips. Map toasts keep _map_toast_face.
+func _tip_plate_style() -> StyleBoxFlat:
 	var plate := StyleBoxFlat.new()
 	plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
 	plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
 	plate.set_border_width_all(1)
 	plate.set_content_margin_all(8)
-	tips.set_stylebox("panel", "TooltipPanel", plate)
+	return plate
+
+
+func _tooltip_theme() -> Theme:
+	var tips := Theme.new()
+	tips.default_font = body_font
+	tips.default_font_size = 16
+	tips.set_stylebox("panel", "TooltipPanel", _tip_plate_style())
 	tips.set_color("font_color", "TooltipLabel", Color("efe6d2"))
 	tips.set_font_size("font_size", "TooltipLabel", 16)
 	return tips
@@ -6264,9 +7627,176 @@ func _show_dawn() -> void:
 	_paint_dawn()
 
 
+func open_night_panel() -> void:
+	if game == null or game.over != "" or night_panel == null:
+		return
+	if modal_open:
+		return
+	if night_panel.has_method("open_for"):
+		night_panel.open_for(self)
+
+
+func _want_night() -> bool:
+	return _dev_args().has("--night-runs")
+
+
+func _paint_night_resolve(ev: Dictionary) -> void:
+	Sound.play("card_open")
+	_open_card(game.line_of(ev, "title"), false)
+	var art_path := str(ev.get("art", ""))
+	if art_path != "" and ResourceLoader.exists(art_path):
+		var tex: Texture2D = load(art_path)
+		if tex != null:
+			var plate := TextureRect.new()
+			plate.texture = tex
+			plate.custom_minimum_size = Vector2(0, 96)
+			plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			card_body.add_child(plate)
+	for line in game.line_of(ev, "text").split("\n"):
+		if str(line) != "":
+			_body_ready(str(line))
+	var enc := str(ev.get("encounter", ""))
+	if enc != "":
+		var nest := PanelContainer.new()
+		var face := StyleBoxFlat.new()
+		face.bg_color = Color("241c14")
+		face.border_color = Color("e0a84a")
+		face.set_border_width_all(1)
+		face.set_corner_radius_all(6)
+		face.content_margin_left = 12
+		face.content_margin_right = 12
+		face.content_margin_top = 8
+		face.content_margin_bottom = 8
+		nest.add_theme_stylebox_override("panel", face)
+		nest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nest.custom_minimum_size = Vector2(480, 0)
+		var inner := VBoxContainer.new()
+		inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		inner.add_theme_constant_override("separation", 6)
+		nest.add_child(inner)
+		inner.add_child(_label("run.encounter_title", 18, true))
+		var body := _label("run.encounter." + enc, 16)
+		_show_voice("encounter", enc, "body", Copy.t("run.encounter." + enc))
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size = Vector2(440, 0)
+		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		inner.add_child(body)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		for choice in ev.choices:
+			var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
+			pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(pick)
+		inner.add_child(row)
+		card_body.add_child(nest)
+	else:
+		for choice in ev.choices:
+			card_body.add_child(_choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id))))
+
+
+func _night_shots() -> void:
+	shot_mode = true
+	hold_dawn = true
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	if guide_layer != null:
+		guide_layer.visible = false
+	var free: Array = []
+	for person in game.residents:
+		var pid := str(person.get("id", ""))
+		if game._is_council(pid) or game._is_child(person):
+			continue
+		if NightRuns.block_reason(game, pid) == "":
+			free.append(pid)
+	var sq: Dictionary = game.squads[game.player]
+	var roster: Array = sq.get("roster", [])
+	if not free.is_empty():
+		var member := str(free[0])
+		if roster.size() >= int(sq.get("max_size", roster.size())) and not roster.is_empty():
+			game.party_toggle(str(roster[0]))
+		game.party_toggle(member)
+		free.pop_front()
+	if night_panel != null and free.size() >= 2:
+		night_panel.picked = [free[0], free[1]]
+	showing_network = true
+	if network_view != null:
+		network_view.visible = true
+		network_view.bind(self)
+	if yard != null:
+		yard.visible = false
+	open_night_panel()
+	for _i in 4:
+		await _frame()
+	if night_panel != null and night_panel.has_method("reveal_pack"):
+		night_panel.reveal_pack()
+	for _i in 3:
+		await _frame()
+	_save("p74_backpack")
+	if night_panel != null:
+		night_panel._rebuild()
+	for _i in 3:
+		await _frame()
+	_save("p74_night_panel")
+	if night_panel != null and night_panel.has_method("close_panel"):
+		night_panel.close_panel()
+	var runner := ""
+	for person in game.residents:
+		var pid := str(person.get("id", ""))
+		if game._is_council(pid) or game._is_child(person):
+			continue
+		if NightRuns.block_reason(game, pid) == "":
+			runner = pid
+			break
+	var known: Array = NightRuns.known_sites(game)
+	if runner != "" and not known.is_empty():
+		NightRuns.send(game, str(known[0].get("id", "")), [runner], ["food", "materials", "medkits", "intel"])
+		var st: Dictionary = game.flags.night_runs
+		st["force_total"] = 6
+		st["force_encounter"] = "open_cache"
+		NightRuns.dawn(game)
+		_show_dawn()
+		await _frame()
+		await _frame()
+		if card_scroll != null:
+			var bar := card_scroll.get_v_scroll_bar()
+			card_scroll.scroll_vertical = int(bar.max_value)
+		await _frame()
+		_save("p74_dawn_resolve")
+		_close_card()
+	showing_network = true
+	if network_view != null:
+		network_view.visible = true
+		network_view.bind(self)
+	await _frame()
+	await _frame()
+	if network_view != null and game.stations.has("eastwater"):
+		var world: Vector2 = network_view._station_world(game.stations.eastwater)
+		network_view.origin = world
+		network_view.zoom = 1.45
+		network_view._clamp_view()
+		network_view.queue_redraw()
+		if network_view._ink_layer != null:
+			network_view._ink_layer.queue_redraw()
+	await _frame()
+	await _frame()
+	_save("p74_rumored_pin")
+	get_tree().quit(0)
+
+
 func _paint_dawn() -> void:
 	var lines := _morning_lines()
 	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(game.front_event()))
+	if show_event:
+		var front: Dictionary = game.front_event()
+		var cm := str(front.get("cm", ""))
+		if cm == "promise":
+			_paint_promise_card(front)
+			return
+		if cm == "mandate":
+			_paint_mandate_card(front)
+			return
 	if not show_event:
 		var dawn_key := "%d:%d" % [game.get_instance_id(), game.week]
 		if dawn_heard != dawn_key:
@@ -6293,15 +7823,22 @@ func _paint_dawn() -> void:
 		else:
 			_body("No one is waiting on a decision.")
 		card_body.add_child(_button("To the platform", _close_card))
+		_week_strip()
+		return
+	var ev: Dictionary = game.front_event()
+	if bool(ev.get("night_run", false)):
+		_paint_night_resolve(ev)
 		return
 	Sound.play("card_open")
-	var ev: Dictionary = game.front_event()
 	note_incident(ev)
-	_open_card(game.line_of(ev, "title"), false, "Event")
+	var kicker := "" if str(ev.get("burial_id", "")) != "" else "Event"
+	_open_card(game.line_of(ev, "title"), false, kicker)
+	card_body.add_theme_constant_override("separation", 8)
 	var banner := _event_banner(ev)
 	if banner != null:
 		card_body.add_child(banner)
 		card_body.move_child(banner, 0)
+	_insert_chain_part(ev)
 	_who_row(str(ev.get("who", "")))
 	_body(game.line_of(ev, "text"))
 	_event_voice(ev)
@@ -6343,13 +7880,11 @@ func _paint_dawn() -> void:
 				why = Copy.t("That cost cannot be paid.")
 		card_body.add_child(pick)
 		var words := _choice_words(game.choice_effects(choice))
-		if words != "":
+		if words != "" and str(ev.get("burial_id", "")) == "":
 			card_body.add_child(_effect_line(words))
 		if game.choice_locked(choice) or why != "":
 			pick.disabled = true
 			pick.tooltip_text = why
-			if why != "":
-				card_body.add_child(_choice_reason(why))
 	var after_n: int = game.pending.size() - 1
 	if event_mode == "dawn":
 		after_n = game.pending.size() - game.small_pending() - 1
@@ -6362,6 +7897,7 @@ func _paint_dawn() -> void:
 	later.custom_minimum_size.y = 40
 	later.add_theme_font_size_override("font_size", 17)
 	card_body.add_child(later)
+	_week_strip()
 
 
 ## Why the choice above is closed: one small muted line right under its button.
@@ -6646,6 +8182,8 @@ func _toggle_party(person_id: String) -> void:
 	var why := game.party_toggle(person_id)
 	if why != "":
 		_toast(why)
+		if why == Copy.t("run.rumor.party_conflict"):
+			_show_voice("rumor", "party_conflict", "body", why)
 	_fill_people()
 	_refresh()
 
@@ -6656,6 +8194,8 @@ func _add_party_member() -> void:
 	var why := game.party_add_best()
 	if why != "":
 		_toast(why)
+		if why == Copy.t("run.rumor.party_conflict"):
+			_show_voice("rumor", "party_conflict", "body", why)
 	_fill_people()
 	_refresh()
 
@@ -7394,19 +8934,95 @@ func _intent_row(lines: PackedStringArray) -> void:
 		card_body.add_child(row)
 
 
+## Muted paper band when an event has no plate. Same floor as the small banner clamp.
+func _reserved_banner_band() -> ColorRect:
+	var band := ColorRect.new()
+	band.color = Color(0.16, 0.14, 0.12, 1.0)
+	band.custom_minimum_size = Vector2(0, BANNER_MIN_H)
+	band.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.set_meta("banner", true)
+	band.set_meta("banner_reserved", true)
+	return band
+
+
+## "Part n of m" only when this event already sits on a follow chain. No new chain widget.
+func _chain_part_line(ev: Dictionary) -> String:
+	if game == null or game.catalog == null:
+		return ""
+	var id := str(ev.get("id", ""))
+	if id == "":
+		return ""
+	var nxt := {}
+	var prev := {}
+	for row in game.catalog.events:
+		if not (row is Dictionary):
+			continue
+		var eid := str(row.get("id", ""))
+		var follow := str(row.get("follow", ""))
+		if eid == "" or follow == "" or nxt.has(eid):
+			continue
+		nxt[eid] = follow
+		if not prev.has(follow):
+			prev[follow] = eid
+	if not nxt.has(id) and not prev.has(id):
+		return ""
+	var root := id
+	var guard := 0
+	while prev.has(root) and guard < 8:
+		root = str(prev[root])
+		guard += 1
+	var chain: Array = [root]
+	var cur := root
+	var seen := {root: true}
+	guard = 0
+	while nxt.has(cur) and guard < 8:
+		cur = str(nxt[cur])
+		if seen.has(cur):
+			break
+		seen[cur] = true
+		chain.append(cur)
+		guard += 1
+	if chain.size() < 2 or chain.find(id) < 0:
+		return ""
+	return Copy.fill("event.chain_part", {"n": chain.find(id) + 1, "m": chain.size()})
+
+
+func _insert_chain_part(ev: Dictionary) -> void:
+	var line := _chain_part_line(ev)
+	if line == "" or card_body == null:
+		return
+	var lab := _label(line, 14, false, false)
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	lab.set_meta("chain_part", true)
+	var at := card_body.get_child_count()
+	for i in card_body.get_child_count():
+		var child := card_body.get_child(i)
+		if child is HBoxContainer and not child.has_meta("banner"):
+			at = i + 1
+			break
+	card_body.add_child(lab)
+	card_body.move_child(lab, at)
+
+
 func _event_banner(ev: Dictionary) -> Control:
+	if bool(ev.get("rp_skip_art", false)):
+		return _reserved_banner_band()
 	var use := ArtPack.resolve_event_banner(ev)
-	if use == "":
-		return null
-	var path := "res://assets/events/%s.webp" % use
-	var tex := ArtPack.load_texture(path)
+	var tex: Texture2D = null
+	if use != "":
+		tex = ArtPack.load_texture("res://assets/events/%s.webp" % use)
 	if tex == null:
-		return null
+		return _reserved_banner_band()
 	## The art is 2.4:1, so the banner takes the card's width at that ratio and shows the whole picture.
-	var wide := card_body.custom_minimum_size.x
+	var wide := 0.0
+	if card_body != null:
+		wide = card_body.custom_minimum_size.x
 	if wide <= 0.0:
 		wide = minf(size.x - 48.0, 680.0) - 36.0
-	var height := roundf(wide / 2.4)
+	if wide < 72.0:
+		wide = 640.0
+	var height := maxf(BANNER_MIN_H, roundf(wide / 2.4))
 	var plate := TextureRect.new()
 	plate.texture = tex
 	plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -7491,6 +9107,8 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		return
 	if not _check_voice(event_id, choice_id):
 		_say(Voice.event_line(event_id, choice_id), title)
+	if event_id == "law_week6" and choice_id == "open":
+		laws_open_after = true
 	_advance_dawn(before)
 
 
@@ -7786,6 +9404,11 @@ func _advance_dawn(before: String) -> void:
 	if game.pending.is_empty():
 		_close_card()
 		event_mode = "dawn"
+		if laws_open_after:
+			laws_open_after = false
+			laws_tab = "creed"
+			_show_laws()
+			return
 		if mode == "all":
 			_end_turn.call_deferred()
 		else:
@@ -7880,21 +9503,9 @@ func _new_run() -> void:
 
 
 func _ending() -> String:
-	match game.over:
-		"time":
-			return Copy.t("Forty weeks. The yard is still yours.")
-		"revolt":
-			return Copy.t("The platform turned.")
-		"hope":
-			return Copy.t("Hope ran out.")
-		"collapse":
-			return Copy.t("The stores gave out.")
-		"capital":
-			return Copy.t("The capital was lost.")
-		"error":
-			return Copy.t("The week broke.")
-		_:
-			return Copy.t("The run is over.")
+	if game == null:
+		return Copy.t("The run is over.")
+	return game.ending_fallback()
 
 
 func _mult(n: float) -> String:
@@ -8188,14 +9799,14 @@ func _sync_room_sound() -> void:
 
 
 func _heading(text: String) -> void:
-	card_body.add_child(_label(text, 26, true))
+	_book_add(_label(text, 26, true))
 
 
 func _body(text: String) -> void:
 	var lab := _label(text, 17)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_body.add_child(lab)
+	_book_add(lab)
 
 
 func _body_muted(text: String) -> void:
@@ -8203,7 +9814,7 @@ func _body_muted(text: String) -> void:
 	lab.add_theme_color_override("font_color", PAPER_MUTED)
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_body.add_child(lab)
+	_book_add(lab)
 
 
 func _body_ready(text: String) -> void:
@@ -8415,7 +10026,7 @@ func _blocked_pair(label: String, reason: String) -> void:
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.add_theme_color_override("font_color", DELTA_DOWN)
-	card_body.add_child(lab)
+	_book_add(lab)
 
 
 func _lock_button(label: String) -> Button:
@@ -8491,13 +10102,16 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 		text.add_child(line)
 	text.add_child(_makes_line(type, defin))
 	text.add_child(_cost_line(info, defin, building))
-	if type == "listening_post" and str(info.get("reason", "")) != "":
-		var why := _label("", 14)
-		why.text = str(info.reason)
-		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		text.add_child(why)
 	if not enabled:
+		var built_why := OrderWhy.show(game, "build", str(info.get("reason", "")), {"level": level, "cell": cell, "type": type})
+		if built_why != "":
+			panel.tooltip_text = built_why
+		if type == "listening_post" and built_why != "":
+			var why := _label("", 14)
+			why.text = built_why
+			why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			text.add_child(why)
 		var lock := Glyph.new()
 		lock.kind = "lock"
 		lock.ink = PAPER_INK
@@ -9106,7 +10720,7 @@ func _show_person(person_id: String) -> void:
 	if not _claim(ModalDeck.AMBIENT, "person", _show_person.bind(person_id)):
 		return
 	var person: Dictionary = game.people[person_id]
-	_open_card(_resident_name(person))
+	_open_card(_resident_name(person), true, Copy.t("named.known") if game.is_known(person) else "")
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.add_child(_portrait_box(person_id, 64))
@@ -9123,6 +10737,11 @@ func _show_person(person_id: String) -> void:
 	text.add_child(_label(_where(person_id), 14))
 	row.add_child(text)
 	card_body.add_child(row)
+	if not game.cast_bio_locked(person):
+		_section("Before the Silence", game.life_line(person, "before"))
+		_section("Keepsake", game.life_line(person, "keepsake"))
+	_memory_block(person)
+	_journal_block(person)
 	if bool(person.get("core", false)) or not _story(person_id).is_empty():
 		var lore_id := game.cast_id_of(person)
 		var caption := Copy.t("Dossier")
@@ -9301,6 +10920,8 @@ func _show_dossier(person_id: String) -> void:
 	var who := _label(_resident_name(person), 22, true)
 	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(who)
+	if game.is_known(person):
+		row.add_child(_known_tag())
 	card_body.add_child(row)
 	var title := _person_title(person)
 	if title != "":
@@ -9325,9 +10946,11 @@ func _show_dossier(person_id: String) -> void:
 		_section("Look", _dossier_line(person, "look"))
 		_section("Bio", _dossier_line(person, "bio"))
 		_section("Hook", _dossier_line(person, "hook"))
+		_memory_block(person)
+		_journal_block(person)
 	else:
-		_section("Before the Silence", game.profile_line(person, "before"))
-		_section("Keepsake", game.profile_line(person, "keepsake"))
+		_section("Before the Silence", game.life_line(person, "before"))
+		_section("Keepsake", game.life_line(person, "keepsake"))
 		_heading("Album")
 		var album: Array = person.get("album", [])
 		if album.is_empty():
@@ -9335,27 +10958,50 @@ func _show_dossier(person_id: String) -> void:
 		else:
 			for image_id in album:
 				_body(str(image_id))
-		_heading(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100))
-		var track := ColorRect.new()
-		track.color = Color(1, 1, 1, 0.14)
-		track.custom_minimum_size = Vector2(0, 8)
-		var fill := ColorRect.new()
-		fill.color = Color("e2a63a")
-		fill.set_anchors_preset(Control.PRESET_FULL_RECT)
-		fill.anchor_right = clampf(float(person.get("memory", 0)) / 100.0, 0.0, 1.0)
-		fill.offset_right = 0.0
-		track.add_child(fill)
-		card_body.add_child(track)
-		_heading("Events")
-		var events: Array = person.get("story_events", [])
-		if events.is_empty():
-			_placeholder("", "No events yet.")
-		else:
-			for event_id in events:
-				_body(Copy.t(str(event_id)))
+		_memory_block(person)
+		_journal_block(person)
 	if has_lore and dossier_tab == "profile":
 		_story_text(person_id)
 	card_body.add_child(_button("Back", _show_person.bind(person_id)))
+
+
+## Brass name tag. Static: no bob, no pulse. Height ~22, radius 3, one pixel edge.
+func _known_tag() -> Control:
+	var plate := _card_tag(Copy.t("named.known"))
+	if plate.has_meta("card_tag"):
+		plate.remove_meta("card_tag")
+	plate.custom_minimum_size = Vector2(0, 22)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for child in plate.get_children():
+		if child is Control:
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return plate
+
+
+func _memory_block(person: Dictionary) -> void:
+	_heading(Copy.t("Memory %d") % clampi(int(person.get("memory", 0)), 0, 100))
+	card_body.add_child(_progress_bar(clampf(float(person.get("memory", 0)) / 100.0, 0.0, 1.0), 220.0))
+
+
+func _journal_block(person: Dictionary) -> void:
+	_heading("Journal")
+	var events: Array = person.get("story_events", [])
+	if events.is_empty():
+		_placeholder("", "No events yet.")
+		return
+	var fem := game.sex_of(person) == "f"
+	var start := maxi(0, events.size() - 8)
+	for i in range(events.size() - 1, start - 1, -1):
+		var ev = events[i]
+		var line := ""
+		if ev is Dictionary:
+			line = game.journal_line(ev, fem)
+		else:
+			line = str(ev)
+		if line.strip_edges() == "":
+			continue
+		_body_ready("· " + line)
 
 
 ## A dossier section that is left out when it has no text.
@@ -9522,6 +11168,106 @@ func _hub_shots() -> void:
 	await _frame()
 	await _frame()
 	_save("hub_view")
+	get_tree().quit(0)
+
+
+## P67 screenshots: journal list, Known tag, death card with Bury and Ledger.
+func _named_shots() -> void:
+	shot_mode = true
+	await _settle(_shot_size())
+	_begin_new_game(false)
+	_close_card()
+	Settings.people_free_only = false
+	for id in ["jonah", "inez", "mara", "ruth"]:
+		if not game.people.has(id):
+			continue
+		game._unassign(id)
+	var jonah: Dictionary = game.people["jonah"]
+	game._life_note(jonah, "injured", {})
+	game._life_note(jonah, "staffed_shortage", {"room": "Workshop"})
+	game._life_note(jonah, "named_dilemma", {})
+	jonah.memory = 55
+	game.people["inez"].memory = 48
+	game.people["mara"].memory = 12
+	game.people["ruth"].memory = 0
+	_show_person("jonah")
+	await _frame()
+	await _frame()
+	_save("p67_nl1_journal")
+	_close_card()
+	drawer_open = true
+	_place_drawer()
+	_fill_people()
+	await _frame()
+	await _frame()
+	_save("p67_nl2_known_tag")
+	drawer_open = false
+	_place_drawer()
+	if yard != null:
+		yard.queue_redraw()
+	await _frame()
+	await _frame()
+	_save("p67_nl2_platform")
+	game.laws_on["ledger"] = true
+	game._remove_resident("jonah", true, "sickness", "died")
+	game._offer_burial()
+	event_mode = "dawn"
+	_show_dawn()
+	await _frame()
+	await _frame()
+	_save("p67_nl3_death_card")
+
+func _wall_shots() -> void:
+	hold_dawn = true
+	await _settle(_shot_size())
+	_close_card()
+	await _frame()
+	await _frame()
+	_save("wall_desk")
+	_show_wall()
+	await _frame()
+	await _frame()
+	_save("wall_open_empty")
+	_close_card()
+	game.wall_plates.clear()
+	game.wall_hoped = false
+	game.wall_first_hope = false
+	game._hang_wall("law", {"name": "Quiet hours", "weight": 3, "week": 4})
+	_refresh()
+	_close_card()
+	_show_wall()
+	await _frame()
+	await _frame()
+	_save("wall_open_first")
+	_close_card()
+	if toast_label != null:
+		toast_label.visible = false
+	game.wall_first_hope = false
+	game._hang_wall("mandate_pick", {"name": "Hold the Line", "weight": 3, "week": 8})
+	game._hang_wall("mandate_done", {"name": "Hold the Line", "weight": 3, "week": 20})
+	game._hang_wall("bury", {"name": "Mira", "weight": 3, "week": 11})
+	game._hang_wall("ledger", {"name": "Kolya", "weight": 3, "week": 14})
+	game._hang_wall("beat", {
+		"beat": "Station taken — North Spur",
+		"moment_kind": "station_taken",
+		"weight": 3,
+		"week": 16,
+		"fields": {"place": "North Spur"},
+	})
+	_show_wall()
+	await _frame()
+	await _frame()
+	_save("wall_open_plates")
+	_close_card()
+	game.over = "time"
+	_show_life_epilogue()
+	await _frame()
+	await _frame()
+	_save("wall_epilogue_before")
+	_life_epilogue_go(3)
+	await _frame()
+	await _frame()
+	_save("wall_epilogue")
 	get_tree().quit(0)
 
 
@@ -10620,6 +12366,95 @@ func _card_shot(shot_name: String) -> void:
 	game.pending = saved
 
 
+## RELEASE_POLISH evidence. Tag comes from --rp-shots=before|after. Surfaces only.
+func _release_polish_shots() -> void:
+	shot_mode = true
+	hold_dawn = false
+	at_menu = false
+	await _settle(_shot_size())
+	_close_card()
+	guide_played = true
+	guide_step = -1
+	if guide_layer != null:
+		guide_layer.visible = false
+	_refresh()
+	await _frame()
+	await _frame()
+	_save("rp_%s_hud" % _rp_shot_tag())
+	hold_dawn = true
+	_close_card()
+	_toggle_network()
+	await _frame()
+	await _frame()
+	await _frame()
+	var net = network_view
+	if net != null and net.has_method("_open_legend"):
+		net._open_legend()
+		await _frame()
+		await _frame()
+		if net.has_method("_place_legend"):
+			net._place_legend()
+		await _frame()
+	_save("rp_%s_legend" % _rp_shot_tag())
+	if net != null and net.has_method("_close_legend"):
+		net._close_legend()
+	var sid := ""
+	if game != null:
+		for candidate in game.stations:
+			if str(candidate) == str(game.capital_id):
+				continue
+			var row: Dictionary = game.stations[candidate]
+			if bool(row.get("known", false)):
+				sid = str(candidate)
+				break
+	if sid != "" and net != null:
+		game.stock.influence = 0
+		net.open_sheet(sid)
+		await _frame()
+		await _frame()
+		if net.has_method("_show_order_tip_shot"):
+			net._show_order_tip_shot("trade", sid)
+			await _frame()
+		_save("rp_%s_orders" % _rp_shot_tag())
+		net.close_sheet()
+	_toggle_network()
+	await _frame()
+	var lamps := {}
+	if game != null:
+		for ev in game.catalog.events:
+			if str(ev.get("id", "")) == "lamps":
+				lamps = ev.duplicate(true)
+				break
+	if not lamps.is_empty():
+		lamps["major"] = true
+		game.pending = [lamps]
+		event_mode = "dawn"
+		_show_dawn()
+		await _frame()
+		await _frame()
+		_save("rp_%s_event" % _rp_shot_tag())
+		_close_card()
+	if game != null:
+		game.pending = [{
+			"id": "rp_bare_band",
+			"title": "The stores are thin",
+			"text": "The week opens with an empty banner band so the title does not jump up into the art.",
+			"major": true,
+			"rp_skip_art": true,
+			"choices": [
+				{"id": "pay", "label": "Buy in food", "cost": {"materials": 99}},
+				{"id": "wait", "label": "Wait"},
+			],
+		}]
+		game.stock.materials = 0
+		_show_dawn()
+		await _frame()
+		await _frame()
+		_save("rp_%s_event_bare" % _rp_shot_tag())
+	print("RP SHOTS ", _rp_shot_tag())
+	get_tree().quit()
+
+
 func _polish_shots() -> void:
 	shot_mode = true
 	hold_dawn = false
@@ -11085,57 +12920,66 @@ func _ensure_life_epilogue() -> void:
 	layer.z_index = 80
 	layer.visible = false
 	var wash := ColorRect.new()
-	wash.color = Color(0.05, 0.04, 0.03, 0.94)
+	wash.color = Color(0.07, 0.05, 0.04, 0.78)
 	wash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	wash.mouse_filter = Control.MOUSE_FILTER_STOP
 	layer.add_child(wash)
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	var paper := _paper_style()
-	paper.set_border_width_all(3)
+	var paper := StyleBoxFlat.new()
+	paper.bg_color = SLIP_PAPER
+	paper.border_color = Color("5c4632")
+	paper.set_border_width_all(2)
 	paper.set_content_margin_all(0)
+	paper.set_corner_radius_all(2)
+	paper.shadow_color = Color(0, 0, 0, 0.45)
+	paper.shadow_size = 14
 	panel.add_theme_stylebox_override("panel", paper)
 	layer.add_child(panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 0)
+	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(column)
+	var band := PanelContainer.new()
+	var band_face := StyleBoxFlat.new()
+	band_face.bg_color = Color("e4d3ae")
+	band_face.content_margin_left = 22
+	band_face.content_margin_right = 22
+	band_face.content_margin_top = 10
+	band_face.content_margin_bottom = 10
+	band.add_theme_stylebox_override("panel", band_face)
+	column.add_child(band)
+	on_paper = true
+	life_epilogue_eyebrow = _slip_label("", 13, Color("6a543c"), true)
+	band.add_child(life_epilogue_eyebrow)
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_top", 28)
-	margin.add_theme_constant_override("margin_bottom", 28)
+	margin.add_theme_constant_override("margin_left", 22)
+	margin.add_theme_constant_override("margin_right", 22)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
 	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_child(margin)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
-	column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(column)
-	on_paper = true
-	life_epilogue_eyebrow = _label("", 13)
-	life_epilogue_eyebrow.add_theme_color_override("font_color", PAPER_EDGE)
-	column.add_child(life_epilogue_eyebrow)
+	column.add_child(margin)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 12)
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(inner)
 	life_epilogue_body = VBoxContainer.new()
 	life_epilogue_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	life_epilogue_body.add_theme_constant_override("separation", 10)
-	column.add_child(life_epilogue_body)
-	var bottom := HBoxContainer.new()
-	bottom.add_theme_constant_override("separation", 12)
-	column.add_child(bottom)
-	life_epilogue_dots = HBoxContainer.new()
-	life_epilogue_dots.add_theme_constant_override("separation", 8)
-	life_epilogue_dots.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bottom.add_child(life_epilogue_dots)
-	for _i in 3:
-		var dot := Panel.new()
-		dot.custom_minimum_size = Vector2(10, 10)
-		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		life_epilogue_dots.add_child(dot)
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bottom.add_child(gap)
+	life_epilogue_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	life_epilogue_body.add_theme_constant_override("separation", 8)
+	inner.add_child(life_epilogue_body)
 	life_epilogue_actions = HBoxContainer.new()
 	life_epilogue_actions.add_theme_constant_override("separation", 8)
-	bottom.add_child(life_epilogue_actions)
+	life_epilogue_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.add_child(life_epilogue_actions)
 	on_paper = false
+	life_epilogue_dots = HBoxContainer.new()
+	life_epilogue_dots.add_theme_constant_override("separation", 18)
+	life_epilogue_dots.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(life_epilogue_dots)
 	add_child(layer)
 	life_epilogue = layer
 	life_epilogue_panel = panel
@@ -11144,21 +12988,31 @@ func _ensure_life_epilogue() -> void:
 func _paint_life_epilogue() -> void:
 	if life_epilogue == null or game == null:
 		return
-	_layout_life_epilogue()
 	var payload: Dictionary = game.epilogue_payload()
 	on_paper = true
-	life_epilogue_eyebrow.text = Copy.t("epilogue.eyebrow") % (life_epilogue_page + 1)
+	var page_key := "epilogue.page_verdict"
+	match life_epilogue_page:
+		1:
+			page_key = "epilogue.page_chronicle"
+		2:
+			page_key = "epilogue.page_fates"
+		_:
+			page_key = "wall.epilogue"
+	life_epilogue_eyebrow.text = _epilogue_kicker(page_key, payload)
 	_wipe(life_epilogue_body)
 	_wipe(life_epilogue_actions)
 	match life_epilogue_page:
 		0:
 			_life_verdict(payload)
 		1:
-			_life_chronicle()
-		_:
+			_life_chronicle(payload)
+		2:
 			_life_fates(payload)
+		_:
+			_life_wall()
 	_paint_life_dots()
 	on_paper = false
+	_layout_life_epilogue()
 	if _motion_off():
 		life_epilogue_body.modulate.a = 1.0
 		return
@@ -11167,110 +13021,180 @@ func _paint_life_epilogue() -> void:
 	fade.tween_property(life_epilogue_body, "modulate:a", 1.0, 0.15)
 
 
+func _epilogue_kicker(page_key: String, payload: Dictionary) -> String:
+	var page := Copy.t(page_key).to_upper()
+	if page_key != "epilogue.page_verdict":
+		return page
+	var ending := str(payload.get("ending", ""))
+	if not ["time", "revolt", "hope", "collapse", "capital"].has(ending):
+		return page
+	var tail := ending.to_upper()
+	var creed := str(payload.get("creed", "none"))
+	if ["watch", "chapel", "market"].has(creed):
+		tail += " × " + creed.to_upper()
+	return "%s · %s" % [page, tail]
+
+
 func _life_verdict(payload: Dictionary) -> void:
+	var art := _epilogue_art(str(payload.get("ending", "")))
+	if art != null:
+		life_epilogue_body.add_child(art)
 	var verdict := str(payload.get("verdict", ""))
 	if verdict == "":
-		verdict = _ending()
-	var head := _label(verdict, 34, true)
-	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	life_epilogue_body.add_child(head)
-	var creed := str(payload.get("creed_label", Copy.t("epilogue.no_creed")))
-	var sub := _label("%s · %s" % [Copy.t("Week %d%s") % [int(payload.get("week", game.week)), ""], creed], 16)
-	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sub.add_theme_color_override("font_color", PAPER_MUTED)
-	life_epilogue_body.add_child(sub)
-	var judgment := str(payload.get("judgment", ""))
-	if judgment != "":
-		var ask := _label(judgment, 20, true)
-		ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		ask.add_theme_color_override("font_color", PAPER_MUTED)
-		ask.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		life_epilogue_body.add_child(ask)
-	_life_story_lines()
-	var go := _button("epilogue.continue", _life_epilogue_go.bind(1))
-	_style_primary(go)
-	go.custom_minimum_size = Vector2(180, 48)
-	life_epilogue_actions.add_child(go)
+		verdict = game.ending_fallback()
+	life_epilogue_body.add_child(_slip_label(verdict, 28, SLIP_INK, true))
+	_show_voice("verdict", str(payload.get("ending", "")), str(payload.get("creed", "none")), verdict)
+	life_epilogue_body.add_child(_epilogue_spacer())
+	life_epilogue_actions.add_child(_epilogue_gap())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.next", _life_epilogue_go.bind(1), false, "next"))
 
 
-## The story ending stays on the verdict page: title, leader lines, and the truth line.
-func _life_story_lines() -> void:
-	var id := game.ending_id()
-	if game.ending_text(id, "title") == "":
-		return
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 120)
-	var list := VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 6)
-	scroll.add_child(list)
-	var title := _label(game.ending_text(id, "title"), 18, true)
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_child(title)
-	var body := _label(game.ending_text(id, "text"), 15)
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_child(body)
-	for row in game.catalog.leaders.get("factions", []):
-		var fid := str(row.get("id", ""))
-		var line := _label("%s — %s" % [_leader_text(game.leader_name(fid, "leader")), game.leader_epilogue(fid)], 14)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		line.add_theme_color_override("font_color", PAPER_MUTED)
-		list.add_child(line)
-	var truth := _label(game.truth_epilogue(), 14)
-	truth.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	truth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_child(truth)
-	life_epilogue_body.add_child(scroll)
-
-
-func _life_chronicle() -> void:
-	var title := _label("epilogue.chronicle_title", 26, true)
-	life_epilogue_body.add_child(title)
-	var moments: Array = game.chronicle_top(6)
+func _life_chronicle(payload: Dictionary) -> void:
+	var moments: Array = payload.get("chronicle", [])
 	if moments.is_empty():
-		var empty := _label("epilogue.chronicle_empty", 16)
-		empty.add_theme_color_override("font_color", PAPER_MUTED)
-		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		life_epilogue_body.add_child(empty)
-	for moment in moments:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		var tag := Label.new()
-		tag.text = "W%d" % int(moment.get("week", 0))
-		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		tag.custom_minimum_size = Vector2(52, 24)
-		tag.add_theme_font_size_override("font_size", 14)
-		tag.add_theme_color_override("font_color", INK_DARK)
-		if number_font != null:
-			tag.add_theme_font_override("font", number_font)
-		var plate := StyleBoxFlat.new()
-		plate.bg_color = Color("e2a63a")
-		plate.set_corner_radius_all(2)
-		tag.add_theme_stylebox_override("normal", plate)
-		row.add_child(tag)
-		var text := str(moment.get("text", ""))
-		if text == "":
-			text = game.chronicle_line(moment)
-		var line := _label(text, 16)
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(line)
-		life_epilogue_body.add_child(row)
-	var go := _button("epilogue.continue", _life_epilogue_go.bind(2))
-	_style_primary(go)
-	go.custom_minimum_size = Vector2(180, 48)
-	life_epilogue_actions.add_child(go)
+		life_epilogue_body.add_child(_slip_label("epilogue.chronicle_empty", 18, SLIP_MUTED))
+	else:
+		var n := 0
+		for moment in moments:
+			if n >= 6:
+				break
+			n += 1
+			var text := str(moment.get("text", ""))
+			if text == "":
+				text = game.chronicle_line(moment)
+			life_epilogue_body.add_child(_slip_label("%d.  %s" % [n, text], 17, SLIP_INK))
+	life_epilogue_body.add_child(_epilogue_spacer())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(0), false, "back"))
+	life_epilogue_actions.add_child(_epilogue_gap())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.next", _life_epilogue_go.bind(2), false, "next"))
 
 
 func _life_fates(payload: Dictionary) -> void:
-	var title := _label("epilogue.fates_title", 26, true)
+	life_epilogue_body.add_child(_slip_label("epilogue.page_fates", 13, Color("6a543c"), true))
+	var shown := 0
+	for row in payload.get("fates", []):
+		if shown >= 8:
+			break
+		var line := str(row.get("line", ""))
+		if line == "":
+			continue
+		life_epilogue_body.add_child(_slip_label(line, 16, SLIP_INK))
+		shown += 1
+	var judgment := str(payload.get("judgment", ""))
+	if judgment != "":
+		life_epilogue_body.add_child(_epilogue_rule())
+		life_epilogue_body.add_child(_slip_label(judgment, 17, SLIP_INK, true))
+		_show_voice("judgment", game._judgment_id(), "body", judgment)
+	life_epilogue_body.add_child(_epilogue_rule())
+	var score := Copy.fill("epilogue.score", {
+		"n": int(payload.get("score", 0)),
+		"best": int(payload.get("best", 0)),
+	})
+	life_epilogue_body.add_child(_slip_label(score, 20, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_spacer())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(1), false, "back"))
+	life_epilogue_actions.add_child(_epilogue_gap())
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.close", _life_epilogue_close, true, ""))
+
+
+func _epilogue_art(ending: String) -> TextureRect:
+	var tex := _ending_plate(ending)
+	if tex == null:
+		return null
+	var plate := TextureRect.new()
+	plate.texture = tex
+	plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	plate.custom_minimum_size = Vector2(0, 132)
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return plate
+
+
+## Real webp only. A git-lfs pointer, or a missing plate, leaves the card as paper.
+func _ending_plate(ending: String) -> Texture2D:
+	if not ["time", "revolt", "hope", "collapse", "capital"].has(ending):
+		return null
+	var rel := "res://assets/events/ending_%s.webp" % ending
+	var abs_path := ProjectSettings.globalize_path(rel)
+	if not FileAccess.file_exists(abs_path):
+		return null
+	var f := FileAccess.open(abs_path, FileAccess.READ)
+	if f == null:
+		return null
+	var head := f.get_buffer(4)
+	f.close()
+	if head.size() < 4 or head[0] != 0x52 or head[1] != 0x49 or head[2] != 0x46 or head[3] != 0x46:
+		return null
+	return ArtPack.load_texture(rel)
+
+
+func _epilogue_spacer() -> Control:
+	var gap := Control.new()
+	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return gap
+
+
+func _epilogue_gap() -> Control:
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return gap
+
+
+func _epilogue_rule() -> ColorRect:
+	var rule := ColorRect.new()
+	rule.color = Color(0.36, 0.27, 0.2, 0.45)
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rule
+
+
+func _epilogue_nav(key: String, cb: Callable, filled: bool, side: String) -> Button:
+	var label := Copy.t(key)
+	if side == "back":
+		label = "← " + label
+	elif side == "next":
+		label = label + " →"
+	var button := Button.new()
+	button.text = label
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = Vector2(148, 44)
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_size_override("font_size", 18)
+	if display_font != null:
+		button.add_theme_font_override("font", display_font)
+	var ink := Color("f6edd8") if filled else SLIP_INK
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color("8d6230") if filled else Color("f7f0dc")
+	face.border_color = Color("5c3e18") if filled else Color("5c4632")
+	face.set_border_width_all(2)
+	face.set_corner_radius_all(2)
+	face.content_margin_left = 12
+	face.content_margin_right = 12
+	face.content_margin_top = 6
+	face.content_margin_bottom = 6
+	var hover := face.duplicate()
+	hover.bg_color = Color("a87438") if filled else Color("fff6e4")
+	button.add_theme_stylebox_override("normal", face)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", face)
+	button.add_theme_stylebox_override("focus", face)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, ink)
+	button.pressed.connect(cb)
+	return button
+func _epilogue_pages() -> int:
+	if game != null and game.wall_has_plates():
+		return 4
+	return 3
+
+
+func _life_wall() -> void:
+	var title := _label("wall.epilogue", 26, true)
 	life_epilogue_body.add_child(title)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -11279,31 +13203,14 @@ func _life_fates(payload: Dictionary) -> void:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 8)
 	scroll.add_child(list)
-	for row in payload.get("fates", []):
-		var line := str(row.get("line", ""))
-		var lab := _label(line, 16)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		list.add_child(lab)
+	for plate in game.wall_epilogue_rows():
+		var row := _wall_row(plate)
+		if row != null:
+			list.add_child(row)
 	life_epilogue_body.add_child(scroll)
-	var score_name := _label("epilogue.score", 13)
-	score_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	score_name.add_theme_color_override("font_color", PAPER_EDGE)
-	life_epilogue_body.add_child(score_name)
-	var score_num := _label(str(int(payload.get("score", 0))), 44, true)
-	score_num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_num.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	score_num.add_theme_color_override("font_color", Color("e2a63a"))
-	if number_font != null:
-		score_num.add_theme_font_override("font", number_font)
-	life_epilogue_body.add_child(score_num)
-	var parts := _label(str(payload.get("score_parts", "")), 11)
-	parts.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	parts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	parts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parts.add_theme_color_override("font_color", PAPER_MUTED)
-	life_epilogue_body.add_child(parts)
+	var back := _button("Back", _life_epilogue_go.bind(2))
+	back.custom_minimum_size = Vector2(120, 48)
+	life_epilogue_actions.add_child(back)
 	var again := _button("epilogue.new_run", _life_epilogue_new_game)
 	again.custom_minimum_size = Vector2(160, 48)
 	life_epilogue_actions.add_child(again)
@@ -11316,18 +13223,37 @@ func _life_fates(payload: Dictionary) -> void:
 func _paint_life_dots() -> void:
 	if life_epilogue_dots == null:
 		return
-	for i in life_epilogue_dots.get_child_count():
-		var dot := life_epilogue_dots.get_child(i) as Panel
-		if dot == null:
-			continue
+	_wipe(life_epilogue_dots)
+	var keys := ["epilogue.page_verdict", "epilogue.page_chronicle", "epilogue.page_fates"]
+	if _epilogue_pages() > 3:
+		keys.append("wall.epilogue")
+	for i in keys.size():
+		var item := HBoxContainer.new()
+		item.add_theme_constant_override("separation", 6)
+		item.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var dot := Panel.new()
+		dot.custom_minimum_size = Vector2(10, 10)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var plate := StyleBoxFlat.new()
-		plate.bg_color = Color("e2a63a") if i == life_epilogue_page else Color("554533")
+		plate.bg_color = Color("e2a63a") if i == life_epilogue_page else Color("8a7b68")
 		plate.set_corner_radius_all(5)
 		dot.add_theme_stylebox_override("panel", plate)
+		item.add_child(dot)
+		var lab := Label.new()
+		lab.text = "%d %s" % [i + 1, Copy.t(keys[i])]
+		lab.add_theme_font_size_override("font_size", 14)
+		lab.add_theme_color_override("font_color", Color("f3e6cc") if i == life_epilogue_page else Color("b7a890"))
+		if display_font != null:
+			lab.add_theme_font_override("font", display_font)
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		item.add_child(lab)
+		life_epilogue_dots.add_child(item)
 
 
 func _life_epilogue_go(page: int) -> void:
-	life_epilogue_page = clampi(page, 0, 2)
+	Sound.play("click")
+	life_epilogue_page = clampi(page, 0, _epilogue_pages() - 1)
 	_paint_life_epilogue()
 
 
@@ -11349,29 +13275,51 @@ func _life_epilogue_new_game() -> void:
 	_begin_new_game(true)
 
 
+## Page 3 Close. Same post-run path as the old ending card: back to the menu.
+func _life_epilogue_close() -> void:
+	Sound.play("click")
+	_close_life_epilogue()
+	_back_to_menu()
+
+
 func _layout_life_epilogue() -> void:
 	if life_epilogue_panel == null or life_epilogue == null or not life_epilogue.visible:
 		return
-	var w := minf(720.0, maxf(280.0, size.x - 48.0))
-	var h := minf(860.0, maxf(320.0, size.y - 48.0))
-	life_epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5)
+	var w := minf(680.0, maxf(320.0, size.x - 64.0))
+	var h := minf(620.0, maxf(380.0, size.y - 110.0))
+	life_epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5 - 12.0)
 	life_epilogue_panel.size = Vector2(w, h)
+	if life_epilogue_dots != null:
+		var dw := life_epilogue_dots.get_combined_minimum_size().x
+		life_epilogue_dots.position = Vector2((size.x - dw) * 0.5, life_epilogue_panel.position.y + h + 14.0)
 
 
 func _life_epilogue_input(event: InputEvent) -> bool:
 	if life_epilogue == null or not life_epilogue.visible:
 		return false
-	var cancel := false
-	if event.is_action_pressed("ui_cancel"):
-		cancel = true
-	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-		cancel = true
-	if not cancel:
+	if event.is_echo():
 		return false
-	if life_epilogue_page < 2:
+	var back := event.is_action_pressed("ui_left")
+	var forward := event.is_action_pressed("ui_right") or event.is_action_pressed("ui_accept")
+	var cancel := event.is_action_pressed("ui_cancel")
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+		var key := event as InputEventKey
+		if key.keycode == KEY_LEFT:
+			back = true
+		elif key.keycode == KEY_RIGHT:
+			forward = true
+		elif key.keycode == KEY_ESCAPE:
+			cancel = true
+	if not back and not forward and not cancel:
+		return false
+	if back or (cancel and life_epilogue_page > 0):
+		if life_epilogue_page > 0:
+			_life_epilogue_go(life_epilogue_page - 1)
+		return true
+	if forward and life_epilogue_page < _epilogue_pages() - 1:
 		_life_epilogue_go(life_epilogue_page + 1)
-	else:
-		_life_epilogue_menu()
+		return true
+	_life_epilogue_close()
 	return true
 
 
@@ -12412,6 +14360,9 @@ class Yard extends Control:
 	var prop_tex := {}
 	var pile_tex := {}
 	var dust_tex: Texture2D
+	var line_wall_tex: Texture2D
+	var line_wall_ready := false
+	var wall_hit := Rect2()
 	var dust_tried := false
 	var clear_dust_cell := Vector2i(-1, -1)
 	var clear_dust_until := 0
@@ -12813,6 +14764,11 @@ class Yard extends Control:
 					pan = pan_from + delta
 					_clamp_pan()
 			if not moved:
+				if wall_hit.size.x > 2.0 and wall_hit.has_point(event.position):
+					hover = Vector2i(-1, -1)
+					mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+					queue_redraw()
+					return
 				var over: Dictionary = _hit(event.position)
 				var next := Vector2i(-1, -1)
 				if not over.is_empty() and _kind(over) != "hidden":
@@ -12872,6 +14828,10 @@ class Yard extends Control:
 		queue_redraw()
 
 	func _note_tap(screen: Vector2) -> void:
+		if wall_hit.size.x > 2.0 and wall_hit.has_point(screen):
+			pending_level = -1
+			station._show_wall()
+			return
 		var help := _help_at(screen)
 		if not help.is_empty():
 			pending_level = -1
@@ -13022,12 +14982,48 @@ class Yard extends Control:
 				_draw_cell(_rect(geo, level, cell), level, cell)
 		_draw_merge_ghost(geo)
 		_draw_structure(geo)
+		_draw_line_wall(geo)
 		_draw_pops(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_merge_tag(geo)
 		_draw_seam_dust()
 		_draw_hover_label(geo)
+
+	## Optional yard hotspot. Same Wall panel as the desk button. Missing art draws nothing.
+	func _draw_line_wall(geo: Dictionary) -> void:
+		wall_hit = Rect2()
+		var tex := _line_wall_tex()
+		if tex == null or station == null or station.game == null:
+			return
+		var host: Dictionary = {}
+		for room in station.game.rooms:
+			if str(room.get("type", "")) == "platform":
+				host = room
+				break
+		if host.is_empty():
+			return
+		var rect := _rect(geo, int(host.get("level", 0)), int(host.get("cell", 0)))
+		var ph := rect.size.y * 0.52
+		var pw := ph * float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
+		var dest := Rect2(rect.end.x - pw - rect.size.x * 0.05, rect.position.y + rect.size.y * 0.2, pw, ph)
+		draw_texture_rect(tex, dest, false)
+		wall_hit = Rect2(pan + dest.position * zoom, dest.size * zoom)
+
+	func _line_wall_tex() -> Texture2D:
+		if line_wall_tex != null:
+			return line_wall_tex
+		if line_wall_ready:
+			return null
+		var path := "res://assets/props/common/prop_line_wall.webp"
+		if not ResourceLoader.exists(path):
+			line_wall_ready = true
+			return null
+		var tex := ArtPack.load_texture(path)
+		if tex != null and tex.get_width() > 1:
+			line_wall_tex = tex
+			line_wall_ready = true
+		return line_wall_tex
 
 	## How far a rib reaches into a cell from each side (half its width), so room notes and badges sit clear of it.
 	func _wall_inset() -> float:
@@ -14383,9 +16379,10 @@ class Yard extends Control:
 				break
 
 	func _draw_platform(rect: Rect2, _room: Dictionary) -> void:
+		var ids: Array = _idle_ids()
+		_draw_name_tokens(rect, ids)
 		if not poses.has("walking") and not poses.has("standing"):
 			return
-		var ids: Array = _idle_ids()
 		var shown := mini(2, ids.size())
 		var pose_name := "walking" if poses.has("walking") else "standing"
 		var looks := _figs_for_group(body_figs, ids.slice(0, shown))
@@ -14502,6 +16499,34 @@ class Yard extends Control:
 				x = lo
 				flip = true
 		_draw_anim("walk", body, x, foot_y, body_h, id, flip, frame)
+
+	## Static name row on the platform. Known sits under the name when memory ≥ 40. It does not move.
+	func _draw_name_tokens(rect: Rect2, ids: Array) -> void:
+		var n := mini(4, ids.size())
+		if n <= 0:
+			return
+		var font: Font = ThemeDB.fallback_font
+		if station.body_font != null:
+			font = station.body_font
+		var gap := rect.size.x / float(n)
+		for i in n:
+			var id := str(ids[i])
+			var person: Dictionary = station.game.people.get(id, {})
+			if person.is_empty():
+				continue
+			var name := str(station._resident_name(person))
+			var cx := rect.position.x + gap * (float(i) + 0.5)
+			var y := rect.position.y + 16.0
+			var name_size := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+			draw_string(font, Vector2(cx - name_size.x * 0.5, y), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("f4efe4"))
+			if not station.game.is_known(person):
+				continue
+			var tag := Copy.t("named.known")
+			var tag_size := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+			var plate := Rect2(cx - tag_size.x * 0.5 - 8.0, y + 4.0, tag_size.x + 16.0, 22.0)
+			draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
+			draw_rect(plate, Color("e2a63a"), false, 1.0)
+			draw_string(font, Vector2(plate.position.x + 8.0, plate.position.y + 15.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("f0c070"))
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))

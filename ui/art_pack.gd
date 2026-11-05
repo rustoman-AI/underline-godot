@@ -313,6 +313,11 @@ static func textures() -> Dictionary:
 		"res://assets/events/toll_last.webp": preload("res://assets/events/toll_last.webp"),
 		"res://assets/events/stores_turn.webp": preload("res://assets/events/stores_turn.webp"),
 		"res://assets/events/ration_coat.webp": preload("res://assets/events/ration_coat.webp"),
+		"res://assets/events/ending_time.webp": preload("res://assets/events/ending_time.webp"),
+		"res://assets/events/ending_revolt.webp": preload("res://assets/events/ending_revolt.webp"),
+		"res://assets/events/ending_hope.webp": preload("res://assets/events/ending_hope.webp"),
+		"res://assets/events/ending_collapse.webp": preload("res://assets/events/ending_collapse.webp"),
+		"res://assets/events/ending_capital.webp": preload("res://assets/events/ending_capital.webp"),
 		"res://assets/overlays/room_probe.webp": preload("res://assets/overlays/room_probe.webp"),
 		"res://assets/overlays/room_offline.webp": preload("res://assets/overlays/room_offline.webp"),
 		"res://assets/overlays/room_offline_256.webp": preload("res://assets/overlays/room_offline_256.webp"),
@@ -369,6 +374,9 @@ static func textures() -> Dictionary:
 		## P42 props. No props/common gameplay hook; preload is the export registration.
 		"res://assets/props/common/prop_infirmary_tray.webp": preload("res://assets/props/common/prop_infirmary_tray.webp"),
 		"res://assets/props/common/prop_listening_cans.webp": preload("res://assets/props/common/prop_listening_cans.webp"),
+		"res://assets/props/common/prop_line_wall.webp": preload("res://assets/props/common/prop_line_wall.webp"),
+		"res://assets/ui/wall_plate_frame.webp": preload("res://assets/ui/wall_plate_frame.webp"),
+		"res://assets/ui/wall_panel_empty.webp": preload("res://assets/ui/wall_panel_empty.webp"),
 		## P49. Draws ask at 24px, so the hand-pixel plate is the one in the export. The 256 is the fallback plate.
 		"res://assets/icons/status/need_tick_24.png": preload("res://assets/icons/status/need_tick_24.png"),
 		"res://assets/icons/map/need_tick_24.png": preload("res://assets/icons/map/need_tick_24.png"),
