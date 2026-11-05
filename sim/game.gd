@@ -232,6 +232,8 @@ var wall_plates: Array = []
 var wall_hoped := false
 var wall_first_hope := false
 var notices: Array = []
+## Named-life lines waiting for the toast. Not saved. The match keeps {name}, {a} and {room}.
+var pending_named_voice: Array = []
 ## Meter changes to float once, the first week a held perk applies. The yard clears this.
 var perk_float_due := {}
 ## Dawn-card line for a Listening Post order. Not saved.
@@ -12877,6 +12879,7 @@ func _birth() -> String:
 	_note_moment("birth", {"name": str(person.name)}, 2)
 	_note_birth_hope()
 	notices.append(Copy.fill("named.birth", {"name": str(person.name), "fem": sex_of(person) == "f"}))
+	pending_named_voice.append("birth")
 	return str(person.name)
 
 
@@ -12946,6 +12949,7 @@ func _mark_served(person: Dictionary, room: Dictionary) -> void:
 	_stamp_checks(person)
 	var toast := Copy.fill("named.seasoned", {"room": Copy.t(str(defin.get("name", "")))})
 	notices.append(toast)
+	pending_named_voice.append("seasoned")
 	_log(toast, true)
 
 

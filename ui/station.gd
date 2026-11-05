@@ -347,6 +347,8 @@ var audience_key := ""
 var audience_heard := false
 var dawn_heard := ""
 var event_vo_heard := ""
+## Panels other than the event card (law line, mandate, verdict, …). One play per week per line.
+var panel_vo_heard := {}
 ## Room type -> "<game id>:<week>" for the week an event's data named that room; its yard sign shows a warning.
 var incident_rooms := {}
 ## The leader line last voiced; a redraw that shows the same line again stays silent.
@@ -2588,6 +2590,7 @@ func _refresh() -> void:
 		notes.append(str(game.notices.pop_front()))
 	if not notes.is_empty():
 		_toast_chain(notes)
+	_drain_named_voice()
 	if charges_button != null:
 		var cool := game.promise_cooldown_line()
 		charges_button.tooltip_text = cool if cool != "" else Copy.t("charge.active")
@@ -4070,7 +4073,9 @@ func _ask_line(law_id: String, defin: Dictionary, why: String) -> void:
 	var lines: PackedStringArray = [Copy.t("law.line_confirm_title"), _law_title(defin)]
 	var text_key := "law.line_text." + law_id
 	if Copy.keys.has(text_key):
-		lines.append(Copy.t(text_key))
+		var line_text := Copy.t(text_key)
+		lines.append(line_text)
+		_show_voice("law", law_id, "line", line_text)
 	lines.append(Copy.t("law.line_confirm"))
 	var muted := PackedStringArray()
 	if why == Copy.t("law.influence_short"):
@@ -4534,6 +4539,7 @@ func _paint_mandate_card(ev: Dictionary) -> void:
 		mandate_picks = game.mandate.picked.duplicate()
 	_open_card(Copy.t("mandate.pick"), false, "Event")
 	_body("mandate.pick_body")
+	_show_voice("mandate", "pick", "body", Copy.t("mandate.pick_body"))
 	for id in ["hold_coney", "unite_brooklyn", "reach_floor", "faith_dead", "line_capital"]:
 		card_body.add_child(_mandate_row(id))
 	var confirm := _choice_button("mandate.confirm", {}, _confirm_mandate)
@@ -7007,6 +7013,56 @@ func _event_voice(ev: Dictionary) -> void:
 		return
 	event_vo_heard = key
 	Voice.play(Voice.event_show(kind, str(ev.get("id", "")), part, Copy.t(game.line_of(ev, "text"))), "")
+	_named_death_voice(ev)
+
+
+## A named death card. The recording keeps {name} and {a}, so the match is the unfilled template.
+func _named_death_voice(ev: Dictionary) -> void:
+	var bid := str(ev.get("burial_id", ""))
+	if bid == "":
+		return
+	var cause := ""
+	for row in game.burials:
+		if str(row.get("id", "")) == bid:
+			cause = str(row.get("cause", ""))
+			break
+	if cause == "":
+		return
+	var template := ""
+	for row in game.catalog.names.get("deaths", []):
+		if str(row.get("id", "")) == cause:
+			template = game.text_pack(row)
+			break
+	_show_voice("named", "death_" + cause, "body", template, false)
+
+
+## Birth and seasoned toasts. Same placeholder match as the death card.
+func _drain_named_voice() -> void:
+	if game == null:
+		return
+	while not game.pending_named_voice.is_empty():
+		var which := str(game.pending_named_voice.pop_front())
+		var shown := ""
+		if which == "birth":
+			shown = Copy.t("named.birth")
+		elif which == "seasoned":
+			shown = Copy.t("named.seasoned")
+		_show_voice("named", which, "body", shown, false)
+
+
+## Plays a non-event line when its recorded text is the string on screen. once skips a redraw of the same line.
+func _show_voice(kind: String, event_id: String, part: String, shown: String, once := true) -> void:
+	if game == null or shown == "":
+		return
+	var key := "%d:%s:%s:%s" % [game.week, kind, event_id, part]
+	if once and panel_vo_heard.has(key):
+		return
+	var row := Voice.event_show(kind, event_id, part, shown)
+	if row.is_empty():
+		return
+	if once:
+		panel_vo_heard[key] = true
+	Voice.play(row, "")
 
 
 ## A check's outcome read aloud (chk_<check>_<option>_<success|fail>); true when it plays.
@@ -7621,6 +7677,7 @@ func _paint_night_resolve(ev: Dictionary) -> void:
 		nest.add_child(inner)
 		inner.add_child(_label("run.encounter_title", 18, true))
 		var body := _label("run.encounter." + enc, 16)
+		_show_voice("encounter", enc, "body", Copy.t("run.encounter." + enc))
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		body.custom_minimum_size = Vector2(440, 0)
 		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -8125,6 +8182,8 @@ func _toggle_party(person_id: String) -> void:
 	var why := game.party_toggle(person_id)
 	if why != "":
 		_toast(why)
+		if why == Copy.t("run.rumor.party_conflict"):
+			_show_voice("rumor", "party_conflict", "body", why)
 	_fill_people()
 	_refresh()
 
@@ -8135,6 +8194,8 @@ func _add_party_member() -> void:
 	var why := game.party_add_best()
 	if why != "":
 		_toast(why)
+		if why == Copy.t("run.rumor.party_conflict"):
+			_show_voice("rumor", "party_conflict", "body", why)
 	_fill_people()
 	_refresh()
 
@@ -12982,6 +13043,7 @@ func _life_verdict(payload: Dictionary) -> void:
 	if verdict == "":
 		verdict = game.ending_fallback()
 	life_epilogue_body.add_child(_slip_label(verdict, 28, SLIP_INK, true))
+	_show_voice("verdict", str(payload.get("ending", "")), str(payload.get("creed", "none")), verdict)
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_gap())
 	life_epilogue_actions.add_child(_epilogue_nav("epilogue.next", _life_epilogue_go.bind(1), false, "next"))
@@ -13022,6 +13084,7 @@ func _life_fates(payload: Dictionary) -> void:
 	if judgment != "":
 		life_epilogue_body.add_child(_epilogue_rule())
 		life_epilogue_body.add_child(_slip_label(judgment, 17, SLIP_INK, true))
+		_show_voice("judgment", game._judgment_id(), "body", judgment)
 	life_epilogue_body.add_child(_epilogue_rule())
 	var score := Copy.fill("epilogue.score", {
 		"n": int(payload.get("score", 0)),
