@@ -215,6 +215,9 @@ var obs_float_tween: Tween
 var regular_float: PanelContainer
 var regular_float_label: Label
 var regular_float_tween: Tween
+var sday_float: PanelContainer
+var sday_float_label: Label
+var sday_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1593,6 +1596,7 @@ func _process(_delta: float) -> void:
 	_tick_sick_cots()
 	_try_obs_float()
 	_try_regular_float()
+	_try_station_day_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -7957,6 +7961,59 @@ func _show_regular_yard(text: String) -> void:
 	regular_float_tween.tween_callback(func() -> void:
 		if regular_float != null:
 			regular_float.visible = false)
+
+
+## P61 first-float on the YA1 tip plate when the map could not show it.
+func _try_station_day_float() -> void:
+	if game == null or showing_network:
+		return
+	if StationDays.held_float == "":
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := StationDays.held_float
+	StationDays.held_float = ""
+	_show_sday_yard(line)
+
+
+func _show_sday_yard(text: String) -> void:
+	if sday_float == null:
+		sday_float = PanelContainer.new()
+		sday_float.z_index = 8
+		sday_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sday_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		sday_float.set_meta("sday_yard_float", true)
+		sday_float_label = Label.new()
+		sday_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sday_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sday_float_label.clip_text = false
+		sday_float_label.add_theme_font_size_override("font_size", 18)
+		sday_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		sday_float_label.add_theme_constant_override("outline_size", 0)
+		sday_float.add_child(sday_float_label)
+		add_child(sday_float)
+	sday_float_label.text = text
+	sday_float.modulate.a = 1.0
+	sday_float.visible = true
+	sday_float.custom_minimum_size = Vector2(420, 36)
+	var y := (hud.size.y if hud != null else 72.0) + 8.0
+	if regular_float != null and regular_float.visible:
+		y += 40.0
+	sday_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+	sday_float.size = Vector2(420, 36)
+	if sday_float_tween != null and sday_float_tween.is_valid():
+		sday_float_tween.kill()
+	sday_float_tween = create_tween()
+	if _motion_off():
+		sday_float_tween.tween_interval(4.2)
+	else:
+		sday_float_tween.tween_interval(1.1)
+		sday_float_tween.tween_property(sday_float, "modulate:a", 0.0, 0.8)
+	sday_float_tween.tween_callback(func() -> void:
+		if sday_float != null:
+			sday_float.visible = false)
 
 
 func _show_dawn() -> void:

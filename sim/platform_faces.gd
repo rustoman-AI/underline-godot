@@ -6,7 +6,7 @@ extends RefCounted
 ## No check changes. No rng / net_rng / story_rng / check_rng / crunch_rng draws.
 ## Nothing in the sim reads `regulars` for an outcome. Bots never open Visit.
 ## Soft dawn: none. Map mark: none. `regular.first` is a P61 first-float, not a dawn chip.
-## P89 (`sday.*`) and P90 (`carry.*`) stay empty hooks. No reward numbers from later packs.
+## P89 speaks through slot #5 (`sday.*`). P90 (`carry.*`) stays an empty hook. No reward numbers.
 
 const SEEN := "seen_regulars"
 ## Gate flips this off to prove the hooks do not move a careful run. The game leaves it on.
@@ -34,9 +34,9 @@ static func carry_hook(_game, _sid: String) -> Dictionary:
 	return {}
 
 
-## Reserved for P89 Station Days. Slot 5. Empty until that pack lands.
-static func station_day_hook(_game, _sid: String) -> Dictionary:
-	return {}
+## P89 Station Days. Slot 5. Empty once the two-week window has passed.
+static func station_day_hook(game, sid: String) -> Dictionary:
+	return StationDays.face_line(game, sid)
 
 
 static func face_ids() -> PackedStringArray:

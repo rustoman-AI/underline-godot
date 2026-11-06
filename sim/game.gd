@@ -215,6 +215,8 @@ var obs := {
 var obs_ui_block := false
 ## P88 Platform Faces. Memory only: met, last order, and whether the player took the station by force.
 var regulars := {}
+## P89 Station Days. Memory only: weeks a day was kept or intruded, and the week a force capture quieted it.
+var sdays := {"kept": {}, "intruded": {}, "quiet": {}}
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -287,6 +289,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	MarksKit.reset(self)
 	obs_ui_block = false
 	regulars = {}
+	sdays = {"kept": {}, "intruded": {}, "quiet": {}}
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -4723,6 +4726,7 @@ func _apply_order(action: Dictionary) -> bool:
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		PlatformFaces.note_order(self, action)
+		StationDays.on_order(self, order, StationDays.sid_of(action))
 	return ok
 
 
@@ -5033,8 +5037,11 @@ func _resolve_queued() -> void:
 				ok = _order_probe(str(action.get("station", action.get("dest", ""))))
 			"tap":
 				ok = _order_tap(str(action.get("faction", "")))
+		var day_line := ""
 		if ok:
 			PlatformFaces.note_order(self, action)
+			# The week counter already moved. The order was given on the week the player just left.
+			day_line = StationDays.on_order(self, kind, StationDays.sid_of(action), week - 1)
 		var place := sid
 		if kind == "tap":
 			place = Copy.t(_fname(str(action.get("faction", ""))))
@@ -5050,10 +5057,10 @@ func _resolve_queued() -> void:
 		seat_used.erase(str(row.get("role", "")))
 		var note := _take_soft_note(kind, sid, row, ok)
 		if not note.is_empty():
-			order_reports.append(note)
+			order_reports.append(StationDays.attach(note, day_line))
 			continue
 		if ok and not last_combat_report.is_empty() and kind in ["raid", "assault"]:
-			order_reports.append(last_combat_report.duplicate(true))
+			order_reports.append(StationDays.attach(last_combat_report.duplicate(true), day_line))
 			last_combat_report = {}
 			continue
 		last_combat_report = {}
@@ -5076,7 +5083,7 @@ func _resolve_queued() -> void:
 			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
 		if ok and kind in ["gift", "aid", "pay"]:
 			_note_soft_mark(kind, report)
-		order_reports.append(report)
+		order_reports.append(StationDays.attach(report, day_line))
 		if ok and kind == "trade":
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
@@ -6759,6 +6766,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	if fid == player:
 		MarksKit.note_capture(self, sid, force)
 	PlatformFaces.note_capture(self, sid, fid, force)
+	StationDays.note_capture(self, sid, fid, force)
 	return true
 
 
@@ -11899,7 +11907,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs", "regulars",
+	"transfer_hub_sids", "obs", "regulars", "sdays",
 ]
 
 
@@ -11918,7 +11926,8 @@ const PERSIST := [
 ## Version 17 added the Transfer Hub cache. Older saves start empty and rebuild at night.
 ## Version 18 added the Observer's marks and kit. Older saves start with nothing inked.
 ## Version 19 added the platform faces. Older saves start with nobody met.
-const SAVE_SCHEMA := 19
+## Version 20 added station days. Older saves start with nothing remembered.
+const SAVE_SCHEMA := 20
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11966,6 +11975,8 @@ const V16_ADDED := ["transfer_hub_sids"]
 const V17_ADDED := ["obs"]
 ## Fields a version 1 to 18 save may lack: no platform faces yet.
 const V18_ADDED := ["regulars"]
+## Fields a version 1 to 19 save may lack: no station days yet.
+const V19_ADDED := ["sdays"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -12023,7 +12034,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13469,6 +13480,11 @@ func obs_dawn_chip() -> bool:
 ## Always false. P88 Platform Faces is a Visit line and a first-float, never a soft dawn chip.
 func platform_faces_dawn_chip() -> bool:
 	return PlatformFaces.dawn_chip()
+
+
+## Always false. P89 Station Days is a Visit line and a first-float, never a soft dawn chip.
+func station_days_dawn_chip() -> bool:
+	return StationDays.dawn_chip()
 
 
 func _party_position_away(sq: Dictionary) -> bool:
