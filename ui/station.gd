@@ -218,6 +218,9 @@ var regular_float_tween: Tween
 var sday_float: PanelContainer
 var sday_float_label: Label
 var sday_float_tween: Tween
+var carry_float: PanelContainer
+var carry_float_label: Label
+var carry_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1597,6 +1600,7 @@ func _process(_delta: float) -> void:
 	_try_obs_float()
 	_try_regular_float()
 	_try_station_day_float()
+	_try_carry_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -7621,6 +7625,9 @@ func _fragment_title(id: String) -> String:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and _dismiss_undo_toast():
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_ESCAPE and game != null and deck.top_token() == "raid_share":
 		Sound.play("click")
 		_pick_raid_share("stockpile")
@@ -7673,22 +7680,39 @@ func _tooltip_theme() -> Theme:
 	return tips
 
 
-func _undo_toast(text: String, undo: Callable) -> void:
+func _undo_toast(text: String, undo: Callable, commit: Callable = Callable()) -> void:
 	_hide_undo_toast()
+	var yard := not showing_network
 	undo_toast = PanelContainer.new()
 	undo_toast.z_index = 31
 	undo_toast.mouse_filter = Control.MOUSE_FILTER_STOP
-	undo_toast.add_theme_stylebox_override("panel", _paper_style())
+	undo_toast.add_theme_stylebox_override("panel", _tip_plate_style() if yard else _paper_style())
+	undo_toast.set_meta("undo_plate", "yard" if yard else "map")
+	undo_toast.set_meta("undo_cb", undo)
+	undo_toast.set_meta("commit_cb", commit)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	undo_toast.add_child(row)
 	var was := on_paper
 	on_paper = true
 	var lab := _label(text, 18, true)
+	## One horizontal line. WORD_SMART inside this row has no width yet, so the
+	## label collapses to a glyph and the plate becomes a tall letter stack.
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lab.clip_text = false
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lab.add_theme_constant_override("outline_size", 0)
+	var font: Font = lab.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var measured := font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+	lab.custom_minimum_size = Vector2(ceili(measured.x), maxi(ceili(measured.y), 22))
 	row.add_child(lab)
-	var back := _button("Undo", undo)
+	var back := _button("Undo", _dismiss_undo_toast)
 	back.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	back.autowrap_mode = TextServer.AUTOWRAP_OFF
+	back.clip_text = false
 	back.custom_minimum_size = Vector2(110, 40)
 	back.add_theme_font_size_override("font_size", 18)
 	row.add_child(back)
@@ -7702,8 +7726,23 @@ func _undo_toast(text: String, undo: Callable) -> void:
 
 
 func _expire_undo_toast(which: PanelContainer) -> void:
-	if which == undo_toast:
-		_hide_undo_toast()
+	if which != undo_toast:
+		return
+	var commit: Callable = which.get_meta("commit_cb", Callable()) if which != null else Callable()
+	_hide_undo_toast()
+	if commit.is_valid():
+		commit.call()
+
+
+## Escape and the Undo button. A lapsed toast commits; this path does not.
+func _dismiss_undo_toast() -> bool:
+	if undo_toast == null or not is_instance_valid(undo_toast):
+		return false
+	var undo: Callable = undo_toast.get_meta("undo_cb", Callable())
+	_hide_undo_toast()
+	if undo.is_valid():
+		undo.call()
+	return true
 
 
 func _hide_undo_toast() -> void:
@@ -8014,6 +8053,60 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_tween.tween_callback(func() -> void:
 		if sday_float != null:
 			sday_float.visible = false)
+
+
+## P61 first-float on the YA1 tip plate when the first note is taken off the map.
+func _try_carry_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := CarriedWord.claim_first(game)
+	if line == "":
+		return
+	_show_carry_yard(line)
+
+
+func _show_carry_yard(text: String) -> void:
+	if carry_float == null:
+		carry_float = PanelContainer.new()
+		carry_float.z_index = 8
+		carry_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		carry_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		carry_float.set_meta("carry_yard_float", true)
+		carry_float_label = Label.new()
+		carry_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		carry_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		carry_float_label.clip_text = false
+		carry_float_label.add_theme_font_size_override("font_size", 18)
+		carry_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		carry_float_label.add_theme_constant_override("outline_size", 0)
+		carry_float.add_child(carry_float_label)
+		add_child(carry_float)
+	carry_float_label.text = text
+	carry_float.modulate.a = 1.0
+	carry_float.visible = true
+	carry_float.custom_minimum_size = Vector2(420, 36)
+	var y := (hud.size.y if hud != null else 72.0) + 8.0
+	if regular_float != null and regular_float.visible:
+		y += 40.0
+	if sday_float != null and sday_float.visible:
+		y += 40.0
+	carry_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+	carry_float.size = Vector2(420, 36)
+	if carry_float_tween != null and carry_float_tween.is_valid():
+		carry_float_tween.kill()
+	carry_float_tween = create_tween()
+	if _motion_off():
+		carry_float_tween.tween_interval(4.2)
+	else:
+		carry_float_tween.tween_interval(1.1)
+		carry_float_tween.tween_property(carry_float, "modulate:a", 0.0, 0.8)
+	carry_float_tween.tween_callback(func() -> void:
+		if carry_float != null:
+			carry_float.visible = false)
 
 
 func _show_dawn() -> void:

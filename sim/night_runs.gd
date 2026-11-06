@@ -300,6 +300,13 @@ static func dawn(game) -> void:
 	st.recover[str(site.id)] = int(game.week) + DEPLETE_WEEKS
 	_save_rng(game, rng)
 	var ev := _card(game, site, pack, encounter, hurt, dead, taken, rested, thin, seen, band, named)
+	if not rested.is_empty():
+		var carried: Dictionary = CarriedWord.on_night_run(game, site)
+		if str(carried.get("en", "")) != "":
+			var text: Dictionary = ev.get("text", {})
+			text["en"] = str(text.get("en", "")) + "\n" + str(carried.get("en", ""))
+			text["ru"] = str(text.get("ru", "")) + "\n" + str(carried.get("ru", ""))
+			ev["text"] = text
 	MarksKit.note_night(game, site, dead)
 	MarksKit.decorate(game, ev)
 	game.pending.push_front(ev)
