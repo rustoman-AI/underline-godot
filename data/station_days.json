@@ -1,0 +1,411 @@
+{
+  "_note": "P89 Station Days (NEW invent — DEC-SD1…SD4). Spec: /workspace/STATION_DAYS_P89_SPEC.md; brief §2 /workspace/underline_ux_audit/P88_P90_BRIEFS.md. Namespace sday.* only (the SPEC's existing event choice-id namespace is not used). One named day per P88 Face station on a fixed 8-week wheel (offset per station below). Small rites in the dark — a lamp lit, a list read aloud, a bucket poured back — never a carnival or holiday banner. Kept/intruded lines are spoken by the P88 Face (slot #5). EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P89",
+  "_owners": "Texts; Code sdays dict + sim/station_days.gd + Visit status row + _tip line + report line (offsets read from _days); UIUX row/hover/tally; Art optional sday_24 glyph (never blocks)",
+  "_status": "Designer APPROVED / Code-ready 2026-11-03; RU nit harbor.kept → past tense. | Designer gate fix 5 2026-11-03: sday.harbor.desc rewritten without buy-back; harbor.kept also de-buy-backed. -> Texts READY (fix in). | Texts READY at design-gate (P89, 2026-11-03). 71 sday.* keys EN+RU = 20 days × (name, desc, kept) + 11 shared — matches SPEC STRING tables key-for-key. Offsets preserved exactly from the Designer table (in _days; verified by script against the SPEC): 1 riverside/chapel · 2 northgate/observatory/quarry · 3 market/stadium · 4 plaza/eastwater/mill · 5 brickworks/harbor · 6 foundry/library/dockyard · 7 westfield/garden · 8 central/trampark/clocktower (≤3 per week). _flag_later.kept_bonus = 0 copied from SPEC DEC-SD4 (unwired; not a Texts number). EN edits: sday.dockyard.kept: 'You stood for the drowned. The sergeant saw.' → 'You stood for the drowned. I saw.'. Rites, not parties: namespace sday.* only (not the existing event choice-id namespace named in the SPEC); no festive or party vocabulary in EN or RU (banned-word grep clean). RU: {day} always nominative (colon/dash frames) so day names never decline; sday.soon «через {n} нед.» avoids plural agreement; player ты, gender-neutral. Name-collision: no new names in P89. Soft dawn NONE. Balance ZERO.",
+  "_soft_dawn": "NONE",
+  "_designer": "PENDING — awaiting key-for-key gate",
+  "_cite": [
+    "P88 Platform Faces — Face row slot #5 (cite only)",
+    "P87 Marks & Kit — kept_kit text tie only (P87 CLOSED)",
+    "P73 Week Ticker — cite only, not used",
+    "P84/P85/P86 Visit rows — not moved"
+  ],
+  "_placeholders": [
+    "{day}",
+    "{n}",
+    "{station}"
+  ],
+  "_days": {
+    "riverside": {
+      "station": "Botanic Garden",
+      "station_ru": "Ботанический сад",
+      "offset": 1
+    },
+    "chapel": {
+      "station": "Cathedral Pkwy",
+      "station_ru": "Кафедральный парк",
+      "offset": 1
+    },
+    "northgate": {
+      "station": "Grand Central",
+      "station_ru": "Гранд-Сентрал",
+      "offset": 2
+    },
+    "observatory": {
+      "station": "High St",
+      "station_ru": "Хай-стрит",
+      "offset": 2
+    },
+    "quarry": {
+      "station": "Fulton St",
+      "station_ru": "Фултон-стрит",
+      "offset": 2
+    },
+    "market": {
+      "station": "Spring St",
+      "station_ru": "Спринг-стрит",
+      "offset": 3
+    },
+    "stadium": {
+      "station": "Astor Pl",
+      "station_ru": "Астор-плейс",
+      "offset": 3
+    },
+    "plaza": {
+      "station": "Union Sq",
+      "station_ru": "Юнион-сквер",
+      "offset": 4
+    },
+    "eastwater": {
+      "station": "Bowling Green",
+      "station_ru": "Боулинг-Грин",
+      "offset": 4
+    },
+    "mill": {
+      "station": "Greenpoint",
+      "station_ru": "Гринпойнт",
+      "offset": 4
+    },
+    "brickworks": {
+      "station": "Atlantic Av",
+      "station_ru": "Атлантик-авеню",
+      "offset": 5
+    },
+    "harbor": {
+      "station": "Delancey St",
+      "station_ru": "Деланси-стрит",
+      "offset": 5
+    },
+    "foundry": {
+      "station": "Penn Station",
+      "station_ru": "Пенн-стейшн",
+      "offset": 6
+    },
+    "library": {
+      "station": "Jay St",
+      "station_ru": "Джей-стрит",
+      "offset": 6
+    },
+    "dockyard": {
+      "station": "Chambers St",
+      "station_ru": "Чемберс-стрит",
+      "offset": 6
+    },
+    "westfield": {
+      "station": "Aqueduct",
+      "station_ru": "Акведук",
+      "offset": 7
+    },
+    "garden": {
+      "station": "Flushing",
+      "station_ru": "Флашинг",
+      "offset": 7
+    },
+    "central": {
+      "station": "Times Sq",
+      "station_ru": "Таймс-сквер",
+      "offset": 8
+    },
+    "trampark": {
+      "station": "Wall St",
+      "station_ru": "Уолл-стрит",
+      "offset": 8
+    },
+    "clocktower": {
+      "station": "Canal St",
+      "station_ru": "Канал-стрит",
+      "offset": 8
+    }
+  },
+  "_flag_later": {
+    "kept_bonus": 0,
+    "_note": "SPEC DEC-SD4 — unwired in MVP; not a Texts number"
+  },
+  "by_key": {
+    "sday.riverside.name": {
+      "en": "Seed Count",
+      "ru": "Счёт семян"
+    },
+    "sday.riverside.desc": {
+      "en": "Every jar opened and counted, out loud.",
+      "ru": "Каждую банку открывают и пересчитывают вслух."
+    },
+    "sday.riverside.kept": {
+      "en": "You stood through the whole count. Nobody does.",
+      "ru": "До конца счёта на ногах. Так никто не делает."
+    },
+    "sday.chapel.name": {
+      "en": "Candle Count",
+      "ru": "Счёт свечей"
+    },
+    "sday.chapel.desc": {
+      "en": "A candle for every name the orderlies lost this year.",
+      "ru": "По свече на каждое имя, которое санитары потеряли за год."
+    },
+    "sday.chapel.kept": {
+      "en": "You lit one. We didn't ask whose.",
+      "ru": "Одна свеча — твоя. Мы не спрашивали, по кому."
+    },
+    "sday.northgate.name": {
+      "en": "Timetable Day",
+      "ru": "День расписания"
+    },
+    "sday.northgate.desc": {
+      "en": "The clerks read out every train that will never come.",
+      "ru": "Служащие зачитывают каждый поезд, который уже не придёт."
+    },
+    "sday.northgate.kept": {
+      "en": "You heard the whole timetable. Even the 4:12.",
+      "ru": "Расписание выслушано целиком. Даже 4:12."
+    },
+    "sday.observatory.name": {
+      "en": "Quiet Water",
+      "ru": "Тихая вода"
+    },
+    "sday.observatory.desc": {
+      "en": "No boats. Everyone listens to the river overhead.",
+      "ru": "Лодки стоят. Все слушают реку над головой."
+    },
+    "sday.observatory.kept": {
+      "en": "You kept quiet with us. The water was loud.",
+      "ru": "Помолчали вместе. А вода шумела."
+    },
+    "sday.quarry.name": {
+      "en": "Copper Day",
+      "ru": "Медный день"
+    },
+    "sday.quarry.desc": {
+      "en": "The year's wire is weighed and the map redrawn.",
+      "ru": "Провод за год взвешивают, карту перечерчивают."
+    },
+    "sday.quarry.kept": {
+      "en": "You're on this year's map. Pencil, still.",
+      "ru": "Ты на карте этого года. Пока карандашом."
+    },
+    "sday.market.name": {
+      "en": "First Water",
+      "ru": "Первая вода"
+    },
+    "sday.market.desc": {
+      "en": "The first bucket of the season is poured back into the spring.",
+      "ru": "Первое ведро сезона выливают обратно в родник."
+    },
+    "sday.market.kept": {
+      "en": "You watched it go back in. Most people look away.",
+      "ru": "Когда воду льют обратно, почти все отворачиваются. Не ты."
+    },
+    "sday.stadium.name": {
+      "en": "Open Jury",
+      "ru": "Открытый суд"
+    },
+    "sday.stadium.desc": {
+      "en": "Anyone may stand up and accuse anyone.",
+      "ru": "Любой может встать и обвинить любого."
+    },
+    "sday.stadium.kept": {
+      "en": "Nobody accused you. That's a compliment here.",
+      "ru": "Тебя никто не обвинил. У нас это комплимент."
+    },
+    "sday.plaza.name": {
+      "en": "Even Share",
+      "ru": "Ровная доля"
+    },
+    "sday.plaza.desc": {
+      "en": "The stores open and everything is counted out in front of everyone.",
+      "ru": "Склады открывают, и всё делят на глазах у всех."
+    },
+    "sday.plaza.kept": {
+      "en": "You took your share and no more. We counted.",
+      "ru": "Своя доля — и ни крошки сверху. Мы считали."
+    },
+    "sday.eastwater.name": {
+      "en": "Clean Breath",
+      "ru": "Чистый вдох"
+    },
+    "sday.eastwater.desc": {
+      "en": "Filters changed; the first breath is free.",
+      "ru": "Фильтры сменили — первый вдох бесплатно."
+    },
+    "sday.eastwater.kept": {
+      "en": "You took the free breath. Felt good, didn't it.",
+      "ru": "Бесплатный вдох. Хорошо ведь, а?"
+    },
+    "sday.mill.name": {
+      "en": "Smoke Day",
+      "ru": "Дымный день"
+    },
+    "sday.mill.desc": {
+      "en": "The smokehouse runs all night and everyone eats once.",
+      "ru": "Коптильня дымит всю ночь, и каждый ест — один раз."
+    },
+    "sday.mill.kept": {
+      "en": "You ate with us. The pigs approve.",
+      "ru": "Поели вместе. Свиньи одобряют."
+    },
+    "sday.brickworks.name": {
+      "en": "Lamp Night",
+      "ru": "Ночь фонарей"
+    },
+    "sday.brickworks.desc": {
+      "en": "Every lamp on the dark track lit at once.",
+      "ru": "Все фонари на тёмном пути зажигают разом."
+    },
+    "sday.brickworks.kept": {
+      "en": "Your lamp was on the track with ours.",
+      "ru": "Твой фонарь горел на путях рядом с нашими."
+    },
+    "sday.harbor.name": {
+      "en": "Lost and Found",
+      "ru": "Бюро находок"
+    },
+    "sday.harbor.desc": {
+      "en": "Everything stolen this year is laid out on one long table. People walk it slowly.",
+      "ru": "Всё краденое за год выкладывают на один длинный прилавок. Вдоль него идут медленно."
+    },
+    "sday.harbor.kept": {
+      "en": "Walked the whole table. Touched nothing. People noticed.",
+      "ru": "Прошли весь прилавок и ни к чему не притронулись. Это заметили."
+    },
+    "sday.foundry.name": {
+      "en": "Boiler Wake",
+      "ru": "Бдение у котлов"
+    },
+    "sday.foundry.desc": {
+      "en": "The cold boilers are fired for one night, and everyone listens.",
+      "ru": "Холодные котлы растапливают на одну ночь, и все слушают."
+    },
+    "sday.foundry.kept": {
+      "en": "You heard it too. Don't say you didn't.",
+      "ru": "Ты тоже слышишь. Не говори, что нет."
+    },
+    "sday.library.name": {
+      "en": "Sky Lecture",
+      "ru": "Урок неба"
+    },
+    "sday.library.desc": {
+      "en": "Someone draws the sky from memory on the blackboard.",
+      "ru": "Кто-нибудь рисует на доске небо по памяти."
+    },
+    "sday.library.kept": {
+      "en": "You asked about the moon. Good question. No answer.",
+      "ru": "Вопрос про луну. Хороший вопрос. Ответа нет."
+    },
+    "sday.dockyard.name": {
+      "en": "Roll Call",
+      "ru": "Перекличка"
+    },
+    "sday.dockyard.desc": {
+      "en": "The precinct reads its names — the living and the drowned.",
+      "ru": "Участок зачитывает свои имена — живых и утонувших."
+    },
+    "sday.dockyard.kept": {
+      "en": "You stood for the drowned. I saw.",
+      "ru": "Утонувших читали стоя. И ты со всеми. Я видел."
+    },
+    "sday.westfield.name": {
+      "en": "Gate Day",
+      "ru": "День ворот"
+    },
+    "sday.westfield.desc": {
+      "en": "The gates are welded again. Everyone watches.",
+      "ru": "Ворота заваривают снова. Все смотрят."
+    },
+    "sday.westfield.kept": {
+      "en": "You watched from the right side of the gate. Barely.",
+      "ru": "По правильную сторону ворот. Еле-еле."
+    },
+    "sday.garden.name": {
+      "en": "Long Sleep",
+      "ru": "Долгий сон"
+    },
+    "sday.garden.desc": {
+      "en": "The whole tunnel sleeps a day and a night.",
+      "ru": "Весь тоннель спит сутки."
+    },
+    "sday.garden.kept": {
+      "en": "You came and didn't wake anyone. Rare.",
+      "ru": "Пришли — и никто не проснулся. Редкость."
+    },
+    "sday.central.name": {
+      "en": "Night of Masks",
+      "ru": "Ночь масок"
+    },
+    "sday.central.desc": {
+      "en": "Nobody has a face. Nobody owes.",
+      "ru": "Ни у кого нет лица. Никто никому не должен."
+    },
+    "sday.central.kept": {
+      "en": "Nobody saw you. Everybody saw you.",
+      "ru": "Тебя никто не видел. Тебя видели все."
+    },
+    "sday.trampark.name": {
+      "en": "Settling Day",
+      "ru": "День расчёта"
+    },
+    "sday.trampark.desc": {
+      "en": "Debts are read off the forearm and crossed out.",
+      "ru": "Долги зачитывают с предплечья и вычёркивают."
+    },
+    "sday.trampark.kept": {
+      "en": "One of yours got crossed out. Don't get used to it.",
+      "ru": "Один твой долг вычеркнули. Не привыкай."
+    },
+    "sday.clocktower.name": {
+      "en": "Show Day",
+      "ru": "День показа"
+    },
+    "sday.clocktower.desc": {
+      "en": "The Hoarders show one thing they will never sell.",
+      "ru": "Барахольщики показывают одну вещь, которую никогда не продадут."
+    },
+    "sday.clocktower.kept": {
+      "en": "You looked and didn't ask the price. You may come again.",
+      "ru": "Посмотреть — и не спросить цену. Можешь приходить ещё."
+    },
+    "sday.today": {
+      "en": "{day} — this week.",
+      "ru": "{day} — на этой неделе."
+    },
+    "sday.soon": {
+      "en": "{day} in {n} weeks.",
+      "ru": "{day} — через {n} нед."
+    },
+    "sday.soon_one": {
+      "en": "{day} next week.",
+      "ru": "{day} — на следующей неделе."
+    },
+    "sday.quiet": {
+      "en": "No one keeps {day} here now.",
+      "ru": "{day}: здесь этот день больше никто не хранит."
+    },
+    "sday.kept_report": {
+      "en": "It was {day} at {station}. They'll remember who came.",
+      "ru": "{station}: {day}. Там запомнят, кто пришёл."
+    },
+    "sday.intruded_report": {
+      "en": "It was {day} at {station}. They'll remember that too.",
+      "ru": "{station}: {day}. Там запомнят и это."
+    },
+    "sday.intruded": {
+      "en": "You came on {day}. With that.",
+      "ru": "{day}, а ты — с этим."
+    },
+    "sday.kept_kit": {
+      "en": "You wore it on {day}. They noticed.",
+      "ru": "{day}, и ты в нашем. Это заметили."
+    },
+    "sday.count": {
+      "en": "Days kept: {n}",
+      "ru": "Дней соблюдено: {n}"
+    },
+    "sday.first": {
+      "en": "Stations keep their own days. Somebody marks who comes.",
+      "ru": "У станций свои дни. Кто-то записывает, кто приходит."
+    },
+    "sday.tip": {
+      "en": "A station's own day. Come that week and they'll remember.",
+      "ru": "Свой день станции. Приди в ту неделю — запомнят."
+    }
+  }
+}

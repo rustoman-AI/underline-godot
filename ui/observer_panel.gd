@@ -133,6 +133,7 @@ func _rebuild() -> void:
 		_hooks.add_child(_hook(game, slot))
 	_tail.add_child(_hooks)
 	_add_faces(game)
+	_add_day_tally(game)
 	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tail.add_child(_hint)
@@ -511,6 +512,127 @@ func _add_faces(game) -> void:
 	_tail.add_child(scroll)
 
 
+## Days kept. A plain tally. Hover lists station · day · week. Focusable only when that list exists.
+func _add_day_tally(game) -> void:
+	if not StationDays.enabled or game == null:
+		return
+	var n := StationDays.count(game)
+	var lines := StationDays.tally_lines(game)
+	var text := Copy.fill("sday.count", {"n": n})
+	if lines.is_empty():
+		var quiet := _lab(text, 14, false, PAPER_INK)
+		quiet.focus_mode = Control.FOCUS_NONE
+		quiet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		quiet.set_meta("sday_count", true)
+		quiet.set_meta("sday_n", n)
+		_tail.add_child(quiet)
+		return
+	var button := DayTally.new()
+	button.text = text
+	button.lines = lines
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.focus_mode = Control.FOCUS_ALL
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.custom_minimum_size = Vector2(0, 28)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.tooltip_text = "\n".join(lines)
+	button.set_meta("obs_focus", "sday")
+	button.set_meta("sday_count", true)
+	button.set_meta("sday_tally", true)
+	button.set_meta("sday_n", n)
+	button.set_meta("sday_rows", lines.size())
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", PAPER_INK)
+	button.add_theme_color_override("font_hover_color", PAPER_INK)
+	button.add_theme_color_override("font_pressed_color", PAPER_INK)
+	button.add_theme_color_override("font_focus_color", PAPER_INK)
+	button.add_theme_stylebox_override("normal", _day_style(false))
+	button.add_theme_stylebox_override("hover", _day_style(true))
+	button.add_theme_stylebox_override("pressed", _day_style(true))
+	button.add_theme_stylebox_override("focus", _day_focus())
+	_tail.add_child(button)
+
+
+func _day_style(hot: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(PAPER.r, PAPER.g, PAPER.b, 0.0)
+	style.border_color = BRASS if hot else Color(0, 0, 0, 0)
+	style.set_border_width_all(1 if hot else 0)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	return style
+
+
+func _day_focus() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.draw_center = false
+	style.border_color = BRASS
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	return style
+
+
+static func tally_tip(lines: PackedStringArray) -> Control:
+	var cap := 8
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 2)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for line in lines:
+		var lab := Label.new()
+		lab.text = line
+		lab.clip_text = false
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.add_theme_font_size_override("font_size", 14)
+		lab.add_theme_color_override("font_color", Color("efe6d2"))
+		lab.custom_minimum_size = Vector2(280, 20)
+		lab.set_meta("sday_tally_line", true)
+		list.add_child(lab)
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
+	plate.set_border_width_all(1)
+	plate.set_content_margin_all(8)
+	if lines.size() <= cap:
+		var panel := PanelContainer.new()
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_theme_stylebox_override("panel", plate)
+		panel.add_child(list)
+		panel.set_meta("sday_tally_cap", cap)
+		return panel
+	var scroll := ScrollContainer.new()
+	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(300, cap * 22)
+	scroll.set_meta("sday_tally_scroll", true)
+	scroll.set_meta("sday_tally_cap", cap)
+	var theme := Theme.new()
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.08, 0.07, 0.06, 0.55)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	for kind in ["VScrollBar", "HScrollBar"]:
+		theme.set_stylebox("scroll", kind, track)
+		theme.set_stylebox("scroll_focus", kind, track)
+		theme.set_stylebox("grabber", kind, grab)
+		theme.set_stylebox("grabber_highlight", kind, grab)
+		theme.set_stylebox("grabber_pressed", kind, grab)
+	scroll.theme = theme
+	var frame := PanelContainer.new()
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override("panel", plate)
+	frame.add_child(scroll)
+	scroll.add_child(list)
+	return frame
+
+
 func _face_button(entry: Dictionary) -> Button:
 	var sid := str(entry.get("sid", ""))
 	var station := Copy.t(str(entry.get("station", sid)))
@@ -600,13 +722,15 @@ func _wire_focus() -> void:
 	var marks: Array = []
 	var hooks: Array = []
 	var faces: Array = []
+	var days: Array = []
 	var pane: Array = []
 	var close: Array = []
-	_collect_focus(self, marks, hooks, faces, pane, close)
+	_collect_focus(self, marks, hooks, faces, days, pane, close)
 	var order: Array = []
 	order.append_array(marks)
 	order.append_array(hooks)
 	order.append_array(faces)
+	order.append_array(days)
 	order.append_array(pane)
 	order.append_array(close)
 	for i in order.size():
@@ -621,7 +745,7 @@ func _wire_focus() -> void:
 		button.focus_previous = button.get_path_to(prev)
 
 
-func _collect_focus(node: Node, marks: Array, hooks: Array, faces: Array, pane: Array, close: Array) -> void:
+func _collect_focus(node: Node, marks: Array, hooks: Array, faces: Array, days: Array, pane: Array, close: Array) -> void:
 	if node is Control and str(node.get_meta("obs_focus", "")) != "":
 		var bucket := str(node.get_meta("obs_focus"))
 		if bucket == "mark":
@@ -630,12 +754,14 @@ func _collect_focus(node: Node, marks: Array, hooks: Array, faces: Array, pane: 
 			hooks.append(node)
 		elif bucket == "face":
 			faces.append(node)
+		elif bucket == "sday":
+			days.append(node)
 		elif bucket == "pane":
 			pane.append(node)
 		elif bucket == "close":
 			close.append(node)
 	for child in node.get_children():
-		_collect_focus(child, marks, hooks, faces, pane, close)
+		_collect_focus(child, marks, hooks, faces, days, pane, close)
 
 
 func _paper() -> StyleBoxFlat:
@@ -721,3 +847,10 @@ func _lab(text: String, size: int, bold: bool, color: Color) -> Label:
 	lab.add_theme_color_override("font_color", color)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return lab
+
+
+class DayTally extends Button:
+	var lines := PackedStringArray()
+
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		return ObserverPanel.tally_tip(lines)

@@ -218,6 +218,8 @@ var _toll_float: Label
 var _toll_float_tween: Tween
 var _regular_float: Label
 var _regular_float_tween: Tween
+var _sday_float: Label
+var _sday_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -4435,6 +4437,9 @@ func _tip(sid: String) -> String:
 	var toll := QuietToll.tip_line(game, sid)
 	if toll != "":
 		lines.append(toll)
+	var day := StationDays.tip_line(game, sid)
+	if day != "":
+		lines.append(day)
 	return "\n".join(lines)
 
 
@@ -6100,6 +6105,163 @@ func _place_regular_float() -> void:
 	_place_float_chip(_regular_float, y)
 
 
+## Visit status. Known stations only. Today, soon, or quiet. Not focusable. Tooltip is the description plus the shared tip.
+func _add_station_day(parent: Node, game, sid: String) -> bool:
+	var text := StationDays.row_text(game, sid)
+	if text == "":
+		return false
+	var ink := INK
+	var row := StationDayRow.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.focus_mode = Control.FOCUS_NONE
+	row.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.tooltip_text = StationDays.detail_tip(game, sid)
+	row.tip_body = row.tooltip_text
+	row.set_meta("sday_row", true)
+	row.set_meta("sday_text", text)
+	row.set_meta("sday_sid", sid)
+	var glyph := _sday_glyph(ink)
+	if glyph != null:
+		row.add_child(glyph)
+	var lab := _lab(text, 15, true)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.clip_text = false
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lab.focus_mode = Control.FOCUS_NONE
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.add_theme_color_override("font_color", ink)
+	lab.set_meta("sday_line", true)
+	row.add_child(lab)
+	parent.add_child(row)
+	return true
+
+
+func _sday_glyph(ink: Color) -> TextureRect:
+	var tex: Texture2D = null
+	for path in ["res://assets/icons/sday_24.webp", "res://assets/icons/sday_24.png", "res://assets/icons/ui/sday_24.webp", "res://assets/icons/ui/sday_24.png"]:
+		if not ResourceLoader.exists(path):
+			continue
+		tex = load(path) as Texture2D
+		if tex != null:
+			break
+	if tex == null:
+		return null
+	var glyph := TextureRect.new()
+	glyph.texture = tex
+	glyph.custom_minimum_size = Vector2(16, 16)
+	glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	glyph.modulate = ink
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glyph.set_meta("sday_glyph", true)
+	return glyph
+
+
+## P61 first-float on the X1 map slip. Once per run, the first time a day row is shown. Not a dawn chip.
+func _note_first_station_day(shown: bool) -> void:
+	if not shown:
+		return
+	var game = _game()
+	if game == null:
+		return
+	var line := StationDays.claim_first(game)
+	if line == "":
+		return
+	var on_map := visible and is_inside_tree()
+	if host != null and host.get("showing_network") == false:
+		on_map = false
+	if not on_map:
+		StationDays.held_float = line
+		if host != null and host.has_method("_try_station_day_float"):
+			host._try_station_day_float()
+		return
+	_show_sday_float(line)
+
+
+func _show_sday_float(line: String) -> void:
+	if _sday_float == null:
+		_sday_float = Label.new()
+		_sday_float.z_index = 8
+		_sday_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_sday_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_sday_float.add_theme_font_size_override("font_size", 18)
+		_sday_float.set_meta("sday_float", true)
+		_bind_float_plate(_sday_float)
+	var plate := _float_plate(_sday_float)
+	_sday_float.text = line
+	_sday_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_sday_float.visible = true
+	plate.visible = true
+	if _sday_float_tween != null and _sday_float_tween.is_valid():
+		_sday_float_tween.kill()
+	_place_sday_float()
+	if not is_inside_tree():
+		return
+	_sday_float_tween = create_tween()
+	if _motion_off():
+		_sday_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_sday_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_sday_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_sday_float_tween.tween_callback(func() -> void:
+		if _sday_float != null:
+			_sday_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_sday_float() -> void:
+	if _sday_float == null or not _sday_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	if _regular_float != null and _regular_float.visible:
+		y += 34.0
+	_place_float_chip(_sday_float, y)
+
+
+static func day_tooltip(text: String) -> Control:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
+	plate.set_border_width_all(1)
+	plate.set_content_margin_all(8)
+	panel.add_theme_stylebox_override("panel", plate)
+	var lab := Label.new()
+	lab.text = text
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.clip_text = false
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lab.add_theme_font_size_override("font_size", 16)
+	lab.add_theme_color_override("font_color", Color("efe6d2"))
+	var font := ThemeDB.fallback_font
+	var widest := 0.0
+	for bit in text.split("\n"):
+		widest = maxf(widest, font.get_string_size(bit, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x)
+	var w := minf(360.0, widest + 4.0)
+	lab.custom_minimum_size = Vector2(w, 0)
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.set_meta("sday_tip_line", true)
+	panel.add_child(lab)
+	panel.custom_minimum_size = Vector2(w + 16.0, 0)
+	panel.set_meta("sday_tip_width", w)
+	return panel
+
+
 func _brass_scroll(node: Control) -> void:
 	var theme := Theme.new()
 	var track := StyleBoxFlat.new()
@@ -6167,8 +6329,10 @@ func _fill_visit(sid: String) -> void:
 	column.add_child(named)
 	column.add_child(_standing_row(game, st, sid))
 	_add_siege_lines(column, game, sid)
-	_add_transfer_status(game, sid, column)
 	_add_perk_good(game, sid, column)
+	# P89 sits under the perk line and above the hub, the toll, and the ledger.
+	var day_shown := _add_station_day(column, game, sid)
+	_add_transfer_status(game, sid, column)
 	# Ledger stays the last child of this Visit status column.
 	# P84 Transfer Hub stays above Quiet Toll and the ledger.
 	_add_quiet_toll(column, game, sid)
@@ -6200,6 +6364,7 @@ func _fill_visit(sid: String) -> void:
 	_note_outpost_ledger(sid)
 	_note_first_quiet_toll()
 	_note_first_regular()
+	_note_first_station_day(day_shown)
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
@@ -6723,3 +6888,10 @@ class OrderTipButton extends Button:
 		lab.add_theme_font_size_override("font_size", 16)
 		panel.add_child(lab)
 		return panel
+
+
+class StationDayRow extends HBoxContainer:
+	var tip_body := ""
+
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		return NetworkView.day_tooltip(tip_body if tip_body != "" else _for_text)

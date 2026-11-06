@@ -367,7 +367,7 @@ func _dawn() -> bool:
 
 
 func _save(catalog: Catalog) -> bool:
-	if Game.SAVE_SCHEMA != 19:
+	if Game.SAVE_SCHEMA != 20:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 		return false
 	var game := _game(catalog, 8)
