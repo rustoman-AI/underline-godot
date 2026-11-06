@@ -219,6 +219,10 @@ var regulars := {}
 var sdays := {"kept": {}, "intruded": {}, "quiet": {}}
 ## P90 Carried Word. Pocket and thread memory only. Outcomes never read it.
 var carry := {"pocket": {}, "threads": {}, "delivered": 0, "lines": []}
+## P93 Platform Callers. Occupancy only. Outcomes never read it.
+var callers := {"here": "", "until": 0, "why": "", "seen": {}, "cool_until": {}, "queue": []}
+## Quiet leave toast for the yard. Not saved.
+var caller_left_toast := false
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -292,6 +296,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	obs_ui_block = false
 	regulars = {}
 	sdays = {"kept": {}, "intruded": {}, "quiet": {}}
+	callers = PlatformCallers.blank()
+	caller_left_toast = false
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -1347,6 +1353,8 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
+	## Seat or dismiss a caller before this dawn's orders can offer a new one.
+	PlatformCallers.tick(self)
 	_expire_need_ticks()
 	battle_dis_week = 0
 	_resolve_queued()
@@ -4810,6 +4818,7 @@ func _order_deal(sid: String) -> bool:
 	if _deal_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
+	var deal_owner := str(st.owner)
 	var before_sym := int(st.sympathy)
 	var need_id := _lowest_need(st)
 	var need_before := _need_fill(st, need_id)
@@ -4829,6 +4838,7 @@ func _order_deal(sid: String) -> bool:
 		st.join_pulse = true
 	_stamp_soft_note(st, sid, "deal", before_sym, before_sym, 0, need_id, need_before, need_after, int(st.deals), joined)
 	LeafletDust.settle(self, sid)
+	PlatformCallers.note_deal(self, deal_owner)
 	return true
 
 
@@ -7577,6 +7587,7 @@ func _drift_opinion() -> void:
 			at_war[fid] = true
 			_log("WAR %s" % _fname(fid), true)
 			_journal("war", {"faction": fid})
+	PlatformCallers.note_opinions(self)
 
 
 # --- people ---
@@ -11401,6 +11412,7 @@ func _add_opinion(fid: String, amount: int, why: String = "") -> void:
 	opinion_memory[fid].append({"week": week, "delta": amount, "why": note})
 	if opinion_memory[fid].size() > 8:
 		opinion_memory[fid].pop_front()
+	PlatformCallers.note_opinions(self)
 
 
 func _staff_line() -> String:
@@ -11923,7 +11935,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs", "regulars", "sdays", "carry",
+	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "callers",
 ]
 
 
@@ -11944,7 +11956,20 @@ const PERSIST := [
 ## Version 19 added the platform faces. Older saves start with nobody met.
 ## Version 20 added station days. Older saves start with nothing remembered.
 ## Version 21 added carried words. Older saves start with an empty pocket.
-const SAVE_SCHEMA := 21
+## Version 22 is reserved for P91 Line Echo (`echoes`). That pack is an unmerged
+## draft and is not imported. A save may include `echoes` or omit it; unknown keys
+## are ignored and the key is not required.
+## Version 23 is reserved for P92 Rival Desk (`rival_log`). Same rule: present or
+## absent, it is not read and not required.
+## Version 24 adds platform callers. Older saves, including schema 22 and 23 with
+## or without echoes / rival_log, start with nobody on the stairs.
+## When P91 and P92 merge, keep schema 24 for callers and add:
+##   V21_ADDED := ["echoes"]     # schema <= 21 fills echoes
+##   V22_ADDED := ["rival_log"]  # schema <= 22 fills rival_log
+## ahead of V23_ADDED. A schema 24 save from this branch has callers and may lack
+## echoes and rival_log; those lists are what let it load after the merge.
+## Do not renumber callers onto 22 or 23.
+const SAVE_SCHEMA := 24
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11996,6 +12021,9 @@ const V18_ADDED := ["regulars"]
 const V19_ADDED := ["sdays"]
 ## Fields a version 1 to 20 save may lack: no carried word yet.
 const V20_ADDED := ["carry"]
+## Schema 22 and 23 add no keys on this branch (echoes / rival_log stay unmerged).
+## Fields a version 1 to 23 save may lack: no platform caller yet.
+const V23_ADDED := ["callers"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -12053,7 +12081,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 23 and V23_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13511,6 +13539,11 @@ func carried_word_dawn_chip() -> bool:
 	return CarriedWord.dawn_chip()
 
 
+## Always false. P93 Platform Callers is a home row and a first-float, never a soft dawn chip.
+func platform_callers_dawn_chip() -> bool:
+	return PlatformCallers.dawn_chip()
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true
@@ -14220,6 +14253,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 	var fought := _resolve_battle(sq, dest, false)
 	var win := bool(fought.get("win", false))
 	var st: Dictionary = stations[dest]
+	var raid_owner := str(st.owner)
 	var place := _station_place(dest)
 	if win:
 		_add_opinion(str(st.owner), int(bal.get("raid_opinion", -15)))
@@ -14262,6 +14296,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 			if raid_share_profile != "":
 				pick = raid_share_bot_choice()
 			apply_raid_share(pick)
+	PlatformCallers.note_hit(self, raid_owner)
 	return true
 
 
@@ -14308,6 +14343,7 @@ func _order_assault(dest: String, _immediate: bool) -> bool:
 		opinion = Copy.t("combat.unbidden") % absi(int(bal.get("unbidden_hope", -2)))
 	_stamp_combat("assault", dest, win, captured, fought.get("player", {}), hope0, dis0, opinion)
 	_note_party_home()
+	PlatformCallers.note_hit(self, owner)
 	return true
 
 

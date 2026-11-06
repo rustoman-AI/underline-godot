@@ -221,6 +221,9 @@ var sday_float_tween: Tween
 var carry_float: PanelContainer
 var carry_float_label: Label
 var carry_float_tween: Tween
+var caller_float: PanelContainer
+var caller_float_label: Label
+var caller_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1601,6 +1604,8 @@ func _process(_delta: float) -> void:
 	_try_regular_float()
 	_try_station_day_float()
 	_try_carry_float()
+	_try_caller_float()
+	_try_caller_left()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -8053,6 +8058,72 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_tween.tween_callback(func() -> void:
 		if sday_float != null:
 			sday_float.visible = false)
+
+
+## P61 first-float on the YA1 tip plate when the first caller is met off the map.
+func _try_caller_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := PlatformCallers.claim_first(game)
+	if line == "":
+		return
+	_show_caller_yard(line)
+
+
+func _show_caller_yard(text: String) -> void:
+	if caller_float == null:
+		caller_float = PanelContainer.new()
+		caller_float.z_index = 8
+		caller_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caller_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		caller_float.set_meta("caller_yard_float", true)
+		caller_float_label = Label.new()
+		caller_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caller_float_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		caller_float_label.clip_text = false
+		caller_float_label.add_theme_font_size_override("font_size", 18)
+		caller_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		caller_float_label.add_theme_constant_override("outline_size", 0)
+		caller_float.add_child(caller_float_label)
+		add_child(caller_float)
+	caller_float_label.text = text
+	caller_float.modulate.a = 1.0
+	caller_float.visible = true
+	var font := caller_float_label.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+	var width := clampf(text_w + 28.0, 280.0, 720.0)
+	caller_float.custom_minimum_size = Vector2(width, 36)
+	var y := (hud.size.y if hud != null else 72.0) + 8.0
+	caller_float.position = Vector2(maxf(8.0, size.x * 0.5 - width * 0.5), y)
+	caller_float.size = Vector2(width, 36)
+	if caller_float_tween != null and caller_float_tween.is_valid():
+		caller_float_tween.kill()
+	caller_float_tween = create_tween()
+	if _motion_off():
+		caller_float_tween.tween_interval(4.2)
+	else:
+		caller_float_tween.tween_interval(1.1)
+		caller_float_tween.tween_property(caller_float, "modulate:a", 0.0, 0.8)
+	caller_float_tween.tween_callback(func() -> void:
+		if caller_float != null:
+			caller_float.visible = false)
+
+
+## Quiet P56 toast when the courier leaves. Not a modal and not a dawn chip.
+func _try_caller_left() -> void:
+	if game == null or not bool(game.get("caller_left_toast")):
+		return
+	game.caller_left_toast = false
+	var line := Copy.t("caller.left")
+	if line == "":
+		return
+	_toast(line)
 
 
 ## P61 first-float on the YA1 tip plate when the first note is taken off the map.

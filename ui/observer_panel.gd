@@ -172,12 +172,98 @@ func _fit_panel(view: Vector2, width: float, cap: float, head: Control) -> void:
 func _fill_detail(game) -> void:
 	for child in _detail.get_children():
 		child.queue_free()
+	_add_caller(game)
 	var kind := str(_selected.get("kind", "slot"))
 	var id := str(_selected.get("id", "coat"))
 	if kind == "mark":
 		_fill_mark(game, id)
 		return
 	_fill_slot(game, id)
+
+
+## Home desk. The same courier as the home Visit, above the mark or kit detail. No button.
+func _add_caller(game) -> void:
+	if _detail == null or not PlatformCallers.enabled:
+		return
+	var card: Dictionary = PlatformCallers.card(game)
+	if card.is_empty():
+		return
+	var block := VBoxContainer.new()
+	block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	block.add_theme_constant_override("separation", 4)
+	var title := _lab(Copy.t("caller.title"), 14, true, PAPER_INK)
+	title.clip_text = false
+	title.set_meta("caller_title", true)
+	block.add_child(title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_meta("caller_hbox", true)
+	var portrait_id := str(card.portrait)
+	if host != null and host.has_method("_portrait_box"):
+		var portrait: TextureRect = host._portrait_box(portrait_id, 36)
+		portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		portrait.custom_minimum_size = Vector2(36, 36)
+		portrait.set_meta("caller_portrait", portrait_id)
+		row.add_child(portrait)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.add_theme_constant_override("separation", 2)
+	var who := HBoxContainer.new()
+	who.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	who.add_theme_constant_override("separation", 0)
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name := _lab(Copy.t(str(card.name_key)), 15, true, PAPER_INK)
+	name.clip_text = false
+	name.autowrap_mode = TextServer.AUTOWRAP_OFF
+	name.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	name.set_meta("caller_name", true)
+	who.add_child(name)
+	var dot := _lab(" · ", 15, false, PAPER_MUTED)
+	dot.clip_text = false
+	dot.autowrap_mode = TextServer.AUTOWRAP_OFF
+	dot.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	who.add_child(dot)
+	var role := _lab(Copy.t(str(card.role_key)), 15, false, PAPER_MUTED)
+	role.clip_text = false
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role.set_meta("caller_role", true)
+	who.add_child(role)
+	words.add_child(who)
+	var quote := _lab(Copy.t(str(card.line_key)), 14, false, PAPER_INK)
+	quote.clip_text = false
+	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var quote_font: Font = null
+	if host != null and host.get("body_font") != null:
+		quote_font = host.body_font
+	if quote_font == null:
+		quote_font = load("res://assets/fonts/CourierPrime-Regular.ttf")
+	if quote_font != null:
+		quote.add_theme_font_override("font", quote_font)
+	quote.custom_minimum_size = Vector2(300, 0)
+	quote.set_meta("caller_quote", true)
+	words.add_child(quote)
+	row.add_child(words)
+	block.add_child(row)
+	var shell := MarginContainer.new()
+	shell.set_meta("caller_row", true)
+	shell.set_meta("caller_fid", str(card.fid))
+	shell.set_meta("caller_why", str(card.why))
+	shell.set_meta("caller_line_key", str(card.line_key))
+	shell.set_meta("caller_home", "desk")
+	shell.tooltip_text = Copy.t("caller.tip")
+	shell.mouse_filter = Control.MOUSE_FILTER_STOP
+	shell.focus_mode = Control.FOCUS_NONE
+	shell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shell.add_theme_constant_override("margin_right", 8)
+	shell.add_child(block)
+	_detail.add_child(shell)
 
 
 func _fill_mark(game, id: String) -> void:
