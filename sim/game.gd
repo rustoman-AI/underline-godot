@@ -219,6 +219,8 @@ var regulars := {}
 var sdays := {"kept": {}, "intruded": {}, "quiet": {}}
 ## P90 Carried Word. Pocket and thread memory only. Outcomes never read it.
 var carry := {"pocket": {}, "threads": {}, "delivered": 0, "lines": []}
+## P91 Line Echo. Neighbor memory only. Outcomes never read it.
+var echoes := {}
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -292,6 +294,8 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	obs_ui_block = false
 	regulars = {}
 	sdays = {"kept": {}, "intruded": {}, "quiet": {}}
+	echoes = {}
+	LineEcho.held_float = ""
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -4728,6 +4732,7 @@ func _apply_order(action: Dictionary) -> bool:
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		PlatformFaces.note_order(self, action)
+		LineEcho.note_order(self, action)
 		CarriedWord.on_order(self, order, CarriedWord.target_sid(order, action))
 		StationDays.on_order(self, order, StationDays.sid_of(action))
 	return ok
@@ -5044,6 +5049,7 @@ func _resolve_queued() -> void:
 		var day_line := ""
 		if ok:
 			PlatformFaces.note_order(self, action)
+			LineEcho.note_order(self, action)
 			carry_line = CarriedWord.on_order(self, kind, CarriedWord.target_sid(kind, action), str(row.get("name", "")), _feminine(str(row.get("person", "")), str(row.get("name", ""))))
 			# The week counter already moved. The order was given on the week the player just left.
 			day_line = StationDays.on_order(self, kind, StationDays.sid_of(action), week - 1)
@@ -11923,7 +11929,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs", "regulars", "sdays", "carry",
+	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "echoes",
 ]
 
 
@@ -11944,7 +11950,8 @@ const PERSIST := [
 ## Version 19 added the platform faces. Older saves start with nobody met.
 ## Version 20 added station days. Older saves start with nothing remembered.
 ## Version 21 added carried words. Older saves start with an empty pocket.
-const SAVE_SCHEMA := 21
+## Version 22 added line echoes. Older saves start with nothing heard.
+const SAVE_SCHEMA := 22
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11996,6 +12003,8 @@ const V18_ADDED := ["regulars"]
 const V19_ADDED := ["sdays"]
 ## Fields a version 1 to 20 save may lack: no carried word yet.
 const V20_ADDED := ["carry"]
+## Fields a version 1 to 21 save may lack: no line echoes yet.
+const V21_ADDED := ["echoes"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -12053,7 +12062,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 21 and V21_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13509,6 +13518,11 @@ func station_days_dawn_chip() -> bool:
 ## Always false. P90 Carried Word is a Visit line, a pocket, and a first-float. Not a soft dawn chip.
 func carried_word_dawn_chip() -> bool:
 	return CarriedWord.dawn_chip()
+
+
+## Always false. P91 Line Echo is a Visit line and a first-float. Not a soft dawn chip.
+func line_echo_dawn_chip() -> bool:
+	return LineEcho.dawn_chip()
 
 
 func _party_position_away(sq: Dictionary) -> bool:
