@@ -589,7 +589,8 @@ func _banners() -> void:
 	Copy.set_lang("en")
 	for sid in game.stations:
 		var path: String = net.banner_path(game, str(sid))
-		var own: bool = path.ends_with("/hubs/%s.webp" % sid) or (str(sid) == str(game.capital_id) and path.ends_with("hub_coney_island.webp"))
+		var alias := str(net.HUB_ALIAS.get(str(sid), ""))
+		var own: bool = path.ends_with("/hubs/%s.webp" % sid) or (alias != "" and path.ends_with("/hubs/%s.webp" % alias)) or (str(sid) == str(game.capital_id) and path.ends_with("hub_coney_island.webp"))
 		if path == "":
 			plates += 1
 			continue
@@ -604,6 +605,14 @@ func _banners() -> void:
 			bad.append("P1 %s (%s) shows room_%s, which its description does not name" % [sid, game.stations[sid].name, room])
 	if net.banner_path(game, "riverside").get_file() != "riverside.webp":
 		bad.append("P1 Botanic Garden shows %s, want its placeholder hub" % net.banner_path(game, "riverside").get_file())
+	for playable in net.HUB_ALIAS:
+		var want := "%s.webp" % str(net.HUB_ALIAS[playable])
+		var got := net.banner_path(game, str(playable)).get_file()
+		if got == want:
+			continue
+		if str(playable) == str(game.capital_id) and got == "hub_coney_island.webp":
+			continue
+		bad.append("P1 %s shows %s, want community hub %s" % [playable, got, want])
 	for sid in net.BANNER_ROOMS:
 		if not game.stations.has(sid):
 			bad.append("P1 BANNER_ROOMS names %s, which is not a station" % sid)
