@@ -622,7 +622,7 @@ func _check_dawn() -> bool:
 	if picker == "" or picker.find("ledger") >= 0 or picker.find("outpost_ledger") >= 0:
 		_bad("dawn picker knows the ledger")
 		return false
-	if src.find("const SAVE_SCHEMA := 21") < 0 or src.find("V19_ADDED") >= 0:
+	if src.find("const SAVE_SCHEMA := 21") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0:
 		_bad("schema bump")
 		return false
 	var view := FileAccess.get_file_as_string("res://ui/network_view.gd")

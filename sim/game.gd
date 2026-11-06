@@ -215,6 +215,8 @@ var obs := {
 var obs_ui_block := false
 ## P88 Platform Faces. Memory only: met, last order, and whether the player took the station by force.
 var regulars := {}
+## P89 Station Days. Memory only: weeks a day was kept or intruded, and the week a force capture quieted it.
+var sdays := {"kept": {}, "intruded": {}, "quiet": {}}
 ## P90 Carried Word. Pocket and thread memory only. Outcomes never read it.
 var carry := {"pocket": {}, "threads": {}, "delivered": 0, "lines": []}
 var last_check := {}
@@ -289,6 +291,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	MarksKit.reset(self)
 	obs_ui_block = false
 	regulars = {}
+	sdays = {"kept": {}, "intruded": {}, "quiet": {}}
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -4726,6 +4729,7 @@ func _apply_order(action: Dictionary) -> bool:
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		PlatformFaces.note_order(self, action)
 		CarriedWord.on_order(self, order, CarriedWord.target_sid(order, action))
+		StationDays.on_order(self, order, StationDays.sid_of(action))
 	return ok
 
 
@@ -5037,9 +5041,12 @@ func _resolve_queued() -> void:
 			"tap":
 				ok = _order_tap(str(action.get("faction", "")))
 		var carry_line := ""
+		var day_line := ""
 		if ok:
 			PlatformFaces.note_order(self, action)
 			carry_line = CarriedWord.on_order(self, kind, CarriedWord.target_sid(kind, action), str(row.get("name", "")), _feminine(str(row.get("person", "")), str(row.get("name", ""))))
+			# The week counter already moved. The order was given on the week the player just left.
+			day_line = StationDays.on_order(self, kind, StationDays.sid_of(action), week - 1)
 		var place := sid
 		if kind == "tap":
 			place = Copy.t(_fname(str(action.get("faction", ""))))
@@ -5057,10 +5064,10 @@ func _resolve_queued() -> void:
 		if not note.is_empty():
 			if carry_line != "":
 				note["text"] = _attach_carry_line(str(note.get("text", "")), carry_line)
-			order_reports.append(note)
+			order_reports.append(StationDays.attach(note, day_line))
 			continue
 		if ok and not last_combat_report.is_empty() and kind in ["raid", "assault"]:
-			order_reports.append(last_combat_report.duplicate(true))
+			order_reports.append(StationDays.attach(last_combat_report.duplicate(true), day_line))
 			last_combat_report = {}
 			continue
 		last_combat_report = {}
@@ -5084,7 +5091,7 @@ func _resolve_queued() -> void:
 			report.merge(_leader_flavour("trade" if kind == "trade" else "territory", host))
 		if ok and kind in ["gift", "aid", "pay"]:
 			_note_soft_mark(kind, report)
-		order_reports.append(report)
+		order_reports.append(StationDays.attach(report, day_line))
 		if ok and kind == "trade":
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
@@ -6775,6 +6782,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	if fid == player:
 		MarksKit.note_capture(self, sid, force)
 	PlatformFaces.note_capture(self, sid, fid, force)
+	StationDays.note_capture(self, sid, fid, force)
 	return true
 
 
@@ -11915,7 +11923,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs", "regulars", "carry",
+	"transfer_hub_sids", "obs", "regulars", "sdays", "carry",
 ]
 
 
@@ -11934,7 +11942,7 @@ const PERSIST := [
 ## Version 17 added the Transfer Hub cache. Older saves start empty and rebuild at night.
 ## Version 18 added the Observer's marks and kit. Older saves start with nothing inked.
 ## Version 19 added the platform faces. Older saves start with nobody met.
-## Version 20 belongs to the Station Days draft. This pack does not use it.
+## Version 20 added station days. Older saves start with nothing remembered.
 ## Version 21 added carried words. Older saves start with an empty pocket.
 const SAVE_SCHEMA := 21
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
@@ -11984,7 +11992,9 @@ const V16_ADDED := ["transfer_hub_sids"]
 const V17_ADDED := ["obs"]
 ## Fields a version 1 to 18 save may lack: no platform faces yet.
 const V18_ADDED := ["regulars"]
-## Fields a version 1 to 20 save may lack: no carried word yet. Schema 20 is the other draft.
+## Fields a version 1 to 19 save may lack: no station days yet.
+const V19_ADDED := ["sdays"]
+## Fields a version 1 to 20 save may lack: no carried word yet.
 const V20_ADDED := ["carry"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
@@ -12043,7 +12053,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13489,6 +13499,11 @@ func obs_dawn_chip() -> bool:
 ## Always false. P88 Platform Faces is a Visit line and a first-float, never a soft dawn chip.
 func platform_faces_dawn_chip() -> bool:
 	return PlatformFaces.dawn_chip()
+
+
+## Always false. P89 Station Days is a Visit line and a first-float, never a soft dawn chip.
+func station_days_dawn_chip() -> bool:
+	return StationDays.dawn_chip()
 
 
 ## Always false. P90 Carried Word is a Visit line, a pocket, and a first-float. Not a soft dawn chip.

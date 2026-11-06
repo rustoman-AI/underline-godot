@@ -634,7 +634,7 @@ func _dawn() -> bool:
 	if picker == "" or picker.find("toll") >= 0 or picker.find("quiet_toll") >= 0:
 		_bad("dawn picker knows the toll")
 		return false
-	if src.find("const SAVE_SCHEMA := 21") < 0 or src.find("V19_ADDED") >= 0:
+	if src.find("const SAVE_SCHEMA := 21") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0:
 		_bad("schema bump")
 		return false
 	var view := FileAccess.get_file_as_string("res://ui/network_view.gd")
