@@ -7673,12 +7673,23 @@ func _undo_toast(text: String, undo: Callable, commit: Callable = Callable()) ->
 	var was := on_paper
 	on_paper = true
 	var lab := _label(text, 18, true)
+	## One horizontal line. WORD_SMART inside this row has no width yet, so the
+	## label collapses to a glyph and the plate becomes a tall letter stack.
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lab.clip_text = false
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.add_theme_constant_override("outline_size", 0)
+	var font: Font = lab.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var measured := font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+	lab.custom_minimum_size = Vector2(ceili(measured.x), maxi(ceili(measured.y), 22))
 	row.add_child(lab)
 	var back := _button("Undo", _dismiss_undo_toast)
 	back.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	back.autowrap_mode = TextServer.AUTOWRAP_OFF
+	back.clip_text = false
 	back.custom_minimum_size = Vector2(110, 40)
 	back.add_theme_font_size_override("font_size", 18)
 	row.add_child(back)

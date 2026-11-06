@@ -98,6 +98,10 @@ func _run() -> void:
 		_failed = true
 	else:
 		print("UI: ok")
+	if not await _undo_plate():
+		_failed = true
+	else:
+		print("Toast: ok")
 	if FileAccess.get_file_as_string("res://data/balance.json") != balance:
 		_bad("balance.json changed")
 	if _failed:
@@ -590,6 +594,9 @@ func _bounds() -> bool:
 	if toast.find("tween_interval(8.0)") < 0 or toast.find("_tip_plate_style") < 0 or toast.find("outline_size\", 0") < 0:
 		_bad("undo toast")
 		return false
+	if toast.find("AUTOWRAP_OFF") < 0 or toast.find("AUTOWRAP_WORD_SMART") >= 0:
+		_bad("undo toast wraps into a column")
+		return false
 	if yard.find("_dismiss_undo_toast") < 0:
 		_bad("escape undo")
 		return false
@@ -599,6 +606,72 @@ func _bounds() -> bool:
 		_bad("dawn missing the run hook")
 		return false
 	return true
+
+
+## Open confirm must be a short horizontal YA1 plate in EN and RU, not a letter stack.
+func _undo_plate() -> bool:
+	var packed := load("res://ui/station.tscn") as PackedScene
+	if packed == null:
+		_bad("station scene")
+		return false
+	var station = packed.instantiate()
+	root.add_child(station)
+	await process_frame
+	await process_frame
+	var samples := [
+		["en", "Once it's open, it stays open."],
+		["ru", "Что вскрыто, то вскрыто."],
+	]
+	var ok := true
+	for sample in samples:
+		Copy.set_lang(str(sample[0]))
+		station.showing_network = false
+		station._undo_toast(Copy.t("carry.open_confirm"), func() -> void: pass, func() -> void: pass)
+		await process_frame
+		await process_frame
+		var plate: PanelContainer = station.undo_toast
+		if plate == null or not is_instance_valid(plate):
+			_bad("undo plate missing " + str(sample[0]))
+			ok = false
+			break
+		var plate_size := plate.size
+		if plate_size.x < 8.0:
+			plate_size = plate.get_combined_minimum_size()
+		var row := plate.get_child(0)
+		var lab := row.get_child(0) as Label
+		var button := row.get_child(1) as Button
+		if lab == null or button == null:
+			_bad("undo row " + str(sample[0]))
+			ok = false
+			break
+		var line_size := lab.size
+		if line_size.x < 8.0:
+			line_size = lab.get_combined_minimum_size()
+		if lab.text != str(sample[1]):
+			_bad("undo copy %s [%s]" % [str(sample[0]), lab.text])
+			ok = false
+			break
+		if lab.autowrap_mode != TextServer.AUTOWRAP_OFF or lab.get_line_count() != 1:
+			_bad("undo wrap %s lines %d" % [str(sample[0]), lab.get_line_count()])
+			ok = false
+			break
+		if plate_size.y > 160.0 or plate_size.x < plate_size.y or plate_size.x < 280.0:
+			_bad("undo plate %s %s" % [str(sample[0]), str(plate_size)])
+			ok = false
+			break
+		if line_size.x < line_size.y * 3.0:
+			_bad("undo line %s %s" % [str(sample[0]), str(line_size)])
+			ok = false
+			break
+		if button.global_position.x < lab.global_position.x + 40.0:
+			_bad("undo button not beside the line")
+			ok = false
+			break
+		station._hide_undo_toast()
+	Copy.set_lang("en")
+	if is_instance_valid(station):
+		station.free()
+	return ok
 
 
 func _fn(src: String, name: String) -> String:
