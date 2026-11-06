@@ -61,8 +61,8 @@ func _bad(msg: String) -> void:
 
 
 func _static() -> void:
-	## #70 asserted schema 14, the schema of its base. P90 raised the tip to schema 21.
-	if Game.SAVE_SCHEMA != 21:
+	## #70 asserted schema 14, the schema of its base. P92 raised the tip to schema 23 (22 stays reserved).
+	if Game.SAVE_SCHEMA != 23:
 		_bad("SAVE_SCHEMA is %s" % str(Game.SAVE_SCHEMA))
 	var delay := float(ProjectSettings.get_setting("gui/timers/tooltip_delay_sec"))
 	if not is_equal_approx(delay, 0.35):

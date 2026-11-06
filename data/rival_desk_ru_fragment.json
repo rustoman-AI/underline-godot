@@ -1,0 +1,11 @@
+{
+  "rival.title": "Чужие",
+  "rival.bought": "Купили расположение на {station} (неделя {n}).",
+  "rival.marched": "Выступили на {station} (неделя {n}).",
+  "rival.held": "Удержали {station} (неделя {n}).",
+  "rival.preached": "Проповедовали на {station} (неделя {n}).",
+  "rival.took": "Взяли {station} (неделя {n}).",
+  "rival.quiet": "Пока тихо.",
+  "rival.first": "Их ходы теперь в журнале.",
+  "rival.tip": "Последнее, что сделала каждая сторона, пока это не стёрлось с карты."
+}
