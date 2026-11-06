@@ -55,6 +55,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not visible or host == null:
 		return
 	if event.is_action_pressed("ui_cancel"):
+		if host.has_method("_dismiss_undo_toast") and host._dismiss_undo_toast():
+			host.get_viewport().set_input_as_handled()
+			return
 		_close()
 		host.get_viewport().set_input_as_handled()
 
@@ -132,6 +135,7 @@ func _rebuild() -> void:
 	for slot in MarksKit.SLOT_ORDER:
 		_hooks.add_child(_hook(game, slot))
 	_tail.add_child(_hooks)
+	_add_pocket(game)
 	_add_faces(game)
 	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -481,6 +485,131 @@ func _close() -> void:
 		host._close_observer()
 
 
+## Pocket under Kit. Stays when empty: it is also the tally.
+func _add_pocket(game) -> void:
+	if not CarriedWord.enabled:
+		return
+	var head := _lab(Copy.t("carry.pocket_title"), 16, true, PAPER_INK)
+	head.set_meta("pocket_fold", true)
+	_tail.add_child(head)
+	var view: Dictionary = CarriedWord.pocket_view(game)
+	if bool(view.get("empty", true)):
+		var empty := _lab(Copy.t("carry.pocket_empty"), 14, false, PAPER_MUTED)
+		empty.set_meta("pocket_empty", true)
+		_tail.add_child(empty)
+	else:
+		var line := _lab(str(view.get("line", "")), 14, false, PAPER_INK)
+		line.set_meta("pocket_line", true)
+		_tail.add_child(line)
+		if bool(view.get("no_one", false)):
+			var gone := _lab(Copy.t("carry.no_one"), 14, false, PAPER_MUTED)
+			gone.set_meta("pocket_none", true)
+			_tail.add_child(gone)
+		var written := str(view.get("text", ""))
+		if written != "":
+			var inset := PanelContainer.new()
+			inset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			inset.add_theme_stylebox_override("panel", _note_paper())
+			inset.set_meta("pocket_text", true)
+			var body := _lab(written, 14, false, PAPER_INK)
+			body.clip_text = false
+			body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			if host != null and host.get("body_font") != null:
+				body.add_theme_font_override("font", host.body_font)
+			inset.add_child(body)
+			_tail.add_child(inset)
+		var buttons := HBoxContainer.new()
+		buttons.add_theme_constant_override("separation", 8)
+		buttons.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if bool(view.get("can_open", false)):
+			buttons.add_child(_pocket_button("carry.open", _open_note))
+		buttons.add_child(_pocket_button("carry.give_back", _give_note))
+		_tail.add_child(buttons)
+	var tally: Dictionary = CarriedWord.tally(game)
+	var count := _lab(Copy.fill("carry.count", {"n": int(tally.get("n", 0))}), 14, false, PAPER_INK)
+	count.set_meta("pocket_count", true)
+	_tail.add_child(count)
+	for id in tally.get("closed", []):
+		var title := _lab(Copy.t("carry.%s.title" % str(id)), 14, false, PAPER_INK)
+		title.set_meta("pocket_closed", str(id))
+		_tail.add_child(title)
+	for id in tally.get("opened", []):
+		var title := _lab(Copy.t("carry.%s.title" % str(id)), 14, false, PAPER_MUTED)
+		title.set_meta("pocket_opened", str(id))
+		_tail.add_child(title)
+
+
+func _open_note() -> void:
+	if host == null or host.game == null:
+		return
+	if not CarriedWord.open(host.game):
+		return
+	_rebuild()
+	if host.has_method("_undo_toast"):
+		host._undo_toast(Copy.t("carry.open_confirm"), _cancel_open, _commit_open)
+
+
+func _cancel_open() -> void:
+	if host != null and host.game != null:
+		CarriedWord.cancel_open(host.game)
+	_rebuild()
+
+
+func _commit_open() -> void:
+	if host != null and host.game != null:
+		CarriedWord.commit_open(host.game)
+	_rebuild()
+
+
+func _give_note() -> void:
+	if host == null or host.game == null:
+		return
+	var from_name := CarriedWord.give_back(host.game)
+	if from_name == "":
+		return
+	if host.has_method("_hide_undo_toast"):
+		host._hide_undo_toast()
+	if host.has_method("_toast"):
+		host._toast(Copy.fill("carry.given_back", {"from": from_name}))
+	_rebuild()
+
+
+func _pocket_button(key: String, cb: Callable) -> Button:
+	var button := _btn(Copy.t(key), cb)
+	button.custom_minimum_size = Vector2(110, 40)
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	button.add_theme_font_size_override("font_size", 20)
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.focus_mode = Control.FOCUS_ALL
+	button.set_meta("obs_focus", "pocket")
+	button.set_meta("pocket_button", key)
+	button.tooltip_text = ""
+	if host != null and host.get("display_font") != null:
+		button.add_theme_font_override("font", host.display_font)
+	var focus := StyleBoxFlat.new()
+	focus.draw_center = false
+	focus.border_color = BRASS
+	focus.set_border_width_all(1)
+	focus.set_corner_radius_all(2)
+	button.add_theme_stylebox_override("focus", focus)
+	var hover := _face(false, true)
+	hover.border_color = BRASS
+	hover.set_border_width_all(1)
+	button.add_theme_stylebox_override("hover", hover)
+	return button
+
+
+func _note_paper() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER_BUTTON
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	style.set_content_margin_all(8)
+	return style
+
+
 ## Faces on the line. Met only. Hidden when nobody has been met. Click opens that Visit.
 func _add_faces(game) -> void:
 	if not PlatformFaces.enabled:
@@ -599,13 +728,15 @@ func _brass_scroll(node: Control) -> void:
 func _wire_focus() -> void:
 	var marks: Array = []
 	var hooks: Array = []
+	var pocket: Array = []
 	var faces: Array = []
 	var pane: Array = []
 	var close: Array = []
-	_collect_focus(self, marks, hooks, faces, pane, close)
+	_collect_focus(self, marks, hooks, pocket, faces, pane, close)
 	var order: Array = []
 	order.append_array(marks)
 	order.append_array(hooks)
+	order.append_array(pocket)
 	order.append_array(faces)
 	order.append_array(pane)
 	order.append_array(close)
@@ -621,13 +752,15 @@ func _wire_focus() -> void:
 		button.focus_previous = button.get_path_to(prev)
 
 
-func _collect_focus(node: Node, marks: Array, hooks: Array, faces: Array, pane: Array, close: Array) -> void:
+func _collect_focus(node: Node, marks: Array, hooks: Array, pocket: Array, faces: Array, pane: Array, close: Array) -> void:
 	if node is Control and str(node.get_meta("obs_focus", "")) != "":
 		var bucket := str(node.get_meta("obs_focus"))
 		if bucket == "mark":
 			marks.append(node)
 		elif bucket == "hook":
 			hooks.append(node)
+		elif bucket == "pocket":
+			pocket.append(node)
 		elif bucket == "face":
 			faces.append(node)
 		elif bucket == "pane":
@@ -635,7 +768,7 @@ func _collect_focus(node: Node, marks: Array, hooks: Array, faces: Array, pane: 
 		elif bucket == "close":
 			close.append(node)
 	for child in node.get_children():
-		_collect_focus(child, marks, hooks, faces, pane, close)
+		_collect_focus(child, marks, hooks, pocket, faces, pane, close)
 
 
 func _paper() -> StyleBoxFlat:

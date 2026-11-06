@@ -29,9 +29,12 @@ static func map_mark() -> bool:
 	return false
 
 
-## Reserved for P90 Carried Word. Slot 1. Empty until that pack lands.
-static func carry_hook(_game, _sid: String) -> Dictionary:
-	return {}
+## P90 Carried Word. Slot 1. Empty when that Face has no note to offer or remember.
+static func carry_hook(game, sid: String) -> Dictionary:
+	var script = load("res://sim/carried_word.gd")
+	if script == null:
+		return {}
+	return script.face_line(game, sid)
 
 
 ## Reserved for P89 Station Days. Slot 5. Empty until that pack lands.
@@ -347,8 +350,14 @@ static func _hook_row(row: Dictionary, slot: int) -> Dictionary:
 	if not (fields is Dictionary):
 		fields = {}
 	var out := _row(str(row.get("key", "")), fields, slot)
-	if row.has("button"):
+	if str(row.get("button", "")) != "":
 		out["button"] = str(row.get("button", ""))
+	if bool(row.get("muted", false)):
+		out["muted"] = true
+	if str(row.get("reason", "")) != "":
+		out["reason"] = str(row.get("reason", ""))
+	if str(row.get("thread", "")) != "":
+		out["thread"] = str(row.get("thread", ""))
 	return out
 
 

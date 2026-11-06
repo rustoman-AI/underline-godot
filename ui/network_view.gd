@@ -218,6 +218,8 @@ var _toll_float: Label
 var _toll_float_tween: Tween
 var _regular_float: Label
 var _regular_float_tween: Tween
+var _carry_float: Label
+var _carry_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -4435,6 +4437,9 @@ func _tip(sid: String) -> String:
 	var toll := QuietToll.tip_line(game, sid)
 	if toll != "":
 		lines.append(toll)
+	var carried := CarriedWord.tip_line(game, sid)
+	if carried != "":
+		lines.append(carried)
 	return "\n".join(lines)
 
 
@@ -6025,11 +6030,94 @@ func _add_face_row(parent: Node, game, sid: String) -> void:
 	quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	quote.add_theme_font_size_override("font_size", 14)
 	quote.add_theme_font_override("font", _quote_font())
-	quote.add_theme_color_override("font_color", INK)
+	var muted := bool(spoken.get("muted", false))
+	quote.add_theme_color_override("font_color", MUTED if muted else INK)
 	quote.set_meta("face_line", true)
-	words.add_child(quote)
+	quote.set_meta("face_muted", muted)
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 8)
+	flow.add_theme_constant_override("v_separation", 4)
+	flow.set_meta("face_flow", true)
+	quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_child(quote)
+	var button_key := str(spoken.get("button", ""))
+	if button_key != "":
+		flow.add_child(_carry_button(button_key, sid))
+	words.add_child(flow)
+	var reason := str(spoken.get("reason", ""))
+	if reason != "":
+		var why := Label.new()
+		why.text = Copy.t(reason)
+		why.clip_text = false
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		why.add_theme_font_size_override("font_size", 14)
+		why.add_theme_color_override("font_color", MUTED)
+		why.set_meta("carry_reason", reason)
+		words.add_child(why)
 	row.add_child(words)
 	parent.add_child(row)
+
+
+func _carry_button(key: String, sid: String) -> Button:
+	var button := Button.new()
+	button.text = Copy.t(key)
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	button.focus_mode = Control.FOCUS_ALL
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.custom_minimum_size = Vector2(110, 36)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_END
+	button.tooltip_text = Copy.t("carry.tip")
+	button.set_meta("carry_button", key)
+	button.add_theme_font_size_override("font_size", 20)
+	var face := _carry_font()
+	if face != null:
+		button.add_theme_font_override("font", face)
+	button.add_theme_color_override("font_color", INK)
+	button.add_theme_color_override("font_hover_color", INK)
+	button.add_theme_color_override("font_pressed_color", INK)
+	button.add_theme_color_override("font_focus_color", INK)
+	button.add_theme_stylebox_override("normal", _carry_face(false))
+	button.add_theme_stylebox_override("hover", _carry_face(true))
+	button.add_theme_stylebox_override("pressed", _carry_face(true))
+	button.add_theme_stylebox_override("focus", _carry_face(true))
+	button.pressed.connect(_carry_take.bind(sid))
+	return button
+
+
+func _carry_font() -> Font:
+	if host != null and host.get("display_font") != null:
+		return host.display_font
+	var oswald := load("res://assets/fonts/Oswald.ttf") as Font
+	if oswald != null:
+		return oswald
+	return ThemeDB.fallback_font
+
+
+func _carry_face(hot: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.16, 0.13, 0.1, 0.9)
+	style.border_color = Color("e2a63a") if hot else Color("b89a6a")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	return style
+
+
+func _carry_take(sid: String) -> void:
+	var game = _game()
+	if game == null:
+		return
+	if not CarriedWord.take(game, sid):
+		return
+	if _visit_sid == sid:
+		_fill_visit(sid)
 
 
 func _quote_font() -> Font:
@@ -6083,6 +6171,67 @@ func _show_regular_float(line: String) -> void:
 			_regular_float.visible = false
 		if is_instance_valid(plate):
 			plate.visible = false)
+
+
+## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
+func _note_first_carry() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := CarriedWord.claim_first(_game())
+	if line == "":
+		return
+	_show_carry_float(line)
+
+
+func _show_carry_float(line: String) -> void:
+	if _carry_float == null:
+		_carry_float = Label.new()
+		_carry_float.z_index = 8
+		_carry_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_carry_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_carry_float.add_theme_font_size_override("font_size", 18)
+		_carry_float.set_meta("carry_float", true)
+		_bind_float_plate(_carry_float)
+	var plate := _float_plate(_carry_float)
+	_carry_float.text = line
+	_carry_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_carry_float.visible = true
+	plate.visible = true
+	if _carry_float_tween != null and _carry_float_tween.is_valid():
+		_carry_float_tween.kill()
+	_place_carry_float()
+	if not is_inside_tree():
+		return
+	_carry_float_tween = create_tween()
+	if _motion_off():
+		_carry_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_carry_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_carry_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_carry_float_tween.tween_callback(func() -> void:
+		if _carry_float != null:
+			_carry_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_carry_float() -> void:
+	if _carry_float == null or not _carry_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	if _regular_float != null and _regular_float.visible:
+		y += 34.0
+	_place_float_chip(_carry_float, y)
 
 
 func _place_regular_float() -> void:
@@ -6200,6 +6349,7 @@ func _fill_visit(sid: String) -> void:
 	_note_outpost_ledger(sid)
 	_note_first_quiet_toll()
 	_note_first_regular()
+	_note_first_carry()
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().

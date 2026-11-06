@@ -1,0 +1,368 @@
+{
+  "_note": "P90 Carried Word (NEW invent — DEC-CW1…CW5). Spec: /workspace/CARRIED_WORD_P90_SPEC.md; brief §2 /workspace/underline_ux_audit/P88_P90_BRIEFS.md. Namespace carry.* only (never word.* / note.*). Eight two-leg notes between P88 Faces; the one choice is open it or don't. Folded paper, pencil, a thumbprint of soot — small human matters, never plot keys; note text never implies a mechanic. Hard dependency on P88. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P90",
+  "_owners": "Texts; Code carry dict + sim/carried_word.gd + Face-row button + Pocket fold + _tip line + undo toast; UIUX offer/Pocket/wayfinding; Art optional carry_note_24 glyph (never blocks)",
+  "_status": "Designer APPROVED / Code-ready 2026-11-03. | Designer gate fixes 2026-11-03: last_page timing hint cut (no 'two days before', no foreknowledge); last_page.closed no '!'; water_air.reply_read dropped 'Nobody poisoned anyone.' -> Texts READY (fixes in). | Texts READY at design-gate (P90, 2026-11-03). 74 carry.* keys EN+RU = 8 threads × (title, offer, read, delivered, reply_read, closed, opened) + 18 shared — matches SPEC STRING tables key-for-key. Thread order and from→to sids in _threads (script-verified against SPEC headers). _flag_later.closed_bonus = 0 copied from SPEC (unwired). EN edits: none. Letters keep their writers' voices in RU: Kell and Delphine formal (вы, «Назовите цену письменно»), Abe polite-academic («В контору расписания. Не могли бы вы…»), Lucky anonymous («— никто»), Clara receipt-style («Принято от: никто.»), Yusuf half-asleep («М-м. Кашель. ...Мы спим.»). Signatures/initials in Cyrillic (— П., — Р., — Д. А., третий дом, — Серж. А. Келл, — С. Р., — А. Т., — К. П., — Ю.; Fingers signs «— Л.» for Ловкач). No story fragment named (truth.json ids checked: depot_order, directorate_ledger, synod_recording, exchange_papers, quarantine_path). Police badge = «значок» (not «жетон» — tokens). Placeholders kept nominative («Кому: {to}, {station}»). carry.delivered_report RU uses {a} — Code passes fem of {who} from the _take_soft_note() row. Name-collision: only new name Petrakis — 0 hits. Soft dawn NONE. Balance ZERO.",
+  "_soft_dawn": "NONE",
+  "_designer": "PENDING — awaiting key-for-key gate",
+  "_cite": [
+    "P88 Platform Faces — senders/receivers; Face row slot #1 (hard dependency)",
+    "P74 Night Runs — delivered_run (cite only)",
+    "P73 Charges/Promises — distinct, cite only",
+    "P82 Signal Chain — not a message system, cite only",
+    "P87 Marks & Kit — Observer panel hosts Pocket (P87 CLOSED)",
+    "P89 Station Days — cite only (seed_smoke and badge_4411 mention Seed Count / Roll Call as flavour)"
+  ],
+  "_placeholders": [
+    "{a}",
+    "{from}",
+    "{n}",
+    "{station}",
+    "{to}",
+    "{who}"
+  ],
+  "_threads": [
+    {
+      "id": "lamp_copper",
+      "from": "brickworks",
+      "to": "quarry"
+    },
+    {
+      "id": "seed_smoke",
+      "from": "riverside",
+      "to": "mill"
+    },
+    {
+      "id": "water_air",
+      "from": "market",
+      "to": "eastwater"
+    },
+    {
+      "id": "arm_debt",
+      "from": "trampark",
+      "to": "harbor"
+    },
+    {
+      "id": "badge_4411",
+      "from": "dockyard",
+      "to": "observatory"
+    },
+    {
+      "id": "last_page",
+      "from": "library",
+      "to": "northgate"
+    },
+    {
+      "id": "unsigned",
+      "from": "central",
+      "to": "stadium"
+    },
+    {
+      "id": "no_cough",
+      "from": "chapel",
+      "to": "garden"
+    }
+  ],
+  "_flag_later": {
+    "closed_bonus": 0,
+    "_note": "SPEC DEC-CW5 — unwired in MVP; not a Texts number"
+  },
+  "by_key": {
+    "carry.lamp_copper.title": {
+      "en": "Lamp and copper",
+      "ru": "Фонарь и медь"
+    },
+    "carry.lamp_copper.offer": {
+      "en": "Wren at Fulton St owes Ortega a map. Remind her. Don't read it.",
+      "ru": "Рен с Фултон-стрит должна Ортеге карту. Напомни ей. И не читай."
+    },
+    "carry.lamp_copper.read": {
+      "en": "Wren — the north spur is flooding. Draw us the dry way or we lead people into water. — P.",
+      "ru": "Рен — северный отвод заливает. Нарисуй нам сухой путь, а то поведём людей в воду. — П."
+    },
+    "carry.lamp_copper.delivered": {
+      "en": "Pilar's still alive, then. Wait. I'll draw it. Take this back.",
+      "ru": "Значит, Пилар ещё жива. Подожди. Нарисую. Отнеси ей."
+    },
+    "carry.lamp_copper.reply_read": {
+      "en": "Dry way: the old cable run past the third signal. Count the lamps. — W.",
+      "ru": "Сухой путь: старый кабельный ход за третьим светофором. Считай фонари. — Р."
+    },
+    "carry.lamp_copper.closed": {
+      "en": "She drew it. We walked it dry last night. You're a good pair of feet.",
+      "ru": "Нарисовала. Вчера ночью прошли посуху. Ноги у тебя хорошие."
+    },
+    "carry.lamp_copper.opened": {
+      "en": "It's been opened. Fine. Everyone knows the spur floods now.",
+      "ru": "Вскрыто. Ладно. Теперь все знают, что отвод заливает."
+    },
+    "carry.seed_smoke.title": {
+      "en": "Beans for smoke",
+      "ru": "Фасоль за копчёное"
+    },
+    "carry.seed_smoke.offer": {
+      "en": "Marta at Greenpoint feeds half the line. The sisters have beans for her pigs. Carry this?",
+      "ru": "Марта с Гринпойнта кормит пол-линии. У сестёр есть фасоль для её свиней. Отнесёшь?"
+    },
+    "carry.seed_smoke.read": {
+      "en": "Bean seed, two jars, for smoked meat on Seed Count. The sisters don't sell. This isn't selling. — M.",
+      "ru": "Семенная фасоль, две банки, — за копчёное мясо к Счёту семян. Сёстры не продают. Это не продажа. — М."
+    },
+    "carry.seed_smoke.delivered": {
+      "en": "Beans for pigs. The sisters must be hungry. Tell them yes. Here.",
+      "ru": "Фасоль для свиней. Видно, сёстры голодают. Скажи — да. Держи."
+    },
+    "carry.seed_smoke.reply_read": {
+      "en": "Yes. Two hams. Don't call it trade, then. — Marta",
+      "ru": "Да. Два окорока. Только не называйте это торговлей. — Марта"
+    },
+    "carry.seed_smoke.closed": {
+      "en": "Two hams. Nobody called it trade. Come to the count again.",
+      "ru": "Два окорока. Торговлей это никто не назвал. Приходи на счёт ещё."
+    },
+    "carry.seed_smoke.opened": {
+      "en": "Opened. Now everybody knows the sisters trade. They'll deny it.",
+      "ru": "Вскрыто. Теперь все знают, что сёстры торгуют. Они будут отпираться."
+    },
+    "carry.water_air.title": {
+      "en": "Water and air",
+      "ru": "Вода и воздух"
+    },
+    "carry.water_air.offer": {
+      "en": "This goes to Mo at Bowling Green. Just Mo. Not his bosses.",
+      "ru": "Это для Мо с Боулинг-Грин. Только для Мо. Не для его начальства."
+    },
+    "carry.water_air.read": {
+      "en": "Mo — something's getting into the spring. It comes from your side. Check your intake. Don't tell yours. — E.",
+      "ru": "Мо — в родник что-то попадает. Идёт с вашей стороны. Проверь заборник. Своим не говори. — Э."
+    },
+    "carry.water_air.delivered": {
+      "en": "From Ezra? Water men don't write to air men. Wait here.",
+      "ru": "От Эзры? Водоносы фильтровщикам не пишут. Подожди тут."
+    },
+    "carry.water_air.reply_read": {
+      "en": "Found it. Rust flakes off our old intake. Pulling it tonight. — Mo",
+      "ru": "Нашёл. С нашего старого заборника сыплется ржавчина. Снимаем сегодня ночью. — Мо"
+    },
+    "carry.water_air.closed": {
+      "en": "Rust. Just rust. I've been looking at everyone sideways for a year.",
+      "ru": "Ржавчина. Просто ржавчина. А я целый год на всех косился."
+    },
+    "carry.water_air.opened": {
+      "en": "Seal's broken. If my bosses read it too, Ezra's in trouble.",
+      "ru": "Печать сорвана. Если и начальство прочло — Эзре несдобровать."
+    },
+    "carry.arm_debt.title": {
+      "en": "The arm debt",
+      "ru": "Долг на руке"
+    },
+    "carry.arm_debt.offer": {
+      "en": "Malone at Delancey has my brother's watch. I know because I wrote it on my arm. Take him this.",
+      "ru": "У Мэлоуна на Деланси часы моего брата. Я знаю — записала на руке. Отнеси ему это."
+    },
+    "carry.arm_debt.read": {
+      "en": "Malone — the watch with the cracked lid. My brother's. Name your price in writing. — D. A., third house",
+      "ru": "Мэлоуну. Часы с треснутой крышкой. Принадлежат моему брату. Назовите цену письменно. — Д. А., третий дом"
+    },
+    "carry.arm_debt.delivered": {
+      "en": "The third house writes to me now? The watch. Hm. Here's my answer.",
+      "ru": "Третий дом мне теперь пишет? Часы. Хм. Вот ответ."
+    },
+    "carry.arm_debt.reply_read": {
+      "en": "No price. Tell your brother he sold it to me drunk, and I don't sell family. — F.",
+      "ru": "Без цены. Скажи брату, что он продал их мне спьяну, а родню я не продаю. — Л."
+    },
+    "carry.arm_debt.closed": {
+      "en": "He won't take money. I crossed it off my arm. Don't tell the house.",
+      "ru": "Денег не берёт. Я вычеркнула это с руки. Дому не говори."
+    },
+    "carry.arm_debt.opened": {
+      "en": "You opened a clerk's letter. In this market. Bold.",
+      "ru": "Вскрыть письмо конторщицы. На этом рынке. Смело."
+    },
+    "carry.badge_4411.title": {
+      "en": "Badge 4411",
+      "ru": "Значок 4411"
+    },
+    "carry.badge_4411.offer": {
+      "en": "Officer Petrakis went in the river two winters back. The boatmen find things. Ask Rook.",
+      "ru": "Патрульный Петракис ушёл в реку две зимы назад. Лодочники находят всякое. Спроси Рука."
+    },
+    "carry.badge_4411.read": {
+      "en": "Rook — Petrakis, badge 4411. If the river gave anything back, the precinct wants it. We'll pay or we'll owe. — Sgt A. Kell",
+      "ru": "Руку. Петракис, значок 4411. Если река что-то вернула, участку это нужно. Заплатим или будем должны. — Серж. А. Келл"
+    },
+    "carry.badge_4411.delivered": {
+      "en": "4411. It's nailed over our door for luck. ...Take this back to him.",
+      "ru": "4411. Прибит у нас над дверью, на удачу. ...Отнеси ему вот это."
+    },
+    "carry.badge_4411.reply_read": {
+      "en": "The badge stays over our door till he comes for it himself. No payment. Owe us. — S. R.",
+      "ru": "Значок висит над нашей дверью, пока он сам за ним не придёт. Платы не надо. Будете должны. — С. Р."
+    },
+    "carry.badge_4411.closed": {
+      "en": "He kept it for luck. Fair. Roll Call will say the number this year.",
+      "ru": "Оставил на удачу. Справедливо. В этом году на Перекличке назовут номер."
+    },
+    "carry.badge_4411.opened": {
+      "en": "Opened. Sergeant's letters always are, sooner or later.",
+      "ru": "Вскрыто. Письма сержанта рано или поздно всегда вскрывают."
+    },
+    "carry.last_page.title": {
+      "en": "The last page",
+      "ru": "Последняя страница"
+    },
+    "carry.last_page.offer": {
+      "en": "Grand Central keeps the old timetable. Ask the clerk for the last page. Politely.",
+      "ru": "На Гранд-Сентрал хранят старое расписание. Попроси у конторщицы последнюю страницу. Вежливо."
+    },
+    "carry.last_page.read": {
+      "en": "Clerk — the last page of the old book, the week it all went quiet. Could you copy it? — A. Lindqvist",
+      "ru": "В контору расписания. Не могли бы вы переписать последнюю страницу старой книги — ту неделю, когда всё стихло? — А. Линдквист"
+    },
+    "carry.last_page.delivered": {
+      "en": "Nobody asks for the last page. ...I'll copy it. Carefully. Take it to him.",
+      "ru": "Последнюю страницу никто не просит. ...Перепишу. Аккуратно. Отнеси ему."
+    },
+    "carry.last_page.reply_read": {
+      "en": "Copied. Three trains struck out by hand. No date beside them. Not my hand. — A. T.",
+      "ru": "Переписано. Три поезда вычеркнуты от руки. Даты рядом нет. Почерк не мой. — А. Т."
+    },
+    "carry.last_page.closed": {
+      "en": "Struck out by hand. Someone did that on purpose. I need a bigger blackboard.",
+      "ru": "Вычеркнуты от руки. Кто-то сделал это нарочно. Мне нужна доска побольше."
+    },
+    "carry.last_page.opened": {
+      "en": "Opened. Then you know what he's asking. Keep it to yourself.",
+      "ru": "Вскрыто. Значит, ты знаешь, о чём он просит. Держи при себе."
+    },
+    "carry.unsigned.title": {
+      "en": "Unsigned",
+      "ru": "Без подписи"
+    },
+    "carry.unsigned.offer": {
+      "en": "A story for the paper at Astor Pl. Unsigned. They print it if it's true. It's mostly true.",
+      "ru": "Заметка для газеты на Астор-плейс. Без подписи. Печатают, если правда. Тут почти всё правда."
+    },
+    "carry.unsigned.read": {
+      "en": "The big table at the Free City is rigged. Three dealers share one deck. Ask who dealt on Night of Masks. — nobody",
+      "ru": "Большой стол в Свободном городе подкручен. Три крупье играют одной колодой. Спросите, кто сдавал в Ночь масок. — никто"
+    },
+    "carry.unsigned.delivered": {
+      "en": "No name on it. Our favourite kind. We'll run it. Here's a receipt.",
+      "ru": "Без имени. Наше любимое. Напечатаем. Вот расписка."
+    },
+    "carry.unsigned.reply_read": {
+      "en": "Received from nobody: one story. Running Tuesday. — C. P.",
+      "ru": "Принято от: никто. Одна заметка. В номер во вторник. — К. П."
+    },
+    "carry.unsigned.closed": {
+      "en": "They ran it. Now everyone's asking who dealt. Lovely.",
+      "ru": "Напечатали. Теперь все спрашивают, кто сдавал. Прелесть."
+    },
+    "carry.unsigned.opened": {
+      "en": "You read it first. Now you're in the story too.",
+      "ru": "Прочитано до нас. Теперь ты тоже в заметке."
+    },
+    "carry.no_cough.title": {
+      "en": "Why nobody coughs",
+      "ru": "Почему никто не кашляет"
+    },
+    "carry.no_cough.offer": {
+      "en": "Nobody coughs in Flushing. We bury coughers every week. Ask the old man why.",
+      "ru": "Во Флашинге никто не кашляет. А мы каждую неделю хороним кашляющих. Спроси старика, почему."
+    },
+    "carry.no_cough.read": {
+      "en": "Yusuf — what do you do? We'll pray it or boil it or both. Please. — M. Sato, orderly",
+      "ru": "Юсуф, что вы делаете? Отмолим, прокипятим или то и другое. Пожалуйста. — М. Сато, санитарка"
+    },
+    "carry.no_cough.delivered": {
+      "en": "Mm. Coughing. ...We sleep. Tell her. Here.",
+      "ru": "М-м. Кашель. ...Мы спим. Так ей и скажи. Вот."
+    },
+    "carry.no_cough.reply_read": {
+      "en": "Sleep long. Shut the vents when the tunnel breathes out. Don't pray loud. — Y.",
+      "ru": "Спите долго. Закрывайте отдушины, когда тоннель выдыхает. Не молитесь громко. — Ю."
+    },
+    "carry.no_cough.closed": {
+      "en": "Shut the vents. Sleep. It sounds like nothing. We're trying it.",
+      "ru": "Закрыть отдушины. Спать. Вроде пустяк. Пробуем."
+    },
+    "carry.no_cough.opened": {
+      "en": "It's open. Doesn't matter. Nobody listens to sleeping advice.",
+      "ru": "Открыто. Неважно. Советов про сон всё равно никто не слушает."
+    },
+    "carry.take": {
+      "en": "Take the note",
+      "ru": "Взять записку"
+    },
+    "carry.take_reply": {
+      "en": "Take the reply",
+      "ru": "Взять ответ"
+    },
+    "carry.first": {
+      "en": "Someone trusted you with their words.",
+      "ru": "Тебе доверили чужие слова."
+    },
+    "carry.one_only": {
+      "en": "Your pocket's full.",
+      "ru": "Карман уже занят."
+    },
+    "carry.pocket_title": {
+      "en": "Pocket",
+      "ru": "Карман"
+    },
+    "carry.pocket": {
+      "en": "A note from {from} for {to}, {station}.",
+      "ru": "Записка. Пишет {from}. Кому: {to}, {station}."
+    },
+    "carry.pocket_empty": {
+      "en": "Nothing in your pocket.",
+      "ru": "В кармане пусто."
+    },
+    "carry.open": {
+      "en": "Open it",
+      "ru": "Вскрыть"
+    },
+    "carry.open_confirm": {
+      "en": "Once it's open, it stays open.",
+      "ru": "Что вскрыто, то вскрыто."
+    },
+    "carry.give_back": {
+      "en": "Give it back",
+      "ru": "Вернуть"
+    },
+    "carry.given_back": {
+      "en": "Back with {from}.",
+      "ru": "Записка снова у отправителя: {from}."
+    },
+    "carry.no_one": {
+      "en": "No one to give it to now.",
+      "ru": "Отдавать теперь некому."
+    },
+    "carry.delivered_report": {
+      "en": "{who} handed the note to {to} at {station}.",
+      "ru": "{who} передал{a} записку. Кому: {to}, {station}."
+    },
+    "carry.delivered_run": {
+      "en": "The run carried the note to {to} at {station}.",
+      "ru": "Ночной выход донёс записку. Кому: {to}, {station}."
+    },
+    "carry.tip_dest": {
+      "en": "You carry a note for {to}.",
+      "ru": "При тебе записка. Кому: {to}."
+    },
+    "carry.origin_opened": {
+      "en": "They say it got there opened.",
+      "ru": "Говорят, дошла уже вскрытой."
+    },
+    "carry.count": {
+      "en": "Notes carried: {n}",
+      "ru": "Записок донесено: {n}"
+    },
+    "carry.tip": {
+      "en": "Any envoy, deal, aid or leaflet order there carries it.",
+      "ru": "Донесёт любой приказ туда: посланник, сделка, помощь или листовки."
+    }
+  }
+}
