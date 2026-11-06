@@ -20,6 +20,8 @@ var _detail: VBoxContainer
 var _hooks: HBoxContainer
 var _bust: Control
 var _body: VBoxContainer
+var _tail: VBoxContainer
+var _tail_scroll: ScrollContainer
 var _main: Container
 var _hint: Label
 var _blocked: Label
@@ -92,7 +94,7 @@ func _rebuild() -> void:
 	_main = VBoxContainer.new() if stacked else HBoxContainer.new()
 	_main.add_theme_constant_override("separation", 16)
 	_main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_main.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_main.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_body.add_child(_main)
 	var bust_scale := 0.75 if stacked or cap < 460.0 else 1.0
 	_bust = _make_bust(game, bust_scale)
@@ -102,34 +104,64 @@ func _rebuild() -> void:
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_brass_scroll(_scroll)
 	_detail = VBoxContainer.new()
 	_detail.add_theme_constant_override("separation", 12)
 	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.add_child(_detail)
 	_main.add_child(_scroll)
 	_fill_detail(game)
+	## Kit through Close scroll inside the window. The portrait stays put.
+	_tail_scroll = ScrollContainer.new()
+	_tail_scroll.set_meta("obs_tail_scroll", true)
+	_tail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_tail_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	_brass_scroll(_tail_scroll)
+	_tail = VBoxContainer.new()
+	_tail.add_theme_constant_override("separation", 8)
+	_tail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tail_scroll.add_child(_tail)
+	_body.add_child(_tail_scroll)
 	var kit_head := _lab(Copy.t("obs.kit_title"), 16, true, PAPER_INK)
-	_body.add_child(kit_head)
+	_tail.add_child(kit_head)
 	_hooks = HBoxContainer.new()
 	_hooks.add_theme_constant_override("separation", 24)
 	_hooks.alignment = BoxContainer.ALIGNMENT_CENTER
 	for slot in MarksKit.SLOT_ORDER:
 		_hooks.add_child(_hook(game, slot))
-	_body.add_child(_hooks)
+	_tail.add_child(_hooks)
+	_add_faces(game)
 	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_body.add_child(_hint)
+	_tail.add_child(_hint)
 	var close := _btn("Close", _close)
 	close.set_meta("obs_focus", "close")
 	close.custom_minimum_size = Vector2(110, 40)
-	_body.add_child(close)
+	_tail.add_child(close)
 	_wire_focus()
 	var block := _lab("", 14, false, PAPER_MUTED)
 	block.visible = false
-	_body.add_child(block)
-	position = Vector2(maxi(24.0, (view.x - width) * 0.5), maxi(24.0, (view.y - minf(cap, 520.0)) * 0.5))
-	size = Vector2(width, minf(cap, _body.get_combined_minimum_size().y + 8.0))
-	custom_minimum_size = Vector2(width, minf(cap, maxf(420.0, _body.get_combined_minimum_size().y + 8.0)))
+	_tail.add_child(block)
+	_fit_panel(view, width, cap, head)
+
+
+## Cap the desk to the window. Kit through Close live in the brass tail scroll.
+func _fit_panel(view: Vector2, width: float, cap: float, head: Control) -> void:
+	var pad := 28.0
+	var sep := float(_body.get_theme_constant("separation"))
+	var top_h := head.get_combined_minimum_size().y + sep + _main.get_combined_minimum_size().y + sep
+	var tail_h := _tail.get_combined_minimum_size().y
+	var need := top_h + tail_h + pad
+	var used := minf(cap, maxf(420.0, need))
+	var tail_view := tail_h
+	if need > cap:
+		tail_view = maxf(96.0, cap - pad - top_h)
+	_tail_scroll.custom_minimum_size = Vector2(0, tail_view)
+	position = Vector2(maxi(24.0, (view.x - width) * 0.5), maxi(24.0, (view.y - used) * 0.5))
+	size = Vector2(width, used)
+	custom_minimum_size = size
 
 
 func _fill_detail(game) -> void:
@@ -449,15 +481,132 @@ func _close() -> void:
 		host._close_observer()
 
 
+## Faces on the line. Met only. Hidden when nobody has been met. Click opens that Visit.
+func _add_faces(game) -> void:
+	if not PlatformFaces.enabled:
+		return
+	var rows: Array = PlatformFaces.list_rows(game)
+	if rows.is_empty():
+		return
+	var head := _lab(Copy.t("regular.title"), 16, true, PAPER_INK)
+	head.set_meta("face_fold", true)
+	_tail.add_child(head)
+	var count := _lab(Copy.fill("regular.count", {"n": rows.size(), "total": PlatformFaces.face_total(game)}), 14, false, PAPER_MUTED)
+	count.set_meta("face_count", true)
+	if rows.size() < PlatformFaces.face_total(game):
+		count.tooltip_text = Copy.t("regular.unmet")
+	_tail.add_child(count)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, mini(rows.size() * 36, 220))
+	scroll.set_meta("face_scroll", true)
+	_brass_scroll(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
+	scroll.add_child(list)
+	for entry in rows:
+		list.add_child(_face_button(entry))
+	_tail.add_child(scroll)
+
+
+func _face_button(entry: Dictionary) -> Button:
+	var sid := str(entry.get("sid", ""))
+	var station := Copy.t(str(entry.get("station", sid)))
+	var text := "%s · %s · %s" % [Copy.t(str(entry.get("name_key", ""))), station, Copy.t(str(entry.get("band_key", "")))]
+	var muted := bool(entry.get("muted", false))
+	var ink := PAPER_MUTED if muted else PAPER_INK
+	var button := Button.new()
+	button.text = text
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.focus_mode = Control.FOCUS_ALL
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.custom_minimum_size = Vector2(0, 32)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.tooltip_text = Copy.t("regular.tip")
+	button.set_meta("obs_focus", "face")
+	button.set_meta("face_sid", sid)
+	button.set_meta("face_list", true)
+	button.set_meta("face_muted", muted)
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", ink)
+	button.add_theme_color_override("font_hover_color", ink)
+	button.add_theme_color_override("font_pressed_color", ink)
+	button.add_theme_color_override("font_focus_color", ink)
+	button.add_theme_stylebox_override("normal", _face_row_style(false))
+	button.add_theme_stylebox_override("hover", _face_row_style(true))
+	button.add_theme_stylebox_override("pressed", _face_row_style(true))
+	button.add_theme_stylebox_override("focus", _face_focus())
+	button.pressed.connect(_open_face.bind(sid))
+	return button
+
+
+func _open_face(sid: String) -> void:
+	if host == null:
+		return
+	if host.has_method("_close_observer"):
+		host._close_observer()
+	if host.get("showing_network") != true and host.has_method("_toggle_network"):
+		host._toggle_network()
+	var net = host.get("network_view")
+	if net != null and net.has_method("open_visit"):
+		net.open_visit(str(sid))
+
+
+func _face_row_style(hot: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER_BUTTON_HOVER if hot else Color(PAPER.r, PAPER.g, PAPER.b, 0.0)
+	style.border_color = BRASS if hot else Color(0, 0, 0, 0)
+	style.set_border_width_all(1 if hot else 0)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 4
+	style.content_margin_right = 4
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	return style
+
+
+func _face_focus() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.draw_center = false
+	style.border_color = BRASS
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(2)
+	return style
+
+
+func _brass_scroll(node: Control) -> void:
+	var theme := Theme.new()
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.08, 0.07, 0.06, 0.55)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	for kind in ["VScrollBar", "HScrollBar"]:
+		theme.set_stylebox("scroll", kind, track)
+		theme.set_stylebox("scroll_focus", kind, track)
+		theme.set_stylebox("grabber", kind, grab)
+		theme.set_stylebox("grabber_highlight", kind, grab)
+		theme.set_stylebox("grabber_pressed", kind, grab)
+	node.theme = theme
+
+
 func _wire_focus() -> void:
 	var marks: Array = []
 	var hooks: Array = []
+	var faces: Array = []
 	var pane: Array = []
 	var close: Array = []
-	_collect_focus(self, marks, hooks, pane, close)
+	_collect_focus(self, marks, hooks, faces, pane, close)
 	var order: Array = []
 	order.append_array(marks)
 	order.append_array(hooks)
+	order.append_array(faces)
 	order.append_array(pane)
 	order.append_array(close)
 	for i in order.size():
@@ -472,19 +621,21 @@ func _wire_focus() -> void:
 		button.focus_previous = button.get_path_to(prev)
 
 
-func _collect_focus(node: Node, marks: Array, hooks: Array, pane: Array, close: Array) -> void:
+func _collect_focus(node: Node, marks: Array, hooks: Array, faces: Array, pane: Array, close: Array) -> void:
 	if node is Control and str(node.get_meta("obs_focus", "")) != "":
 		var bucket := str(node.get_meta("obs_focus"))
 		if bucket == "mark":
 			marks.append(node)
 		elif bucket == "hook":
 			hooks.append(node)
+		elif bucket == "face":
+			faces.append(node)
 		elif bucket == "pane":
 			pane.append(node)
 		elif bucket == "close":
 			close.append(node)
 	for child in node.get_children():
-		_collect_focus(child, marks, hooks, pane, close)
+		_collect_focus(child, marks, hooks, faces, pane, close)
 
 
 func _paper() -> StyleBoxFlat:

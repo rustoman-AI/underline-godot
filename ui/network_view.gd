@@ -216,6 +216,8 @@ var _ledger_float: Label
 var _ledger_float_tween: Tween
 var _toll_float: Label
 var _toll_float_tween: Tween
+var _regular_float: Label
+var _regular_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -621,6 +623,7 @@ func _process(delta: float) -> void:
 
 func _on_resize() -> void:
 	_place_panels()
+	_place_regular_float()
 	if not _fitted or zoom <= _zoom_min * 1.001:
 		_fit()
 		return
@@ -2630,12 +2633,15 @@ func _place_toll_float() -> void:
 
 
 ## P87 greet and the brass read. Cached in open_visit. Sits under the ledger.
+## When a Face is on this station, the greet is spoken from the Face row and not drawn here.
 func _add_obs_visit(parent: Node, game, sid: String) -> void:
 	if _obs_visit_sid != sid:
 		return
 	if _obs_read != "":
 		parent.add_child(_obs_line(game, _obs_read, "kit", "dispatcher_brass"))
 	if _obs_greet.is_empty():
+		return
+	if PlatformFaces.enabled and PlatformFaces.has_face(game, sid):
 		return
 	parent.add_child(_obs_line(game, Copy.t(str(_obs_greet.get("key", ""))), str(_obs_greet.get("kind", "mark")), str(_obs_greet.get("id", ""))))
 
@@ -5872,6 +5878,7 @@ func _build_visit() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_brass_scroll(scroll)
 	_visit_body = VBoxContainer.new()
 	_visit_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_visit_body.add_theme_constant_override("separation", 6)
@@ -5952,6 +5959,165 @@ func _show_visit(sid: String) -> void:
 	_redraw()
 
 
+## One Face under the station head and above Details. Cap 1 line. Hosts the P87 greet.
+func _add_face_row(parent: Node, game, sid: String) -> void:
+	if not PlatformFaces.enabled or game == null:
+		return
+	PlatformFaces.meet(game, sid)
+	var greet: Dictionary = _obs_greet if _obs_visit_sid == sid else {}
+	var spoken: Dictionary = PlatformFaces.line_cached(game, sid, greet)
+	if spoken.is_empty():
+		return
+	var row := HBoxContainer.new()
+	row.set_meta("face_row", true)
+	row.set_meta("face_sid", sid)
+	row.set_meta("face_key", str(spoken.get("key", "")))
+	row.set_meta("face_slot", int(spoken.get("slot", 0)))
+	row.tooltip_text = Copy.t("regular.tip")
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.add_theme_constant_override("separation", 8)
+	if host != null and host.has_method("_portrait_box"):
+		var portrait: TextureRect = host._portrait_box("regular_%s" % sid, 36)
+		portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		portrait.custom_minimum_size = Vector2(36, 36)
+		portrait.set_meta("face_portrait", "regular_%s" % sid)
+		row.add_child(portrait)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.add_theme_constant_override("separation", 2)
+	var who := HBoxContainer.new()
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.alignment = BoxContainer.ALIGNMENT_BEGIN
+	who.add_theme_constant_override("separation", 0)
+	var name := Label.new()
+	name.text = Copy.t("regular.%s.name" % sid)
+	name.clip_text = false
+	name.autowrap_mode = TextServer.AUTOWRAP_OFF
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name.add_theme_font_size_override("font_size", 15)
+	name.add_theme_color_override("font_color", INK)
+	name.set_meta("face_name", true)
+	who.add_child(name)
+	var dot := Label.new()
+	dot.text = " · "
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dot.add_theme_font_size_override("font_size", 15)
+	dot.add_theme_color_override("font_color", MUTED)
+	who.add_child(dot)
+	var role := Label.new()
+	role.text = Copy.t("regular.%s.role" % sid)
+	role.clip_text = false
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	role.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role.add_theme_font_size_override("font_size", 15)
+	role.add_theme_color_override("font_color", MUTED)
+	role.set_meta("face_role", true)
+	who.add_child(role)
+	words.add_child(who)
+	var quote := Label.new()
+	quote.text = PlatformFaces.render(spoken)
+	quote.clip_text = false
+	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quote.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quote.add_theme_font_size_override("font_size", 14)
+	quote.add_theme_font_override("font", _quote_font())
+	quote.add_theme_color_override("font_color", INK)
+	quote.set_meta("face_line", true)
+	words.add_child(quote)
+	row.add_child(words)
+	parent.add_child(row)
+
+
+func _quote_font() -> Font:
+	if host != null and host.get("body_font") != null:
+		return host.body_font
+	var courier := load("res://assets/fonts/CourierPrime-Regular.ttf") as Font
+	if courier != null:
+		return courier
+	return ThemeDB.fallback_font
+
+
+## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
+func _note_first_regular() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := PlatformFaces.claim_first(_game())
+	if line == "":
+		return
+	_show_regular_float(line)
+
+
+func _show_regular_float(line: String) -> void:
+	if _regular_float == null:
+		_regular_float = Label.new()
+		_regular_float.z_index = 8
+		_regular_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_regular_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_regular_float.add_theme_font_size_override("font_size", 18)
+		_regular_float.set_meta("regular_float", true)
+		_bind_float_plate(_regular_float)
+	var plate := _float_plate(_regular_float)
+	_regular_float.text = line
+	_regular_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_regular_float.visible = true
+	plate.visible = true
+	if _regular_float_tween != null and _regular_float_tween.is_valid():
+		_regular_float_tween.kill()
+	_place_regular_float()
+	if not is_inside_tree():
+		return
+	_regular_float_tween = create_tween()
+	if _motion_off():
+		_regular_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_regular_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_regular_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_regular_float_tween.tween_callback(func() -> void:
+		if _regular_float != null:
+			_regular_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_regular_float() -> void:
+	if _regular_float == null or not _regular_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	_place_float_chip(_regular_float, y)
+
+
+func _brass_scroll(node: Control) -> void:
+	var theme := Theme.new()
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.08, 0.07, 0.06, 0.55)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	for kind in ["VScrollBar", "HScrollBar"]:
+		theme.set_stylebox("scroll", kind, track)
+		theme.set_stylebox("scroll_focus", kind, track)
+		theme.set_stylebox("grabber", kind, grab)
+		theme.set_stylebox("grabber_highlight", kind, grab)
+		theme.set_stylebox("grabber_pressed", kind, grab)
+	node.theme = theme
+
+
 func _fill_visit(sid: String) -> void:
 	if _visit_body == null:
 		return
@@ -5982,6 +6148,7 @@ func _fill_visit(sid: String) -> void:
 		plate.set_meta("visit_banner", true)
 		_visit_body.add_child(plate)
 	var head := HBoxContainer.new()
+	head.set_meta("visit_head", true)
 	head.add_theme_constant_override("separation", 12)
 	if host != null and host.has_method("_portrait_box"):
 		head.add_child(host._portrait_box(str(sid), 64))
@@ -6009,6 +6176,7 @@ func _fill_visit(sid: String) -> void:
 	_add_obs_visit(column, game, sid)
 	head.add_child(column)
 	_visit_body.add_child(head)
+	_add_face_row(_visit_body, game, sid)
 	var details := _details_box()
 	var who: String = game.station_text(sid, "who")
 	var conflict: String = game.station_text(sid, "conflict")
@@ -6031,6 +6199,7 @@ func _fill_visit(sid: String) -> void:
 	_note_station_focus(sid)
 	_note_outpost_ledger(sid)
 	_note_first_quiet_toll()
+	_note_first_regular()
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().

@@ -212,6 +212,9 @@ var observer_button: Button
 var observer_panel: Control
 var obs_float: Label
 var obs_float_tween: Tween
+var regular_float: PanelContainer
+var regular_float_label: Label
+var regular_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1589,6 +1592,7 @@ func _process(_delta: float) -> void:
 	_tick_away_float()
 	_tick_sick_cots()
 	_try_obs_float()
+	_try_regular_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -7884,6 +7888,56 @@ func _show_obs_float(text: String) -> void:
 	obs_float_tween.tween_callback(func() -> void:
 		if obs_float != null:
 			obs_float.visible = false)
+
+
+## P61 first-float on the YA1 tip plate when the first Face is met off the map.
+func _try_regular_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := PlatformFaces.claim_first(game)
+	if line == "":
+		return
+	_show_regular_yard(line)
+
+
+func _show_regular_yard(text: String) -> void:
+	if regular_float == null:
+		regular_float = PanelContainer.new()
+		regular_float.z_index = 8
+		regular_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		regular_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		regular_float.set_meta("regular_yard_float", true)
+		regular_float_label = Label.new()
+		regular_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		regular_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		regular_float_label.clip_text = false
+		regular_float_label.add_theme_font_size_override("font_size", 18)
+		regular_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		regular_float_label.add_theme_constant_override("outline_size", 0)
+		regular_float.add_child(regular_float_label)
+		add_child(regular_float)
+	regular_float_label.text = text
+	regular_float.modulate.a = 1.0
+	regular_float.visible = true
+	regular_float.custom_minimum_size = Vector2(420, 36)
+	var y := (hud.size.y if hud != null else 72.0) + 8.0
+	regular_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+	regular_float.size = Vector2(420, 36)
+	if regular_float_tween != null and regular_float_tween.is_valid():
+		regular_float_tween.kill()
+	regular_float_tween = create_tween()
+	if _motion_off():
+		regular_float_tween.tween_interval(4.2)
+	else:
+		regular_float_tween.tween_interval(1.1)
+		regular_float_tween.tween_property(regular_float, "modulate:a", 0.0, 0.8)
+	regular_float_tween.tween_callback(func() -> void:
+		if regular_float != null:
+			regular_float.visible = false)
 
 
 func _show_dawn() -> void:

@@ -213,6 +213,8 @@ var obs := {
 }
 ## Desk swap is blocked while a narrative card is up or a card is shelved. Not saved.
 var obs_ui_block := false
+## P88 Platform Faces. Memory only: met, last order, and whether the player took the station by force.
+var regulars := {}
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -284,6 +286,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	transfer_hub_sids = []
 	MarksKit.reset(self)
 	obs_ui_block = false
+	regulars = {}
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -4719,6 +4722,7 @@ func _apply_order(action: Dictionary) -> bool:
 		if order == "trade":
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
+		PlatformFaces.note_order(self, action)
 	return ok
 
 
@@ -5029,6 +5033,8 @@ func _resolve_queued() -> void:
 				ok = _order_probe(str(action.get("station", action.get("dest", ""))))
 			"tap":
 				ok = _order_tap(str(action.get("faction", "")))
+		if ok:
+			PlatformFaces.note_order(self, action)
 		var place := sid
 		if kind == "tap":
 			place = Copy.t(_fname(str(action.get("faction", ""))))
@@ -6752,6 +6758,7 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	_note_join_pulse(st, prev, fid, force)
 	if fid == player:
 		MarksKit.note_capture(self, sid, force)
+	PlatformFaces.note_capture(self, sid, fid, force)
 	return true
 
 
@@ -11892,7 +11899,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs",
+	"transfer_hub_sids", "obs", "regulars",
 ]
 
 
@@ -11910,7 +11917,8 @@ const PERSIST := [
 ## Version 16 added the Line Wall. Older saves start with nothing hung.
 ## Version 17 added the Transfer Hub cache. Older saves start empty and rebuild at night.
 ## Version 18 added the Observer's marks and kit. Older saves start with nothing inked.
-const SAVE_SCHEMA := 18
+## Version 19 added the platform faces. Older saves start with nobody met.
+const SAVE_SCHEMA := 19
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11956,6 +11964,8 @@ const V15_ADDED := ["wall_plates", "wall_hoped", "wall_first_hope"]
 const V16_ADDED := ["transfer_hub_sids"]
 ## Fields a version 1 to 17 save may lack: no marks or kit yet.
 const V17_ADDED := ["obs"]
+## Fields a version 1 to 18 save may lack: no platform faces yet.
+const V18_ADDED := ["regulars"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -12013,7 +12023,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13454,6 +13464,11 @@ func quiet_toll_dawn_chip() -> bool:
 ## Always false. P87 ink and gift cards are dawn event cards, never a soft dawn chip.
 func obs_dawn_chip() -> bool:
 	return MarksKit.joins_soft_dawn()
+
+
+## Always false. P88 Platform Faces is a Visit line and a first-float, never a soft dawn chip.
+func platform_faces_dawn_chip() -> bool:
+	return PlatformFaces.dawn_chip()
 
 
 func _party_position_away(sq: Dictionary) -> bool:

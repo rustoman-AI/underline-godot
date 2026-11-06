@@ -1,0 +1,634 @@
+{
+  "_note": "P88 Platform Faces (NEW invent — DEC-PF1…PF5). Spec: /workspace/PLATFORM_FACES_P88_SPEC.md; brief §2 /workspace/underline_ux_audit/P88_P90_BRIEFS.md. Namespace regular.* only (never face.* — portrait clash). One named regular per community station (20; not home, not bunkers). Text + memory only — no quests, no Kit, no numbers. Tone: one person at the foot of the stairs, not a quest-giver; dry metro grit, no exclamation marks. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P88",
+  "_owners": "Texts; Code regulars dict + sim/platform_faces.gd + Visit Face row + Observer Faces fold; UIUX Face row / Faces fold / first float; Art optional bust plates (never blocks)",
+  "_status": "Designer APPROVED / Code-ready 2026-11-03. | Texts READY at design-gate (P88, 2026-11-03). 117 regular.* keys EN+RU = 20 Faces × (name, role, cold, warm, held) + 17 shared — matches SPEC STRING tables key-for-key. Name-collision check 2026-11-03: 20 Face names (first/last tokens + 'Petrakis') grepped against data/names.json, residents.json, characters_coney.json, faction_leaders.json, ru.json, vo/*.json (master /tmp/ugm + PR checkouts /tmp/g/*) and underline_texts/*.json — 0 hits; faction leaders Abelard/Toussaint/Chen/Ortega/Shaw avoided; radio missing-list Tomas Beck / Okafor avoided; Delphine Abara + Sgt Anton Kell kept. fem flags in _faces: 9 fem / 11 masc; RU first-person past verbs per Face follow the flag; regular.gone RU uses Copy.fill {a} (pass fem of the Face). regular.rival RU is present-tense (no agreement). EN edits: regular.dockyard.name: 'Sergeant Anton Kell' → 'Sgt Anton Kell'. Spec notes stripped (not edits): quote marks around lines; '(raid and failed assault share it)' note on after_raid; band_gone/band_rival split into two keys. obs.* untouched; greet lines spoken unchanged by key (see _speaks_obs_greet, copied verbatim from marks_kit.json). Player = ты, gender-neutral (no past-tense ты verbs). Soft dawn NONE. Balance ZERO. Kit wording only (banned-word grep clean).",
+  "_soft_dawn": "NONE",
+  "_designer": "PENDING — awaiting key-for-key gate",
+  "_cite": [
+    "P87 Marks & Kit — obs.greet.* spoken by the Face unchanged (cite only; P87 CLOSED)",
+    "P67 Named Lives — departed[] (your_dead; cite only)",
+    "P74 Night Runs — departed[].place (cite only)",
+    "P84/P85/P86 Visit rows — not moved",
+    "P59 People Chips — Faces are not residents"
+  ],
+  "_placeholders": [
+    "{a}",
+    "{dead}",
+    "{faction}",
+    "{name}",
+    "{n}",
+    "{total}"
+  ],
+  "_faces": {
+    "northgate": {
+      "station": "Grand Central",
+      "station_ru": "Гранд-Сентрал",
+      "fem": true
+    },
+    "foundry": {
+      "station": "Penn Station",
+      "station_ru": "Пенн-стейшн",
+      "fem": false
+    },
+    "plaza": {
+      "station": "Union Sq",
+      "station_ru": "Юнион-сквер",
+      "fem": true
+    },
+    "central": {
+      "station": "Times Sq",
+      "station_ru": "Таймс-сквер",
+      "fem": false
+    },
+    "market": {
+      "station": "Spring St",
+      "station_ru": "Спринг-стрит",
+      "fem": false
+    },
+    "riverside": {
+      "station": "Botanic Garden",
+      "station_ru": "Ботанический сад",
+      "fem": true
+    },
+    "westfield": {
+      "station": "Aqueduct",
+      "station_ru": "Акведук",
+      "fem": false
+    },
+    "brickworks": {
+      "station": "Atlantic Av",
+      "station_ru": "Атлантик-авеню",
+      "fem": true
+    },
+    "library": {
+      "station": "Jay St",
+      "station_ru": "Джей-стрит",
+      "fem": false
+    },
+    "observatory": {
+      "station": "High St",
+      "station_ru": "Хай-стрит",
+      "fem": false
+    },
+    "trampark": {
+      "station": "Wall St",
+      "station_ru": "Уолл-стрит",
+      "fem": true
+    },
+    "eastwater": {
+      "station": "Bowling Green",
+      "station_ru": "Боулинг-Грин",
+      "fem": false
+    },
+    "chapel": {
+      "station": "Cathedral Pkwy",
+      "station_ru": "Кафедральный парк",
+      "fem": true
+    },
+    "garden": {
+      "station": "Flushing",
+      "station_ru": "Флашинг",
+      "fem": false
+    },
+    "stadium": {
+      "station": "Astor Pl",
+      "station_ru": "Астор-плейс",
+      "fem": true
+    },
+    "harbor": {
+      "station": "Delancey St",
+      "station_ru": "Деланси-стрит",
+      "fem": false
+    },
+    "dockyard": {
+      "station": "Chambers St",
+      "station_ru": "Чемберс-стрит",
+      "fem": false
+    },
+    "quarry": {
+      "station": "Fulton St",
+      "station_ru": "Фултон-стрит",
+      "fem": true
+    },
+    "mill": {
+      "station": "Greenpoint",
+      "station_ru": "Гринпойнт",
+      "fem": true
+    },
+    "clocktower": {
+      "station": "Canal St",
+      "station_ru": "Канал-стрит",
+      "fem": false
+    }
+  },
+  "_speaks_obs_greet": {
+    "obs.greet.line_walker": {
+      "en": "A line-walker. Mind the third rail.",
+      "ru": "Ходок по путям. Берегись третьего рельса."
+    },
+    "obs.greet.tally": {
+      "en": "They count your knuckles before they talk.",
+      "ru": "Прежде чем говорить, считают твои костяшки."
+    },
+    "obs.greet.open_door": {
+      "en": "They say your door doesn't shut.",
+      "ru": "Говорят, твоя дверь не закрывается."
+    },
+    "obs.greet.oilskin": {
+      "en": "Still wearing it. Good. The canal remembers.",
+      "ru": "Всё ещё носишь. Хорошо. Канал помнит."
+    },
+    "obs.greet.barrel_quilt": {
+      "en": "That quilt has been by our fire. Sit.",
+      "ru": "Эта стёганка грелась у нашего огня. Садись."
+    },
+    "obs.greet.carbide": {
+      "en": "Lamp's still lit. Keep it trimmed.",
+      "ru": "Лампа горит. Следи за ней."
+    },
+    "obs.greet.filter_hood": {
+      "en": "Hood on. You can stay.",
+      "ru": "Капюшон на месте. Можешь остаться."
+    },
+    "obs.greet.dispatcher_brass": {
+      "en": "They read the number on your brass. Then they nod.",
+      "ru": "Читают номер на бляхе. Потом кивают."
+    },
+    "obs.greet.free_mask": {
+      "en": "Nobody's here. Nobody says hello.",
+      "ru": "Никого нет. Никто не здоровается."
+    }
+  },
+  "_ru_names": "Nicknames translated, surnames transliterated: Lucky Ferro → Везунчик Ферро; Fingers Malone → Ловкач Мэлоун; Lenny Two-Bags → Ленни Два Мешка; Old Yusuf → Старый Юсуф; Sister Marigold → Сестра Мэриголд; Clara Petrov → Клара Петрова (fem surname); Wren Kowalski → Рен Ковальски (indeclinable, as in EN); Sgt Anton Kell → Сержант Антон Келл (RU won't abbreviate).",
+  "by_key": {
+    "regular.northgate.name": {
+      "en": "Agnes Thorne",
+      "ru": "Агнес Торн"
+    },
+    "regular.northgate.role": {
+      "en": "timetable clerk",
+      "ru": "конторщица расписания"
+    },
+    "regular.northgate.cold": {
+      "en": "You're not on my list. Everyone is on a list.",
+      "ru": "Тебя нет в моём списке. А в списке есть все."
+    },
+    "regular.northgate.warm": {
+      "en": "I pencilled you in. Don't make me rub it out.",
+      "ru": "Я вписала тебя карандашом. Не заставляй стирать."
+    },
+    "regular.northgate.held": {
+      "en": "First new name on the board in years. Yours.",
+      "ru": "Первое новое имя на доске за много лет. Твоё."
+    },
+    "regular.foundry.name": {
+      "en": "Teodor Varga",
+      "ru": "Теодор Варга"
+    },
+    "regular.foundry.role": {
+      "en": "boiler listener, copper in one ear",
+      "ru": "слухач котлов, медь в ухе"
+    },
+    "regular.foundry.cold": {
+      "en": "The boilers don't like your footsteps.",
+      "ru": "Котлам не нравятся твои шаги."
+    },
+    "regular.foundry.warm": {
+      "en": "The boilers hum when you come. I wrote it down.",
+      "ru": "Когда ты приходишь, котлы гудят. Я записал."
+    },
+    "regular.foundry.held": {
+      "en": "Your yard and our iron. The current sounds less lonely.",
+      "ru": "Твой двор и наше железо. Ток звучит не так одиноко."
+    },
+    "regular.plaza.name": {
+      "en": "Hanna Lisk",
+      "ru": "Ханна Лиск"
+    },
+    "regular.plaza.role": {
+      "en": "storehouse counter",
+      "ru": "учётчица склада"
+    },
+    "regular.plaza.cold": {
+      "en": "Everything here is split even. You aren't in the split.",
+      "ru": "Здесь всё делится поровну. Тебя в дележе нет."
+    },
+    "regular.plaza.warm": {
+      "en": "Sit at the meeting tonight. Nobody will vote you out.",
+      "ru": "Приходи сегодня на собрание. Никто не проголосует против."
+    },
+    "regular.plaza.held": {
+      "en": "Your share is counted with ours now. Same scoop.",
+      "ru": "Твою долю теперь считают вместе с нашей. Тот же черпак."
+    },
+    "regular.central.name": {
+      "en": "Lucky Ferro",
+      "ru": "Везунчик Ферро"
+    },
+    "regular.central.role": {
+      "en": "card dealer, rumour seller",
+      "ru": "крупье, торгует слухами"
+    },
+    "regular.central.cold": {
+      "en": "Nobody's face is worth much here. Yours least.",
+      "ru": "Здесь ничьё лицо дорого не стоит. Твоё — дешевле всех."
+    },
+    "regular.central.warm": {
+      "en": "I hold your rumours back a day. That's love, here.",
+      "ru": "Твои слухи я придерживаю на день. Здесь это любовь."
+    },
+    "regular.central.held": {
+      "en": "The house is yours. The cards still aren't.",
+      "ru": "Заведение твоё. Карты — всё ещё нет."
+    },
+    "regular.market.name": {
+      "en": "Ezra Wells",
+      "ru": "Эзра Уэллс"
+    },
+    "regular.market.role": {
+      "en": "bucket carrier",
+      "ru": "водонос"
+    },
+    "regular.market.cold": {
+      "en": "Water's dear. Questions are dearer.",
+      "ru": "Вода дорогая. Вопросы дороже."
+    },
+    "regular.market.warm": {
+      "en": "I fill yours from the top of the bucket.",
+      "ru": "Тебе наливаю сверху ведра."
+    },
+    "regular.market.held": {
+      "en": "Your people drink first in the line now. Don't tell the line.",
+      "ru": "Твои люди теперь пьют первыми. Только очереди не говори."
+    },
+    "regular.riverside.name": {
+      "en": "Sister Marigold",
+      "ru": "Сестра Мэриголд"
+    },
+    "regular.riverside.role": {
+      "en": "seed-jar keeper",
+      "ru": "хранительница семенных банок"
+    },
+    "regular.riverside.cold": {
+      "en": "The jars are counted. So are visitors.",
+      "ru": "Банки пересчитаны. Гости тоже."
+    },
+    "regular.riverside.warm": {
+      "en": "I wrote your name on a jar lid. Beans, I think.",
+      "ru": "Я написала твоё имя на крышке банки. Кажется, с фасолью."
+    },
+    "regular.riverside.held": {
+      "en": "The sisters still won't sell. But they'll plant for you.",
+      "ru": "Сёстры всё равно не продают. Но для тебя посадят."
+    },
+    "regular.westfield.name": {
+      "en": "Kurt Brand",
+      "ru": "Курт Бранд"
+    },
+    "regular.westfield.role": {
+      "en": "gate sentry",
+      "ru": "часовой у ворот"
+    },
+    "regular.westfield.cold": {
+      "en": "Turn round. Slowly.",
+      "ru": "Разворачивайся. Медленно."
+    },
+    "regular.westfield.warm": {
+      "en": "You're still outside the gate. You're just not a target.",
+      "ru": "Ты всё ещё за воротами. Просто уже не мишень."
+    },
+    "regular.westfield.held": {
+      "en": "Gate's open. I don't like it.",
+      "ru": "Ворота открыты. Мне это не нравится."
+    },
+    "regular.brickworks.name": {
+      "en": "Pilar Ruiz",
+      "ru": "Пилар Руис"
+    },
+    "regular.brickworks.role": {
+      "en": "lamp-trimmer, one of Ortega's guides",
+      "ru": "фонарщица, проводница Ортеги"
+    },
+    "regular.brickworks.cold": {
+      "en": "Pay in food or walk in the dark.",
+      "ru": "Плати едой или иди в темноте."
+    },
+    "regular.brickworks.warm": {
+      "en": "You can follow my lamp. Close, mind.",
+      "ru": "Можешь идти за моим фонарём. Только не отставай."
+    },
+    "regular.brickworks.held": {
+      "en": "Your lamps, our track. Ortega says that's a kind of marriage.",
+      "ru": "Твои фонари, наши пути. Ортега говорит, это вроде брака."
+    },
+    "regular.library.name": {
+      "en": "Abe Lindqvist",
+      "ru": "Эйб Линдквист"
+    },
+    "regular.library.role": {
+      "en": "clock mender",
+      "ru": "часовщик"
+    },
+    "regular.library.cold": {
+      "en": "We're busy. The clocks are wrong.",
+      "ru": "Мы заняты. Часы врут."
+    },
+    "regular.library.warm": {
+      "en": "Come and look at this clock. No, really look.",
+      "ru": "Иди посмотри на эти часы. Нет, правда посмотри."
+    },
+    "regular.library.held": {
+      "en": "We set one clock to your yard's bell. It keeps better time.",
+      "ru": "Одни часы мы поставили по колоколу твоего двора. Идут точнее."
+    },
+    "regular.observatory.name": {
+      "en": "Silas Rook",
+      "ru": "Сайлас Рук"
+    },
+    "regular.observatory.role": {
+      "en": "boatman",
+      "ru": "лодочник"
+    },
+    "regular.observatory.cold": {
+      "en": "Water overhead, you underfoot. Neither's welcome.",
+      "ru": "Над головой вода, под ногами ты. Ни то ни другое не в радость."
+    },
+    "regular.observatory.warm": {
+      "en": "Quiet night. You can sit with the boats.",
+      "ru": "Тихая ночь. Можешь посидеть у лодок."
+    },
+    "regular.observatory.held": {
+      "en": "We row your crates now. Still don't ask what's in them.",
+      "ru": "Теперь мы возим твои ящики. И всё так же не спрашиваем, что внутри."
+    },
+    "regular.trampark.name": {
+      "en": "Delphine Abara",
+      "ru": "Дельфина Абара"
+    },
+    "regular.trampark.role": {
+      "en": "rate clerk of the third house",
+      "ru": "конторщица Курса, третий дом"
+    },
+    "regular.trampark.cold": {
+      "en": "Your credit's a rumour.",
+      "ru": "Твой кредит — это слух."
+    },
+    "regular.trampark.warm": {
+      "en": "I wrote your name on my arm. Small, near the elbow.",
+      "ru": "Я записала твоё имя на руке. Мелко, у локтя."
+    },
+    "regular.trampark.held": {
+      "en": "Your debts are paid in full. We'll find new ones.",
+      "ru": "Твои долги погашены полностью. Найдём новые."
+    },
+    "regular.eastwater.name": {
+      "en": "Mo Haddad",
+      "ru": "Мо Хаддад"
+    },
+    "regular.eastwater.role": {
+      "en": "filter changer",
+      "ru": "сменщик фильтров"
+    },
+    "regular.eastwater.cold": {
+      "en": "Breath costs a ticket. You're short.",
+      "ru": "Вдох — по талону. Тебе не хватает."
+    },
+    "regular.eastwater.warm": {
+      "en": "Take a deep one. On me.",
+      "ru": "Вдохни поглубже. За мой счёт."
+    },
+    "regular.eastwater.held": {
+      "en": "Your lungs are our lungs. Keep the doors shut.",
+      "ru": "Твои лёгкие — наши лёгкие. Двери держи закрытыми."
+    },
+    "regular.chapel.name": {
+      "en": "Miriam Sato",
+      "ru": "Мириам Сато"
+    },
+    "regular.chapel.role": {
+      "en": "orderly",
+      "ru": "санитарка"
+    },
+    "regular.chapel.cold": {
+      "en": "The quiet room's not for you.",
+      "ru": "Тихая комната не для тебя."
+    },
+    "regular.chapel.warm": {
+      "en": "Sit in the kitchen. Eat something hot.",
+      "ru": "Посиди на кухне. Поешь горячего."
+    },
+    "regular.chapel.held": {
+      "en": "We light one candle for your yard now. Every night.",
+      "ru": "Теперь мы зажигаем свечу за твой двор. Каждую ночь."
+    },
+    "regular.garden.name": {
+      "en": "Old Yusuf",
+      "ru": "Старый Юсуф"
+    },
+    "regular.garden.role": {
+      "en": "mushroom-bed tender, always half asleep",
+      "ru": "грибник, вечно в полудрёме"
+    },
+    "regular.garden.cold": {
+      "en": "Mm. Later.",
+      "ru": "М-м. Потом."
+    },
+    "regular.garden.warm": {
+      "en": "You've slowed down. Good. Sit.",
+      "ru": "Не торопишься уже. Хорошо. Садись."
+    },
+    "regular.garden.held": {
+      "en": "Your people sleep here sometimes. Nobody coughs.",
+      "ru": "Твои люди иногда тут спят. Никто не кашляет."
+    },
+    "regular.stadium.name": {
+      "en": "Clara Petrov",
+      "ru": "Клара Петрова"
+    },
+    "regular.stadium.role": {
+      "en": "typesetter of the paper",
+      "ru": "наборщица газеты"
+    },
+    "regular.stadium.cold": {
+      "en": "You're in tomorrow's edition. Not kindly.",
+      "ru": "Ты в завтрашнем номере. И не в лучшем виде."
+    },
+    "regular.stadium.warm": {
+      "en": "We set your name in the big type once. Spelled it right.",
+      "ru": "Однажды мы набрали твоё имя крупным кеглем. Без ошибок."
+    },
+    "regular.stadium.held": {
+      "en": "We print what we like. We like more of it lately.",
+      "ru": "Печатаем что хотим. В последнее время хотим больше."
+    },
+    "regular.harbor.name": {
+      "en": "Fingers Malone",
+      "ru": "Ловкач Мэлоун"
+    },
+    "regular.harbor.role": {
+      "en": "counter-man",
+      "ru": "человек за прилавком"
+    },
+    "regular.harbor.cold": {
+      "en": "Didn't see you. Didn't sell you anything.",
+      "ru": "Тебя не видел. Ничего тебе не продавал."
+    },
+    "regular.harbor.warm": {
+      "en": "Something of yours turned up. I kept it under the counter.",
+      "ru": "Тут всплыла одна твоя вещица. Я придержал её под прилавком."
+    },
+    "regular.harbor.held": {
+      "en": "No receipts. Not even for you. Especially not.",
+      "ru": "Никаких расписок. Даже тебе. Тебе — особенно."
+    },
+    "regular.dockyard.name": {
+      "en": "Sgt Anton Kell",
+      "ru": "Сержант Антон Келл"
+    },
+    "regular.dockyard.role": {
+      "en": "desk sergeant",
+      "ru": "дежурный сержант"
+    },
+    "regular.dockyard.cold": {
+      "en": "State your business. Then leave.",
+      "ru": "Излагай дело. Потом на выход."
+    },
+    "regular.dockyard.warm": {
+      "en": "You're on the good page of the book. There's only one.",
+      "ru": "Ты на хорошей странице книги. Она там одна."
+    },
+    "regular.dockyard.held": {
+      "en": "The precinct answers to your yard. The captain doesn't like it.",
+      "ru": "Участок теперь подчиняется твоему двору. Капитану это не нравится."
+    },
+    "regular.quarry.name": {
+      "en": "Wren Kowalski",
+      "ru": "Рен Ковальски"
+    },
+    "regular.quarry.role": {
+      "en": "copper digger, map drawer",
+      "ru": "копательница меди, рисует карты"
+    },
+    "regular.quarry.cold": {
+      "en": "The map's for sale. Not to you.",
+      "ru": "Карта продаётся. Не тебе."
+    },
+    "regular.quarry.warm": {
+      "en": "I drew your yard on the map. Small, but in ink.",
+      "ru": "Я нарисовала твой двор на карте. Мелко, но чернилами."
+    },
+    "regular.quarry.held": {
+      "en": "Every passage I know, your people know.",
+      "ru": "Каждый ход, что знаю я, знают и твои люди."
+    },
+    "regular.mill.name": {
+      "en": "Marta Szabo",
+      "ru": "Марта Сабо"
+    },
+    "regular.mill.role": {
+      "en": "smokehouse keeper",
+      "ru": "коптильщица"
+    },
+    "regular.mill.cold": {
+      "en": "No politics. No visitors either.",
+      "ru": "Никакой политики. И гостей тоже."
+    },
+    "regular.mill.warm": {
+      "en": "Here. Smoked. Don't tell the pigs.",
+      "ru": "На. Копчёное. Свиньям не говори."
+    },
+    "regular.mill.held": {
+      "en": "We feed your yard now. The pigs don't mind who.",
+      "ru": "Теперь мы кормим твой двор. Свиньям всё равно кого."
+    },
+    "regular.clocktower.name": {
+      "en": "Lenny Two-Bags",
+      "ru": "Ленни Два Мешка"
+    },
+    "regular.clocktower.role": {
+      "en": "hoarder",
+      "ru": "барахольщик"
+    },
+    "regular.clocktower.cold": {
+      "en": "Mine. All of it. Move along.",
+      "ru": "Моё. Всё моё. Проходи."
+    },
+    "regular.clocktower.warm": {
+      "en": "I found a thing that's yours. You can look at it.",
+      "ru": "Нашёл одну твою штуку. Можешь посмотреть."
+    },
+    "regular.clocktower.held": {
+      "en": "Your yard's mine too now. Kidding. Mostly.",
+      "ru": "Твой двор теперь тоже мой. Шучу. Почти."
+    },
+    "regular.title": {
+      "en": "Faces on the line",
+      "ru": "Лица на линии"
+    },
+    "regular.count": {
+      "en": "{n} of {total} met",
+      "ru": "Знакомых: {n} из {total}"
+    },
+    "regular.first": {
+      "en": "Someone on the platform knows you now.",
+      "ru": "На платформе тебя теперь кто-то знает."
+    },
+    "regular.unmet": {
+      "en": "Not met yet",
+      "ru": "Ещё не знакомы"
+    },
+    "regular.gone": {
+      "en": "{name} left when your squad came down the stairs.",
+      "ru": "{name} пропал{a}, едва по лестнице спустился твой отряд."
+    },
+    "regular.rival": {
+      "en": "{name} keeps their head down now. {faction} on the stairs.",
+      "ru": "{name} теперь не поднимает головы. На лестнице — {faction}."
+    },
+    "regular.after_envoy": {
+      "en": "Your letter came. Read it twice.",
+      "ru": "Твоё письмо дошло. Прочли дважды."
+    },
+    "regular.after_deal": {
+      "en": "Crates came and went. Fair weight, for once.",
+      "ru": "Ящики пришли и ушли. Вес честный, на этот раз."
+    },
+    "regular.after_aid": {
+      "en": "Somebody here ate because of you. They know it.",
+      "ru": "Кто-то здесь поел благодаря тебе. И знает это."
+    },
+    "regular.after_propaganda": {
+      "en": "Your leaflets are in the stairwell. Some of them are still up.",
+      "ru": "Твои листовки на лестнице. Некоторые ещё висят."
+    },
+    "regular.after_probe": {
+      "en": "Someone was listening in last week. Funny, that.",
+      "ru": "На прошлой неделе нас кто-то подслушивал. Забавно."
+    },
+    "regular.after_patrol": {
+      "en": "Your patrol walked past. Boots on the third rail, as usual.",
+      "ru": "Мимо прошёл твой патруль. Сапогами по третьему рельсу, как всегда."
+    },
+    "regular.after_raid": {
+      "en": "You came with rifles. We're still here.",
+      "ru": "С винтовками, значит. А мы всё ещё здесь."
+    },
+    "regular.your_dead": {
+      "en": "We buried {dead} by the stairs. Somebody leaves a lamp.",
+      "ru": "У лестницы теперь могила: {dead}. Кто-то оставляет там лампу."
+    },
+    "regular.band_gone": {
+      "en": "gone",
+      "ru": "нет на месте"
+    },
+    "regular.band_rival": {
+      "en": "rival",
+      "ru": "под чужими"
+    },
+    "regular.tip": {
+      "en": "One person here knows you. What they say changes when you come back.",
+      "ru": "Здесь тебя знает один человек. Вернёшься — услышишь другое."
+    }
+  }
+}
