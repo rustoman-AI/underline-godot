@@ -222,6 +222,8 @@ var _sday_float: Label
 var _sday_float_tween: Tween
 var _carry_float: Label
 var _carry_float_tween: Tween
+var _rival_float: Label
+var _rival_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -6405,6 +6407,64 @@ func _place_sday_float() -> void:
 	if _regular_float != null and _regular_float.visible:
 		y += 34.0
 	_place_float_chip(_sday_float, y)
+
+
+## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
+func _show_rival_float(line: String) -> void:
+	if line == "":
+		return
+	if _rival_float == null:
+		_rival_float = Label.new()
+		_rival_float.z_index = 8
+		_rival_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_rival_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_rival_float.add_theme_font_size_override("font_size", 18)
+		_rival_float.set_meta("rival_float", true)
+		_bind_float_plate(_rival_float)
+	var plate := _float_plate(_rival_float)
+	_rival_float.text = line
+	_rival_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_rival_float.visible = true
+	plate.visible = true
+	if _rival_float_tween != null and _rival_float_tween.is_valid():
+		_rival_float_tween.kill()
+	_place_rival_float()
+	if not is_inside_tree():
+		return
+	_rival_float_tween = create_tween()
+	if _motion_off():
+		_rival_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_rival_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_rival_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_rival_float_tween.tween_callback(func() -> void:
+		if _rival_float != null:
+			_rival_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_rival_float() -> void:
+	if _rival_float == null or not _rival_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	if _regular_float != null and _regular_float.visible:
+		y += 34.0
+	if _sday_float != null and _sday_float.visible:
+		y += 34.0
+	if _carry_float != null and _carry_float.visible:
+		y += 34.0
+	_place_float_chip(_rival_float, y)
 
 
 static func day_tooltip(text: String) -> Control:

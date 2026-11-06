@@ -67,7 +67,7 @@ func _run() -> void:
 		quit(1)
 		return
 	var balance := FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 21:
+	if Game.SAVE_SCHEMA != 23:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
 		_bad("soft dawn stack changed")
@@ -481,7 +481,7 @@ func _save(catalog: Catalog) -> bool:
 
 func _bounds() -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 21") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 23") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if src.find("V18_ADDED") < 0 or src.find("\"regulars\"") < 0:
@@ -694,7 +694,9 @@ func _ui(catalog: Catalog) -> bool:
 	return true
 
 
-## 100% is 1920×1080. 125% is the 1536×864 logical window. Title, count, every row, and Close stay on screen.
+## 100% is 1920×1080. 125% is the 1536×864 logical window.
+## Face rows stay in the window at the top of the tail. Later folds can push Close down;
+## the brass tail must scroll it back inside the window.
 func _faces_on_screen(catalog: Catalog) -> bool:
 	var game := _fresh(catalog)
 	for sid in ["brickworks", "plaza", "observatory"]:
@@ -738,21 +740,46 @@ func _faces_on_screen(catalog: Catalog) -> bool:
 			_bad("fold chrome %s rows %d" % [case[0], listed.size()])
 			Copy.set_lang(saved)
 			return false
-		var nodes: Array = [fold, count, close]
+		var scroller := scroll as ScrollContainer
+		if scroller != null:
+			scroller.scroll_vertical = 0
+			await process_frame
+		var nodes: Array = [fold, count]
 		nodes.append_array(listed)
 		for node in nodes:
-			var ctrl := node as Control
-			var rect := ctrl.get_global_rect()
-			var label := ctrl.name
-			if ctrl is Button or ctrl is Label:
-				label = ctrl.text
-			if rect.size.y < 8.0 or not vp.grow(1.0).encloses(rect):
-				_bad("off viewport %s %s %s rect %s" % [case[0], sz, label, rect])
+			if not _face_in_view(node, vp, case, sz):
 				Copy.set_lang(saved)
 				return false
+		if scroller != null:
+			var bar := scroller.get_v_scroll_bar()
+			scroller.scroll_vertical = int(bar.max_value) if bar != null else 0
+			await process_frame
+			await process_frame
+		if not _face_in_view(close, vp, case, sz):
+			Copy.set_lang(saved)
+			return false
+		if scroller != null and not scroller.get_global_rect().grow(8.0).encloses((close as Control).get_global_rect()):
+			_bad("close outside tail %s %s" % [case[0], (close as Control).get_global_rect()])
+			Copy.set_lang(saved)
+			return false
 	Copy.set_lang(saved)
 	panel.queue_free()
 	host.queue_free()
+	return true
+
+
+func _face_in_view(node: Node, vp: Rect2, case: Array, sz: Vector2i) -> bool:
+	var ctrl := node as Control
+	if ctrl == null:
+		_bad("off viewport missing")
+		return false
+	var rect := ctrl.get_global_rect()
+	var label := ctrl.name
+	if ctrl is Button or ctrl is Label:
+		label = ctrl.text
+	if rect.size.y < 8.0 or not vp.grow(1.0).encloses(rect):
+		_bad("off viewport %s %s %s rect %s" % [case[0], sz, label, rect])
+		return false
 	return true
 
 
