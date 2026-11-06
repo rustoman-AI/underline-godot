@@ -5173,20 +5173,39 @@ func _listening_card(uid: String) -> void:
 	if idle != "":
 		_body_ready(idle)
 	for sid in game.listening_probe_targets():
-		var place := game.station_text(str(sid), "community")
-		var probe := _button("listening.probe", _queue_listening.bind(uid, "probe", str(sid), ""))
-		probe.text = "%s · %s · %d%%" % [Copy.t("listening.probe"), place, game.listening_blown_pct("probe")]
-		var why := game.order_block("probe", str(sid))
-		probe.disabled = why != ""
-		probe.tooltip_text = why if why != "" else Copy.t("listening.probe_tip")
-		card_body.add_child(probe)
+		_listening_verb(uid, "probe", str(sid), "", game.station_text(str(sid), "community"))
 	for fid in game.listening_tap_targets():
-		var tap := _button("listening.tap", _queue_listening.bind(uid, "tap", "", str(fid)))
-		tap.text = "%s · %s · %d%%" % [Copy.t("listening.tap"), Copy.t(game._fname(str(fid))), game.listening_blown_pct("tap")]
-		var why := game.order_block("tap", str(fid))
-		tap.disabled = why != ""
-		tap.tooltip_text = why if why != "" else Copy.t("listening.tap_tip")
-		card_body.add_child(tap)
+		_listening_verb(uid, "tap", "", str(fid), Copy.t(game._fname(str(fid))))
+
+
+## The button stays the verb (Probe/Tap · target · %). The reason is the tooltip
+## (the short P65 tip when that order has one) and at most one horizontal line
+## under the button. Not a lock button whose label is the reason.
+func _listening_verb(uid: String, kind: String, sid: String, fid: String, place: String) -> void:
+	var verb_key := "listening.probe" if kind == "probe" else "listening.tap"
+	var tip_key := "listening.probe_tip" if kind == "probe" else "listening.tap_tip"
+	var target := sid if kind == "probe" else fid
+	var button := _button(verb_key, _queue_listening.bind(uid, kind, sid, fid))
+	button.text = "%s · %s · %d%%" % [Copy.t(verb_key), place, game.listening_blown_pct(kind)]
+	_measure_button(button)
+	var live := game.order_block(kind, target)
+	var tip := ""
+	if OrderWhy.covers(kind):
+		tip = OrderWhy.tip(game, kind, {"sid": target})
+	button.disabled = live != ""
+	button.tooltip_text = Copy.t(tip_key) if live == "" else (tip if tip != "" else live)
+	button.set_meta("listening_verb", kind)
+	card_body.add_child(button)
+	if live == "":
+		return
+	var why := _label("", 14, false, false)
+	why.text = tip if tip != "" else live
+	why.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hold_label(why, 14)
+	why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	why.add_theme_color_override("font_color", PAPER_MUTED)
+	why.set_meta("listening_why", kind)
+	card_body.add_child(why)
 
 
 func _queue_listening(uid: String, kind: String, sid: String, fid: String) -> void:
@@ -5513,7 +5532,7 @@ func _room_push(uid: String) -> void:
 	if bool(info.get("ok", false)):
 		odds = Copy.t("push.tip_ok") % int(info.pct)
 	var state := _label(odds, 16)
-	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(state, 16)
 	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(state)
@@ -5549,7 +5568,7 @@ func _room_switch(uid: String) -> void:
 	var on := bool(info.on)
 	var saves := int(info.saves)
 	var state := _label(_switch_state(on, saves), 17)
-	state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(state, 17)
 	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(state)
@@ -9683,7 +9702,7 @@ func _check_block(ev: Dictionary, choice: Dictionary) -> void:
 	line.add_theme_constant_override("separation", 8)
 	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var lab := _label(" · ".join(bits), 17)
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(lab, 17)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	line.add_child(lab)
@@ -10177,7 +10196,7 @@ func _heading(text: String) -> void:
 
 func _body(text: String) -> void:
 	var lab := _label(text, 17)
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(lab, 17)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_book_add(lab)
 
@@ -10185,7 +10204,7 @@ func _body(text: String) -> void:
 func _body_muted(text: String) -> void:
 	var lab := _label(text, 15)
 	lab.add_theme_color_override("font_color", PAPER_MUTED)
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(lab, 15)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_book_add(lab)
 
@@ -10193,7 +10212,7 @@ func _body_muted(text: String) -> void:
 func _body_ready(text: String) -> void:
 	var lab := _label("", 17)
 	lab.text = text
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(lab, 17)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_body.add_child(lab)
 
@@ -10213,11 +10232,60 @@ func _label(text: String, size: int, display: bool = false, translate: bool = tr
 	return lab
 
 
+## Short chrome stays one horizontal line. WORD_SMART before the row has a width
+## collapses the label to one glyph and stacks the letters.
+func _hold_label(lab: Label, px: int) -> void:
+	lab.clip_text = false
+	var font: Font = lab.get_theme_font("font")
+	if font == null:
+		font = body_font if body_font != null else ThemeDB.fallback_font
+	var parts := lab.text.split("\n")
+	if parts.is_empty():
+		parts = PackedStringArray([""])
+	var widest := 0.0
+	for line in parts:
+		widest = maxf(widest, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x)
+	var line_h := maxf(font.get_height(px), float(px))
+	var tall := maxi(ceili(line_h * maxi(parts.size(), 1)), px + 2)
+	var cap := 420.0
+	if widest <= cap:
+		lab.custom_minimum_size = Vector2(maxi(lab.custom_minimum_size.x, ceili(widest)), maxi(lab.custom_minimum_size.y, tall))
+		lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+		return
+	lab.custom_minimum_size = Vector2(maxi(lab.custom_minimum_size.x, cap), maxi(lab.custom_minimum_size.y, tall))
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+## Verbs stay one line. A button with WORD_SMART and no width stacks its letters.
+func _measure_button(button: Button) -> void:
+	var px := int(button.get_theme_font_size("font_size"))
+	if px <= 0:
+		px = 20
+	var font: Font = button.get_theme_font("font")
+	if font == null:
+		font = display_font if display_font != null else ThemeDB.fallback_font
+	var measured := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px)
+	var h := button.custom_minimum_size.y
+	if h < 36.0:
+		h = 64.0 if Copy.ru() else 48.0
+	button.clip_text = false
+	var want := measured.x + 28.0
+	if want <= 320.0 and not button.text.contains("\n"):
+		button.custom_minimum_size = Vector2(maxf(ceili(want), 44.0), h)
+		button.autowrap_mode = TextServer.AUTOWRAP_OFF
+		return
+	var longest := 0.0
+	for word in button.text.split(" ", false):
+		longest = maxf(longest, font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x)
+	button.custom_minimum_size = Vector2(clampf(longest + 28.0, 96.0, 320.0), h)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
 func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	var button := Button.new()
 	button.text = Copy.t(text)
-	button.custom_minimum_size = Vector2(0, 44)
-	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	button.add_theme_font_size_override("font_size", 20)
 	if display_font != null:
 		button.add_theme_font_override("font", display_font)
@@ -10230,11 +10298,12 @@ func _button(text: String, cb: Callable, sound: String = "click") -> Button:
 	button.add_theme_stylebox_override("pressed", _button_face(true, false))
 	button.add_theme_stylebox_override("focus", _button_face(false, true))
 	button.add_theme_stylebox_override("disabled", _button_disabled_face())
-	button.custom_minimum_size.y = 64 if Copy.ru() else 48
+	button.custom_minimum_size = Vector2(0, 64 if Copy.ru() else 48)
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.set_meta("ui_sound", sound)
 	button.pressed.connect(_card_press.bind(button, cb) if on_paper else _plain_press.bind(button, cb))
+	_measure_button(button)
 	return button
 
 
@@ -10471,7 +10540,7 @@ func _blocked_pair(label: String, reason: String) -> void:
 	if why == "":
 		return
 	var lab := _label(why, 14)
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(lab, 14)
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.add_theme_color_override("font_color", DELTA_DOWN)
 	_book_add(lab)
@@ -10555,10 +10624,12 @@ func _build_card(type: String, level: int, cell: int) -> Control:
 		if built_why != "":
 			panel.tooltip_text = built_why
 		if type == "listening_post" and built_why != "":
-			var why := _label("", 14)
+			var why := _label("", 14, false, false)
 			why.text = built_why
 			why.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_hold_label(why, 14)
+			why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			why.set_meta("blocked_why", true)
 			text.add_child(why)
 		var lock := Glyph.new()
 		lock.kind = "lock"
@@ -10802,7 +10873,7 @@ func _upgrade_card(uid: String, embedded: bool) -> Control:
 	if not enabled and not embedded:
 		var why := _label(str(info.get("reason", "")), 13)
 		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_hold_label(why, 13)
 		why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		why.add_theme_color_override("font_color", DELTA_DOWN)
 		text.add_child(why)

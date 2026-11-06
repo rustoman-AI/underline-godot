@@ -4856,14 +4856,13 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 			if short != "":
 				face = short
 		caption.text = "%s\n%s" % [Copy.t(label), face]
-	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	caption.add_theme_color_override("font_color", Color("efe6d2"))
+	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hold_plain(caption, 16, 360.0)
 	row.add_child(caption)
 	if game != null and not (why != "" and APPROACHES.has(kind)):
 		row.add_child(_cost_tag(game.order_cost(kind, sid)))
-	button.custom_minimum_size = Vector2(0, 36)
 	button.add_child(row)
 	button.disabled = why != ""
 	if button.disabled:
@@ -4881,7 +4880,8 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
-	button.custom_minimum_size = Vector2(0, 76 if why != "" and APPROACHES.has(kind) else 40)
+	var row_w := maxf(caption.custom_minimum_size.x + 56.0, 180.0)
+	button.custom_minimum_size = Vector2(row_w, 76 if why != "" and APPROACHES.has(kind) else 40)
 	button.set_meta("order_caption", caption)
 	button.set_meta("base_height", button.custom_minimum_size.y)
 	caption.resized.connect(_fit_order_button.bind(button, caption))
@@ -5108,7 +5108,6 @@ func _paint_ease_tick(mark: Control, ink: Color) -> void:
 func _lab(text: String, px: int, display: bool) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_font_size_override("font_size", px)
 	if _on_paper:
 		label.add_theme_color_override("font_color", CARD_INK if display else CARD_MUTED)
@@ -5116,7 +5115,33 @@ func _lab(text: String, px: int, display: bool) -> Label:
 		label.add_theme_color_override("font_color", INK if display else MUTED)
 	if display and host != null and host.get("display_font") != null:
 		label.add_theme_font_override("font", host.display_font)
+	_hold_plain(label, px, 420.0)
 	return label
+
+
+## Short column words and reasons stay one horizontal line. WORD_SMART with no
+## width yet collapses the label to a glyph column.
+func _hold_plain(label: Label, px: int, cap: float) -> void:
+	label.clip_text = false
+	var font: Font = label.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+		if host != null and host.get("body_font") != null:
+			font = host.body_font
+	var parts := label.text.split("\n")
+	if parts.is_empty():
+		parts = PackedStringArray([""])
+	var widest := 0.0
+	for line in parts:
+		widest = maxf(widest, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x)
+	var line_h := maxf(font.get_height(px), float(px))
+	var tall := maxi(ceili(line_h * maxi(parts.size(), 1)), px + 2)
+	if widest <= cap:
+		label.custom_minimum_size = Vector2(maxi(label.custom_minimum_size.x, ceili(widest)), maxi(label.custom_minimum_size.y, tall))
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		return
+	label.custom_minimum_size = Vector2(maxi(label.custom_minimum_size.x, cap), maxi(label.custom_minimum_size.y, tall))
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 func _owner_name(game, fid: String) -> String:
@@ -5764,15 +5789,16 @@ func _combat_order_button(kind: String, sid: String, parent: Node) -> void:
 	words.add_child(caption)
 	var sub := Label.new()
 	sub.text = detail
-	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sub.add_theme_color_override("font_color", CARD_MUTED if why != "" else Color("efe6d2"))
+	_hold_plain(sub, 16, 360.0)
 	if why != "":
 		## R09: the why-line wraps to two lines at most; the full reason is the tooltip (P65 text unchanged).
 		sub.max_lines_visible = 2
 		sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_WORD_ELLIPSIS
 	words.add_child(sub)
 	row.add_child(words)
+	button.custom_minimum_size.x = maxf(button.custom_minimum_size.x, sub.custom_minimum_size.x + 48.0)
 	button.add_child(row)
 	if why != "":
 		words.resized.connect(func() -> void:
