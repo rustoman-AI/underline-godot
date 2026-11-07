@@ -1,0 +1,114 @@
+{
+  "_note": "P93 Platform Callers (NEW invent — DEC-PC1…PC4). Spec: /workspace/PLATFORM_CALLERS_P93_SPEC.md; brief /workspace/underline_ux_audit/P91_P95_BRIEFS.md. Namespace caller.* only. Code state callers. One named courier per rival faction walks onto the home platform after a first (warm / deal-or-favor / hit); stays one week; leaves; 4-week faction cooldown. Not People / Guest / Face / staff. Name clash 2026-11-05: Remy Cole · Brother Cal clean; Ieva Dunn → Ieva Rusk (Dunn is in data/names.json last pool — same avoid rule as P88 Faces). Quote marks stripped (UI frames the line; same as P88 greets). Soft dawn NONE. Balance ZERO. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P93",
+  "_owners": "Texts; Code callers dict + firsts/queue/cooldown + desk/home Visit row + first float; UIUX Caller row; Art hashed portraits (bespoke optional, never blocks)",
+  "_status": "Designer APPROVED / Code-ready — stamped 2026-11-05. Soft dawn NONE. Balance ZERO. Code should not start yet (after P88–P90 UI chrome already A1-approved). Ieva Rusk / Иева Раск locked. rival.title RU «Чужие» kept. P93 Platform Callers, 19 caller.* — Ieva Rusk locked; directorate.deal RU recast (no player past-tense verb).",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P88 Platform Faces — stay at their station; never mix lists (cite; unreopened)",
+    "P83 Guest Beds — not a bed, not staff, not a People chip (cite; unreopened)",
+    "P43 Homecoming — not your people returning (cite; unreopened)",
+    "P80 Synod Favor — Synod deal trigger = first favor spend (cite; unreopened)"
+  ],
+  "_placeholders": [],
+  "by_key": {
+    "caller.exchange.name": {
+      "en": "Remy Cole",
+      "ru": "Реми Коул"
+    },
+    "caller.exchange.role": {
+      "en": "rate runner",
+      "ru": "гонец курса"
+    },
+    "caller.exchange.warm": {
+      "en": "The Rate Council noticed you didn't squeeze us. I was sent to say so.",
+      "ru": "Совет курса заметил: ты нас не прижимаешь. Меня послали это сказать."
+    },
+    "caller.exchange.deal": {
+      "en": "Lin sent me. The last deal cleared. She wanted you to hear it from someone who counted the sacks.",
+      "ru": "Меня прислала Лин. Последняя сделка прошла. Она хотела, чтобы это сказал тебе тот, кто считал мешки."
+    },
+    "caller.exchange.hit": {
+      "en": "You hit our people. I'm not here to settle. I'm here so you know we counted.",
+      "ru": "Удар пришёлся по нашим. Я не за расчётом. Я здесь, чтобы было ясно: мы посчитали."
+    },
+    "caller.directorate.name": {
+      "en": "Ieva Rusk",
+      "ru": "Иева Раск"
+    },
+    "caller.directorate.role": {
+      "en": "board runner",
+      "ru": "гонец табеля"
+    },
+    "caller.directorate.warm": {
+      "en": "You're on the good page of the book. The Chief didn't send me. I came anyway.",
+      "ru": "Ты на хорошей странице в книге. Шеф меня не посылал. Я всё равно пришла."
+    },
+    "caller.directorate.deal": {
+      "en": "The timetable has your crates on it now. I walked it here so you'd see the ink.",
+      "ru": "В расписании теперь есть твои ящики. Я донесла его пешком — вот чернила."
+    },
+    "caller.directorate.hit": {
+      "en": "You came with rifles. The roster has new gaps. That is all I am allowed to say.",
+      "ru": "С винтовками. В списке новые пустоты. Больше мне говорить нельзя."
+    },
+    "caller.synod.name": {
+      "en": "Brother Cal",
+      "ru": "Брат Кэл"
+    },
+    "caller.synod.role": {
+      "en": "chapel walker",
+      "ru": "ходок часовни"
+    },
+    "caller.synod.warm": {
+      "en": "The chapel said your name without flinching. I thought you should hear it said aloud.",
+      "ru": "Часовня назвала твоё имя без дрожи. Подумал, тебе стоит услышать его вслух."
+    },
+    "caller.synod.deal": {
+      "en": "They spent a favor for you. I walked it down so it wouldn't stay a number.",
+      "ru": "Они потратили за тебя милость. Я снёс её вниз, чтобы это не осталось цифрой."
+    },
+    "caller.synod.hit": {
+      "en": "We buried someone after your raid. I am not here to forgive you. I am here so you know the name was spoken.",
+      "ru": "После твоего рейда мы кого-то похоронили. Я не затем, чтобы простить. Я затем, чтобы было ясно: имя назвали."
+    },
+    "caller.title": {
+      "en": "On the stairs",
+      "ru": "На лестнице"
+    },
+    "caller.first": {
+      "en": "Someone from the line is waiting downstairs.",
+      "ru": "Внизу у лестницы кто-то с линии."
+    },
+    "caller.left": {
+      "en": "They went back down the tunnel.",
+      "ru": "Ушли обратно в тоннель."
+    },
+    "caller.tip": {
+      "en": "When a faction first notices you — kindly or not — they send someone to your platform.",
+      "ru": "Когда сторона впервые тебя замечает — добром или нет — к тебе на платформу присылают человека."
+    }
+  },
+  "_designer": "APPROVED",
+  "_callers": {
+    "exchange": {
+      "name_en": "Remy Cole",
+      "name_ru": "Реми Коул",
+      "fem": false,
+      "faction": "exchange"
+    },
+    "directorate": {
+      "name_en": "Ieva Rusk",
+      "name_ru": "Иева Раск",
+      "fem": true,
+      "faction": "directorate"
+    },
+    "synod": {
+      "name_en": "Brother Cal",
+      "name_ru": "Брат Кэл",
+      "fem": false,
+      "faction": "synod"
+    }
+  },
+  "_name_clash": "2026-11-05: Remy/Cole/Ieva/Cal/Brother grepped vs data/names.json first+last, residents.json, characters_coney.json, factions.json leaders (Elder Soren, Broker Lin, Halden Voss, Captain Rhee, The Last Preacher), platform_faces 20 Face names, named_lives, station_days, carried_word, ru.json. Hits: Dunn in names.json last[] (+ ru.json Dunn→Данн) — renamed to Rusk. Calder (Inez Calder) is a different full surname; Brother Cal kept (monastic title; parallels Sister Marigold). 0 full-name hits for Remy Cole / Brother Cal / Ieva Rusk."
+}

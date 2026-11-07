@@ -362,6 +362,10 @@ static func _load_keys() -> void:
 	_merge_pack("res://data/platform_faces.json")
 	_merge_pack("res://data/station_days.json")
 	_merge_pack("res://data/carried_word.json")
+	_merge_pack("res://data/line_echo.json")
+	_merge_pack("res://data/rival_desk.json")
+	_merge_pack("res://data/platform_callers.json")
+	_merge_pack("res://data/passage_scars.json")
 	_merge_pack("res://data/room_trace.json")
 
 

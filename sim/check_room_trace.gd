@@ -167,8 +167,8 @@ func _check_strings() -> bool:
 
 
 func _check_bounds() -> bool:
-	if Game.SAVE_SCHEMA != 21:
-		_bad("schema is %s, want 21 (flag stays in flags; 22–25 are other drafts)" % str(Game.SAVE_SCHEMA))
+	if Game.SAVE_SCHEMA != 25:
+		_bad("schema is %s, want 25 (flag stays in flags; no 26)" % str(Game.SAVE_SCHEMA))
 		return false
 	if RoomTrace.map_mark() or RoomTrace.dawn_chip() or RoomTrace.joins_soft_dawn():
 		_bad("mark or dawn helper")
@@ -181,8 +181,11 @@ func _check_bounds() -> bool:
 		_bad("reader touches hope or stock")
 		return false
 	var game_src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if game_src.find("const SAVE_SCHEMA := 21") < 0:
+	if game_src.find("const SAVE_SCHEMA := 25") < 0 or game_src.find("V21_ADDED") < 0 or game_src.find("V22_ADDED") < 0 or game_src.find("V23_ADDED") < 0 or game_src.find("V24_ADDED") < 0:
 		_bad("schema source")
+		return false
+	if game_src.find("const SAVE_SCHEMA := 21") >= 0 or game_src.find("const SAVE_SCHEMA := 26") >= 0:
+		_bad("schema moved off 25")
 		return false
 	if game_src.find("const DAWN_SOFT_STACK := [\"rumor\", \"border.dawn_new\", \"rail\", \"homecoming\"]") < 0:
 		_bad("soft dawn stack moved")
@@ -194,7 +197,7 @@ func _check_bounds() -> bool:
 	if net.find("room_trace") >= 0 or net.find("trace.yard") >= 0 or net.find("seen_room_trace") >= 0:
 		_bad("map view gained a trace")
 		return false
-	print("Bounds: schema 21, dawn none, map none")
+	print("Bounds: schema 25, dawn none, map none")
 	print("Trace fields: " + ", ".join(RoomTrace.fields_read()))
 	return true
 
@@ -338,28 +341,102 @@ func _check_lines(catalog: Catalog) -> bool:
 
 
 func _check_save(catalog: Catalog) -> bool:
-	var game := _fresh(catalog)
-	game.flags["seen_room_trace"] = true
-	var data := game.export_state()
-	data["schema"] = Game.SAVE_SCHEMA
-	if int(data.schema) != 21:
+	if Game.SAVE_SCHEMA != 25:
 		_bad("export schema")
 		return false
-	var loaded := Game.new()
-	loaded.catalog = catalog
-	if not loaded.import_state(data) or not bool(loaded.flags.get("seen_room_trace", false)):
-		_bad("flag did not round-trip %s" % loaded.load_error)
+	var game := _fresh(catalog)
+	game.sdays["kept"] = {"plaza": 4}
+	game.carry["delivered"] = 3
+	game.echoes = {"plaza": {"kind": "deal", "week": 2}}
+	game.rival_log = {"exchange": {"kind": "bought", "week": 3, "target": "trampark"}}
+	game.callers.here = "exchange"
+	game.callers.why = "warm"
+	game.week = 12
+	game.scars = {"a|b": {"kind": "raid", "count": 1, "week": 4}}
+	game.flags["seen_room_trace"] = true
+	var full := game.export_state()
+	full["schema"] = 25
+	var again := Game.new()
+	again.catalog = catalog
+	if not again.import_state(full):
+		_bad("schema 25 " + again.load_error)
 		return false
-	data.flags.erase("seen_room_trace")
+	if not _kept_chain(again, true) or not bool(again.flags.get("seen_room_trace", false)):
+		_bad("schema 25 dropped a field or the flag")
+		return false
+	full.flags.erase("seen_room_trace")
 	var bare := Game.new()
 	bare.catalog = catalog
-	if not bare.import_state(data):
-		_bad("schema 21 without the flag refused: " + bare.load_error)
+	if not bare.import_state(full) or bool(bare.flags.get("seen_room_trace", false)):
+		_bad("schema 25 missing flag")
 		return false
-	if bool(bare.flags.get("seen_room_trace", false)):
-		_bad("missing flag came back set")
+	for ver in [20, 21, 22, 23, 24]:
+		var mixed := game.export_state()
+		mixed["schema"] = ver
+		var mid := Game.new()
+		mid.catalog = catalog
+		if not mid.import_state(mixed):
+			_bad("schema %d present %s" % [ver, mid.load_error])
+			return false
+		if not _kept_chain(mid, true) or not bool(mid.flags.get("seen_room_trace", false)):
+			_bad("schema %d dropped a present field or the flag" % ver)
+			return false
+	var days_only := game.export_state()
+	for key in ["carry", "echoes", "rival_log", "callers", "scars"]:
+		days_only.erase(key)
+	days_only["schema"] = 20
+	var v20 := Game.new()
+	v20.catalog = catalog
+	if not v20.import_state(days_only):
+		_bad("schema 20 " + v20.load_error)
 		return false
-	print("Save: ok (schema 21, flag in flags)")
+	if int(v20.sdays.kept.get("plaza", 0)) != 4 or int(v20.carry.delivered) != 0 or not v20.echoes.is_empty() or not v20.rival_log.is_empty() or str(v20.callers.get("here", "")) != "" or not v20.scars.is_empty():
+		_bad("schema 20 did not keep sdays and default the rest")
+		return false
+	var no_scars := game.export_state()
+	no_scars.erase("scars")
+	no_scars["schema"] = 24
+	var old24 := Game.new()
+	old24.catalog = catalog
+	if not old24.import_state(no_scars) or not old24.scars.is_empty() or str(old24.callers.get("here", "")) != "exchange":
+		_bad("schema 24 default scars")
+		return false
+	no_scars["schema"] = 25
+	var refused := Game.new()
+	refused.catalog = catalog
+	if refused.import_state(no_scars):
+		_bad("schema 25 accepted missing scars")
+		return false
+	var no_carry := game.export_state()
+	no_carry.erase("carry")
+	no_carry["schema"] = 21
+	var dropped := Game.new()
+	dropped.catalog = catalog
+	if dropped.import_state(no_carry):
+		_bad("schema 21 accepted missing carry")
+		return false
+	var future := game.export_state()
+	future["schema"] = 26
+	var too_new := Game.new()
+	too_new.catalog = catalog
+	if too_new.import_state(future):
+		_bad("schema 26 accepted")
+		return false
+	print("Save: ok (schema 25 round-trip, 20-24 keep present fields, 26 rejected)")
+	return true
+
+
+func _kept_chain(game: Game, with_scars: bool) -> bool:
+	if int(game.sdays.kept.get("plaza", 0)) != 4 or int(game.carry.delivered) != 3:
+		return false
+	if str(game.echoes.get("plaza", {}).get("kind", "")) != "deal":
+		return false
+	if str(game.rival_log.get("exchange", {}).get("kind", "")) != "bought":
+		return false
+	if str(game.callers.get("here", "")) != "exchange":
+		return false
+	if with_scars and str(game.scars.get("a|b", {}).get("kind", "")) != "raid":
+		return false
 	return true
 
 
@@ -579,17 +656,17 @@ func _check_fresh_plates(shots: bool) -> bool:
 					st._close_card()
 					await process_frame
 				var where := "%s %s run%d" % [tag, lang, pass_i + 1]
-				st._show_regular_yard(Copy.t("regular.first"))
-				st._show_sday_yard(Copy.t("sday.first"))
-				st._show_carry_yard(Copy.t("carry.first"))
-				st._show_trace_float(Copy.t("trace.first"))
+				_show_notice_order(st, false)
 				for _i in 3:
 					await process_frame
 				if not _notice_stack(st, where):
 					st.free()
 					return false
-				st.trace_float.visible = false
-				st._show_trace_float(Copy.t("trace.first"))
+				for key in ["regular", "sday", "carry", "echo", "rival", "caller", "scar", "trace"]:
+					var plate := st.get(str(key) + "_float") as PanelContainer
+					if plate != null:
+						plate.visible = false
+				_show_notice_order(st, false)
 				for _i in 2:
 					await process_frame
 				if not _notice_stack(st, where + " again"):
@@ -598,6 +675,24 @@ func _check_fresh_plates(shots: bool) -> bool:
 				if shots and pass_i == 0:
 					await _grab(st, "trace_%s_%s_stack" % [lang, tag])
 				st.free()
+				await process_frame
+				var rev = await _boot_station()
+				if rev == null:
+					_bad("reverse station")
+					return false
+				await _resize(rev, win_size)
+				Copy.set_lang(str(lang))
+				rev._load_fonts()
+				if rev.dim != null and rev.dim.visible:
+					rev._close_card()
+					await process_frame
+				_show_notice_order(rev, true)
+				for _i in 3:
+					await process_frame
+				if not _notice_stack(rev, where + " reverse"):
+					rev.free()
+					return false
+				rev.free()
 				await process_frame
 	print("Fresh plates: ok")
 	return true
@@ -613,8 +708,25 @@ func _boot_station():
 	return st
 
 
+func _show_notice_order(st, reverse: bool) -> void:
+	var steps: Array = [
+		["_show_regular_yard", "regular.first"],
+		["_show_sday_yard", "sday.first"],
+		["_show_carry_yard", "carry.first"],
+		["_show_echo_yard", "echo.first"],
+		["_show_rival_yard", "rival.first"],
+		["_show_caller_yard", "caller.first"],
+		["_show_scar_yard", "scar.first"],
+		["_show_trace_float", "trace.first"],
+	]
+	if reverse:
+		steps.reverse()
+	for step in steps:
+		st.call(str(step[0]), Copy.t(str(step[1])))
+
+
 func _notice_stack(st, tag: String) -> bool:
-	var keys := ["regular", "sday", "carry", "trace"]
+	var keys := ["regular", "sday", "carry", "echo", "rival", "caller", "scar", "trace"]
 	var prev := Rect2()
 	var have_prev := false
 	var view := Rect2(Vector2.ZERO, st.get_viewport_rect().size)

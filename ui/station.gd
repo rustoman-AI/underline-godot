@@ -221,6 +221,18 @@ var sday_float_tween: Tween
 var carry_float: PanelContainer
 var carry_float_label: Label
 var carry_float_tween: Tween
+var echo_float: PanelContainer
+var echo_float_label: Label
+var echo_float_tween: Tween
+var rival_float: PanelContainer
+var rival_float_label: Label
+var rival_float_tween: Tween
+var caller_float: PanelContainer
+var caller_float_label: Label
+var caller_float_tween: Tween
+var scar_float: PanelContainer
+var scar_float_label: Label
+var scar_float_tween: Tween
 ## P95 Room Trace. One muted yard strip, and the once-per-run YA1 float. Not a dawn chip.
 var yard_trace: PanelContainer
 var yard_trace_label: Label
@@ -1608,6 +1620,11 @@ func _process(_delta: float) -> void:
 	_try_regular_float()
 	_try_station_day_float()
 	_try_carry_float()
+	_try_echo_float()
+	_try_rival_float()
+	_try_caller_float()
+	_try_caller_left()
+	_try_scar_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -5297,7 +5314,7 @@ func _try_trace_float() -> void:
 func _show_trace_float(text: String) -> void:
 	if trace_float == null:
 		trace_float = PanelContainer.new()
-		trace_float.z_index = 30
+		trace_float.z_index = 8
 		trace_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		trace_float.focus_mode = Control.FOCUS_NONE
 		trace_float.add_theme_stylebox_override("panel", _tip_plate_style())
@@ -5321,6 +5338,7 @@ func _show_trace_float(text: String) -> void:
 	trace_float_label.text = text
 	trace_float.modulate.a = 1.0
 	trace_float.visible = true
+	_place_yard_notice(trace_float, trace_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float])
 	_restack_yard_notices()
 	if trace_float_tween != null and trace_float_tween.is_valid():
 		trace_float_tween.kill()
@@ -8210,6 +8228,64 @@ func _show_sday_yard(text: String) -> void:
 			sday_float.visible = false)
 
 
+## P61 first-float on the YA1 tip plate when the first caller is met off the map.
+func _try_caller_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := PlatformCallers.claim_first(game)
+	if line == "":
+		return
+	_show_caller_yard(line)
+
+
+func _show_caller_yard(text: String) -> void:
+	if caller_float == null:
+		caller_float = PanelContainer.new()
+		caller_float.z_index = 8
+		caller_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caller_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		caller_float.set_meta("caller_yard_float", true)
+		caller_float_label = Label.new()
+		caller_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caller_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		caller_float_label.clip_text = false
+		caller_float_label.add_theme_font_size_override("font_size", 18)
+		caller_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		caller_float_label.add_theme_constant_override("outline_size", 0)
+		caller_float.add_child(caller_float_label)
+		add_child(caller_float)
+	caller_float_label.text = text
+	caller_float.modulate.a = 1.0
+	caller_float.visible = true
+	_place_yard_notice(caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float])
+	_restack_yard_notices()
+	if caller_float_tween != null and caller_float_tween.is_valid():
+		caller_float_tween.kill()
+	caller_float_tween = create_tween()
+	if _motion_off():
+		caller_float_tween.tween_interval(4.2)
+	else:
+		caller_float_tween.tween_interval(1.1)
+		caller_float_tween.tween_property(caller_float, "modulate:a", 0.0, 0.8)
+	caller_float_tween.tween_callback(func() -> void:
+		if caller_float != null:
+			caller_float.visible = false)
+
+
+## Quiet P56 toast when the courier leaves. Not a modal and not a dawn chip.
+func _try_caller_left() -> void:
+	if game == null or not bool(game.get("caller_left_toast")):
+		return
+	game.caller_left_toast = false
+	var line := Copy.t("caller.left")
+	if line == "":
+		return
+	_toast(line)
+
 ## P61 first-float on the YA1 tip plate when the first note is taken off the map.
 func _try_carry_float() -> void:
 	if game == null or showing_network:
@@ -8257,23 +8333,53 @@ func _show_carry_yard(text: String) -> void:
 			carry_float.visible = false)
 
 
-## Yard notices in stack order. A hidden plate is skipped, so the three from the
-## epilogue pass stay put when Room Trace has not spoken yet.
-func _restack_yard_notices() -> void:
-	var rows: Array = [
-		[regular_float, regular_float_label],
-		[sday_float, sday_float_label],
-		[carry_float, carry_float_label],
-		[trace_float, trace_float_label],
-	]
-	var above: Array = []
-	for row in rows:
-		var plate: PanelContainer = row[0]
-		var label: Label = row[1]
-		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
-			continue
-		_place_yard_notice(plate, label, above)
-		above.append(plate)
+## P61 first-float on the YA1 tip plate when the map could not show the first echo.
+func _try_echo_float() -> void:
+	if game == null or showing_network:
+		return
+	if LineEcho.held_float == "":
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := LineEcho.held_float
+	LineEcho.held_float = ""
+	_show_echo_yard(line)
+
+
+func _show_echo_yard(text: String) -> void:
+	if echo_float == null:
+		echo_float = PanelContainer.new()
+		echo_float.z_index = 8
+		echo_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		echo_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		echo_float.set_meta("echo_yard_float", true)
+		echo_float_label = Label.new()
+		echo_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		echo_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		echo_float_label.clip_text = false
+		echo_float_label.add_theme_font_size_override("font_size", 18)
+		echo_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		echo_float_label.add_theme_constant_override("outline_size", 0)
+		echo_float.add_child(echo_float_label)
+		add_child(echo_float)
+	echo_float_label.text = text
+	echo_float.modulate.a = 1.0
+	echo_float.visible = true
+	_place_yard_notice(echo_float, echo_float_label, [regular_float, sday_float, carry_float])
+	_restack_yard_notices()
+	if echo_float_tween != null and echo_float_tween.is_valid():
+		echo_float_tween.kill()
+	echo_float_tween = create_tween()
+	if _motion_off():
+		echo_float_tween.tween_interval(4.2)
+	else:
+		echo_float_tween.tween_interval(1.1)
+		echo_float_tween.tween_property(echo_float, "modulate:a", 0.0, 0.8)
+	echo_float_tween.tween_callback(func() -> void:
+		if echo_float != null:
+			echo_float.visible = false)
 
 
 ## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
@@ -8318,6 +8424,128 @@ func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> vo
 		if other != null and is_instance_valid(other) and other.visible:
 			y = maxf(y, other.position.y + other.size.y + 4.0)
 	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
+
+
+## Face, Days, Carry, Echo, Rival, Caller, Scar, then Room Trace. Re-show measures each line again.
+func _restack_yard_notices() -> void:
+	var stack := [
+		[regular_float, regular_float_label, []],
+		[sday_float, sday_float_label, [regular_float]],
+		[carry_float, carry_float_label, [regular_float, sday_float]],
+		[echo_float, echo_float_label, [regular_float, sday_float, carry_float]],
+		[rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float]],
+		[caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float]],
+		[scar_float, scar_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float]],
+		[trace_float, trace_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float]],
+	]
+	for row in stack:
+		var plate := row[0] as PanelContainer
+		var label := row[1] as Label
+		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
+			continue
+		_place_yard_notice(plate, label, row[2])
+
+
+## P61 first-float on the YA1 tip plate when the first scar is written off the map.
+func _try_scar_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := PassageScars.claim_first(game)
+	if line == "":
+		return
+	_show_scar_yard(line)
+
+
+func _show_scar_yard(text: String) -> void:
+	if scar_float == null:
+		scar_float = PanelContainer.new()
+		scar_float.z_index = 8
+		scar_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		scar_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		scar_float.set_meta("scar_yard_float", true)
+		scar_float_label = Label.new()
+		scar_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		scar_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		scar_float_label.clip_text = false
+		scar_float_label.add_theme_font_size_override("font_size", 18)
+		scar_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		scar_float_label.add_theme_constant_override("outline_size", 0)
+		scar_float.add_child(scar_float_label)
+		add_child(scar_float)
+	scar_float_label.text = text
+	scar_float.modulate.a = 1.0
+	scar_float.visible = true
+	_place_yard_notice(scar_float, scar_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float])
+	_restack_yard_notices()
+	if scar_float_tween != null and scar_float_tween.is_valid():
+		scar_float_tween.kill()
+	scar_float_tween = create_tween()
+	if _motion_off():
+		scar_float_tween.tween_interval(4.2)
+	else:
+		scar_float_tween.tween_interval(1.1)
+		scar_float_tween.tween_property(scar_float, "modulate:a", 0.0, 0.8)
+	scar_float_tween.tween_callback(func() -> void:
+		if scar_float != null:
+			scar_float.visible = false)
+
+
+## P61 first-float. Map uses the X1 slip; the yard uses the shared notice stack. Not a dawn chip.
+func _try_rival_float() -> void:
+	if game == null or not RivalDesk.has_pending(game):
+		return
+	if showing_network:
+		if network_view != null and network_view.has_method("_show_rival_float") and network_view.visible and network_view.is_inside_tree():
+			var line := RivalDesk.claim(game)
+			if line != "":
+				network_view._show_rival_float(line)
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := RivalDesk.claim(game)
+	if line == "":
+		return
+	_show_rival_yard(line)
+
+
+func _show_rival_yard(text: String) -> void:
+	if rival_float == null:
+		rival_float = PanelContainer.new()
+		rival_float.z_index = 8
+		rival_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rival_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		rival_float.set_meta("rival_yard_float", true)
+		rival_float_label = Label.new()
+		rival_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rival_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		rival_float_label.clip_text = false
+		rival_float_label.add_theme_font_size_override("font_size", 18)
+		rival_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		rival_float_label.add_theme_constant_override("outline_size", 0)
+		rival_float.add_child(rival_float_label)
+		add_child(rival_float)
+	rival_float_label.text = text
+	rival_float.modulate.a = 1.0
+	rival_float.visible = true
+	_place_yard_notice(rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float])
+	_restack_yard_notices()
+	if rival_float_tween != null and rival_float_tween.is_valid():
+		rival_float_tween.kill()
+	rival_float_tween = create_tween()
+	if _motion_off():
+		rival_float_tween.tween_interval(4.2)
+	else:
+		rival_float_tween.tween_interval(1.1)
+		rival_float_tween.tween_property(rival_float, "modulate:a", 0.0, 0.8)
+	rival_float_tween.tween_callback(func() -> void:
+		if rival_float != null:
+			rival_float.visible = false)
 
 
 func _show_dawn() -> void:
