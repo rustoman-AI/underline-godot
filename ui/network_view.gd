@@ -2185,27 +2185,67 @@ func _show_leaf_float(line: String) -> void:
 	plate.visible = true
 	if _leaf_float_tween != null and _leaf_float_tween.is_valid():
 		_leaf_float_tween.kill()
-	_place_leaf_float()
-	if not is_inside_tree():
-		return
-	_leaf_float_tween = create_tween()
-	if _motion_off():
-		_leaf_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_leaf_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_leaf_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_leaf_float_tween.tween_callback(func() -> void:
-		if _leaf_float != null:
-			_leaf_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_leaf_float_tween = _begin_map_float(_leaf_float)
 
 
 ## N4b: the top of the map float stack (deal, first warmth, leaflet; 34 px apart). It starts under the HUD with room
 ## for the 18 px rise, so no float ends on the black bar. X1 plates these chips; this y math stays.
 func _float_top() -> float:
 	return _hud_top() + 8.0 + 18.0
+
+
+## Deal, warmth, leaflet, transfer, Face, Days, Carry, Echo, Rival, Caller, Scar.
+## A later slip takes its own slot instead of landing on an earlier one.
+func _map_float_labels() -> Array:
+	return [
+		_deal_float, _warm_float, _leaf_float, _transfer_float,
+		_regular_float, _sday_float, _carry_float, _echo_float,
+		_rival_float, _caller_float, _scar_float,
+	]
+
+
+func _restack_map_floats() -> void:
+	var y := _float_top()
+	for label in _map_float_labels():
+		var lab := label as Label
+		if lab == null or not is_instance_valid(lab) or not lab.visible:
+			continue
+		var plate := _float_plate(lab)
+		var rise := float(plate.get_meta("map_float_rise", 0.0))
+		_place_float_chip(lab, y - rise)
+		y += 34.0
+
+
+func _set_map_float_rise(value: float, plate: Control) -> void:
+	if plate == null or not is_instance_valid(plate):
+		return
+	plate.set_meta("map_float_rise", value)
+	_restack_map_floats()
+
+
+## static_only keeps the transfer slip's hold: 4.2 s, no rise. The others rise only when motion is on.
+func _begin_map_float(label: Label, static_only := false) -> Tween:
+	if label == null or not is_instance_valid(label):
+		return null
+	var plate := _float_plate(label)
+	plate.set_meta("map_float_rise", 0.0)
+	_restack_map_floats()
+	if not is_inside_tree():
+		return null
+	var tween := create_tween()
+	if static_only or _motion_off():
+		tween.tween_interval(4.2)
+	else:
+		tween.tween_method(_set_map_float_rise.bind(plate), 0.0, 18.0, 2.4)
+		tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(label):
+			label.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false
+			plate.set_meta("map_float_rise", 0.0)
+		_restack_map_floats())
+	return tween
 
 
 ## X1 / N10 / R12: the map toast slip, tightened so a 28 px line plus paper still fits the 34 px N4b slot.
@@ -2263,14 +2303,7 @@ func _place_float_chip(label: Label, y: float) -> void:
 
 
 func _place_leaf_float() -> void:
-	if _leaf_float == null or not _leaf_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	_place_float_chip(_leaf_float, y)
+	_restack_map_floats()
 
 
 ## Visit status. Hub live is the line; owned but not a Hub is muted. No desk, no picker.
@@ -2327,29 +2360,11 @@ func _show_transfer_float(line: String) -> void:
 	plate.visible = true
 	if _transfer_float_tween != null and _transfer_float_tween.is_valid():
 		_transfer_float_tween.kill()
-	_place_transfer_float()
-	if not is_inside_tree():
-		return
-	_transfer_float_tween = create_tween()
-	_transfer_float_tween.tween_interval(4.2)
-	_transfer_float_tween.tween_callback(func() -> void:
-		if _transfer_float != null:
-			_transfer_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_transfer_float_tween = _begin_map_float(_transfer_float, true)
 
 
 func _place_transfer_float() -> void:
-	if _transfer_float == null or not _transfer_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	_place_float_chip(_transfer_float, y)
+	_restack_map_floats()
 
 
 ## First need tick of a run, and only once the visit sheet for that station is open.
@@ -2617,48 +2632,11 @@ func _show_scar_float(line: String) -> void:
 	plate.visible = true
 	if _scar_float_tween != null and _scar_float_tween.is_valid():
 		_scar_float_tween.kill()
-	_place_scar_float()
-	if not is_inside_tree():
-		return
-	_scar_float_tween = create_tween()
-	if _motion_off():
-		_scar_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_scar_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_scar_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_scar_float_tween.tween_callback(func() -> void:
-		if _scar_float != null:
-			_scar_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_scar_float_tween = _begin_map_float(_scar_float)
 
 
 func _place_scar_float() -> void:
-	if _scar_float == null or not _scar_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	if _regular_float != null and _regular_float.visible:
-		y += 34.0
-	if _sday_float != null and _sday_float.visible:
-		y += 34.0
-	if _carry_float != null and _carry_float.visible:
-		y += 34.0
-	if _echo_float != null and _echo_float.visible:
-		y += 34.0
-	if _rival_float != null and _rival_float.visible:
-		y += 34.0
-	if _caller_float != null and _caller_float.visible:
-		y += 34.0
-	_place_float_chip(_scar_float, y)
+	_restack_map_floats()
 
 
 ## Owned-edge tip. Flow, Duty, and Toll lines stay above the scar. Width family is P89 (360).
@@ -3069,30 +3047,11 @@ func _show_warm_float(line: String) -> void:
 	plate.visible = true
 	if _warm_float_tween != null and _warm_float_tween.is_valid():
 		_warm_float_tween.kill()
-	_place_warm_float()
-	if not is_inside_tree():
-		return
-	_warm_float_tween = create_tween()
-	if _motion_off():
-		_warm_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_warm_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_warm_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_warm_float_tween.tween_callback(func() -> void:
-		if _warm_float != null:
-			_warm_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_warm_float_tween = _begin_map_float(_warm_float)
 
 
 func _place_warm_float() -> void:
-	if _warm_float == null or not _warm_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	_place_float_chip(_warm_float, y)
+	_restack_map_floats()
 
 
 func _note_first_deal_marks() -> void:
@@ -3120,27 +3079,11 @@ func _show_deal_float(line: String) -> void:
 	plate.visible = true
 	if _deal_float_tween != null and _deal_float_tween.is_valid():
 		_deal_float_tween.kill()
-	_place_deal_float()
-	if not is_inside_tree():
-		return
-	_deal_float_tween = create_tween()
-	if _motion_off():
-		_deal_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_deal_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_deal_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_deal_float_tween.tween_callback(func() -> void:
-		if _deal_float != null:
-			_deal_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_deal_float_tween = _begin_map_float(_deal_float)
 
 
 func _place_deal_float() -> void:
-	if _deal_float == null or not _deal_float.visible:
-		return
-	_place_float_chip(_deal_float, _float_top())
+	_restack_map_floats()
 
 
 func _draw_deal_pips(c: CanvasItem, game) -> void:
@@ -6399,42 +6342,11 @@ func _show_echo_float(line: String) -> void:
 	plate.visible = true
 	if _echo_float_tween != null and _echo_float_tween.is_valid():
 		_echo_float_tween.kill()
-	_place_echo_float()
-	if not is_inside_tree():
-		return
-	_echo_float_tween = create_tween()
-	if _motion_off():
-		_echo_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_echo_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_echo_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_echo_float_tween.tween_callback(func() -> void:
-		if _echo_float != null:
-			_echo_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_echo_float_tween = _begin_map_float(_echo_float)
 
 
 func _place_echo_float() -> void:
-	if _echo_float == null or not _echo_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	if _regular_float != null and _regular_float.visible:
-		y += 34.0
-	if _sday_float != null and _sday_float.visible:
-		y += 34.0
-	if _carry_float != null and _carry_float.visible:
-		y += 34.0
-	_place_float_chip(_echo_float, y)
+	_restack_map_floats()
 
 
 ## One Face under the station head and above Details. Cap 1 line. Hosts the P87 greet.
@@ -6629,21 +6541,7 @@ func _show_regular_float(line: String) -> void:
 	plate.visible = true
 	if _regular_float_tween != null and _regular_float_tween.is_valid():
 		_regular_float_tween.kill()
-	_place_regular_float()
-	if not is_inside_tree():
-		return
-	_regular_float_tween = create_tween()
-	if _motion_off():
-		_regular_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_regular_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_regular_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_regular_float_tween.tween_callback(func() -> void:
-		if _regular_float != null:
-			_regular_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_regular_float_tween = _begin_map_float(_regular_float)
 
 
 ## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
@@ -6676,46 +6574,11 @@ func _show_caller_float(line: String) -> void:
 	plate.visible = true
 	if _caller_float_tween != null and _caller_float_tween.is_valid():
 		_caller_float_tween.kill()
-	_place_caller_float()
-	if not is_inside_tree():
-		return
-	_caller_float_tween = create_tween()
-	if _motion_off():
-		_caller_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_caller_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_caller_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_caller_float_tween.tween_callback(func() -> void:
-		if _caller_float != null:
-			_caller_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_caller_float_tween = _begin_map_float(_caller_float)
 
 
 func _place_caller_float() -> void:
-	if _caller_float == null or not _caller_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	if _regular_float != null and _regular_float.visible:
-		y += 34.0
-	if _sday_float != null and _sday_float.visible:
-		y += 34.0
-	if _carry_float != null and _carry_float.visible:
-		y += 34.0
-	if _echo_float != null and _echo_float.visible:
-		y += 34.0
-	if _rival_float != null and _rival_float.visible:
-		y += 34.0
-	_place_float_chip(_caller_float, y)
+	_restack_map_floats()
 
 
 ## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
@@ -6745,53 +6608,15 @@ func _show_carry_float(line: String) -> void:
 	plate.visible = true
 	if _carry_float_tween != null and _carry_float_tween.is_valid():
 		_carry_float_tween.kill()
-	_place_carry_float()
-	if not is_inside_tree():
-		return
-	_carry_float_tween = create_tween()
-	if _motion_off():
-		_carry_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_carry_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_carry_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_carry_float_tween.tween_callback(func() -> void:
-		if _carry_float != null:
-			_carry_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_carry_float_tween = _begin_map_float(_carry_float)
 
 
 func _place_carry_float() -> void:
-	if _carry_float == null or not _carry_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	if _regular_float != null and _regular_float.visible:
-		y += 34.0
-	_place_float_chip(_carry_float, y)
+	_restack_map_floats()
 
 
 func _place_regular_float() -> void:
-	if _regular_float == null or not _regular_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	_place_float_chip(_regular_float, y)
+	_restack_map_floats()
 
 
 ## Visit status. Known stations only. Today, soon, or quiet. Not focusable. Tooltip is the description plus the shared tip.
@@ -6887,38 +6712,11 @@ func _show_sday_float(line: String) -> void:
 	plate.visible = true
 	if _sday_float_tween != null and _sday_float_tween.is_valid():
 		_sday_float_tween.kill()
-	_place_sday_float()
-	if not is_inside_tree():
-		return
-	_sday_float_tween = create_tween()
-	if _motion_off():
-		_sday_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_sday_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_sday_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_sday_float_tween.tween_callback(func() -> void:
-		if _sday_float != null:
-			_sday_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_sday_float_tween = _begin_map_float(_sday_float)
 
 
 func _place_sday_float() -> void:
-	if _sday_float == null or not _sday_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	if _regular_float != null and _regular_float.visible:
-		y += 34.0
-	_place_float_chip(_sday_float, y)
+	_restack_map_floats()
 
 
 ## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
@@ -6941,44 +6739,11 @@ func _show_rival_float(line: String) -> void:
 	plate.visible = true
 	if _rival_float_tween != null and _rival_float_tween.is_valid():
 		_rival_float_tween.kill()
-	_place_rival_float()
-	if not is_inside_tree():
-		return
-	_rival_float_tween = create_tween()
-	if _motion_off():
-		_rival_float_tween.tween_interval(4.2)
-	else:
-		var rise := plate.position.y - 18.0
-		_rival_float_tween.tween_property(plate, "position:y", rise, 2.4)
-		_rival_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
-	_rival_float_tween.tween_callback(func() -> void:
-		if _rival_float != null:
-			_rival_float.visible = false
-		if is_instance_valid(plate):
-			plate.visible = false)
+	_rival_float_tween = _begin_map_float(_rival_float)
 
 
 func _place_rival_float() -> void:
-	if _rival_float == null or not _rival_float.visible:
-		return
-	var y := _float_top()
-	if _deal_float != null and _deal_float.visible:
-		y += 34.0
-	if _warm_float != null and _warm_float.visible:
-		y += 34.0
-	if _leaf_float != null and _leaf_float.visible:
-		y += 34.0
-	if _transfer_float != null and _transfer_float.visible:
-		y += 34.0
-	if _regular_float != null and _regular_float.visible:
-		y += 34.0
-	if _sday_float != null and _sday_float.visible:
-		y += 34.0
-	if _carry_float != null and _carry_float.visible:
-		y += 34.0
-	if _echo_float != null and _echo_float.visible:
-		y += 34.0
-	_place_float_chip(_rival_float, y)
+	_restack_map_floats()
 
 
 static func day_tooltip(text: String) -> Control:

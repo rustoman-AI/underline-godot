@@ -6,7 +6,10 @@ const Night = preload("res://sim/night_runs.gd")
 
 ## P94 Passage Scars gate.
 ##   godot --headless --path . -s res://sim/check_passage_scars.gd
+##   UNDERLINE_SCARS_SHOTS=/tmp/scars godot --rendering-driver opengl3 --path . -s res://sim/check_passage_scars.gd
 ## PS-U1..U8. Schema 25. Careful seeds 1–60 match with the pack on and off.
+## Headless runs skip screenshots and do not claim the visual gate. A real renderer
+## writes PNGs to UNDERLINE_SCARS_SHOTS, UNDERLINE_SHOTS_DIR, or --shots-dir=.
 
 const BASELINE_LOST := 20
 const MASTER_HASH := [
@@ -35,7 +38,8 @@ const RU := {
 	"scar.first": "Проход сохранил отметину.",
 	"scar.tip": "Свои тоннели помнят насилие.",
 }
-const SHOTS := "/opt/cursor/artifacts"
+var _shots_skipped := false
+var _shots_saved := 0
 
 
 class Host extends Node:
@@ -103,6 +107,10 @@ func _run() -> void:
 		quit(1)
 		return
 	Scars.enabled = true
+	if _shots_skipped:
+		print("SCARS SHOTS SKIP no renderer")
+	elif _shots_saved > 0:
+		print("SCARS SHOTS %d %s" % [_shots_saved, _shot_dir()])
 	print("SCARS OK")
 	quit(0)
 
@@ -1100,7 +1108,31 @@ func _shot_surface(view: NetworkView, sid: String, far: String, kind: String, na
 	await _shot(view, name)
 
 
+func _shot_dir() -> String:
+	var dir := OS.get_environment("UNDERLINE_SCARS_SHOTS")
+	if dir == "":
+		dir = OS.get_environment("UNDERLINE_SHOTS_DIR")
+	for arg in OS.get_cmdline_user_args():
+		if str(arg).begins_with("--shots-dir="):
+			dir = str(arg).trim_prefix("--shots-dir=")
+	if dir == "":
+		dir = "user://scars_shots"
+	if dir.begins_with("user://") or dir.begins_with("res://"):
+		dir = ProjectSettings.globalize_path(dir)
+	return dir
+
+
+func _renderer_live() -> bool:
+	if OS.has_feature("headless") or DisplayServer.get_name() == "headless":
+		return false
+	return true
+
+
 func _shot(_view: Control, name: String) -> void:
+	if not _renderer_live():
+		_shots_skipped = true
+		print("SCARS SHOT SKIP %s no renderer" % name)
+		return
 	await process_frame
 	RenderingServer.force_draw()
 	var tex := root.get_texture()
@@ -1110,10 +1142,16 @@ func _shot(_view: Control, name: String) -> void:
 	if img == null or img.get_width() < 2:
 		_bad("no image " + name)
 		return
-	DirAccess.make_dir_recursive_absolute(SHOTS)
-	var err := img.save_png(SHOTS.path_join(name + ".png"))
+	var dir := _shot_dir()
+	var made := DirAccess.make_dir_recursive_absolute(dir)
+	if made != OK and not DirAccess.dir_exists_absolute(dir):
+		_bad("shot dir %s err %s" % [dir, str(made)])
+		return
+	var err := img.save_png(dir.path_join(name + ".png"))
 	if err != OK:
 		_bad("shot %s err %s" % [name, str(err)])
+		return
+	_shots_saved += 1
 
 
 func _outcome_hash(game: Game) -> int:
