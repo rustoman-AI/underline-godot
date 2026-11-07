@@ -233,6 +233,12 @@ var caller_float_tween: Tween
 var scar_float: PanelContainer
 var scar_float_label: Label
 var scar_float_tween: Tween
+## P95 Room Trace. One muted yard strip, and the once-per-run YA1 float. Not a dawn chip.
+var yard_trace: PanelContainer
+var yard_trace_label: Label
+var trace_float: PanelContainer
+var trace_float_label: Label
+var trace_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1609,6 +1615,7 @@ func _process(_delta: float) -> void:
 	_pulse_alarms()
 	_tick_away_float()
 	_tick_sick_cots()
+	_tick_yard_trace()
 	_try_obs_float()
 	_try_regular_float()
 	_try_station_day_float()
@@ -1657,6 +1664,7 @@ func _build() -> void:
 	yard.set_anchors_preset(Control.PRESET_FULL_RECT)
 	yard.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(yard)
+	_build_yard_trace()
 	network_view = NetworkViewScript.new()
 	network_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	network_view.visible = false
@@ -2618,7 +2626,9 @@ func _shrink_card() -> void:
 	var max_h := size.y - top_limit - bottom_limit
 	if card_fit_tries == 0 and card_body.get_theme_constant("separation") > 2:
 		_space_buttons(BUTTON_GAP)
-	var content_h := card_body.size.y
+	## size.y is the scroll viewport once the card is short, so a line added after the
+	## first fit (Room Trace) would be clipped. The minimum size is the real content.
+	var content_h := maxf(card_body.size.y, card_body.get_combined_minimum_size().y)
 	card_fit_tries += 1
 	if card_fit_tries > 30:
 		return
@@ -5152,6 +5162,7 @@ func _show_room(uid: String) -> void:
 			title_row.move_child(badge, 2)
 			card_body.add_child(line)
 	help_unfold = false
+	_add_room_trace(str(detail.type))
 	if blocked:
 		var cells: Array = detail.get("cells", [])
 		if cells.size() >= 2:
@@ -5196,6 +5207,150 @@ func _show_room(uid: String) -> void:
 		card_body.add_child(_button("Laws", _show_laws))
 	_room_push(uid)
 	_room_switch(uid)
+	_fit_card()
+
+
+## One muted glance under the room name. Not a button, not focusable, no board.
+func _add_room_trace(room_type: String) -> void:
+	if game == null or not RoomTrace.enabled or RoomTrace.SKIP.has(room_type):
+		return
+	var text := RoomTrace.line_for(game, room_type)
+	if text == "":
+		return
+	var lab := _label("", 15, false, false)
+	lab.text = text
+	lab.add_theme_color_override("font_color", PAPER_MUTED)
+	lab.add_theme_constant_override("outline_size", 0)
+	lab.mouse_filter = Control.MOUSE_FILTER_STOP
+	lab.focus_mode = Control.FOCUS_NONE
+	lab.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	lab.tooltip_text = RoomTrace.tip()
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hold_label(lab, 15)
+	lab.set_meta("room_trace", room_type)
+	lab.set_meta("trace_key", RoomTrace.key_for(game, room_type))
+	card_body.add_child(lab)
+	card_body.move_child(lab, 1)
+	_try_trace_float()
+
+
+func _build_yard_trace() -> void:
+	yard_trace = PanelContainer.new()
+	yard_trace.visible = false
+	yard_trace.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	yard_trace.focus_mode = Control.FOCUS_NONE
+	yard_trace.z_index = 6
+	yard_trace.set_meta("room_trace", "yard")
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color(0.05, 0.04, 0.03, 0.82)
+	face.set_content_margin_all(4)
+	face.set_corner_radius_all(2)
+	yard_trace.add_theme_stylebox_override("panel", face)
+	yard_trace_label = Label.new()
+	yard_trace_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	yard_trace_label.focus_mode = Control.FOCUS_NONE
+	yard_trace_label.clip_text = false
+	yard_trace_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	yard_trace_label.add_theme_font_size_override("font_size", 14)
+	yard_trace_label.add_theme_color_override("font_color", PAPER_MUTED)
+	yard_trace_label.add_theme_constant_override("outline_size", 0)
+	if body_font != null:
+		yard_trace_label.add_theme_font_override("font", body_font)
+	yard_trace.add_child(yard_trace_label)
+	yard.add_child(yard_trace)
+
+
+## P41 clearance strip. One line for the uncleared piles. Not a room card.
+func _tick_yard_trace() -> void:
+	if yard_trace == null or yard_trace_label == null or yard == null:
+		return
+	if game == null or not RoomTrace.enabled or showing_network or not yard.visible:
+		yard_trace.visible = false
+		yard.trace_rect = Rect2()
+		return
+	var text := RoomTrace.yard_line(game)
+	if text == "":
+		yard_trace.visible = false
+		yard.trace_rect = Rect2()
+		return
+	var anchor: Rect2 = yard.trace_anchor()
+	if anchor.size.x < 8.0:
+		yard_trace.visible = false
+		yard.trace_rect = Rect2()
+		return
+	if body_font != null:
+		yard_trace_label.add_theme_font_override("font", body_font)
+	yard_trace_label.text = text
+	yard_trace_label.tooltip_text = RoomTrace.tip()
+	_hold_label(yard_trace_label, 14)
+	yard_trace.visible = true
+	yard_trace.reset_size()
+	var sz := yard_trace.get_combined_minimum_size()
+	if sz.x < 8.0:
+		sz.x = anchor.size.x
+	if sz.y < 8.0:
+		sz.y = anchor.size.y
+	var top := (hud.size.y if hud != null else 72.0) + 4.0
+	var x := clampf(anchor.position.x, 8.0, maxf(8.0, size.x - sz.x - 8.0))
+	var y := clampf(anchor.position.y, top, maxf(top, size.y - sz.y - 8.0))
+	yard_trace.position = Vector2(x, y)
+	yard_trace.size = sz
+	yard.trace_rect = Rect2(yard_trace.position, yard_trace.size)
+	_try_trace_float()
+
+
+## P61 first-float on the YA1 tip plate the first time any trace line is shown.
+func _try_trace_float() -> void:
+	if game == null or not RoomTrace.enabled or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	var line := RoomTrace.claim_first(game)
+	if line == "":
+		return
+	_show_trace_float(line)
+
+
+func _show_trace_float(text: String) -> void:
+	if trace_float == null:
+		trace_float = PanelContainer.new()
+		trace_float.z_index = 8
+		trace_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		trace_float.focus_mode = Control.FOCUS_NONE
+		trace_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		trace_float.set_meta("trace_yard_float", true)
+		trace_float_label = Label.new()
+		trace_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		## Width comes from _place_yard_notice. WORD_SMART before that stacks every glyph.
+		trace_float_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		trace_float_label.clip_text = false
+		trace_float_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		trace_float_label.focus_mode = Control.FOCUS_NONE
+		trace_float_label.add_theme_font_size_override("font_size", 18)
+		trace_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		trace_float_label.add_theme_constant_override("outline_size", 0)
+		if body_font != null:
+			trace_float_label.add_theme_font_override("font", body_font)
+		trace_float.add_child(trace_float_label)
+		add_child(trace_float)
+	if body_font != null:
+		trace_float_label.add_theme_font_override("font", body_font)
+	trace_float_label.text = text
+	trace_float.modulate.a = 1.0
+	trace_float.visible = true
+	_place_yard_notice(trace_float, trace_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float])
+	_restack_yard_notices()
+	if trace_float_tween != null and trace_float_tween.is_valid():
+		trace_float_tween.kill()
+	trace_float_tween = create_tween()
+	if _motion_off():
+		trace_float_tween.tween_interval(4.2)
+	else:
+		trace_float_tween.tween_interval(1.1)
+		trace_float_tween.tween_property(trace_float, "modulate:a", 0.0, 0.8)
+	trace_float_tween.tween_callback(func() -> void:
+		if trace_float != null:
+			trace_float.visible = false)
 
 
 func _listening_card(uid: String) -> void:
@@ -8011,7 +8166,6 @@ func _show_regular_yard(text: String) -> void:
 	regular_float_label.text = text
 	regular_float.modulate.a = 1.0
 	regular_float.visible = true
-	_place_yard_notice(regular_float, regular_float_label, [])
 	_restack_yard_notices()
 	if regular_float_tween != null and regular_float_tween.is_valid():
 		regular_float_tween.kill()
@@ -8060,7 +8214,6 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_label.text = text
 	sday_float.modulate.a = 1.0
 	sday_float.visible = true
-	_place_yard_notice(sday_float, sday_float_label, [regular_float])
 	_restack_yard_notices()
 	if sday_float_tween != null and sday_float_tween.is_valid():
 		sday_float_tween.kill()
@@ -8166,7 +8319,6 @@ func _show_carry_yard(text: String) -> void:
 	carry_float_label.text = text
 	carry_float.modulate.a = 1.0
 	carry_float.visible = true
-	_place_yard_notice(carry_float, carry_float_label, [regular_float, sday_float])
 	_restack_yard_notices()
 	if carry_float_tween != null and carry_float_tween.is_valid():
 		carry_float_tween.kill()
@@ -8232,7 +8384,7 @@ func _show_echo_yard(text: String) -> void:
 
 ## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
 ## column after the label later receives a width. Give the line a real width
-## before the plate measures, then stack the notices on their real heights.
+## before the plate measures, then stack the yard notices on their real heights.
 func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> void:
 	var pad := Vector2(16, 16)
 	var face := plate.get_theme_stylebox("panel")
@@ -8248,7 +8400,19 @@ func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> vo
 	# A maximum of 0 is a real cap. -1 is "no cap", which the line height needs.
 	label.custom_maximum_size = Vector2(inner, -1)
 	label.custom_minimum_size = Vector2(inner, 0)
+	label.reset_size()
+	label.update_minimum_size()
 	var text_h := maxf(label.get_combined_minimum_size().y, 22.0)
+	## A first sort can still report one glyph per line. Keep the wrapped height instead.
+	var font := label.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var px := int(label.get_theme_font_size("font_size"))
+	if px <= 0:
+		px = 18
+	var wrapped := font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, inner, px).y
+	if wrapped > 1.0 and text_h > maxf(wrapped * 2.0, 96.0):
+		text_h = maxf(wrapped, 22.0)
 	label.custom_minimum_size = Vector2(inner, text_h)
 	var h := maxf(text_h + pad.y, 36.0)
 	plate.custom_minimum_size = Vector2(420, h)
@@ -8262,7 +8426,7 @@ func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> vo
 	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
 
 
-## Face, Days, Carry, Echo, Rival, Caller, then the scar. Re-show measures each line again.
+## Face, Days, Carry, Echo, Rival, Caller, Scar, then Room Trace. Re-show measures each line again.
 func _restack_yard_notices() -> void:
 	var stack := [
 		[regular_float, regular_float_label, []],
@@ -8272,6 +8436,7 @@ func _restack_yard_notices() -> void:
 		[rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float]],
 		[caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float]],
 		[scar_float, scar_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float]],
+		[trace_float, trace_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float]],
 	]
 	for row in stack:
 		var plate := row[0] as PanelContainer
@@ -15464,6 +15629,7 @@ class Yard extends Control:
 	var line_wall_tex: Texture2D
 	var line_wall_ready := false
 	var wall_hit := Rect2()
+	var trace_rect := Rect2()
 	var dust_tried := false
 	var clear_dust_cell := Vector2i(-1, -1)
 	var clear_dust_until := 0
@@ -17376,7 +17542,26 @@ class Yard extends Control:
 				return mark
 		return {}
 
+	func trace_anchor() -> Rect2:
+		if station == null or station.game == null or not RoomTrace.enabled:
+			return Rect2()
+		var spot := RoomTrace.yard_spot(station.game)
+		if spot.is_empty():
+			return Rect2()
+		var screen := _screen_of(_geo(), int(spot.level), int(spot.cell))
+		## On the floor by the pile, clear of the top-of-yard first float.
+		var y := screen.end.y - 40.0
+		if station._clearing_cell(int(spot.level), int(spot.cell)):
+			y = minf(screen.position.y + 78.0, screen.end.y - 40.0)
+		var w := minf(maxf(220.0, screen.size.x - 16.0), 360.0)
+		var x := screen.get_center().x - w * 0.5
+		return Rect2(x, y, w, 28.0)
+
 	func _get_tooltip(at_position: Vector2) -> String:
+		if RoomTrace.enabled and trace_rect.has_point(at_position):
+			var glance := RoomTrace.tip()
+			if glance != "":
+				return glance
 		var extra := _more_at(at_position)
 		if not extra.is_empty():
 			return str(extra.get("tip", ""))

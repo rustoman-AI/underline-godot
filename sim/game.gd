@@ -13581,6 +13581,11 @@ func passage_scars_dawn_chip() -> bool:
 	return PassageScars.dawn_chip()
 
 
+## Always false. P95 Room Trace is a room glance and a first float. Not a soft dawn chip.
+func room_trace_dawn_chip() -> bool:
+	return RoomTrace.dawn_chip()
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true

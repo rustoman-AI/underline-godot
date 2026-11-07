@@ -1,0 +1,54 @@
+{
+  "_note": "P95 Room Trace (NEW invent — DEC-RT1…RT3). Namespace trace.* only. No extra sim var beyond seen_room_trace. Bind existing fields only: Infirmary cots, Guest bunks (P83), Listening Post up/blown (P75), Salvage Board listed (P76), yard piles (P41). Hide if empty — never print 0 to fill. trace.radio.down omitted (SPEC: hide). Extra rooms FLAG-later. Soft dawn NONE. Balance ZERO. EN via Copy.t; RU in by_key.",
+  "_roadmap": "P95",
+  "_owners": "Texts; Code derive five lines from existing fields + first float; UIUX one muted line per room/yard; Art none",
+  "_status": "Designer APPROVED / Code-ready — stamped 2026-11-05. Soft dawn NONE. Balance ZERO. Ieva Rusk / Иева Раск locked. rival.title RU «Чужие» kept. P95 Room Trace, 8 trace.* (radio.down omitted per SPEC).",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P85 Outpost Ledger — same bind idea for outpost Visit; do not read ledger fields into home (cite; unreopened)",
+    "P41 Yard Clearance — piles (cite)",
+    "P48 Sick Cots / P61 Infirmary Care — occupied cots (cite)",
+    "P75 Listening Post — radio/post state (cite; unreopened)",
+    "P76 Salvage Board — workshop glance (cite; unreopened)",
+    "P83 Guest Beds — quarters/guest seats (cite; unreopened)",
+    "P79 Shift Board — do not reopen assign chrome (cite)"
+  ],
+  "_placeholders": [
+    "{n}"
+  ],
+  "by_key": {
+    "trace.infirmary": {
+      "en": "{n} on the cots.",
+      "ru": "На койках: {n}."
+    },
+    "trace.quarters": {
+      "en": "{n} in the guest bunks.",
+      "ru": "В гостевых нарах: {n}."
+    },
+    "trace.radio.up": {
+      "en": "The post is listening.",
+      "ru": "Пост слушает."
+    },
+    "trace.radio.blown": {
+      "en": "The post went quiet.",
+      "ru": "Пост затих."
+    },
+    "trace.workshop": {
+      "en": "Salvage is waiting on the bench.",
+      "ru": "На верстаке ждёт утиль."
+    },
+    "trace.yard": {
+      "en": "{n} piles still in the yard.",
+      "ru": "Во дворе ещё куч: {n}."
+    },
+    "trace.first": {
+      "en": "The rooms say how they are.",
+      "ru": "Комнаты сами говорят, как они."
+    },
+    "trace.tip": {
+      "en": "Built rooms tell you how the week left them.",
+      "ru": "Построенные комнаты показывают, какой их оставила неделя."
+    }
+  },
+  "_designer": "APPROVED"
+}
