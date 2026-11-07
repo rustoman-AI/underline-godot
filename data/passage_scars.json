@@ -1,0 +1,47 @@
+{
+  "_note": "P94 Passage Scars (NEW invent — DEC-PS1…PS3). Spec: PASSAGE_SCARS_P94_SPEC. Namespace scar.* only. Code state scars. Owned passage remembers last raid/assault or P74 night-run death on either end; tip + optional Visit line (cap 1). No map tick (slots full). Soft dawn NONE. Balance ZERO. Do not collide Duty/Toll/Flow copy. EN via Copy.t; RU in by_key.",
+  "_roadmap": "P94",
+  "_owners": "Texts; Code scars dict + edge tip + optional Visit line + first float; UIUX tip/Visit; Art none",
+  "_status": "Designer APPROVED / Code-ready — stamped 2026-11-05. Soft dawn NONE. Balance ZERO. Schema 25 on this branch. P91 echoes / P92 rival_log / P93 callers stay unmerged and are not imported. Ieva Rusk / Иева Раск locked. rival.title RU «Чужие» kept. P94 Passage Scars, 6 scar.*.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P53 Raid Share — raid/assault resolve (cite)",
+    "P74 Night Runs — _kill/_capture site station (cite)",
+    "P81 Passage Duty — edge seats stay; Scar is memory not a seat (cite; unreopened)",
+    "P58 Passage Flow — edge geometry cite only",
+    "P77 Line Wall — home chronicle different surface (cite)",
+    "P47 Leaflet Dust — leaflet pip stays (cite)",
+    "P86 Quiet Toll — tip order cite; do not collide copy"
+  ],
+  "_placeholders": [
+    "{n}",
+    "{count}"
+  ],
+  "by_key": {
+    "scar.raid": {
+      "en": "This stretch remembers a raid (week {n}).",
+      "ru": "Этот перегон помнит рейд (неделя {n})."
+    },
+    "scar.raid_n": {
+      "en": "This stretch remembers raids ({count}; last week {n}).",
+      "ru": "Этот перегон помнит рейды ({count}; последний — неделя {n})."
+    },
+    "scar.night": {
+      "en": "Someone did not come back along here (week {n}).",
+      "ru": "Кто-то здесь не вернулся (неделя {n})."
+    },
+    "scar.night_n": {
+      "en": "People have not come back along here ({count}; last week {n}).",
+      "ru": "Здесь не возвращались ({count}; последний — неделя {n})."
+    },
+    "scar.first": {
+      "en": "The passage kept a mark.",
+      "ru": "Проход сохранил отметину."
+    },
+    "scar.tip": {
+      "en": "Owned tunnels remember violence.",
+      "ru": "Свои тоннели помнят насилие."
+    }
+  },
+  "_designer": "APPROVED"
+}
