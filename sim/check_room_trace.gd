@@ -49,6 +49,8 @@ func _run() -> void:
 		_failed = true
 	if not await _check_ui(catalog, shots):
 		_failed = true
+	if not await _check_fresh_plates(shots):
+		_failed = true
 	if FileAccess.get_file_as_string("res://data/balance.json") != balance_text:
 		_bad("balance.json changed")
 	if shots:
@@ -427,6 +429,11 @@ func _check_ui(catalog: Catalog, shots: bool) -> bool:
 		_bad("float outline %d" % outline)
 		st.free()
 		return false
+	var plate_size: Vector2 = st.trace_float.size
+	if plate_size.x < 300.0 or plate_size.y < 28.0 or plate_size.y > 80.0 or plate_size.x < plate_size.y * 2.0:
+		_bad("RT-U7 slab %s" % plate_size)
+		st.free()
+		return false
 	st.trace_float.visible = false
 	await _show(st, infirmary)
 	if st.trace_float.visible:
@@ -537,6 +544,105 @@ func _check_ui(catalog: Catalog, shots: bool) -> bool:
 	_wipe(ProjectSettings.globalize_path(SCRATCH))
 	st.free()
 	print("UI: ok")
+	return true
+
+
+## Fresh station each pass. First show used to keep a one-glyph column (420×588 / 661).
+## Second show on the same node must stay a short plate too. Other yard notices are up
+## at the same time so the stack cannot cover them.
+func _check_fresh_plates(shots: bool) -> bool:
+	_wipe(ProjectSettings.globalize_path(SCRATCH))
+	Settings.path = SCRATCH.path_join("settings.cfg")
+	Settings.loaded = false
+	Settings.load_file()
+	Settings.log_consent = "no"
+	Settings.howto_hidden = true
+	Settings.intro_seen = true
+	Settings.hints_on = false
+	var views: Array = [
+		[Vector2i(1920, 1080), "100"],
+		[Vector2i(1536, 864), "125"],
+	]
+	for pass_i in 3:
+		for spec in views:
+			var win_size: Vector2i = spec[0]
+			var tag: String = str(spec[1])
+			for lang in ["en", "ru"]:
+				var st = await _boot_station()
+				if st == null or st.game == null:
+					_bad("fresh station")
+					return false
+				await _resize(st, win_size)
+				Copy.set_lang(str(lang))
+				st._load_fonts()
+				if st.dim != null and st.dim.visible:
+					st._close_card()
+					await process_frame
+				var where := "%s %s run%d" % [tag, lang, pass_i + 1]
+				st._show_regular_yard(Copy.t("regular.first"))
+				st._show_sday_yard(Copy.t("sday.first"))
+				st._show_carry_yard(Copy.t("carry.first"))
+				st._show_trace_float(Copy.t("trace.first"))
+				for _i in 3:
+					await process_frame
+				if not _notice_stack(st, where):
+					st.free()
+					return false
+				st.trace_float.visible = false
+				st._show_trace_float(Copy.t("trace.first"))
+				for _i in 2:
+					await process_frame
+				if not _notice_stack(st, where + " again"):
+					st.free()
+					return false
+				if shots and pass_i == 0:
+					await _grab(st, "trace_%s_%s_stack" % [lang, tag])
+				st.free()
+				await process_frame
+	print("Fresh plates: ok")
+	return true
+
+
+func _boot_station():
+	var st = load("res://ui/station.tscn").instantiate()
+	st.shot_mode = true
+	st.hold_dawn = true
+	root.add_child(st)
+	for _i in 5:
+		await process_frame
+	return st
+
+
+func _notice_stack(st, tag: String) -> bool:
+	var keys := ["regular", "sday", "carry", "trace"]
+	var prev := Rect2()
+	var have_prev := false
+	var view := Rect2(Vector2.ZERO, st.get_viewport_rect().size)
+	for key in keys:
+		var plate := st.get(str(key) + "_float") as PanelContainer
+		var lab := st.get(str(key) + "_float_label") as Label
+		if plate == null or lab == null or not plate.visible:
+			_bad("%s %s missing" % [tag, key])
+			return false
+		var sz: Vector2 = plate.size
+		var cap := 80.0 if str(key) == "trace" else 140.0
+		if sz.x < 300.0 or sz.x > 520.0 or sz.y < 28.0 or sz.y > cap or sz.x < sz.y * 2.0:
+			_bad("%s %s slab %s" % [tag, key, sz])
+			return false
+		var lines := lab.get_line_count()
+		var line_cap := 1 if str(key) == "trace" else 3
+		if lines < 1 or lines > line_cap:
+			_bad("%s %s lines %d [%s]" % [tag, key, lines, lab.text])
+			return false
+		var rect: Rect2 = plate.get_global_rect()
+		if not view.grow(4.0).encloses(rect):
+			_bad("%s %s off %s view %s" % [tag, key, rect, view])
+			return false
+		if have_prev and (rect.intersects(prev) or rect.position.y < prev.end.y - 1.0):
+			_bad("%s overlap %s then %s" % [tag, prev, rect])
+			return false
+		prev = rect
+		have_prev = true
 	return true
 
 

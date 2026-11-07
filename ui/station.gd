@@ -5304,7 +5304,8 @@ func _show_trace_float(text: String) -> void:
 		trace_float.set_meta("trace_yard_float", true)
 		trace_float_label = Label.new()
 		trace_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		trace_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		## Width comes from _place_yard_notice. WORD_SMART before that stacks every glyph.
+		trace_float_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 		trace_float_label.clip_text = false
 		trace_float_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		trace_float_label.focus_mode = Control.FOCUS_NONE
@@ -5320,10 +5321,7 @@ func _show_trace_float(text: String) -> void:
 	trace_float_label.text = text
 	trace_float.modulate.a = 1.0
 	trace_float.visible = true
-	trace_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	trace_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	trace_float.size = Vector2(420, 36)
+	_restack_yard_notices()
 	if trace_float_tween != null and trace_float_tween.is_valid():
 		trace_float_tween.kill()
 	trace_float_tween = create_tween()
@@ -8150,7 +8148,7 @@ func _show_regular_yard(text: String) -> void:
 	regular_float_label.text = text
 	regular_float.modulate.a = 1.0
 	regular_float.visible = true
-	_place_yard_notice(regular_float, regular_float_label, [])
+	_restack_yard_notices()
 	if regular_float_tween != null and regular_float_tween.is_valid():
 		regular_float_tween.kill()
 	regular_float_tween = create_tween()
@@ -8198,7 +8196,7 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_label.text = text
 	sday_float.modulate.a = 1.0
 	sday_float.visible = true
-	_place_yard_notice(sday_float, sday_float_label, [regular_float])
+	_restack_yard_notices()
 	if sday_float_tween != null and sday_float_tween.is_valid():
 		sday_float_tween.kill()
 	sday_float_tween = create_tween()
@@ -8245,7 +8243,7 @@ func _show_carry_yard(text: String) -> void:
 	carry_float_label.text = text
 	carry_float.modulate.a = 1.0
 	carry_float.visible = true
-	_place_yard_notice(carry_float, carry_float_label, [regular_float, sday_float])
+	_restack_yard_notices()
 	if carry_float_tween != null and carry_float_tween.is_valid():
 		carry_float_tween.kill()
 	carry_float_tween = create_tween()
@@ -8259,9 +8257,28 @@ func _show_carry_yard(text: String) -> void:
 			carry_float.visible = false)
 
 
+## Yard notices in stack order. A hidden plate is skipped, so the three from the
+## epilogue pass stay put when Room Trace has not spoken yet.
+func _restack_yard_notices() -> void:
+	var rows: Array = [
+		[regular_float, regular_float_label],
+		[sday_float, sday_float_label],
+		[carry_float, carry_float_label],
+		[trace_float, trace_float_label],
+	]
+	var above: Array = []
+	for row in rows:
+		var plate: PanelContainer = row[0]
+		var label: Label = row[1]
+		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
+			continue
+		_place_yard_notice(plate, label, above)
+		above.append(plate)
+
+
 ## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
 ## column after the label later receives a width. Give the line a real width
-## before the plate measures, then stack the three notices on their real heights.
+## before the plate measures, then stack the yard notices on their real heights.
 func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> void:
 	var pad := Vector2(16, 16)
 	var face := plate.get_theme_stylebox("panel")
@@ -8277,7 +8294,19 @@ func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> vo
 	# A maximum of 0 is a real cap. -1 is "no cap", which the line height needs.
 	label.custom_maximum_size = Vector2(inner, -1)
 	label.custom_minimum_size = Vector2(inner, 0)
+	label.reset_size()
+	label.update_minimum_size()
 	var text_h := maxf(label.get_combined_minimum_size().y, 22.0)
+	## A first sort can still report one glyph per line. Keep the wrapped height instead.
+	var font := label.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var px := int(label.get_theme_font_size("font_size"))
+	if px <= 0:
+		px = 18
+	var wrapped := font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, inner, px).y
+	if wrapped > 1.0 and text_h > maxf(wrapped * 2.0, 96.0):
+		text_h = maxf(wrapped, 22.0)
 	label.custom_minimum_size = Vector2(inner, text_h)
 	var h := maxf(text_h + pad.y, 36.0)
 	plate.custom_minimum_size = Vector2(420, h)
