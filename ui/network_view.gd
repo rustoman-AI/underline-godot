@@ -4875,7 +4875,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	caption.add_theme_color_override("font_color", Color("efe6d2"))
 	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_hold_plain(caption, 16, 360.0)
+	_hold_plain(caption, 16, _sheet_text_budget())
 	row.add_child(caption)
 	if game != null and not (why != "" and APPROACHES.has(kind)):
 		row.add_child(_cost_tag(game.order_cost(kind, sid)))
@@ -4896,8 +4896,7 @@ func _order_button(kind: String, label: String, sid: String, parent: Node = null
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	if why == "":
 		button.pressed.connect(_issue.bind(kind, sid))
-	var row_w := maxf(caption.custom_minimum_size.x + 56.0, 180.0)
-	button.custom_minimum_size = Vector2(row_w, 76 if why != "" and APPROACHES.has(kind) else 40)
+	button.custom_minimum_size = Vector2(_sheet_inner(), 76 if why != "" and APPROACHES.has(kind) else 40)
 	button.set_meta("order_caption", caption)
 	button.set_meta("base_height", button.custom_minimum_size.y)
 	caption.resized.connect(_fit_order_button.bind(button, caption))
@@ -5131,12 +5130,25 @@ func _lab(text: String, px: int, display: bool) -> Label:
 		label.add_theme_color_override("font_color", INK if display else MUTED)
 	if display and host != null and host.get("display_font") != null:
 		label.add_theme_font_override("font", host.display_font)
-	_hold_plain(label, px, 420.0)
+	_hold_plain(label, px, _sheet_inner())
 	return label
 
 
-## Short column words and reasons stay one horizontal line. WORD_SMART with no
-## width yet collapses the label to a glyph column.
+## The width _place_panels gives the sheet, minus the plate's horizontal margins.
+func _sheet_inner() -> float:
+	var w := 400.0
+	if size.x > 1.0:
+		w = clampf(size.x * 0.22, 300.0, 400.0)
+	return maxf(160.0, w - 52.0)
+
+
+## Room left inside an order row for its icon and price.
+func _sheet_text_budget() -> float:
+	return maxf(120.0, _sheet_inner() - 88.0)
+
+
+## Short column words and reasons stay one horizontal line. A line wider than the
+## sheet wraps inside the slot instead of pushing the plate past it.
 func _hold_plain(label: Label, px: int, cap: float) -> void:
 	label.clip_text = false
 	var font: Font = label.get_theme_font("font")
@@ -5152,11 +5164,13 @@ func _hold_plain(label: Label, px: int, cap: float) -> void:
 		widest = maxf(widest, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x)
 	var line_h := maxf(font.get_height(px), float(px))
 	var tall := maxi(ceili(line_h * maxi(parts.size(), 1)), px + 2)
-	if widest <= cap:
+	var limit := maxf(120.0, cap)
+	if widest <= limit:
 		label.custom_minimum_size = Vector2(maxi(label.custom_minimum_size.x, ceili(widest)), maxi(label.custom_minimum_size.y, tall))
 		label.autowrap_mode = TextServer.AUTOWRAP_OFF
 		return
-	label.custom_minimum_size = Vector2(maxi(label.custom_minimum_size.x, cap), maxi(label.custom_minimum_size.y, tall))
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.custom_minimum_size = Vector2(limit, tall)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
@@ -5807,14 +5821,14 @@ func _combat_order_button(kind: String, sid: String, parent: Node) -> void:
 	sub.text = detail
 	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sub.add_theme_color_override("font_color", CARD_MUTED if why != "" else Color("efe6d2"))
-	_hold_plain(sub, 16, 360.0)
+	_hold_plain(sub, 16, _sheet_text_budget())
 	if why != "":
 		## R09: the why-line wraps to two lines at most; the full reason is the tooltip (P65 text unchanged).
 		sub.max_lines_visible = 2
 		sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_WORD_ELLIPSIS
 	words.add_child(sub)
 	row.add_child(words)
-	button.custom_minimum_size.x = maxf(button.custom_minimum_size.x, sub.custom_minimum_size.x + 48.0)
+	button.custom_minimum_size.x = minf(maxf(button.custom_minimum_size.x, sub.custom_minimum_size.x + 48.0), _sheet_inner())
 	button.add_child(row)
 	if why != "":
 		words.resized.connect(func() -> void:

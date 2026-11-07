@@ -661,8 +661,11 @@ func _bounds() -> bool:
 			_bad("logic touches " + token)
 			return false
 	var yard := _fn(FileAccess.get_file_as_string("res://ui/station.gd"), "_show_echo_yard")
-	if yard.find("_tip_plate_style") < 0 or yard.find("outline_size\", 0") < 0:
+	if yard.find("_tip_plate_style") < 0 or yard.find("outline_size\", 0") < 0 or yard.find("_place_yard_notice") < 0:
 		_bad("yard float plate")
+		return false
+	if yard.find("custom_minimum_size = Vector2(420, 36)") >= 0 or yard.find("size = Vector2(420, 36)") >= 0:
+		_bad("yard plate sizes before the line has a width")
 		return false
 	var map_fn := _fn(view, "_show_echo_float")
 	if map_fn.find("_bind_float_plate") < 0:
