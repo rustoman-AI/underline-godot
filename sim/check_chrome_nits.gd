@@ -1,6 +1,6 @@
 extends SceneTree
 
-## C1, C4, C11, C12, C13. UI chrome only.
+## C1, C4, C11, C12, C13, C14, C15. UI chrome only.
 ##   godot --headless --path . -s res://sim/check_chrome_nits.gd
 ##   UNDERLINE_SHOTS_DIR=/tmp/chrome godot --rendering-driver opengl3 --path . -s res://sim/check_chrome_nits.gd
 ## Headless skips screenshots. A real renderer writes them. Logic still has to pass.
@@ -47,6 +47,8 @@ func _run() -> void:
 			await _c4(st, tag)
 			await _c11(st, tag)
 			await _c12_forward(st, tag)
+			await _c14(st, tag)
+			await _c15(st, tag)
 	await _view(st, Vector2i(1536, 864))
 	Copy.set_lang("ru")
 	await _c12_orders(st, "ru 125")
@@ -149,7 +151,7 @@ func _c4(st, tag: String) -> void:
 	for _i in 1:
 		await process_frame
 	st._sync_chatter_cover()
-	if st.radio_hold and not st.radio_panel.visible:
+	if st.radio_hold and not st.radio_panel.visible and not st._chatter_blocked(st.radio_panel):
 		_bad("C4 %s radio did not return after pause" % tag)
 	if st.dim != null:
 		st.dim.visible = true
@@ -165,6 +167,237 @@ func _c4(st, tag: String) -> void:
 	if st.vo_pill != null:
 		st.vo_pill.visible = false
 		st.vo_text_until = 0
+
+
+func _c14(st, tag: String) -> void:
+	_home(st)
+	_clear_yards(st)
+	var flags := _flag_snap(st.game)
+	var marks := bool(st.game.flags.get("seen_obs_marks", false))
+	var kit := bool(st.game.flags.get("seen_obs_kit", false))
+	var text := Copy.t("obs.first_mark")
+	st._show_obs_float(text)
+	for _i in 2:
+		await process_frame
+	if st.obs_float == null or not st.obs_float.visible or st.obs_float.text != text:
+		_bad("C14 %s float missing" % tag)
+		return
+	var home_y: float = st.size.y * 0.42
+	if absf(st.obs_float.position.y - home_y) > 1.0 or absf(st.obs_float.position.x - (st.size.x * 0.5 - 210.0)) > 1.0:
+		_bad("C14 %s home position %s" % [tag, st.obs_float.position])
+	var tween: Tween = st.obs_float_tween
+	var tween_id := tween.get_instance_id() if tween != null else 0
+	var room_uid := ""
+	for room in st.game.rooms:
+		room_uid = str(room.uid)
+		break
+	if room_uid != "":
+		st._show_room(room_uid)
+		for _i in 2:
+			await process_frame
+		if not st.obs_float.visible:
+			_bad("C14 %s room card hid the observer float" % tag)
+		st._close_card()
+		if st.dim != null:
+			st.dim.visible = false
+		for _i in 1:
+			await process_frame
+	# Pause first, after the float is already up.
+	st._show_menu()
+	for _i in 2:
+		await process_frame
+	if st.obs_float.visible or not bool(st.obs_float.get_meta("yard_notice_paused", false)):
+		_bad("C14 %s pause did not park the float" % tag)
+	if st.obs_float_tween == null or st.obs_float_tween.get_instance_id() != tween_id or st.obs_float_tween.is_running():
+		_bad("C14 %s pause replaced the tween" % tag)
+	st._close_card()
+	if st.dim != null:
+		st.dim.visible = false
+	for _i in 2:
+		await process_frame
+	st._sync_yard_notice_cover()
+	if not st.obs_float.visible or st.obs_float_tween == null or not st.obs_float_tween.is_running():
+		_bad("C14 %s float did not resume" % tag)
+	if st.obs_float_tween.get_instance_id() != tween_id:
+		_bad("C14 %s resume started a new tween" % tag)
+	# Again, the other way: open pause, then show.
+	st._show_menu()
+	for _i in 1:
+		await process_frame
+	st._show_obs_float(text)
+	for _i in 2:
+		await process_frame
+	if st.obs_float.visible:
+		_bad("C14 %s show during pause stayed on screen" % tag)
+	var second: Tween = st.obs_float_tween
+	st._close_card()
+	if st.dim != null:
+		st.dim.visible = false
+	for _i in 2:
+		await process_frame
+	st._sync_yard_notice_cover()
+	if not st.obs_float.visible or second == null or not second.is_running() or st.obs_float_tween != second:
+		_bad("C14 %s second resume" % tag)
+	if tag == "ru 125":
+		st._show_menu()
+		for _i in 2:
+			await process_frame
+		await _shot(st, "c14_obs_float_pause_ru_125_after")
+		st._close_card()
+		if st.dim != null:
+			st.dim.visible = false
+		for _i in 1:
+			await process_frame
+		st._sync_yard_notice_cover()
+	if second != null and second.is_valid():
+		second.custom_step(10.0)
+	for _i in 1:
+		await process_frame
+	if st.obs_float.visible or bool(st.obs_float.get_meta("yard_notice_live", false)):
+		_bad("C14 %s expiry left the float up" % tag)
+	st._show_menu()
+	for _i in 1:
+		await process_frame
+	st._close_card()
+	if st.dim != null:
+		st.dim.visible = false
+	for _i in 1:
+		await process_frame
+	st._sync_yard_notice_cover()
+	if st.obs_float.visible:
+		_bad("C14 %s expired float returned" % tag)
+	if bool(st.game.flags.get("seen_obs_marks", false)) != marks or bool(st.game.flags.get("seen_obs_kit", false)) != kit:
+		_bad("C14 %s once flags rewritten" % tag)
+	if not _same_flags(st.game, flags):
+		_bad("C14 %s yard flags rewritten" % tag)
+	print("C14 %s ok" % tag)
+
+
+func _c15(st, tag: String) -> void:
+	_home(st)
+	st._hide_radio()
+	if st.vo_pill != null:
+		st.vo_pill.visible = false
+		st.vo_text_until = 0
+	# Yard first, then the map.
+	st._show_radio("Cable radio over the map legend.", 30.0)
+	_station_chatter(st)
+	for _i in 1:
+		await process_frame
+	if not st.radio_panel.visible:
+		_bad("C15 %s radio hidden on the yard" % tag)
+		return
+	var hold: Tween = st.radio_tween
+	if not st.showing_network:
+		st._toggle_network()
+	for _i in 3:
+		await process_frame
+	st.network_view._open_legend()
+	for _i in 2:
+		await process_frame
+	st._sync_chatter_cover()
+	_assert_legend_clear(st, "C15 %s map" % tag)
+	_assert_hold(st, "C15 %s map" % tag)
+	if hold == null or st.radio_tween != hold:
+		_bad("C15 %s map replaced the radio hold" % tag)
+	st.network_view._close_legend()
+	for _i in 1:
+		await process_frame
+	st._sync_chatter_cover()
+	_assert_legend_clear(st, "C15 %s slip" % tag)
+	if st.showing_network:
+		st._toggle_network()
+	for _i in 2:
+		await process_frame
+	st._sync_chatter_cover()
+	if st.radio_hold and not st.radio_panel.visible:
+		_bad("C15 %s radio did not return to the yard" % tag)
+	# Map first, then the radio.
+	if not st.showing_network:
+		st._toggle_network()
+	for _i in 2:
+		await process_frame
+	st.network_view._open_legend()
+	st._show_radio("Cable radio over the map legend.", 30.0)
+	_station_chatter(st)
+	for _i in 2:
+		await process_frame
+	st._sync_chatter_cover()
+	_assert_legend_clear(st, "C15 %s open-first" % tag)
+	_assert_hold(st, "C15 %s open-first" % tag)
+	if tag == "ru 125":
+		await _shot(st, "c15_radio_legend_ru_125_after")
+	# Twice back and forth.
+	for _i in 2:
+		if st.showing_network:
+			st._toggle_network()
+		for _j in 1:
+			await process_frame
+		st._sync_chatter_cover()
+		if st.radio_hold and not st.radio_panel.visible:
+			_bad("C15 %s yard pass %d" % [tag, _i])
+		if not st.showing_network:
+			st._toggle_network()
+		for _j in 2:
+			await process_frame
+		st.network_view._open_legend()
+		for _j in 1:
+			await process_frame
+		st._sync_chatter_cover()
+		_assert_legend_clear(st, "C15 %s repeat %d" % [tag, _i])
+	# The hold can finish while the map is up. Closing the map must not bring it back.
+	if st.radio_tween != null and st.radio_tween.is_valid():
+		st.radio_tween.custom_step(40.0)
+	for _i in 1:
+		await process_frame
+	if st.showing_network:
+		st._toggle_network()
+	for _i in 2:
+		await process_frame
+	st._sync_chatter_cover()
+	if st.radio_hold or (st.radio_panel != null and st.radio_panel.visible):
+		_bad("C15 %s expired radio returned" % tag)
+	if st.vo_pill != null:
+		st.vo_pill.visible = false
+		st.vo_text_until = 0
+	print("C15 %s ok" % tag)
+
+
+func _assert_legend_clear(st, tag: String) -> void:
+	var net = st.network_view
+	if net == null:
+		_bad(tag + " no map")
+		return
+	var blockers: Array[Rect2] = []
+	if net.legend_panel != null and net.legend_panel.visible:
+		blockers.append(net.legend_panel.get_global_rect())
+	if net.legend_button != null and net.legend_button.visible:
+		blockers.append(net.legend_button.get_global_rect())
+	if net.has_method("legend_slip_rect"):
+		var local: Rect2 = net.legend_slip_rect()
+		if local.size.x > 1.0:
+			var origin: Vector2 = net.get_global_transform() * local.position
+			var far: Vector2 = net.get_global_transform() * local.end
+			blockers.append(Rect2(origin, far - origin))
+	if blockers.is_empty():
+		_bad(tag + " no legend rect")
+		return
+	var mine: Rect2 = st._chatter_rect(st.radio_panel) if st.radio_panel != null else Rect2()
+	if st.radio_panel != null and st.radio_panel.visible:
+		for box in blockers:
+			if st._rects_hit(mine, box):
+				_bad("%s radio %s hits %s" % [tag, mine, box])
+				return
+	if st.vo_pill != null and st.vo_pill.visible and net.legend_panel != null and net.legend_panel.visible:
+		if st._rects_hit(st._chatter_rect(st.vo_pill), net.legend_panel.get_global_rect()):
+			_bad(tag + " station chatter hits the open legend")
+			return
+	var would := false
+	for box in blockers:
+		if st.radio_panel != null and st._rects_hit(mine, box):
+			would = true
+	if would and st.radio_hold and st.radio_panel.visible:
+		_bad(tag + " radio stayed over the legend")
 
 
 func _c4_tight(st, tag: String) -> void:
