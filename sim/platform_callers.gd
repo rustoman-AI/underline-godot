@@ -7,13 +7,9 @@ extends RefCounted
 ## Nothing in the sim reads `callers` for an outcome. Bots never read it.
 ## Soft dawn: none. Map mark: none. `caller.first` is a P61 first-float, not a dawn chip.
 ##
-## Schema: this pack reserves save schema 24 (`callers`). Schema 22 (`echoes`, P91)
-## and schema 23 (`rival_log`, P92) are independent unmerged drafts and are not
-## imported. `stage_state` ignores unknown keys, so a save may contain echoes
-## and/or rival_log or neither. Neither key is required. When those drafts merge,
-## add V21_ADDED := ["echoes"] and V22_ADDED := ["rival_log"] and keep
-## V23_ADDED := ["callers"] so a schema 24 save that lacks the earlier keys still
-## loads. Do not renumber callers onto 22 or 23.
+## Schema 24 adds `callers` after the line-echo and rival-desk saves.
+## Schema <= 23 fills an empty callers dict and keeps keys already in the file.
+## Do not renumber.
 ##
 ## Synod "deal" is the first P80 favor spend. P80 is not on this branch, so
 ## `favor_on()` stays false and that trigger never fires. When P80 lands, call

@@ -43,6 +43,11 @@ func _run() -> void:
 		st.game.stock.materials = 80
 		await _build_plate(st, cell, lang)
 		await _order_plate(st, lang)
+		await _craft_lines(st, lang)
+		await _law_lines(st, lang)
+		for sz in [Vector2(1920, 1080), Vector2(1536, 864)]:
+			await _sheet_slot(st, lang, sz)
+		await _undo_line(st, lang)
 	await _listening_room(st, cell)
 	_wipe(ProjectSettings.globalize_path(SCRATCH))
 	_finish(st)
@@ -132,6 +137,137 @@ func _order_plate(st, lang: String) -> void:
 		st._toggle_network()
 
 
+func _craft_lines(st, lang: String) -> void:
+	st._close_card()
+	st._show_salvage()
+	for _i in 4:
+		await process_frame
+	_expect_line(st.card_body, Copy.t("salvage.strip_tip"), "%s salvage strip" % lang)
+	_expect_line(st.card_body, Copy.t("salvage.need_listening"), "%s salvage listening" % lang)
+	_no_columns(st.card_body, lang + " salvage")
+	st._close_card()
+	var uid := ""
+	for room in st.game.rooms:
+		if str(room.type) == "workshop":
+			uid = str(room.uid)
+			break
+	if uid == "":
+		for key in st.game.cells:
+			var spot: Dictionary = st.game.cells[key]
+			if st.game._cell_buildable(spot):
+				st.game._place_room("workshop", int(spot.level), int(spot.cell))
+				uid = str(st.game.cells[key].get("room", ""))
+				break
+	if uid == "":
+		_bad("%s no workshop" % lang)
+		return
+	st._show_room(uid)
+	for _i in 4:
+		await process_frame
+	var cost := Copy.t("breach.cost") % st.game.breach_stock()
+	_expect_line(st.card_body, cost, "%s craft cost" % lang)
+	_expect_line(st.card_body, Copy.t("salvage.strip_tip"), "%s workshop strip" % lang)
+	_no_columns(st.card_body, lang + " workshop")
+	st._close_card()
+
+
+func _law_lines(st, lang: String) -> void:
+	st.game.week = 8
+	st._show_laws()
+	for _i in 4:
+		await process_frame
+	var found := false
+	for lab in _labels(st.card_body):
+		var text := str(lab.text).strip_edges()
+		if text == "" or lab.get_line_count() <= 0:
+			continue
+		if text.find("law.") == 0:
+			continue
+		if text == Copy.t("law.need_hall") or text == Copy.t("law.creed_locked_week") or text == Copy.t("law.locked_path"):
+			found = true
+			_readable(lab, "%s law '%s'" % [lang, text.left(48)])
+	if not found:
+		_bad("%s laws showed no reason line" % lang)
+	_no_columns(st.card_body, lang + " laws")
+	st._close_card()
+
+
+func _sheet_slot(st, lang: String, sz: Vector2) -> void:
+	st.size = sz
+	if st.network_view != null:
+		st.network_view.size = sz
+	st._place_chrome()
+	if not st.showing_network:
+		st._toggle_network()
+	var net = st.network_view
+	net._place_panels()
+	var sid := _foreign(st.game)
+	net.open_sheet(sid)
+	st._place_chrome()
+	for _i in 3:
+		await process_frame
+	var slot := clampf(sz.x * 0.22, 300.0, 400.0)
+	var sheet: Control = net.sheet
+	var where := "%s sheet %s" % [lang, sz]
+	if sheet.size.x > slot + 8.0:
+		_bad("%s is %.1f wide, slot %.1f" % [where, sheet.size.x, slot])
+	if sheet.get_combined_minimum_size().x > slot + 8.0:
+		_bad("%s min %.1f exceeds slot %.1f" % [where, sheet.get_combined_minimum_size().x, slot])
+	var sheet_box: Rect2 = sheet.get_global_rect()
+	if sheet_box.end.x > sz.x + 12.0:
+		_bad("%s right %.1f past view %.1f" % [where, sheet_box.end.x, sz.x])
+	var side: Control = st.side
+	if side == null:
+		_bad("%s people rail missing" % where)
+	else:
+		var rail: Rect2 = side.get_global_rect()
+		if rail.size.x > 96.0:
+			_bad("%s people rail grew to %.1f" % [where, rail.size.x])
+		if rail.end.x < sz.x - 24.0:
+			_bad("%s people rail left the right edge %s" % [where, rail])
+		if sheet_box.end.x > rail.position.x + 14.0:
+			_bad("%s covers the people rail sheet %s rail %s" % [where, sheet_box, rail])
+	_no_columns(net.sheet, where)
+	net.close_sheet()
+	if st.showing_network:
+		st._toggle_network()
+
+
+func _undo_line(st, lang: String) -> void:
+	st.showing_network = false
+	st._undo_toast(Copy.t("carry.open_confirm"), func() -> void: pass, func() -> void: pass)
+	for _i in 2:
+		await process_frame
+	var plate: Control = st.undo_toast
+	if plate == null:
+		_bad("%s undo toast missing" % lang)
+		return
+	var row := plate.get_child(0)
+	var lab := row.get_child(0) as Label
+	if lab == null or lab.autowrap_mode != TextServer.AUTOWRAP_OFF or lab.get_line_count() != 1:
+		_bad("%s undo toast is not one line" % lang)
+	elif _box(lab).x <= _box(lab).y:
+		_bad("%s undo line %s" % [lang, _box(lab)])
+	st._hide_undo_toast()
+
+
+func _expect_line(root: Node, text: String, where: String) -> void:
+	for lab in _labels(root):
+		if str(lab.text) != text:
+			continue
+		_readable(lab, where)
+		return
+	_bad("%s missing" % where)
+
+
+func _readable(lab: Label, where: String) -> void:
+	var box := _box(lab)
+	if box.x <= box.y or box.x < 80.0:
+		_bad("%s is %s" % [where, box])
+	if lab.get_line_count() > 4:
+		_bad("%s is %d lines" % [where, lab.get_line_count()])
+
+
 func _listening_room(st, cell: Vector2i) -> void:
 	var game = st.game
 	var second := _another_cell(game, cell)
@@ -208,8 +344,10 @@ func _one_line(lab: Label, where: String) -> void:
 
 func _no_columns(root: Node, where: String) -> void:
 	for lab in _labels(root):
+		if not lab.is_visible_in_tree():
+			continue
 		var text := str(lab.text).strip_edges()
-		if text.length() < 8 or not lab.visible:
+		if text.length() < 8:
 			continue
 		var box := _box(lab)
 		if lab.get_line_count() >= mini(text.length(), 8) and box.y > box.x:

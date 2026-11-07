@@ -1,0 +1,57 @@
+{
+  "_note": "P92 Rival Desk (NEW invent — DEC-RD1…RD3). Namespace rival.* only. Code state rival_log. Three-row Observer fold: last resolved move by Exchange / Directorate / Synod. Faction shorts = existing display names (EN Exchange/Directorate/Synod; RU Биржа/Дирекция/Синод — locked; never Управление/Директорат). Do not invent rival.* short keys. Clerk note tone; no exclamation marks; no numbers. Soft dawn NONE. Balance ZERO. EN via Copy.t; RU in by_key and data/rival_desk_ru_fragment.json.",
+  "_roadmap": "P92",
+  "_owners": "Texts; Code rival_log + Observer fold + click-to-Visit + first float; UIUX three-row fold; Art none",
+  "_status": "Designer APPROVED / Code-ready — stamped 2026-11-05. Soft dawn NONE. Balance ZERO. rival.title RU «Чужие» kept. P92 Rival Desk, 9 rival.*.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P28 Map Alive — rival-intent playback (bought/marched/held/preached); persist what the hop showed (cite)",
+    "P60 Synod Score — meter stays (cite; unreopened)",
+    "P80 Synod Favor — meters stay; this is a log (cite; unreopened)",
+    "P73 Week Ticker — your timers stay (cite)",
+    "P65 Order Why — your order reasons stay (cite)"
+  ],
+  "_placeholders": [
+    "{station}",
+    "{n}"
+  ],
+  "by_key": {
+    "rival.title": {
+      "en": "Rivals",
+      "ru": "Чужие"
+    },
+    "rival.bought": {
+      "en": "Bought goodwill at {station} (week {n}).",
+      "ru": "Купили расположение на {station} (неделя {n})."
+    },
+    "rival.marched": {
+      "en": "Marched on {station} (week {n}).",
+      "ru": "Выступили на {station} (неделя {n})."
+    },
+    "rival.held": {
+      "en": "Held {station} (week {n}).",
+      "ru": "Удержали {station} (неделя {n})."
+    },
+    "rival.preached": {
+      "en": "Preached at {station} (week {n}).",
+      "ru": "Проповедовали на {station} (неделя {n})."
+    },
+    "rival.took": {
+      "en": "Took {station} (week {n}).",
+      "ru": "Взяли {station} (неделя {n})."
+    },
+    "rival.quiet": {
+      "en": "No word yet.",
+      "ru": "Пока тихо."
+    },
+    "rival.first": {
+      "en": "You started keeping their moves.",
+      "ru": "Их ходы теперь в журнале."
+    },
+    "rival.tip": {
+      "en": "The last thing each faction did, before it faded off the map.",
+      "ru": "Последнее, что сделала каждая сторона, пока это не стёрлось с карты."
+    }
+  },
+  "_designer": "APPROVED"
+}

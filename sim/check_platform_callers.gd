@@ -196,11 +196,11 @@ func _rules(catalog: Catalog) -> bool:
 		_bad("game dawn")
 		return false
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 24") < 0 or src.find("V23_ADDED") < 0 or src.find("\"callers\"") < 0:
+	if src.find("const SAVE_SCHEMA := 24") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("\"callers\"") < 0:
 		_bad("schema source")
 		return false
-	if src.find("const V21_ADDED") >= 0 or src.find("const V22_ADDED") >= 0:
-		_bad("imported p91 or p92 keys")
+	if src.find("<= 21 and V21_ADDED") < 0 or src.find("<= 22 and V22_ADDED") < 0 or src.find("<= 23 and V23_ADDED") < 0:
+		_bad("migration chain")
 		return false
 	var picker := _fn(src, "_pick_dawn_soft_chip")
 	if picker.find("caller") >= 0:
@@ -221,8 +221,11 @@ func _rules(catalog: Catalog) -> bool:
 		return false
 	var yard := FileAccess.get_file_as_string("res://ui/station.gd")
 	var yard_fn := _fn(yard, "_show_caller_yard")
-	if yard_fn.find("_tip_plate_style") < 0 or yard_fn.find("outline_size\", 0") < 0:
+	if yard_fn.find("_tip_plate_style") < 0 or yard_fn.find("outline_size\", 0") < 0 or yard_fn.find("_place_yard_notice") < 0 or yard_fn.find("_restack_yard_notices") < 0:
 		_bad("yard float plate")
+		return false
+	if _fn(yard, "_restack_yard_notices").find("caller_float") < 0:
+		_bad("caller missing from the yard stack")
 		return false
 	if _fn(yard, "_try_caller_left").find("_toast") < 0 or _fn(yard, "_try_caller_left").find("caller.left") < 0:
 		_bad("leave toast")
@@ -532,58 +535,93 @@ func _queue(catalog: Catalog) -> bool:
 	return true
 
 
+func _kept(game: Game) -> bool:
+	return str(game.callers.get("here", "")) == "" and game.callers.queue.is_empty() \
+		and str(game.echoes.get("plaza", {}).get("kind", "")) == "deal" \
+		and str(game.rival_log.get("exchange", {}).get("kind", "")) == "bought" \
+		and str(game.carry.pocket.get("thread", "")) == "lamp_copper" \
+		and game.sdays.kept.get("plaza", []) == [8]
+
+
 func _migrate(catalog: Catalog) -> bool:
 	var game := _fresh(catalog, 3)
+	game.sdays.kept["plaza"] = [8]
+	game.carry.pocket = {"thread": "lamp_copper"}
+	game.echoes = {"plaza": {"kind": "deal", "from": "mill", "week": 2}}
+	game.rival_log = {"exchange": {"kind": "bought", "week": 3, "target": "trampark"}}
 	game.callers.here = "exchange"
 	game.callers.why = "warm"
 	game.callers.until = 4
-	var data := game.export_state()
-	data["schema"] = 24
+	var full := game.export_state()
+	full["schema"] = 24
 	var back := Game.new()
 	back.catalog = catalog
-	if not back.import_state(data) or str(back.callers.here) != "exchange" or str(back.callers.why) != "warm":
-		_bad("roundtrip %s" % back.load_error)
+	if not back.import_state(full) or str(back.callers.here) != "exchange" or str(back.callers.why) != "warm":
+		_bad("schema 24 roundtrip %s here %s" % [back.load_error, back.callers.get("here", "")])
 		return false
-	data = game.export_state()
-	data["schema"] = 21
-	data.erase("callers")
-	var old := Game.stage_state(data, catalog)
-	if str(old.error) != "" or str(old.state.callers.here) != "" or old.state.callers.queue.size() != 0:
-		_bad("schema 21 %s" % old.error)
+	if str(back.echoes.plaza.kind) != "deal" or str(back.rival_log.exchange.kind) != "bought" or str(back.carry.pocket.thread) != "lamp_copper" or back.sdays.kept.plaza != [8]:
+		_bad("schema 24 lost an older key")
 		return false
-	data["schema"] = 22
-	data["echoes"] = {"jay": {"week": 2}}
-	var echo := Game.stage_state(data, catalog)
-	if str(echo.error) != "" or echo.state.has("echoes") or str(echo.state.callers.here) != "":
-		_bad("schema 22 echoes %s" % echo.error)
+	var s23 := full.duplicate(true)
+	s23["schema"] = 23
+	s23.erase("callers")
+	var m23 := Game.new()
+	m23.catalog = catalog
+	if not m23.import_state(s23) or not _kept(m23):
+		_bad("schema 23 migrate %s" % m23.load_error)
 		return false
-	data.erase("echoes")
-	data["schema"] = 23
-	data["rival_log"] = {"exchange": {"kind": "bought"}}
-	var rival := Game.stage_state(data, catalog)
-	if str(rival.error) != "" or rival.state.has("rival_log") or str(rival.state.callers.here) != "":
-		_bad("schema 23 rival %s" % rival.error)
+	var s22 := full.duplicate(true)
+	s22["schema"] = 22
+	s22.erase("callers")
+	s22.erase("rival_log")
+	var m22 := Game.new()
+	m22.catalog = catalog
+	if not m22.import_state(s22) or str(m22.callers.here) != "" or not m22.rival_log.is_empty():
+		_bad("schema 22 migrate %s" % m22.load_error)
 		return false
-	data.erase("rival_log")
-	var bare := Game.stage_state(data, catalog)
-	if str(bare.error) != "" or str(bare.state.callers.here) != "":
-		_bad("schema 23 bare %s" % bare.error)
+	if str(m22.echoes.plaza.kind) != "deal" or str(m22.carry.pocket.thread) != "lamp_copper" or m22.sdays.kept.plaza != [8]:
+		_bad("schema 22 lost echoes carry or sdays")
 		return false
-	data["schema"] = 24
-	data["echoes"] = {"keep": true}
-	data["rival_log"] = {}
-	data["callers"] = PlatformCallers.blank()
-	var both := Game.stage_state(data, catalog)
-	if str(both.error) != "" or both.state.has("echoes") or both.state.has("rival_log"):
-		_bad("schema 24 extras %s" % both.error)
+	var keep22 := full.duplicate(true)
+	keep22["schema"] = 22
+	keep22.erase("callers")
+	var held22 := Game.new()
+	held22.catalog = catalog
+	if not held22.import_state(keep22) or str(held22.rival_log.exchange.kind) != "bought":
+		_bad("schema 22 dropped a rival log that was present")
 		return false
-	data.erase("callers")
-	var missing := Game.stage_state(data, catalog)
+	var s21 := full.duplicate(true)
+	s21["schema"] = 21
+	for key in ["callers", "rival_log", "echoes"]:
+		s21.erase(key)
+	var m21 := Game.new()
+	m21.catalog = catalog
+	if not m21.import_state(s21) or not m21.echoes.is_empty() or not m21.rival_log.is_empty() or str(m21.callers.here) != "":
+		_bad("schema 21 migrate %s" % m21.load_error)
+		return false
+	if str(m21.carry.pocket.thread) != "lamp_copper" or m21.sdays.kept.plaza != [8]:
+		_bad("schema 21 lost carry or sdays")
+		return false
+	var s20 := full.duplicate(true)
+	s20["schema"] = 20
+	for key in ["callers", "rival_log", "echoes", "carry"]:
+		s20.erase(key)
+	var m20 := Game.new()
+	m20.catalog = catalog
+	if not m20.import_state(s20) or not m20.carry.pocket.is_empty() or not m20.echoes.is_empty() or not m20.rival_log.is_empty():
+		_bad("schema 20 migrate %s" % m20.load_error)
+		return false
+	if m20.sdays.kept.plaza != [8] or str(m20.callers.here) != "":
+		_bad("schema 20 lost sdays or invented a caller")
+		return false
+	var bare := full.duplicate(true)
+	bare.erase("callers")
+	var missing := Game.stage_state(bare, catalog)
 	if str(missing.error) != "missing callers":
 		_bad("schema 24 required %s" % missing.error)
 		return false
-	data["schema"] = 25
-	if Game.stage_state(data, catalog).error == "":
+	bare["schema"] = 25
+	if Game.stage_state(bare, catalog).error == "":
 		_bad("schema 25 accepted")
 		return false
 	return true
@@ -795,11 +833,18 @@ func _desk_fit(panel: ObserverPanel, host: Host, game: Game) -> bool:
 		else:
 			host.body_font = load("res://assets/fonts/CourierPrime-Regular.ttf")
 		var sz: Vector2i = case[1]
+		DisplayServer.window_set_size(sz)
 		root.size = sz
 		await process_frame
 		panel.present(host)
 		await process_frame
 		await process_frame
+		var scroll := _meta(panel, "obs_tail_scroll") as ScrollContainer
+		if scroll != null:
+			var bar := scroll.get_v_scroll_bar()
+			scroll.scroll_vertical = int(bar.max_value) if bar != null else 0
+			await process_frame
+			await process_frame
 		var rows := _rows(panel)
 		if rows.size() != 1:
 			_bad("desk fit rows")
@@ -823,8 +868,9 @@ func _desk_fit(panel: ObserverPanel, host: Host, game: Game) -> bool:
 			return false
 		var vp := Rect2(Vector2.ZERO, Vector2(sz))
 		var rect: Rect2 = close.get_global_rect()
-		if rect.end.y > vp.end.y + 1.0 or rect.position.y < -1.0 or rect.end.x > vp.end.x + 1.0:
-			_bad("desk close off %s %s %s" % [case[0], case[1], rect])
+		var scroll_rect := scroll.get_global_rect() if scroll != null else vp
+		if not vp.grow(2.0).encloses(rect) or not scroll_rect.grow(4.0).encloses(rect):
+			_bad("desk close off %s %s %s scroll %s" % [case[0], case[1], rect, scroll_rect])
 			Copy.set_lang("en")
 			return false
 	Copy.set_lang("en")
