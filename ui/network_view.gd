@@ -222,6 +222,8 @@ var _sday_float: Label
 var _sday_float_tween: Tween
 var _carry_float: Label
 var _carry_float_tween: Tween
+var _echo_float: Label
+var _echo_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -628,6 +630,7 @@ func _process(delta: float) -> void:
 func _on_resize() -> void:
 	_place_panels()
 	_place_regular_float()
+	_place_echo_float()
 	if not _fitted or zoom <= _zoom_min * 1.001:
 		_fit()
 		return
@@ -4445,6 +4448,9 @@ func _tip(sid: String) -> String:
 	var carried := CarriedWord.tip_line(game, sid)
 	if carried != "":
 		lines.append(carried)
+	var echo := LineEcho.line_text(game, sid)
+	if echo != "":
+		lines.append(echo)
 	return "\n".join(lines)
 
 
@@ -6009,6 +6015,108 @@ func _show_visit(sid: String) -> void:
 	_redraw()
 
 
+## Muted gossip under the Face (or under the head when that row is absent). Not a Face slot.
+func _add_echo_line(parent: Node, game, sid: String) -> bool:
+	var text := LineEcho.line_text(game, sid)
+	if text == "":
+		return false
+	var row := Label.new()
+	row.text = text
+	row.clip_text = false
+	row.focus_mode = Control.FOCUS_NONE
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.tooltip_text = Copy.t("echo.tip")
+	row.add_theme_font_size_override("font_size", 14)
+	row.add_theme_color_override("font_color", MUTED)
+	if host != null and host.get("body_font") != null:
+		row.add_theme_font_override("font", host.body_font)
+	row.set_meta("echo_line", true)
+	row.set_meta("echo_row", true)
+	row.set_meta("echo_sid", sid)
+	row.set_meta("echo_text", text)
+	_hold_plain(row, 14, 760.0)
+	parent.add_child(row)
+	return true
+
+
+## P61 first-float on the X1 map slip. Once per run, the first time an echo line is shown. Not a dawn chip.
+func _note_first_echo(shown: bool) -> void:
+	if not shown:
+		return
+	var game = _game()
+	if game == null:
+		return
+	var line := LineEcho.claim_first(game)
+	if line == "":
+		return
+	var on_map := visible and is_inside_tree()
+	if host != null and host.get("showing_network") == false:
+		on_map = false
+	if not on_map:
+		LineEcho.held_float = line
+		if host != null and host.has_method("_try_echo_float"):
+			host._try_echo_float()
+		return
+	_show_echo_float(line)
+
+
+func _show_echo_float(line: String) -> void:
+	if _echo_float == null:
+		_echo_float = Label.new()
+		_echo_float.z_index = 8
+		_echo_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_echo_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_echo_float.add_theme_font_size_override("font_size", 18)
+		_echo_float.set_meta("echo_float", true)
+		_bind_float_plate(_echo_float)
+	var plate := _float_plate(_echo_float)
+	_echo_float.text = line
+	_echo_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_echo_float.visible = true
+	plate.visible = true
+	if _echo_float_tween != null and _echo_float_tween.is_valid():
+		_echo_float_tween.kill()
+	_place_echo_float()
+	if not is_inside_tree():
+		return
+	_echo_float_tween = create_tween()
+	if _motion_off():
+		_echo_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_echo_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_echo_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_echo_float_tween.tween_callback(func() -> void:
+		if _echo_float != null:
+			_echo_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_echo_float() -> void:
+	if _echo_float == null or not _echo_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	if _regular_float != null and _regular_float.visible:
+		y += 34.0
+	if _sday_float != null and _sday_float.visible:
+		y += 34.0
+	if _carry_float != null and _carry_float.visible:
+		y += 34.0
+	_place_float_chip(_echo_float, y)
+
+
 ## One Face under the station head and above Details. Cap 1 line. Hosts the P87 greet.
 func _add_face_row(parent: Node, game, sid: String) -> void:
 	if not PlatformFaces.enabled or game == null:
@@ -6530,6 +6638,7 @@ func _fill_visit(sid: String) -> void:
 	head.add_child(column)
 	_visit_body.add_child(head)
 	_add_face_row(_visit_body, game, sid)
+	var echo_shown := _add_echo_line(_visit_body, game, sid)
 	var details := _details_box()
 	var who: String = game.station_text(sid, "who")
 	var conflict: String = game.station_text(sid, "conflict")
@@ -6555,6 +6664,7 @@ func _fill_visit(sid: String) -> void:
 	_note_first_regular()
 	_note_first_station_day(day_shown)
 	_note_first_carry()
+	_note_first_echo(echo_shown)
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().

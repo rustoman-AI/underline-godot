@@ -70,6 +70,10 @@ func _case(st, win_size: Vector2i, scale: float, tag: String) -> void:
 		_bad("%s scale %s viewport %s" % [tag, st.get_window().content_scale_factor, view])
 	for lang in ["en", "ru"]:
 		Copy.set_lang(lang)
+		if _shots() and tag == "100" and lang == "en":
+			await _broken_echo(st, "en")
+		if _shots() and tag == "100" and lang == "ru":
+			await _broken_echo(st, "ru")
 		await _yards(st, "%s %s" % [tag, lang], view)
 		await _epilogue(st, "%s %s" % [tag, lang], view)
 
@@ -97,14 +101,16 @@ func _yards(st, tag: String, view: Vector2) -> void:
 		"regular": Copy.t("regular.first"),
 		"sday": Copy.t("sday.first"),
 		"carry": Copy.t("carry.first"),
+		"echo": Copy.t("echo.first"),
 	}
 	st._show_regular_yard(lines.regular)
 	st._show_sday_yard(lines.sday)
 	st._show_carry_yard(lines.carry)
+	st._show_echo_yard(lines.echo)
 	for _i in 3:
 		await process_frame
 	var plates: Array[Control] = []
-	for key in ["regular", "sday", "carry"]:
+	for key in ["regular", "sday", "carry", "echo"]:
 		var plate: PanelContainer = st.get(key + "_float")
 		var lab: Label = st.get(key + "_float_label")
 		if plate == null or lab == null or not plate.visible:
@@ -114,14 +120,17 @@ func _yards(st, tag: String, view: Vector2) -> void:
 			_bad("%s %s text [%s]" % [tag, key, lab.text])
 		_notice(tag + " " + key, plate, lab, view)
 		plates.append(plate)
-	if plates.size() == 3:
+	if plates.size() == 4:
 		var top: Rect2 = plates[0].get_global_rect()
 		var mid: Rect2 = plates[1].get_global_rect()
 		var bot: Rect2 = plates[2].get_global_rect()
-		if _hits(top, mid) or _hits(mid, bot) or _hits(top, bot):
-			_bad("%s notices overlap %s | %s | %s" % [tag, top, mid, bot])
-		if mid.position.y < top.end.y - 1.0 or bot.position.y < mid.end.y - 1.0:
-			_bad("%s notice stack %s %s %s" % [tag, top, mid, bot])
+		var echo: Rect2 = plates[3].get_global_rect()
+		if _hits(top, mid) or _hits(mid, bot) or _hits(top, bot) or _hits(bot, echo) or _hits(mid, echo):
+			_bad("%s notices overlap %s | %s | %s | %s" % [tag, top, mid, bot, echo])
+		if mid.position.y < top.end.y - 1.0 or bot.position.y < mid.end.y - 1.0 or echo.position.y < bot.end.y - 1.0:
+			_bad("%s notice stack %s %s %s %s" % [tag, top, mid, bot, echo])
+	if _shots() and (tag.begins_with("100 ") or tag.begins_with("125 ")):
+		await _shot_yards(st, tag)
 	_clear_yards(st)
 
 
@@ -360,8 +369,71 @@ func _stage(st) -> void:
 	game.stats.scored = false
 
 
+func _shots() -> bool:
+	return OS.get_cmdline_user_args().has("--echo-shots")
+
+
+func _broken_echo(st, lang: String) -> void:
+	var plate := PanelContainer.new()
+	plate.z_index = 8
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_theme_stylebox_override("panel", st._tip_plate_style())
+	var lab := Label.new()
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.clip_text = false
+	lab.add_theme_font_size_override("font_size", 18)
+	lab.add_theme_color_override("font_color", Color("efe6d2"))
+	lab.add_theme_constant_override("outline_size", 0)
+	lab.text = Copy.t("echo.first")
+	# No width yet: WORD_SMART shapes one glyph per line. The old plate then
+	# kept that column after the label was given 420px.
+	lab.custom_minimum_size = Vector2(1, 0)
+	lab.size = Vector2(1, 0)
+	plate.add_child(lab)
+	st.add_child(plate)
+	for _i in 2:
+		await process_frame
+	var stacked: Vector2 = lab.get_combined_minimum_size()
+	var y: float = (st.hud.size.y if st.hud != null else 72.0) + 8.0
+	plate.custom_minimum_size = Vector2(420, maxf(36.0, stacked.y))
+	plate.size = plate.custom_minimum_size
+	plate.position = Vector2(maxf(8.0, st.size.x * 0.5 - 210.0), y)
+	lab.custom_minimum_size = Vector2(404, stacked.y)
+	lab.size = Vector2(404, stacked.y)
+	await process_frame
+	print("BEFORE %s plate %s line %s lines %d stacked %s" % [lang, plate.size, lab.size, lab.get_line_count(), stacked])
+	await _save_shot(st, "/opt/cursor/artifacts/p91_yard_column_before_%s.png" % lang)
+	plate.queue_free()
+	await process_frame
+
+
+func _shot_yards(st, tag: String) -> void:
+	var lang := "ru" if tag.ends_with("ru") else "en"
+	var size := "125" if tag.begins_with("125") else "100"
+	await _save_shot(st, "/opt/cursor/artifacts/p91_yard_echo_after_%s_%s.png" % [lang, size])
+
+
+func _save_shot(st, path: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		print("SHOT skipped " + path)
+		return
+	await RenderingServer.frame_post_draw
+	var tex: ViewportTexture = st.get_viewport().get_texture()
+	if tex == null:
+		print("SHOT miss " + path)
+		return
+	var img: Image = tex.get_image()
+	if img == null:
+		print("SHOT empty " + path)
+		return
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	var err: Error = img.save_png(path)
+	print("SHOT %s %dx%d err %s" % [path, img.get_width(), img.get_height(), err])
+
+
 func _clear_yards(st) -> void:
-	for key in ["regular_float", "sday_float", "carry_float"]:
+	for key in ["regular_float", "sday_float", "carry_float", "echo_float"]:
 		var tween = st.get(key + "_tween")
 		if tween != null and is_instance_valid(tween) and tween.is_valid():
 			tween.kill()

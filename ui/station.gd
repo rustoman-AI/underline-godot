@@ -221,6 +221,9 @@ var sday_float_tween: Tween
 var carry_float: PanelContainer
 var carry_float_label: Label
 var carry_float_tween: Tween
+var echo_float: PanelContainer
+var echo_float_label: Label
+var echo_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1601,6 +1604,7 @@ func _process(_delta: float) -> void:
 	_try_regular_float()
 	_try_station_day_float()
 	_try_carry_float()
+	_try_echo_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -8103,9 +8107,57 @@ func _show_carry_yard(text: String) -> void:
 			carry_float.visible = false)
 
 
+## P61 first-float on the YA1 tip plate when the map could not show the first echo.
+func _try_echo_float() -> void:
+	if game == null or showing_network:
+		return
+	if LineEcho.held_float == "":
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := LineEcho.held_float
+	LineEcho.held_float = ""
+	_show_echo_yard(line)
+
+
+func _show_echo_yard(text: String) -> void:
+	if echo_float == null:
+		echo_float = PanelContainer.new()
+		echo_float.z_index = 8
+		echo_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		echo_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		echo_float.set_meta("echo_yard_float", true)
+		echo_float_label = Label.new()
+		echo_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		echo_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		echo_float_label.clip_text = false
+		echo_float_label.add_theme_font_size_override("font_size", 18)
+		echo_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		echo_float_label.add_theme_constant_override("outline_size", 0)
+		echo_float.add_child(echo_float_label)
+		add_child(echo_float)
+	echo_float_label.text = text
+	echo_float.modulate.a = 1.0
+	echo_float.visible = true
+	_place_yard_notice(echo_float, echo_float_label, [regular_float, sday_float, carry_float])
+	if echo_float_tween != null and echo_float_tween.is_valid():
+		echo_float_tween.kill()
+	echo_float_tween = create_tween()
+	if _motion_off():
+		echo_float_tween.tween_interval(4.2)
+	else:
+		echo_float_tween.tween_interval(1.1)
+		echo_float_tween.tween_property(echo_float, "modulate:a", 0.0, 0.8)
+	echo_float_tween.tween_callback(func() -> void:
+		if echo_float != null:
+			echo_float.visible = false)
+
+
 ## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
 ## column after the label later receives a width. Give the line a real width
-## before the plate measures, then stack the three notices on their real heights.
+## before the plate measures, then stack the notices on their real heights.
 func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> void:
 	var pad := Vector2(16, 16)
 	var face := plate.get_theme_stylebox("panel")
