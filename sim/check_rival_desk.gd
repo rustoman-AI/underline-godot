@@ -77,7 +77,7 @@ func _run() -> void:
 		quit(1)
 		return
 	var balance := FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 24:
+	if Game.SAVE_SCHEMA != 25:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
 		_bad("soft dawn stack changed")
@@ -522,18 +522,18 @@ func _save(catalog: Catalog) -> bool:
 		_bad("schema 23 accepted a list")
 		return false
 	var future := game.export_state()
-	future["schema"] = 25
+	future["schema"] = 26
 	var ahead := Game.new()
 	ahead.catalog = catalog
 	if ahead.import_state(future):
-		_bad("schema 25 loaded")
+		_bad("schema 26 loaded")
 		return false
 	return true
 
 
 func _bounds() -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 24") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if src.find("const SAVE_SCHEMA := 22") >= 0 or src.find("const SAVE_SCHEMA := 23") >= 0:

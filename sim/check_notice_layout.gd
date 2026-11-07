@@ -104,6 +104,7 @@ func _yards(st, tag: String, view: Vector2) -> void:
 		"echo": Copy.t("echo.first"),
 		"rival": Copy.t("rival.first"),
 		"caller": Copy.t("caller.first"),
+		"scar": Copy.t("scar.first"),
 	}
 	st._show_regular_yard(lines.regular)
 	st._show_sday_yard(lines.sday)
@@ -175,8 +176,28 @@ func _yards(st, tag: String, view: Vector2) -> void:
 					await process_frame
 				if st.caller_float == null or st.caller_float.size.x < st.caller_float.size.y * 2.0 or st.caller_float_label.get_line_count() > 3:
 					_bad("%s caller second show %s" % [tag, st.caller_float.size if st.caller_float != null else "null"])
+				st._show_scar_yard(lines.scar)
+				for _i in 2:
+					await process_frame
+				var scar_plate: PanelContainer = st.scar_float
+				var scar_lab: Label = st.scar_float_label
+				caller_rect = st.caller_float.get_global_rect()
+				if scar_plate == null or scar_lab == null or str(scar_lab.text) != lines.scar:
+					_bad("%s scar missing" % tag)
+				else:
+					_notice(tag + " scar", scar_plate, scar_lab, view)
+					var scar_rect := scar_plate.get_global_rect()
+					if _hits(caller_rect, scar_rect) or scar_rect.position.y < caller_rect.end.y - 1.0:
+						_bad("%s scar overlap %s caller %s" % [tag, scar_rect, caller_rect])
+					st._show_scar_yard(lines.scar)
+					for _i in 2:
+						await process_frame
+					if st.scar_float == null or st.scar_float.size.x < st.scar_float.size.y * 2.0 or st.scar_float_label.get_line_count() > 3:
+						_bad("%s scar second show %s" % [tag, st.scar_float.size if st.scar_float != null else "null"])
 			if not await _reverse_stack(st, tag, lines, view):
 				return
+			if tag.begins_with("100 ") or tag.begins_with("125 "):
+				await _save_shot(st, "/opt/cursor/artifacts/p94_yard_stack_%s_%s.png" % ["ru" if tag.ends_with("ru") else "en", "125" if tag.begins_with("125") else "100"])
 			if _shots() or OS.get_cmdline_user_args().has("--rival-shots"):
 				if tag.begins_with("100 ") or tag.begins_with("125 "):
 					var lang := "ru" if tag.ends_with("ru") else "en"
@@ -487,6 +508,7 @@ func _save_shot(st, path: String) -> void:
 
 func _reverse_stack(st, tag: String, lines: Dictionary, view: Vector2) -> bool:
 	_clear_yards(st)
+	st._show_scar_yard(lines.scar)
 	st._show_caller_yard(lines.caller)
 	st._show_rival_yard(lines.rival)
 	st._show_echo_yard(lines.echo)
@@ -496,7 +518,7 @@ func _reverse_stack(st, tag: String, lines: Dictionary, view: Vector2) -> bool:
 	st._restack_yard_notices()
 	for _i in 2:
 		await process_frame
-	var order := ["regular", "sday", "carry", "echo", "rival", "caller"]
+	var order := ["regular", "sday", "carry", "echo", "rival", "caller", "scar"]
 	var prev := Rect2()
 	var first := true
 	for key in order:
@@ -516,7 +538,7 @@ func _reverse_stack(st, tag: String, lines: Dictionary, view: Vector2) -> bool:
 
 
 func _clear_yards(st) -> void:
-	for key in ["regular_float", "sday_float", "carry_float", "echo_float", "rival_float", "caller_float"]:
+	for key in ["regular_float", "sday_float", "carry_float", "echo_float", "rival_float", "caller_float", "scar_float"]:
 		var tween = st.get(key + "_tween")
 		if tween != null and is_instance_valid(tween) and tween.is_valid():
 			tween.kill()

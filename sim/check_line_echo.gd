@@ -65,7 +65,7 @@ func _run() -> void:
 		quit(1)
 		return
 	var balance := FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 24:
+	if Game.SAVE_SCHEMA != 25:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
 		_bad("soft dawn stack changed")
@@ -603,7 +603,7 @@ func _save(catalog: Catalog) -> bool:
 
 func _bounds() -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 24") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("V20_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("V20_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if src.find("\"echoes\"") < 0 or src.find("echoes[") >= 0 or src.find("echoes.get") >= 0:

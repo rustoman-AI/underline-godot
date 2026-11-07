@@ -19,6 +19,7 @@ const NeedTick = preload("res://sim/need_tick.gd")
 const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const Ledger = preload("res://sim/outpost_ledger.gd")
 const QuietToll = preload("res://sim/quiet_toll.gd")
+const PassageScars = preload("res://sim/passage_scars.gd")
 const PINS_JSON := "res://data/map_pins.json"
 const MAP_FILE := "res://assets/map/nyc_map.webp"
 const PAPER := Color("241c14")
@@ -228,6 +229,12 @@ var _rival_float: Label
 var _rival_float_tween: Tween
 var _caller_float: Label
 var _caller_float_tween: Tween
+var _scar_float: Label
+var _scar_float_tween: Tween
+var _edge_tip: PanelContainer
+var _edge_tip_key := ""
+var _edge_tip_sig := ""
+var _edge_hover := ""
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -385,6 +392,7 @@ func refresh() -> void:
 	_note_first_leaflet()
 	_note_first_transfer()
 	_note_first_quiet_toll()
+	_note_first_passage_scar()
 
 
 func _redraw() -> void:
@@ -573,6 +581,7 @@ func _draw_splashes(c: CanvasItem, game) -> void:
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	_note_first_passage_scar()
 	var pulse_busy := _tick_join_pulses(delta)
 	if _arm_join_pulses():
 		pulse_busy = true
@@ -2564,6 +2573,204 @@ func _hide_focus_float() -> void:
 		_focus_float.visible = false
 
 
+## One muted scar line. After Toll, before Ledger. Cap 1. Tooltip is scar.tip.
+func _add_passage_scar(parent: Node, game, sid: String) -> void:
+	var text := PassageScars.visit_line(game, sid)
+	if text == "":
+		return
+	var line := _lab(text, 15, false)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.clip_text = false
+	line.mouse_filter = Control.MOUSE_FILTER_STOP
+	line.focus_mode = Control.FOCUS_NONE
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.tooltip_text = PassageScars.tip()
+	line.set_meta("scar_row", true)
+	line.set_meta("scar_text", text)
+	parent.add_child(line)
+
+
+## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
+func _note_first_passage_scar() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var line := PassageScars.claim_first(_game())
+	if line == "":
+		return
+	_show_scar_float(line)
+
+
+func _show_scar_float(line: String) -> void:
+	if _scar_float == null:
+		_scar_float = Label.new()
+		_scar_float.z_index = 8
+		_scar_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_scar_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_scar_float.add_theme_font_size_override("font_size", 18)
+		_scar_float.set_meta("scar_float", true)
+		_bind_float_plate(_scar_float)
+	var plate := _float_plate(_scar_float)
+	_scar_float.text = line
+	_scar_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_scar_float.visible = true
+	plate.visible = true
+	if _scar_float_tween != null and _scar_float_tween.is_valid():
+		_scar_float_tween.kill()
+	_place_scar_float()
+	if not is_inside_tree():
+		return
+	_scar_float_tween = create_tween()
+	if _motion_off():
+		_scar_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_scar_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_scar_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_scar_float_tween.tween_callback(func() -> void:
+		if _scar_float != null:
+			_scar_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_scar_float() -> void:
+	if _scar_float == null or not _scar_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	if _regular_float != null and _regular_float.visible:
+		y += 34.0
+	if _sday_float != null and _sday_float.visible:
+		y += 34.0
+	if _carry_float != null and _carry_float.visible:
+		y += 34.0
+	if _echo_float != null and _echo_float.visible:
+		y += 34.0
+	if _rival_float != null and _rival_float.visible:
+		y += 34.0
+	if _caller_float != null and _caller_float.visible:
+		y += 34.0
+	_place_float_chip(_scar_float, y)
+
+
+## Owned-edge tip. Flow, Duty, and Toll lines stay above the scar. Width family is P89 (360).
+func present_edge_tip(a: String, b: String, at: Vector2) -> void:
+	_show_edge_tip(PassageScars.edge_id(a, b), at)
+
+
+func _edge_at(screen_at: Vector2) -> String:
+	var game = _game()
+	if game == null or visit != null and visit.visible:
+		return ""
+	var best := ""
+	var best_d := 12.0
+	for tunnel in game.tunnels:
+		if not (tunnel is Dictionary):
+			continue
+		var a := str(tunnel.get("a", ""))
+		var b := str(tunnel.get("b", ""))
+		if not game.stations.has(a) or not game.stations.has(b):
+			continue
+		if _segment_alpha(game, a, b) <= 0.0:
+			continue
+		var dist := _dist_point_segment(screen_at, _map_spot(a), _map_spot(b))
+		if dist < best_d:
+			best_d = dist
+			best = PassageScars.edge_id(a, b)
+	return best
+
+
+func _dist_point_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var len2 := ab.length_squared()
+	if len2 < 0.01:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / len2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+func _show_edge_tip(key: String, at: Vector2) -> void:
+	var game = _game()
+	var bits := key.split("|")
+	if game == null or bits.size() != 2:
+		_hide_edge_tip()
+		return
+	var rows: Array = PassageScars.edge_rows(game, str(bits[0]), str(bits[1]))
+	if rows.is_empty():
+		_hide_edge_tip()
+		return
+	if _edge_tip == null:
+		_edge_tip = PanelContainer.new()
+		_edge_tip.name = "EdgeTip"
+		_edge_tip.z_index = 12
+		_edge_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_edge_tip.set_meta("edge_tip", true)
+		var plate := StyleBoxFlat.new()
+		plate.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+		plate.border_color = Color(0.93, 0.78, 0.42, 0.9)
+		plate.set_border_width_all(1)
+		plate.set_content_margin_all(8)
+		_edge_tip.add_theme_stylebox_override("panel", plate)
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 4)
+		box.set_meta("edge_tip_box", true)
+		_edge_tip.add_child(box)
+		add_child(_edge_tip)
+	var box: VBoxContainer = _edge_tip.get_child(0)
+	var sig := ""
+	for row in rows:
+		sig += str(row.get("role", "")) + "\t" + str(row.get("text", "")) + "\n"
+	if sig != _edge_tip_sig:
+		while box.get_child_count() > 0:
+			var old := box.get_child(0)
+			box.remove_child(old)
+			old.queue_free()
+		var font := ThemeDB.fallback_font
+		var widest := 0.0
+		for row in rows:
+			widest = maxf(widest, font.get_string_size(str(row.get("text", "")), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x)
+		var w := minf(PassageScars.TIP_W, widest + 4.0)
+		for row in rows:
+			var lab := Label.new()
+			lab.text = str(row.get("text", ""))
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.clip_text = false
+			lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lab.custom_minimum_size = Vector2(w, 0)
+			lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lab.add_theme_font_size_override("font_size", 15)
+			lab.add_theme_color_override("font_color", Color("efe6d2"))
+			lab.set_meta("edge_tip_line", true)
+			lab.set_meta("edge_tip_role", str(row.get("role", "")))
+			box.add_child(lab)
+		_edge_tip.custom_minimum_size = Vector2(w + 16.0, float(rows.size()) * 24.0 + 16.0)
+		_edge_tip.size = _edge_tip.custom_minimum_size
+		_edge_tip_sig = sig
+	_edge_tip_key = key
+	_edge_tip.visible = true
+	var panel_size := _edge_tip.size
+	if panel_size.x < 1.0:
+		panel_size = _edge_tip.custom_minimum_size
+	_edge_tip.position = Vector2(clampf(at.x + 16.0, 8.0, maxf(8.0, size.x - panel_size.x - 8.0)), clampf(at.y + 16.0, 8.0, maxf(8.0, size.y - panel_size.y - 8.0)))
+	_edge_tip.set_meta("edge_tip_key", key)
+
+
+func _hide_edge_tip() -> void:
+	_edge_tip_key = ""
+	_edge_tip_sig = ""
+	_edge_hover = ""
+	if _edge_tip != null:
+		_edge_tip.visible = false
+
+
 ## One line on the owned station's Visit status column. Omitted unless Duty is posted.
 ## status is the qualifying watch. status_none is muted, and only when Duty is up but nothing qualifies.
 ## The row sits directly above the ledger, which stays last.
@@ -4335,9 +4542,11 @@ func _gui_input(event: InputEvent) -> void:
 			_chip_hover = chip
 			_redraw()
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hit != "" or chip != "" or on_rumor else Control.CURSOR_ARROW
+		var edge_hit := ""
 		if on_rumor:
 			var game = _game()
 			tooltip_text = game.rumor_label() if game != null else ""
+			_hide_edge_tip()
 		else:
 			var run_hit := _run_pin_at(motion.position)
 			if run_hit != "":
@@ -4346,8 +4555,22 @@ func _gui_input(event: InputEvent) -> void:
 				tooltip_text = Copy.t("run.rumored")
 				if extra != "":
 					tooltip_text = "%s\n%s" % [tooltip_text, extra]
+				_hide_edge_tip()
+			elif chip != "":
+				tooltip_text = Copy.t("Choose what this station sends home.")
+				_hide_edge_tip()
+			elif hit != "":
+				tooltip_text = _tip(hit)
+				_hide_edge_tip()
 			else:
-				tooltip_text = Copy.t("Choose what this station sends home.") if chip != "" else _tip(hit)
+				edge_hit = _edge_at(motion.position)
+				if edge_hit != "":
+					tooltip_text = ""
+					_show_edge_tip(edge_hit, motion.position)
+				else:
+					tooltip_text = ""
+					_hide_edge_tip()
+		_edge_hover = edge_hit
 		if _drag:
 			origin -= motion.relative / zoom
 			_clamp_view()
@@ -6004,6 +6227,7 @@ func close_visit() -> void:
 
 
 func _show_visit(sid: String) -> void:
+	_hide_edge_tip()
 	_visit_sid = sid
 	if visit == null:
 		return
@@ -6860,7 +7084,9 @@ func _fill_visit(sid: String) -> void:
 	_add_transfer_status(game, sid, column)
 	# Ledger stays the last child of this Visit status column.
 	# P84 Transfer Hub stays above Quiet Toll and the ledger.
+	# P94 Scar sits after Quiet Toll and before the ledger.
 	_add_quiet_toll(column, game, sid)
+	_add_passage_scar(column, game, sid)
 	_add_outpost_ledger(column, game, sid)
 	_add_obs_visit(column, game, sid)
 	head.add_child(column)
@@ -6895,6 +7121,7 @@ func _fill_visit(sid: String) -> void:
 	_note_first_carry()
 	_note_first_echo(echo_shown)
 	_note_first_caller()
+	_note_first_passage_scar()
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().
