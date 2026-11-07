@@ -7994,10 +7994,7 @@ func _show_regular_yard(text: String) -> void:
 	regular_float_label.text = text
 	regular_float.modulate.a = 1.0
 	regular_float.visible = true
-	regular_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	regular_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	regular_float.size = Vector2(420, 36)
+	_place_yard_notice(regular_float, regular_float_label, [])
 	if regular_float_tween != null and regular_float_tween.is_valid():
 		regular_float_tween.kill()
 	regular_float_tween = create_tween()
@@ -8045,12 +8042,7 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_label.text = text
 	sday_float.modulate.a = 1.0
 	sday_float.visible = true
-	sday_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	if regular_float != null and regular_float.visible:
-		y += 40.0
-	sday_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	sday_float.size = Vector2(420, 36)
+	_place_yard_notice(sday_float, sday_float_label, [regular_float])
 	if sday_float_tween != null and sday_float_tween.is_valid():
 		sday_float_tween.kill()
 	sday_float_tween = create_tween()
@@ -8097,14 +8089,7 @@ func _show_carry_yard(text: String) -> void:
 	carry_float_label.text = text
 	carry_float.modulate.a = 1.0
 	carry_float.visible = true
-	carry_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	if regular_float != null and regular_float.visible:
-		y += 40.0
-	if sday_float != null and sday_float.visible:
-		y += 40.0
-	carry_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	carry_float.size = Vector2(420, 36)
+	_place_yard_notice(carry_float, carry_float_label, [regular_float, sday_float])
 	if carry_float_tween != null and carry_float_tween.is_valid():
 		carry_float_tween.kill()
 	carry_float_tween = create_tween()
@@ -8116,6 +8101,38 @@ func _show_carry_yard(text: String) -> void:
 	carry_float_tween.tween_callback(func() -> void:
 		if carry_float != null:
 			carry_float.visible = false)
+
+
+## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
+## column after the label later receives a width. Give the line a real width
+## before the plate measures, then stack the three notices on their real heights.
+func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> void:
+	var pad := Vector2(16, 16)
+	var face := plate.get_theme_stylebox("panel")
+	if face != null:
+		pad = Vector2(
+			face.get_margin(SIDE_LEFT) + face.get_margin(SIDE_RIGHT),
+			face.get_margin(SIDE_TOP) + face.get_margin(SIDE_BOTTOM))
+	var inner := maxf(160.0, 420.0 - pad.x)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# A maximum of 0 is a real cap. -1 is "no cap", which the line height needs.
+	label.custom_maximum_size = Vector2(inner, -1)
+	label.custom_minimum_size = Vector2(inner, 0)
+	var text_h := maxf(label.get_combined_minimum_size().y, 22.0)
+	label.custom_minimum_size = Vector2(inner, text_h)
+	var h := maxf(text_h + pad.y, 36.0)
+	plate.custom_minimum_size = Vector2(420, h)
+	plate.reset_size()
+	plate.size = Vector2(420, h)
+	var y := (hud.size.y if hud != null else 72.0) + 8.0
+	for node in above:
+		var other := node as Control
+		if other != null and is_instance_valid(other) and other.visible:
+			y = maxf(y, other.position.y + other.size.y + 4.0)
+	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
 
 
 func _show_dawn() -> void:
@@ -13740,7 +13757,9 @@ func _paint_life_epilogue() -> void:
 			_life_wall()
 	_paint_life_dots()
 	on_paper = false
+	_hold_epilogue_line(life_epilogue_eyebrow)
 	_layout_life_epilogue()
+	_layout_life_epilogue.call_deferred()
 	if _motion_off():
 		life_epilogue_body.modulate.a = 1.0
 		return
@@ -13770,7 +13789,7 @@ func _life_verdict(payload: Dictionary) -> void:
 	var verdict := str(payload.get("verdict", ""))
 	if verdict == "":
 		verdict = game.ending_fallback()
-	life_epilogue_body.add_child(_slip_label(verdict, 28, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_line(verdict, 28, SLIP_INK, true))
 	_show_voice("verdict", str(payload.get("ending", "")), str(payload.get("creed", "none")), verdict)
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_gap())
@@ -13780,7 +13799,7 @@ func _life_verdict(payload: Dictionary) -> void:
 func _life_chronicle(payload: Dictionary) -> void:
 	var moments: Array = payload.get("chronicle", [])
 	if moments.is_empty():
-		life_epilogue_body.add_child(_slip_label("epilogue.chronicle_empty", 18, SLIP_MUTED))
+		life_epilogue_body.add_child(_epilogue_line("epilogue.chronicle_empty", 18, SLIP_MUTED))
 	else:
 		var n := 0
 		for moment in moments:
@@ -13790,7 +13809,7 @@ func _life_chronicle(payload: Dictionary) -> void:
 			var text := str(moment.get("text", ""))
 			if text == "":
 				text = game.chronicle_line(moment)
-			life_epilogue_body.add_child(_slip_label("%d.  %s" % [n, text], 17, SLIP_INK))
+			life_epilogue_body.add_child(_epilogue_line("%d.  %s" % [n, text], 17, SLIP_INK))
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(0), false, "back"))
 	life_epilogue_actions.add_child(_epilogue_gap())
@@ -13798,7 +13817,7 @@ func _life_chronicle(payload: Dictionary) -> void:
 
 
 func _life_fates(payload: Dictionary) -> void:
-	life_epilogue_body.add_child(_slip_label("epilogue.page_fates", 13, Color("6a543c"), true))
+	life_epilogue_body.add_child(_epilogue_line("epilogue.page_fates", 13, Color("6a543c"), true))
 	var shown := 0
 	for row in payload.get("fates", []):
 		if shown >= 8:
@@ -13806,19 +13825,19 @@ func _life_fates(payload: Dictionary) -> void:
 		var line := str(row.get("line", ""))
 		if line == "":
 			continue
-		life_epilogue_body.add_child(_slip_label(line, 16, SLIP_INK))
+		life_epilogue_body.add_child(_epilogue_line(line, 16, SLIP_INK))
 		shown += 1
 	var judgment := str(payload.get("judgment", ""))
 	if judgment != "":
 		life_epilogue_body.add_child(_epilogue_rule())
-		life_epilogue_body.add_child(_slip_label(judgment, 17, SLIP_INK, true))
+		life_epilogue_body.add_child(_epilogue_line(judgment, 17, SLIP_INK, true))
 		_show_voice("judgment", game._judgment_id(), "body", judgment)
 	life_epilogue_body.add_child(_epilogue_rule())
 	var score := Copy.fill("epilogue.score", {
 		"n": int(payload.get("score", 0)),
 		"best": int(payload.get("best", 0)),
 	})
-	life_epilogue_body.add_child(_slip_label(score, 20, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_line(score, 20, SLIP_INK, true))
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(1), false, "back"))
 	life_epilogue_actions.add_child(_epilogue_gap())
@@ -14010,16 +14029,44 @@ func _life_epilogue_close() -> void:
 	_back_to_menu()
 
 
+func _epilogue_bounds() -> Vector2:
+	return Vector2(
+		minf(680.0, maxf(320.0, size.x - 64.0)),
+		minf(620.0, maxf(380.0, size.y - 110.0)))
+
+
+## Border 2+2 and the page inset 22+22. The band uses the same inset.
+func _epilogue_line_width() -> float:
+	return maxf(160.0, _epilogue_bounds().x - 48.0)
+
+
+## A slip line with no width is shaped one glyph tall and the card keeps that
+## height. The next page measures against the stuck card and grows again.
+func _epilogue_line(text: String, px: int, ink: Color, display := false) -> Label:
+	var lab := _slip_label(text, px, ink, display)
+	_hold_epilogue_line(lab)
+	return lab
+
+
+func _hold_epilogue_line(lab: Label) -> void:
+	if lab == null:
+		return
+	var w := _epilogue_line_width()
+	lab.custom_minimum_size.x = w
+	# 0 would cap the line at no height. -1 leaves the wrapped height alone.
+	lab.custom_maximum_size = Vector2(w, -1)
+
+
 func _layout_life_epilogue() -> void:
 	if life_epilogue_panel == null or life_epilogue == null or not life_epilogue.visible:
 		return
-	var w := minf(680.0, maxf(320.0, size.x - 64.0))
-	var h := minf(620.0, maxf(380.0, size.y - 110.0))
-	life_epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5 - 12.0)
-	life_epilogue_panel.size = Vector2(w, h)
+	var bounds := _epilogue_bounds()
+	life_epilogue_panel.reset_size()
+	life_epilogue_panel.size = bounds
+	life_epilogue_panel.position = Vector2((size.x - bounds.x) * 0.5, (size.y - bounds.y) * 0.5 - 12.0)
 	if life_epilogue_dots != null:
 		var dw := life_epilogue_dots.get_combined_minimum_size().x
-		life_epilogue_dots.position = Vector2((size.x - dw) * 0.5, life_epilogue_panel.position.y + h + 14.0)
+		life_epilogue_dots.position = Vector2((size.x - dw) * 0.5, life_epilogue_panel.position.y + bounds.y + 14.0)
 
 
 func _life_epilogue_input(event: InputEvent) -> bool:
