@@ -128,6 +128,7 @@ func _rebuild() -> void:
 	_tail_scroll.add_child(_tail)
 	_body.add_child(_tail_scroll)
 	var kit_head := _lab(Copy.t("obs.kit_title"), 16, true, PAPER_INK)
+	kit_head.set_meta("kit_fold", true)
 	_tail.add_child(kit_head)
 	_hooks = HBoxContainer.new()
 	_hooks.add_theme_constant_override("separation", 24)
@@ -137,6 +138,7 @@ func _rebuild() -> void:
 	_tail.add_child(_hooks)
 	_add_pocket(game)
 	_add_faces(game)
+	_add_rivals(game)
 	_add_day_tally(game)
 	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -172,12 +174,98 @@ func _fit_panel(view: Vector2, width: float, cap: float, head: Control) -> void:
 func _fill_detail(game) -> void:
 	for child in _detail.get_children():
 		child.queue_free()
+	_add_caller(game)
 	var kind := str(_selected.get("kind", "slot"))
 	var id := str(_selected.get("id", "coat"))
 	if kind == "mark":
 		_fill_mark(game, id)
 		return
 	_fill_slot(game, id)
+
+
+## Home desk. The same courier as the home Visit, above the mark or kit detail. No button.
+func _add_caller(game) -> void:
+	if _detail == null or not PlatformCallers.enabled:
+		return
+	var card: Dictionary = PlatformCallers.card(game)
+	if card.is_empty():
+		return
+	var block := VBoxContainer.new()
+	block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	block.add_theme_constant_override("separation", 4)
+	var title := _lab(Copy.t("caller.title"), 14, true, PAPER_INK)
+	title.clip_text = false
+	title.set_meta("caller_title", true)
+	block.add_child(title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_meta("caller_hbox", true)
+	var portrait_id := str(card.portrait)
+	if host != null and host.has_method("_portrait_box"):
+		var portrait: TextureRect = host._portrait_box(portrait_id, 36)
+		portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		portrait.custom_minimum_size = Vector2(36, 36)
+		portrait.set_meta("caller_portrait", portrait_id)
+		row.add_child(portrait)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.add_theme_constant_override("separation", 2)
+	var who := HBoxContainer.new()
+	who.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	who.add_theme_constant_override("separation", 0)
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name := _lab(Copy.t(str(card.name_key)), 15, true, PAPER_INK)
+	name.clip_text = false
+	name.autowrap_mode = TextServer.AUTOWRAP_OFF
+	name.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	name.set_meta("caller_name", true)
+	who.add_child(name)
+	var dot := _lab(" · ", 15, false, PAPER_MUTED)
+	dot.clip_text = false
+	dot.autowrap_mode = TextServer.AUTOWRAP_OFF
+	dot.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	who.add_child(dot)
+	var role := _lab(Copy.t(str(card.role_key)), 15, false, PAPER_MUTED)
+	role.clip_text = false
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role.set_meta("caller_role", true)
+	who.add_child(role)
+	words.add_child(who)
+	var quote := _lab(Copy.t(str(card.line_key)), 14, false, PAPER_INK)
+	quote.clip_text = false
+	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var quote_font: Font = null
+	if host != null and host.get("body_font") != null:
+		quote_font = host.body_font
+	if quote_font == null:
+		quote_font = load("res://assets/fonts/CourierPrime-Regular.ttf")
+	if quote_font != null:
+		quote.add_theme_font_override("font", quote_font)
+	quote.custom_minimum_size = Vector2(300, 0)
+	quote.set_meta("caller_quote", true)
+	words.add_child(quote)
+	row.add_child(words)
+	block.add_child(row)
+	var shell := MarginContainer.new()
+	shell.set_meta("caller_row", true)
+	shell.set_meta("caller_fid", str(card.fid))
+	shell.set_meta("caller_why", str(card.why))
+	shell.set_meta("caller_line_key", str(card.line_key))
+	shell.set_meta("caller_home", "desk")
+	shell.tooltip_text = Copy.t("caller.tip")
+	shell.mouse_filter = Control.MOUSE_FILTER_STOP
+	shell.focus_mode = Control.FOCUS_NONE
+	shell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shell.add_theme_constant_override("margin_right", 8)
+	shell.add_child(block)
+	_detail.add_child(shell)
 
 
 func _fill_mark(game, id: String) -> void:
@@ -641,6 +729,71 @@ func _add_faces(game) -> void:
 	_tail.add_child(scroll)
 
 
+## Rivals under Faces. Three fixed seats. A row with no target is quiet and not clickable.
+func _add_rivals(game) -> void:
+	if not RivalDesk.enabled or game == null:
+		return
+	var head := _lab(Copy.t("rival.title"), 16, true, PAPER_INK)
+	head.set_meta("rival_fold", true)
+	head.mouse_filter = Control.MOUSE_FILTER_STOP
+	head.tooltip_text = Copy.t("rival.tip")
+	_tail.add_child(head)
+	var width := maxf(360.0, size.x - 48.0)
+	for entry in RivalDesk.rows(game):
+		_tail.add_child(_rival_row(entry, width))
+
+
+func _rival_row(entry: Dictionary, width: float) -> Control:
+	var text := str(entry.get("line", ""))
+	var tip := Copy.t("rival.tip")
+	var clickable := bool(entry.get("clickable", false))
+	var ink := PAPER_INK if clickable else PAPER_MUTED
+	if not clickable:
+		var quiet := _lab(text, 14, false, ink)
+		quiet.custom_minimum_size = Vector2(width, 0)
+		quiet.mouse_filter = Control.MOUSE_FILTER_STOP
+		quiet.focus_mode = Control.FOCUS_NONE
+		quiet.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		quiet.tooltip_text = tip
+		quiet.set_meta("rival_row", true)
+		quiet.set_meta("rival_fid", str(entry.get("fid", "")))
+		quiet.set_meta("rival_quiet", true)
+		quiet.set_meta("rival_target", "")
+		return quiet
+	var button := Button.new()
+	button.text = text
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.focus_mode = Control.FOCUS_ALL
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.custom_minimum_size = Vector2(width, 28)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.tooltip_text = tip
+	button.set_meta("obs_focus", "rival")
+	button.set_meta("rival_row", true)
+	button.set_meta("rival_fid", str(entry.get("fid", "")))
+	button.set_meta("rival_quiet", false)
+	button.set_meta("rival_target", str(entry.get("target", "")))
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", ink)
+	button.add_theme_color_override("font_hover_color", ink)
+	button.add_theme_color_override("font_pressed_color", ink)
+	button.add_theme_color_override("font_focus_color", ink)
+	button.add_theme_stylebox_override("normal", _face_row_style(false))
+	button.add_theme_stylebox_override("hover", _face_row_style(true))
+	button.add_theme_stylebox_override("pressed", _face_row_style(true))
+	button.add_theme_stylebox_override("focus", _face_focus())
+	button.pressed.connect(_open_rival.bind(str(entry.get("target", ""))))
+	return button
+
+
+func _open_rival(sid: String) -> void:
+	if sid == "":
+		return
+	_open_face(sid)
+
+
 ## Days kept. A plain tally. Hover lists station · day · week. Focusable only when that list exists.
 func _add_day_tally(game) -> void:
 	if not StationDays.enabled or game == null:
@@ -852,15 +1005,17 @@ func _wire_focus() -> void:
 	var hooks: Array = []
 	var pocket: Array = []
 	var faces: Array = []
+	var rivals: Array = []
 	var days: Array = []
 	var pane: Array = []
 	var close: Array = []
-	_collect_focus(self, marks, hooks, pocket, faces, days, pane, close)
+	_collect_focus(self, marks, hooks, pocket, faces, rivals, days, pane, close)
 	var order: Array = []
 	order.append_array(marks)
 	order.append_array(hooks)
 	order.append_array(pocket)
 	order.append_array(faces)
+	order.append_array(rivals)
 	order.append_array(days)
 	order.append_array(pane)
 	order.append_array(close)
@@ -876,7 +1031,7 @@ func _wire_focus() -> void:
 		button.focus_previous = button.get_path_to(prev)
 
 
-func _collect_focus(node: Node, marks: Array, hooks: Array, pocket: Array, faces: Array, days: Array, pane: Array, close: Array) -> void:
+func _collect_focus(node: Node, marks: Array, hooks: Array, pocket: Array, faces: Array, rivals: Array, days: Array, pane: Array, close: Array) -> void:
 	if node is Control and str(node.get_meta("obs_focus", "")) != "":
 		var bucket := str(node.get_meta("obs_focus"))
 		if bucket == "mark":
@@ -887,6 +1042,8 @@ func _collect_focus(node: Node, marks: Array, hooks: Array, pocket: Array, faces
 			pocket.append(node)
 		elif bucket == "face":
 			faces.append(node)
+		elif bucket == "rival":
+			rivals.append(node)
 		elif bucket == "sday":
 			days.append(node)
 		elif bucket == "pane":
@@ -894,7 +1051,7 @@ func _collect_focus(node: Node, marks: Array, hooks: Array, pocket: Array, faces
 		elif bucket == "close":
 			close.append(node)
 	for child in node.get_children():
-		_collect_focus(child, marks, hooks, pocket, faces, days, pane, close)
+		_collect_focus(child, marks, hooks, pocket, faces, rivals, days, pane, close)
 
 
 func _paper() -> StyleBoxFlat:

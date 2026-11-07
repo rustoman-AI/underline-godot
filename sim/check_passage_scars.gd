@@ -514,16 +514,20 @@ func _foreign_pair(game: Game) -> Array:
 
 func _save(catalog: Catalog) -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V24_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("V24_ADDED") < 0:
 		_bad("schema source")
 		return false
-	if src.find("\"sdays\"") < 0 or src.find("\"carry\"") < 0 or src.find("\"scars\"") < 0:
+	if src.find("\"sdays\"") < 0 or src.find("\"carry\"") < 0 or src.find("\"echoes\"") < 0 or src.find("\"rival_log\"") < 0 or src.find("\"callers\"") < 0 or src.find("\"scars\"") < 0:
 		_bad("persist keys")
 		return false
 	var game := _fresh(catalog)
 	game.sdays["kept"] = {"plaza": 4}
 	game.carry["delivered"] = 3
 	game.carry["pocket"] = {"thread": "lamp_copper", "leg": 1}
+	game.echoes = {"plaza": {"kind": "deal", "week": 2}}
+	game.rival_log = {"exchange": {"kind": "bought", "week": 3, "target": "trampark"}}
+	game.callers.here = "exchange"
+	game.callers.why = "warm"
 	game.week = 12
 	var nbr := ""
 	for n in game._neighbors(game.capital_id):
@@ -544,6 +548,9 @@ func _save(catalog: Catalog) -> bool:
 		return false
 	if int(again.sdays.kept.get("plaza", 0)) != 4 or int(again.carry.delivered) != 3:
 		_bad("load dropped sdays or carry")
+		return false
+	if str(again.echoes.get("plaza", {}).get("kind", "")) != "deal" or str(again.rival_log.get("exchange", {}).get("kind", "")) != "bought" or str(again.callers.get("here", "")) != "exchange":
+		_bad("schema 25 dropped an earlier field")
 		return false
 	if not bool(again.flags.get(Scars.FLAG, false)):
 		_bad("load dropped seen flag")
@@ -582,20 +589,23 @@ func _save(catalog: Catalog) -> bool:
 	if int(v20.sdays.kept.get("plaza", 0)) != 4:
 		_bad("schema 20 dropped sdays")
 		return false
-	for ver in [22, 23, 24]:
+	for ver in [20, 21, 22, 23, 24]:
 		var mixed := game.export_state()
 		mixed.erase("scars")
 		mixed["schema"] = ver
-		mixed["echoes"] = {"jay": {"week": 2}}
-		mixed["rival_log"] = {"exchange": {"kind": "bought"}}
-		mixed["callers"] = {"here": "exchange"}
 		var mid := Game.new()
 		mid.catalog = catalog
 		if not mid.import_state(mixed):
-			_bad("schema %d with draft keys %s" % [ver, mid.load_error])
+			_bad("schema %d %s" % [ver, mid.load_error])
 			return false
-		if not mid.scars.is_empty() or int(mid.carry.delivered) != 3:
-			_bad("schema %d migration" % ver)
+		if not mid.scars.is_empty():
+			_bad("schema %d invented scars" % ver)
+			return false
+		if int(mid.sdays.kept.get("plaza", 0)) != 4 or int(mid.carry.delivered) != 3:
+			_bad("schema %d dropped sdays or carry" % ver)
+			return false
+		if str(mid.echoes.get("plaza", {}).get("kind", "")) != "deal" or str(mid.rival_log.get("exchange", {}).get("kind", "")) != "bought" or str(mid.callers.get("here", "")) != "exchange":
+			_bad("schema %d dropped echoes, rival_log, or callers" % ver)
 			return false
 	var plain := game.export_state()
 	plain.erase("scars")
@@ -694,7 +704,7 @@ func _hooks() -> bool:
 		_bad("visit source order")
 		return false
 	var yard := _fn(FileAccess.get_file_as_string("res://ui/station.gd"), "_show_scar_yard")
-	if yard.find("_tip_plate_style") < 0 or yard.find("outline_size\", 0") < 0 or yard.find("outline_size\", 6") >= 0:
+	if yard.find("_tip_plate_style") < 0 or yard.find("outline_size\", 0") < 0 or yard.find("outline_size\", 6") >= 0 or yard.find("_place_yard_notice") < 0 or yard.find("_restack_yard_notices") < 0:
 		_bad("yard float plate")
 		return false
 	var shown := _fn(view, "_show_scar_float")

@@ -1,0 +1,66 @@
+{
+  "_note": "P91 Line Echo (NEW invent — DEC-E1…E3). Spec: /workspace/LINE_ECHO_P91_SPEC.md; brief /workspace/underline_ux_audit/P91_P95_BRIEFS.md. Namespace echo.* only. Code state echoes. After a resolved order at sid, each known 1-hop neighbor shows a muted Visit line (below P88 Face row — never inside Face cap-1). Face met → echo.said; else echo.heard. Kind nouns stay nominative in RU (colon / у-form avoids declension). Soft dawn NONE. Balance ZERO. No map mark. EN via Copy.t; RU → data/ru.json.",
+  "_roadmap": "P91",
+  "_owners": "Texts; Code echoes dict + Visit/hover line + first float; UIUX muted Visit line below Face; Art none",
+  "_status": "Designer APPROVED / Code-ready — stamped 2026-11-05. Soft dawn NONE. Balance ZERO. Code should not start yet (after P88–P90 UI chrome already A1-approved). Ieva Rusk / Иева Раск locked. rival.title RU «Чужие» kept. P91 Line Echo, 11 echo.*.",
+  "_soft_dawn": "NONE",
+  "_cite": [
+    "P88 Platform Faces — speaker only if Face met; never steal Face cap-1 (cite; unreopened)",
+    "P28 rumor chip — do not join soft dawn stack (cite)",
+    "P42 Rail Noise — rival on your border (different; cite)",
+    "P37 Border Whisper — 1-hop amber rings (different; cite)",
+    "P82 Signal Chain — intel odds (different; cite)"
+  ],
+  "_placeholders": [
+    "{name}",
+    "{kind}",
+    "{station}"
+  ],
+  "by_key": {
+    "echo.said": {
+      "en": "{name} heard about the {kind} at {station}.",
+      "ru": "{name} уже знает: {kind} у {station}."
+    },
+    "echo.heard": {
+      "en": "Word from the next platform: the {kind} at {station}.",
+      "ru": "С соседней платформы: {kind} у {station}."
+    },
+    "echo.kind.envoy": {
+      "en": "envoy",
+      "ru": "посланник"
+    },
+    "echo.kind.deal": {
+      "en": "deal",
+      "ru": "сделка"
+    },
+    "echo.kind.aid": {
+      "en": "aid",
+      "ru": "помощь"
+    },
+    "echo.kind.propaganda": {
+      "en": "leaflets",
+      "ru": "листовки"
+    },
+    "echo.kind.probe": {
+      "en": "probe",
+      "ru": "разведка"
+    },
+    "echo.kind.patrol": {
+      "en": "patrol",
+      "ru": "патруль"
+    },
+    "echo.kind.raid": {
+      "en": "raid",
+      "ru": "рейд"
+    },
+    "echo.first": {
+      "en": "The next station heard.",
+      "ru": "Соседняя станция услышала."
+    },
+    "echo.tip": {
+      "en": "Neighboring platforms hear what you do.",
+      "ru": "Соседние платформы слышат, что ты делаешь."
+    }
+  },
+  "_designer": "APPROVED"
+}

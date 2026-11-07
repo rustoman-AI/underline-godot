@@ -221,6 +221,15 @@ var sday_float_tween: Tween
 var carry_float: PanelContainer
 var carry_float_label: Label
 var carry_float_tween: Tween
+var echo_float: PanelContainer
+var echo_float_label: Label
+var echo_float_tween: Tween
+var rival_float: PanelContainer
+var rival_float_label: Label
+var rival_float_tween: Tween
+var caller_float: PanelContainer
+var caller_float_label: Label
+var caller_float_tween: Tween
 var scar_float: PanelContainer
 var scar_float_label: Label
 var scar_float_tween: Tween
@@ -1604,6 +1613,10 @@ func _process(_delta: float) -> void:
 	_try_regular_float()
 	_try_station_day_float()
 	_try_carry_float()
+	_try_echo_float()
+	_try_rival_float()
+	_try_caller_float()
+	_try_caller_left()
 	_try_scar_float()
 	if end_button == null:
 		return
@@ -4932,10 +4945,15 @@ func _salvage_node(row: Dictionary) -> Control:
 	elif str(row.get("reason", "")) != "":
 		sub = str(row.reason)
 	if sub != "":
-		var why := _label(sub, 13)
+		var why := _label("", 13, false, false)
+		why.text = sub
 		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		why.add_theme_color_override("font_color", DELTA_DOWN if gate != "" else PAPER_MUTED)
+		_hold_label(why, 13)
+		if why.custom_minimum_size.x > 200.0:
+			why.custom_minimum_size.x = 180.0
+			why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		box.add_child(why)
 	if not fitted and int(row.get("materials", 0)) > 0:
 		var cost := HBoxContainer.new()
@@ -4989,11 +5007,12 @@ func _strip_card(on_board: bool) -> Control:
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(button)
 	panel.add_child(row)
-	var tip := _label(Copy.t("salvage.strip_tip"), 13)
-	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip.add_theme_color_override("font_color", PAPER_MUTED if on_paper else MUTED)
+	var tip := _label("", 13, false, false)
+	tip.text = Copy.t("salvage.strip_tip")
 	if str(info.reason) != "" and not bool(info.ok):
 		tip.text = str(info.reason)
+	tip.add_theme_color_override("font_color", PAPER_MUTED if on_paper else MUTED)
+	_wrap_in_card(tip, _card_inner())
 	panel.add_child(tip)
 	return panel
 
@@ -6073,8 +6092,11 @@ func _law_branch(branch: Array) -> VBoxContainer:
 		col.add_child(_law_side(law_id, why))
 		if why != "" and not tipped and game.week >= 6:
 			var lab := _label(why, 13)
-			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			lab.add_theme_color_override("font_color", PAPER_MUTED)
+			var share := 180.0
+			if card_body != null and card_body.custom_minimum_size.x > 240.0:
+				share = maxf(140.0, (card_body.custom_minimum_size.x - 48.0) / float(BOOK_CREEDS.size()))
+			_wrap_in_card(lab, share)
 			col.add_child(lab)
 			tipped = true
 	return col
@@ -7989,10 +8011,8 @@ func _show_regular_yard(text: String) -> void:
 	regular_float_label.text = text
 	regular_float.modulate.a = 1.0
 	regular_float.visible = true
-	regular_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	regular_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	regular_float.size = Vector2(420, 36)
+	_place_yard_notice(regular_float, regular_float_label, [])
+	_restack_yard_notices()
 	if regular_float_tween != null and regular_float_tween.is_valid():
 		regular_float_tween.kill()
 	regular_float_tween = create_tween()
@@ -8040,12 +8060,8 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_label.text = text
 	sday_float.modulate.a = 1.0
 	sday_float.visible = true
-	sday_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	if regular_float != null and regular_float.visible:
-		y += 40.0
-	sday_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	sday_float.size = Vector2(420, 36)
+	_place_yard_notice(sday_float, sday_float_label, [regular_float])
+	_restack_yard_notices()
 	if sday_float_tween != null and sday_float_tween.is_valid():
 		sday_float_tween.kill()
 	sday_float_tween = create_tween()
@@ -8057,6 +8073,212 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_tween.tween_callback(func() -> void:
 		if sday_float != null:
 			sday_float.visible = false)
+
+
+## P61 first-float on the YA1 tip plate when the first caller is met off the map.
+func _try_caller_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := PlatformCallers.claim_first(game)
+	if line == "":
+		return
+	_show_caller_yard(line)
+
+
+func _show_caller_yard(text: String) -> void:
+	if caller_float == null:
+		caller_float = PanelContainer.new()
+		caller_float.z_index = 8
+		caller_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caller_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		caller_float.set_meta("caller_yard_float", true)
+		caller_float_label = Label.new()
+		caller_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caller_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		caller_float_label.clip_text = false
+		caller_float_label.add_theme_font_size_override("font_size", 18)
+		caller_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		caller_float_label.add_theme_constant_override("outline_size", 0)
+		caller_float.add_child(caller_float_label)
+		add_child(caller_float)
+	caller_float_label.text = text
+	caller_float.modulate.a = 1.0
+	caller_float.visible = true
+	_place_yard_notice(caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float])
+	_restack_yard_notices()
+	if caller_float_tween != null and caller_float_tween.is_valid():
+		caller_float_tween.kill()
+	caller_float_tween = create_tween()
+	if _motion_off():
+		caller_float_tween.tween_interval(4.2)
+	else:
+		caller_float_tween.tween_interval(1.1)
+		caller_float_tween.tween_property(caller_float, "modulate:a", 0.0, 0.8)
+	caller_float_tween.tween_callback(func() -> void:
+		if caller_float != null:
+			caller_float.visible = false)
+
+
+## Quiet P56 toast when the courier leaves. Not a modal and not a dawn chip.
+func _try_caller_left() -> void:
+	if game == null or not bool(game.get("caller_left_toast")):
+		return
+	game.caller_left_toast = false
+	var line := Copy.t("caller.left")
+	if line == "":
+		return
+	_toast(line)
+
+## P61 first-float on the YA1 tip plate when the first note is taken off the map.
+func _try_carry_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := CarriedWord.claim_first(game)
+	if line == "":
+		return
+	_show_carry_yard(line)
+
+
+func _show_carry_yard(text: String) -> void:
+	if carry_float == null:
+		carry_float = PanelContainer.new()
+		carry_float.z_index = 8
+		carry_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		carry_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		carry_float.set_meta("carry_yard_float", true)
+		carry_float_label = Label.new()
+		carry_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		carry_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		carry_float_label.clip_text = false
+		carry_float_label.add_theme_font_size_override("font_size", 18)
+		carry_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		carry_float_label.add_theme_constant_override("outline_size", 0)
+		carry_float.add_child(carry_float_label)
+		add_child(carry_float)
+	carry_float_label.text = text
+	carry_float.modulate.a = 1.0
+	carry_float.visible = true
+	_place_yard_notice(carry_float, carry_float_label, [regular_float, sday_float])
+	_restack_yard_notices()
+	if carry_float_tween != null and carry_float_tween.is_valid():
+		carry_float_tween.kill()
+	carry_float_tween = create_tween()
+	if _motion_off():
+		carry_float_tween.tween_interval(4.2)
+	else:
+		carry_float_tween.tween_interval(1.1)
+		carry_float_tween.tween_property(carry_float, "modulate:a", 0.0, 0.8)
+	carry_float_tween.tween_callback(func() -> void:
+		if carry_float != null:
+			carry_float.visible = false)
+
+
+## P61 first-float on the YA1 tip plate when the map could not show the first echo.
+func _try_echo_float() -> void:
+	if game == null or showing_network:
+		return
+	if LineEcho.held_float == "":
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := LineEcho.held_float
+	LineEcho.held_float = ""
+	_show_echo_yard(line)
+
+
+func _show_echo_yard(text: String) -> void:
+	if echo_float == null:
+		echo_float = PanelContainer.new()
+		echo_float.z_index = 8
+		echo_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		echo_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		echo_float.set_meta("echo_yard_float", true)
+		echo_float_label = Label.new()
+		echo_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		echo_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		echo_float_label.clip_text = false
+		echo_float_label.add_theme_font_size_override("font_size", 18)
+		echo_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		echo_float_label.add_theme_constant_override("outline_size", 0)
+		echo_float.add_child(echo_float_label)
+		add_child(echo_float)
+	echo_float_label.text = text
+	echo_float.modulate.a = 1.0
+	echo_float.visible = true
+	_place_yard_notice(echo_float, echo_float_label, [regular_float, sday_float, carry_float])
+	_restack_yard_notices()
+	if echo_float_tween != null and echo_float_tween.is_valid():
+		echo_float_tween.kill()
+	echo_float_tween = create_tween()
+	if _motion_off():
+		echo_float_tween.tween_interval(4.2)
+	else:
+		echo_float_tween.tween_interval(1.1)
+		echo_float_tween.tween_property(echo_float, "modulate:a", 0.0, 0.8)
+	echo_float_tween.tween_callback(func() -> void:
+		if echo_float != null:
+			echo_float.visible = false)
+
+
+## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
+## column after the label later receives a width. Give the line a real width
+## before the plate measures, then stack the notices on their real heights.
+func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> void:
+	var pad := Vector2(16, 16)
+	var face := plate.get_theme_stylebox("panel")
+	if face != null:
+		pad = Vector2(
+			face.get_margin(SIDE_LEFT) + face.get_margin(SIDE_RIGHT),
+			face.get_margin(SIDE_TOP) + face.get_margin(SIDE_BOTTOM))
+	var inner := maxf(160.0, 420.0 - pad.x)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# A maximum of 0 is a real cap. -1 is "no cap", which the line height needs.
+	label.custom_maximum_size = Vector2(inner, -1)
+	label.custom_minimum_size = Vector2(inner, 0)
+	var text_h := maxf(label.get_combined_minimum_size().y, 22.0)
+	label.custom_minimum_size = Vector2(inner, text_h)
+	var h := maxf(text_h + pad.y, 36.0)
+	plate.custom_minimum_size = Vector2(420, h)
+	plate.reset_size()
+	plate.size = Vector2(420, h)
+	var y := (hud.size.y if hud != null else 72.0) + 8.0
+	for node in above:
+		var other := node as Control
+		if other != null and is_instance_valid(other) and other.visible:
+			y = maxf(y, other.position.y + other.size.y + 4.0)
+	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
+
+
+## Face, Days, Carry, Echo, Rival, Caller, then the scar. Re-show measures each line again.
+func _restack_yard_notices() -> void:
+	var stack := [
+		[regular_float, regular_float_label, []],
+		[sday_float, sday_float_label, [regular_float]],
+		[carry_float, carry_float_label, [regular_float, sday_float]],
+		[echo_float, echo_float_label, [regular_float, sday_float, carry_float]],
+		[rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float]],
+		[caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float]],
+		[scar_float, scar_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float]],
+	]
+	for row in stack:
+		var plate := row[0] as PanelContainer
+		var label := row[1] as Label
+		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
+			continue
+		_place_yard_notice(plate, label, row[2])
 
 
 ## P61 first-float on the YA1 tip plate when the first scar is written off the map.
@@ -8092,16 +8314,8 @@ func _show_scar_yard(text: String) -> void:
 	scar_float_label.text = text
 	scar_float.modulate.a = 1.0
 	scar_float.visible = true
-	scar_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	if regular_float != null and regular_float.visible:
-		y += 40.0
-	if sday_float != null and sday_float.visible:
-		y += 40.0
-	if carry_float != null and carry_float.visible:
-		y += 40.0
-	scar_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	scar_float.size = Vector2(420, 36)
+	_place_yard_notice(scar_float, scar_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float])
+	_restack_yard_notices()
 	if scar_float_tween != null and scar_float_tween.is_valid():
 		scar_float_tween.kill()
 	scar_float_tween = create_tween()
@@ -8115,58 +8329,58 @@ func _show_scar_yard(text: String) -> void:
 			scar_float.visible = false)
 
 
-## P61 first-float on the YA1 tip plate when the first note is taken off the map.
-func _try_carry_float() -> void:
-	if game == null or showing_network:
+## P61 first-float. Map uses the X1 slip; the yard uses the shared notice stack. Not a dawn chip.
+func _try_rival_float() -> void:
+	if game == null or not RivalDesk.has_pending(game):
+		return
+	if showing_network:
+		if network_view != null and network_view.has_method("_show_rival_float") and network_view.visible and network_view.is_inside_tree():
+			var line := RivalDesk.claim(game)
+			if line != "":
+				network_view._show_rival_float(line)
 		return
 	if deck.top_priority() == ModalDeck.NARRATIVE:
 		return
 	if dim != null and dim.visible:
 		return
-	var line := CarriedWord.claim_first(game)
+	var line := RivalDesk.claim(game)
 	if line == "":
 		return
-	_show_carry_yard(line)
+	_show_rival_yard(line)
 
 
-func _show_carry_yard(text: String) -> void:
-	if carry_float == null:
-		carry_float = PanelContainer.new()
-		carry_float.z_index = 8
-		carry_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		carry_float.add_theme_stylebox_override("panel", _tip_plate_style())
-		carry_float.set_meta("carry_yard_float", true)
-		carry_float_label = Label.new()
-		carry_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		carry_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		carry_float_label.clip_text = false
-		carry_float_label.add_theme_font_size_override("font_size", 18)
-		carry_float_label.add_theme_color_override("font_color", Color("efe6d2"))
-		carry_float_label.add_theme_constant_override("outline_size", 0)
-		carry_float.add_child(carry_float_label)
-		add_child(carry_float)
-	carry_float_label.text = text
-	carry_float.modulate.a = 1.0
-	carry_float.visible = true
-	carry_float.custom_minimum_size = Vector2(420, 36)
-	var y := (hud.size.y if hud != null else 72.0) + 8.0
-	if regular_float != null and regular_float.visible:
-		y += 40.0
-	if sday_float != null and sday_float.visible:
-		y += 40.0
-	carry_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
-	carry_float.size = Vector2(420, 36)
-	if carry_float_tween != null and carry_float_tween.is_valid():
-		carry_float_tween.kill()
-	carry_float_tween = create_tween()
+func _show_rival_yard(text: String) -> void:
+	if rival_float == null:
+		rival_float = PanelContainer.new()
+		rival_float.z_index = 8
+		rival_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rival_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		rival_float.set_meta("rival_yard_float", true)
+		rival_float_label = Label.new()
+		rival_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rival_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		rival_float_label.clip_text = false
+		rival_float_label.add_theme_font_size_override("font_size", 18)
+		rival_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		rival_float_label.add_theme_constant_override("outline_size", 0)
+		rival_float.add_child(rival_float_label)
+		add_child(rival_float)
+	rival_float_label.text = text
+	rival_float.modulate.a = 1.0
+	rival_float.visible = true
+	_place_yard_notice(rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float])
+	_restack_yard_notices()
+	if rival_float_tween != null and rival_float_tween.is_valid():
+		rival_float_tween.kill()
+	rival_float_tween = create_tween()
 	if _motion_off():
-		carry_float_tween.tween_interval(4.2)
+		rival_float_tween.tween_interval(4.2)
 	else:
-		carry_float_tween.tween_interval(1.1)
-		carry_float_tween.tween_property(carry_float, "modulate:a", 0.0, 0.8)
-	carry_float_tween.tween_callback(func() -> void:
-		if carry_float != null:
-			carry_float.visible = false)
+		rival_float_tween.tween_interval(1.1)
+		rival_float_tween.tween_property(rival_float, "modulate:a", 0.0, 0.8)
+	rival_float_tween.tween_callback(func() -> void:
+		if rival_float != null:
+			rival_float.visible = false)
 
 
 func _show_dawn() -> void:
@@ -8797,9 +9011,9 @@ func _add_party_member() -> void:
 
 func _breach_craft_card() -> void:
 	card_body.add_child(_label("breach.section", 16, true))
-	var cost := _label("", 16)
+	var cost := _label("", 16, false, false)
 	cost.text = Copy.t("breach.cost") % game.breach_stock()
-	cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(cost, 16)
 	card_body.add_child(cost)
 	if game.breach_stock() >= 1:
 		_body("breach.held")
@@ -10440,6 +10654,21 @@ func _label(text: String, size: int, display: bool = false, translate: bool = tr
 	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	lab.clip_text = false
 	return lab
+
+
+func _card_inner() -> float:
+	if card_body != null and card_body.custom_minimum_size.x > 120.0:
+		return card_body.custom_minimum_size.x
+	return 480.0
+
+
+## Long copy wraps at a real parent width. SHRINK_BEGIN plus WORD_SMART with no
+## width collapses the label to one glyph.
+func _wrap_in_card(lab: Label, width: float) -> void:
+	lab.clip_text = false
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.custom_minimum_size.x = maxf(width, 80.0)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 ## Short chrome stays one horizontal line. WORD_SMART before the row has a width
@@ -13776,7 +14005,9 @@ func _paint_life_epilogue() -> void:
 			_life_wall()
 	_paint_life_dots()
 	on_paper = false
+	_hold_epilogue_line(life_epilogue_eyebrow)
 	_layout_life_epilogue()
+	_layout_life_epilogue.call_deferred()
 	if _motion_off():
 		life_epilogue_body.modulate.a = 1.0
 		return
@@ -13806,7 +14037,7 @@ func _life_verdict(payload: Dictionary) -> void:
 	var verdict := str(payload.get("verdict", ""))
 	if verdict == "":
 		verdict = game.ending_fallback()
-	life_epilogue_body.add_child(_slip_label(verdict, 28, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_line(verdict, 28, SLIP_INK, true))
 	_show_voice("verdict", str(payload.get("ending", "")), str(payload.get("creed", "none")), verdict)
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_gap())
@@ -13816,7 +14047,7 @@ func _life_verdict(payload: Dictionary) -> void:
 func _life_chronicle(payload: Dictionary) -> void:
 	var moments: Array = payload.get("chronicle", [])
 	if moments.is_empty():
-		life_epilogue_body.add_child(_slip_label("epilogue.chronicle_empty", 18, SLIP_MUTED))
+		life_epilogue_body.add_child(_epilogue_line("epilogue.chronicle_empty", 18, SLIP_MUTED))
 	else:
 		var n := 0
 		for moment in moments:
@@ -13826,7 +14057,7 @@ func _life_chronicle(payload: Dictionary) -> void:
 			var text := str(moment.get("text", ""))
 			if text == "":
 				text = game.chronicle_line(moment)
-			life_epilogue_body.add_child(_slip_label("%d.  %s" % [n, text], 17, SLIP_INK))
+			life_epilogue_body.add_child(_epilogue_line("%d.  %s" % [n, text], 17, SLIP_INK))
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(0), false, "back"))
 	life_epilogue_actions.add_child(_epilogue_gap())
@@ -13834,7 +14065,7 @@ func _life_chronicle(payload: Dictionary) -> void:
 
 
 func _life_fates(payload: Dictionary) -> void:
-	life_epilogue_body.add_child(_slip_label("epilogue.page_fates", 13, Color("6a543c"), true))
+	life_epilogue_body.add_child(_epilogue_line("epilogue.page_fates", 13, Color("6a543c"), true))
 	var shown := 0
 	for row in payload.get("fates", []):
 		if shown >= 8:
@@ -13842,19 +14073,19 @@ func _life_fates(payload: Dictionary) -> void:
 		var line := str(row.get("line", ""))
 		if line == "":
 			continue
-		life_epilogue_body.add_child(_slip_label(line, 16, SLIP_INK))
+		life_epilogue_body.add_child(_epilogue_line(line, 16, SLIP_INK))
 		shown += 1
 	var judgment := str(payload.get("judgment", ""))
 	if judgment != "":
 		life_epilogue_body.add_child(_epilogue_rule())
-		life_epilogue_body.add_child(_slip_label(judgment, 17, SLIP_INK, true))
+		life_epilogue_body.add_child(_epilogue_line(judgment, 17, SLIP_INK, true))
 		_show_voice("judgment", game._judgment_id(), "body", judgment)
 	life_epilogue_body.add_child(_epilogue_rule())
 	var score := Copy.fill("epilogue.score", {
 		"n": int(payload.get("score", 0)),
 		"best": int(payload.get("best", 0)),
 	})
-	life_epilogue_body.add_child(_slip_label(score, 20, SLIP_INK, true))
+	life_epilogue_body.add_child(_epilogue_line(score, 20, SLIP_INK, true))
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(1), false, "back"))
 	life_epilogue_actions.add_child(_epilogue_gap())
@@ -14046,16 +14277,44 @@ func _life_epilogue_close() -> void:
 	_back_to_menu()
 
 
+func _epilogue_bounds() -> Vector2:
+	return Vector2(
+		minf(680.0, maxf(320.0, size.x - 64.0)),
+		minf(620.0, maxf(380.0, size.y - 110.0)))
+
+
+## Border 2+2 and the page inset 22+22. The band uses the same inset.
+func _epilogue_line_width() -> float:
+	return maxf(160.0, _epilogue_bounds().x - 48.0)
+
+
+## A slip line with no width is shaped one glyph tall and the card keeps that
+## height. The next page measures against the stuck card and grows again.
+func _epilogue_line(text: String, px: int, ink: Color, display := false) -> Label:
+	var lab := _slip_label(text, px, ink, display)
+	_hold_epilogue_line(lab)
+	return lab
+
+
+func _hold_epilogue_line(lab: Label) -> void:
+	if lab == null:
+		return
+	var w := _epilogue_line_width()
+	lab.custom_minimum_size.x = w
+	# 0 would cap the line at no height. -1 leaves the wrapped height alone.
+	lab.custom_maximum_size = Vector2(w, -1)
+
+
 func _layout_life_epilogue() -> void:
 	if life_epilogue_panel == null or life_epilogue == null or not life_epilogue.visible:
 		return
-	var w := minf(680.0, maxf(320.0, size.x - 64.0))
-	var h := minf(620.0, maxf(380.0, size.y - 110.0))
-	life_epilogue_panel.position = Vector2((size.x - w) * 0.5, (size.y - h) * 0.5 - 12.0)
-	life_epilogue_panel.size = Vector2(w, h)
+	var bounds := _epilogue_bounds()
+	life_epilogue_panel.reset_size()
+	life_epilogue_panel.size = bounds
+	life_epilogue_panel.position = Vector2((size.x - bounds.x) * 0.5, (size.y - bounds.y) * 0.5 - 12.0)
 	if life_epilogue_dots != null:
 		var dw := life_epilogue_dots.get_combined_minimum_size().x
-		life_epilogue_dots.position = Vector2((size.x - dw) * 0.5, life_epilogue_panel.position.y + h + 14.0)
+		life_epilogue_dots.position = Vector2((size.x - dw) * 0.5, life_epilogue_panel.position.y + bounds.y + 14.0)
 
 
 func _life_epilogue_input(event: InputEvent) -> bool:

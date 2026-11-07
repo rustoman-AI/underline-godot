@@ -9,9 +9,9 @@ extends RefCounted
 ## Tip and one Visit line. First float once per run. Not a dawn chip. No map mark.
 ## Balance ZERO. No rng. Soft dawn NONE.
 ##
-## Schema chain (this branch does not import P91–P93):
-##   20 station days, 21 carried word (merged), 22 echoes, 23 rival_log, 24 callers (unmerged drafts),
-##   25 scars (this pack). Saves may carry echoes / rival_log / callers or omit them.
+## Schema chain: 20 station days, 21 carried word, 22 line echo, 23 rival desk,
+## 24 platform callers, 25 passage scars. A key already stored is kept.
+## Schema <= 24 may omit scars.
 
 const FLAG := "seen_passage_scars"
 const TIP_W := 360.0

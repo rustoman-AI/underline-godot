@@ -219,6 +219,14 @@ var regulars := {}
 var sdays := {"kept": {}, "intruded": {}, "quiet": {}}
 ## P90 Carried Word. Pocket and thread memory only. Outcomes never read it.
 var carry := {"pocket": {}, "threads": {}, "delivered": 0, "lines": []}
+## P91 Line Echo. Neighbor memory only. Outcomes never read it.
+var echoes := {}
+## P92 Rival Desk. Last resolved move per rival faction. Outcomes never read it.
+var rival_log := {}
+## P93 Platform Callers. Occupancy only. Outcomes never read it.
+var callers := {"here": "", "until": 0, "why": "", "seen": {}, "cool_until": {}, "queue": []}
+## Quiet leave toast for the yard. Not saved.
+var caller_left_toast := false
 ## P94 Passage Scars. Edge id -> {kind, week, count}. Memory only. Outcomes never read it.
 var scars := {}
 var last_check := {}
@@ -294,6 +302,11 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	obs_ui_block = false
 	regulars = {}
 	sdays = {"kept": {}, "intruded": {}, "quiet": {}}
+	echoes = {}
+	rival_log = {}
+	LineEcho.held_float = ""
+	callers = PlatformCallers.blank()
+	caller_left_toast = false
 	scars = {}
 	notices = []
 	raid_share = {}
@@ -1350,6 +1363,8 @@ func dig_possible(for_space: bool) -> bool:
 # --- week phases ---
 
 func _dawn() -> void:
+	## Seat or dismiss a caller before this dawn's orders can offer a new one.
+	PlatformCallers.tick(self)
 	_expire_need_ticks()
 	battle_dis_week = 0
 	_resolve_queued()
@@ -4731,6 +4746,7 @@ func _apply_order(action: Dictionary) -> bool:
 			_vo_cue("caravan_arrived")
 			flags["first_caravan"] = flags.get("first_caravan", week)
 		PlatformFaces.note_order(self, action)
+		LineEcho.note_order(self, action)
 		CarriedWord.on_order(self, order, CarriedWord.target_sid(order, action))
 		StationDays.on_order(self, order, StationDays.sid_of(action))
 	return ok
@@ -4813,6 +4829,7 @@ func _order_deal(sid: String) -> bool:
 	if _deal_block(sid) != "":
 		return false
 	var st: Dictionary = stations[sid]
+	var deal_owner := str(st.owner)
 	var before_sym := int(st.sympathy)
 	var need_id := _lowest_need(st)
 	var need_before := _need_fill(st, need_id)
@@ -4832,6 +4849,7 @@ func _order_deal(sid: String) -> bool:
 		st.join_pulse = true
 	_stamp_soft_note(st, sid, "deal", before_sym, before_sym, 0, need_id, need_before, need_after, int(st.deals), joined)
 	LeafletDust.settle(self, sid)
+	PlatformCallers.note_deal(self, deal_owner)
 	return true
 
 
@@ -5047,6 +5065,7 @@ func _resolve_queued() -> void:
 		var day_line := ""
 		if ok:
 			PlatformFaces.note_order(self, action)
+			LineEcho.note_order(self, action)
 			carry_line = CarriedWord.on_order(self, kind, CarriedWord.target_sid(kind, action), str(row.get("name", "")), _feminine(str(row.get("person", "")), str(row.get("name", ""))))
 			# The week counter already moved. The order was given on the week the player just left.
 			day_line = StationDays.on_order(self, kind, StationDays.sid_of(action), week - 1)
@@ -6417,6 +6436,7 @@ func _queue_intent_playback(intent: Dictionary, from_station: String, owner_befo
 		"station": dest,
 		"path": path.duplicate(),
 	})
+	RivalDesk.note_chip(self, fid, chip, dest)
 
 
 func _resolve_buy(fid: String, sid: String) -> void:
@@ -6787,6 +6807,8 @@ func _capture(sid: String, fid: String, force: bool) -> bool:
 	_note_join_pulse(st, prev, fid, force)
 	if fid == player:
 		MarksKit.note_capture(self, sid, force)
+	else:
+		RivalDesk.note_took(self, fid, sid)
 	PlatformFaces.note_capture(self, sid, fid, force)
 	StationDays.note_capture(self, sid, fid, force)
 	return true
@@ -7583,6 +7605,7 @@ func _drift_opinion() -> void:
 			at_war[fid] = true
 			_log("WAR %s" % _fname(fid), true)
 			_journal("war", {"faction": fid})
+	PlatformCallers.note_opinions(self)
 
 
 # --- people ---
@@ -11172,6 +11195,7 @@ func _synod_preach() -> void:
 	_press_loyalty(st, "synod")
 	st.known = true
 	_log("PREACH The Synod speaks at %s" % st.name, true)
+	RivalDesk.note(self, "synod", "preached", best)
 	if int(st.rival_symp.synod) >= 100:
 		_capture(best, "synod", false)
 
@@ -11407,6 +11431,7 @@ func _add_opinion(fid: String, amount: int, why: String = "") -> void:
 	opinion_memory[fid].append({"week": week, "delta": amount, "why": note})
 	if opinion_memory[fid].size() > 8:
 		opinion_memory[fid].pop_front()
+	PlatformCallers.note_opinions(self)
 
 
 func _staff_line() -> String:
@@ -11929,7 +11954,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "scars",
+	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "echoes", "rival_log", "callers", "scars",
 ]
 
 
@@ -11950,14 +11975,14 @@ const PERSIST := [
 ## Version 19 added the platform faces. Older saves start with nobody met.
 ## Version 20 added station days. Older saves start with nothing remembered.
 ## Version 21 added carried words. Older saves start with an empty pocket.
-## Versions 22–24 are reserved by unmerged drafts and are not imported here:
-##   22 echoes (P91), 23 rival_log (P92), 24 callers (P93).
-## A save may include those keys or omit them. They are not PERSIST keys on this branch,
-## so a present key is ignored and a missing key is not required.
-## When those drafts merge, add them as V21_ADDED / V22_ADDED / V23_ADDED and leave scars at 25.
-## A schema 25 save from this branch has scars and no echoes / rival_log / callers; the merged
-## game should backfill those three through schema 25 the same way (optional below 25).
+## Version 22 added line echoes. Older saves start with nothing heard.
+## Version 23 added the rival desk. Older saves start with an empty rival_log.
+## Version 24 adds platform callers. Older saves start with nobody on the stairs.
 ## Version 25 added passage scars. Older saves start with nothing remembered on a passage.
+## Schema <= 19 may omit sdays. Schema <= 20 may omit carry. Schema <= 21 may omit echoes.
+## Schema <= 22 may omit rival_log. Schema <= 23 may omit callers. Schema <= 24 may omit scars.
+## A key that is already in the file is kept. Schema 24 keeps callers, rival_log, echoes, carry,
+## and sdays, and receives an empty scars dict. Schema 25 requires scars and every earlier key.
 const SAVE_SCHEMA := 25
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
@@ -12010,8 +12035,13 @@ const V18_ADDED := ["regulars"]
 const V19_ADDED := ["sdays"]
 ## Fields a version 1 to 20 save may lack: no carried word yet.
 const V20_ADDED := ["carry"]
+## Fields a version 1 to 21 save may lack: no line echoes yet.
+const V21_ADDED := ["echoes"]
+## Fields a version 1 to 22 save may lack: no rival desk yet.
+const V22_ADDED := ["rival_log"]
+## Fields a version 1 to 23 save may lack: no platform caller yet.
+const V23_ADDED := ["callers"]
 ## Fields a version 1 to 24 save may lack: no passage scars yet.
-## 22 echoes, 23 rival_log, and 24 callers are not added here (unmerged; tolerated as extra keys).
 const V24_ADDED := ["scars"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
@@ -12070,7 +12100,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 21 and V21_ADDED.has(key)) or (int(schema) <= 22 and V22_ADDED.has(key)) or (int(schema) <= 23 and V23_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -13531,6 +13561,21 @@ func carried_word_dawn_chip() -> bool:
 	return CarriedWord.dawn_chip()
 
 
+## Always false. P91 Line Echo is a Visit line and a first-float. Not a soft dawn chip.
+func line_echo_dawn_chip() -> bool:
+	return LineEcho.dawn_chip()
+
+
+## Always false. P92 Rival Desk is a desk log and a first-float, never a soft dawn chip.
+func rival_desk_dawn_chip() -> bool:
+	return RivalDesk.dawn_chip()
+
+
+## Always false. P93 Platform Callers is a home row and a first-float, never a soft dawn chip.
+func platform_callers_dawn_chip() -> bool:
+	return PlatformCallers.dawn_chip()
+
+
 ## Always false. P94 Passage Scars is an edge tip, one Visit line, and a first float. Not a soft dawn chip.
 func passage_scars_dawn_chip() -> bool:
 	return PassageScars.dawn_chip()
@@ -14245,6 +14290,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 	var fought := _resolve_battle(sq, dest, false)
 	var win := bool(fought.get("win", false))
 	var st: Dictionary = stations[dest]
+	var raid_owner := str(st.owner)
 	var place := _station_place(dest)
 	PassageScars.note_raid(self, dest)
 	if win:
@@ -14288,6 +14334,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 			if raid_share_profile != "":
 				pick = raid_share_bot_choice()
 			apply_raid_share(pick)
+	PlatformCallers.note_hit(self, raid_owner)
 	return true
 
 
@@ -14336,6 +14383,7 @@ func _order_assault(dest: String, _immediate: bool) -> bool:
 		opinion = Copy.t("combat.unbidden") % absi(int(bal.get("unbidden_hope", -2)))
 	_stamp_combat("assault", dest, win, captured, fought.get("player", {}), hope0, dis0, opinion)
 	_note_party_home()
+	PlatformCallers.note_hit(self, owner)
 	return true
 
 
