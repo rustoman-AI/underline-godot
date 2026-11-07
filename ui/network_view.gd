@@ -1304,8 +1304,52 @@ func _symbol_rect(mark: Texture2D, px: int, tint := Color.WHITE) -> TextureRect:
 
 
 ## The five symbols with their names on a paper slip in the lower left of the desk; left out on any frame
-## where the slip would cover a pin or a tag.
+## where the slip would cover a pin or a tag. Empty when that slip is not drawn.
+func legend_slip_rect() -> Rect2:
+	var game = _game()
+	var font := _tag_font
+	if game == null or font == null:
+		return Rect2()
+	var names: PackedStringArray = []
+	for row in game.catalog.leaders.get("factions", []):
+		var fid := str(row.get("id", ""))
+		if _symbol(game, fid) == null:
+			continue
+		var name: Dictionary = game.leader_name(fid, "name")
+		names.append(str(name.get("ru" if Copy.ru() else "en", fid)))
+	if names.is_empty():
+		return Rect2()
+	var fs := 13
+	var icon := 20.0
+	var step := 25.0
+	var swatch := 14.0 if territories else 0.0
+	var widest := 0.0
+	for faction_name in names:
+		widest = maxf(widest, font.get_string_size(faction_name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	widest += swatch + (6.0 if territories else 0.0)
+	var area := _open_area()
+	var bottom := minf(area.end.y, _chrome_top())
+	if _zoom_bar != null and _zoom_bar.visible:
+		bottom = _zoom_bar.position.y - 8.0
+	var slip := Vector2(widest + icon + 26.0, step * float(names.size()) + 12.0)
+	var box := Rect2(Vector2((FIT_PAD + 4.0) if schematic else (area.position.x + 4.0), bottom - slip.y), slip)
+	if council != null and council.visible and box.intersects(council.get_rect().grow(6.0)):
+		return Rect2()
+	for sid in _layout:
+		var info: Dictionary = _layout[sid]
+		var r := float(info.r)
+		if box.grow(4.0).intersects(Rect2(info.at - Vector2(r, r), Vector2(r, r) * 2.0)):
+			return Rect2()
+	for sid in _tags:
+		if box.grow(4.0).intersects(_tags[sid]):
+			return Rect2()
+	return box
+
+
 func _draw_legend(c: CanvasItem, game) -> void:
+	var box := legend_slip_rect()
+	if box.size.x < 1.0 or _legend_blocked(box):
+		return
 	var rows: Array = []
 	for row in game.catalog.leaders.get("factions", []):
 		var fid := str(row.get("id", ""))
@@ -1314,32 +1358,12 @@ func _draw_legend(c: CanvasItem, game) -> void:
 			continue
 		var name: Dictionary = game.leader_name(fid, "name")
 		rows.append([mark, str(name.get("ru" if Copy.ru() else "en", fid)), _paper_tint(fid), territory_color(game, fid)])
-	if rows.is_empty():
+	if rows.is_empty() or _tag_font == null:
 		return
 	var fs := 13
 	var icon := 20.0
 	var step := 25.0
 	var swatch := 14.0 if territories else 0.0
-	var widest := 0.0
-	for row in rows:
-		widest = maxf(widest, _tag_font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
-	widest += swatch + (6.0 if territories else 0.0)
-	var area := _open_area()
-	var bottom := minf(area.end.y, _chrome_top())
-	if _zoom_bar != null and _zoom_bar.visible:
-		bottom = _zoom_bar.position.y - 8.0
-	var slip := Vector2(widest + icon + 26.0, step * rows.size() + 12.0)
-	var box := Rect2(Vector2((FIT_PAD + 4.0) if schematic else (area.position.x + 4.0), bottom - slip.y), slip)
-	if _legend_blocked(box):
-		return
-	for sid in _layout:
-		var info: Dictionary = _layout[sid]
-		var r := float(info.r)
-		if box.grow(4.0).intersects(Rect2(info.at - Vector2(r, r), Vector2(r, r) * 2.0)):
-			return
-	for sid in _tags:
-		if box.grow(4.0).intersects(_tags[sid]):
-			return
 	c.draw_set_transform(box.get_center(), deg_to_rad(-0.8))
 	var local := Rect2(-box.size * 0.5, box.size)
 	c.draw_rect(Rect2(local.position + Vector2(1.5, 2.0), local.size), Color(0, 0, 0, 0.35))

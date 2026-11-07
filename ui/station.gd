@@ -7493,6 +7493,8 @@ func _chatter_blocked(node: Control) -> bool:
 			return true
 		if _chatter_hits_map_notes(mine):
 			return true
+		if _chatter_hits_legend(mine, node == radio_panel):
+			return true
 	if life_epilogue != null and life_epilogue.visible and life_epilogue_panel != null and _rects_hit(mine, life_epilogue_panel.get_global_rect()):
 		return true
 	return false
@@ -7513,6 +7515,30 @@ func _rects_hit(a: Rect2, b: Rect2) -> bool:
 	if a.size.x < 1.0 or a.size.y < 1.0 or b.size.x < 1.0 or b.size.y < 1.0:
 		return false
 	return a.grow(-1.0).intersects(b.grow(-1.0))
+
+
+## The open map key covers both chatter cards. The bottom-left radio card also
+## has to clear the faction slip and the ? button. The centered voice line does
+## not: the slip already steps aside for that pill.
+func _chatter_hits_legend(mine: Rect2, radio_card: bool) -> bool:
+	if network_view == null:
+		return false
+	var panel: Control = network_view.legend_panel
+	if panel != null and panel.visible and _rects_hit(mine, panel.get_global_rect()):
+		return true
+	if not radio_card:
+		return false
+	if network_view.has_method("legend_slip_rect"):
+		var local: Rect2 = network_view.legend_slip_rect()
+		if local.size.x > 1.0 and local.size.y > 1.0:
+			var origin: Vector2 = network_view.get_global_transform() * local.position
+			var far: Vector2 = network_view.get_global_transform() * local.end
+			if _rects_hit(mine, Rect2(origin, far - origin)):
+				return true
+	var key: Control = network_view.legend_button
+	if key != null and key.visible and _rects_hit(mine, key.get_global_rect()):
+		return true
+	return false
 
 
 func _chatter_hits_map_notes(mine: Rect2) -> bool:
@@ -8192,6 +8218,7 @@ func _show_obs_float(text: String) -> void:
 	obs_float.custom_minimum_size = Vector2(420, 28)
 	obs_float.position = Vector2(size.x * 0.5 - 210.0, size.y * 0.42)
 	obs_float.size = Vector2(420, 28)
+	_arm_yard_notice(obs_float)
 	if obs_float_tween != null and obs_float_tween.is_valid():
 		obs_float_tween.kill()
 	obs_float_tween = create_tween()
@@ -8201,8 +8228,7 @@ func _show_obs_float(text: String) -> void:
 		obs_float_tween.tween_interval(1.1)
 		obs_float_tween.tween_property(obs_float, "modulate:a", 0.0, 0.8)
 	obs_float_tween.tween_callback(func() -> void:
-		if obs_float != null:
-			obs_float.visible = false)
+		_end_yard_notice(obs_float))
 
 
 ## P61 first-float on the YA1 tip plate when the first Face is met off the map.
@@ -8529,6 +8555,7 @@ func _yard_notice_rows() -> Array:
 		[caller_float, caller_float_tween],
 		[scar_float, scar_float_tween],
 		[trace_float, trace_float_tween],
+		[obs_float, obs_float_tween],
 	]
 
 
