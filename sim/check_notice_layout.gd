@@ -129,6 +129,37 @@ func _yards(st, tag: String, view: Vector2) -> void:
 			_bad("%s notices overlap %s | %s | %s | %s" % [tag, top, mid, bot, echo])
 		if mid.position.y < top.end.y - 1.0 or bot.position.y < mid.end.y - 1.0 or echo.position.y < bot.end.y - 1.0:
 			_bad("%s notice stack %s %s %s %s" % [tag, top, mid, bot, echo])
+		st._show_rival_yard(Copy.t("rival.first"))
+		for _i in 2:
+			await process_frame
+		var rival_plate: PanelContainer = st.rival_float
+		var rival_lab: Label = st.rival_float_label
+		echo = st.echo_float.get_global_rect()
+		bot = st.carry_float.get_global_rect()
+		if rival_plate == null or rival_lab == null or str(rival_lab.text) != Copy.t("rival.first"):
+			_bad("%s rival missing" % tag)
+		else:
+			_notice(tag + " rival", rival_plate, rival_lab, view)
+			var rival_rect := rival_plate.get_global_rect()
+			if _hits(echo, rival_rect) or _hits(bot, rival_rect) or rival_rect.position.y < echo.end.y - 1.0:
+				_bad("%s rival overlap %s echo %s" % [tag, rival_rect, echo])
+			var again_lines := rival_lab.get_line_count()
+			st._show_rival_yard(Copy.t("rival.first"))
+			for _i in 2:
+				await process_frame
+			rival_plate = st.rival_float
+			rival_lab = st.rival_float_label
+			if rival_plate == null or rival_lab == null or str(rival_lab.text) != Copy.t("rival.first"):
+				_bad("%s rival second show" % tag)
+			elif rival_plate.size.x < rival_plate.size.y * 2.0 or rival_lab.get_line_count() > 3 or rival_lab.get_line_count() < 1:
+				_bad("%s rival slab %s lines %d" % [tag, rival_plate.size, rival_lab.get_line_count()])
+			elif again_lines > 3:
+				_bad("%s rival first show stacked %d" % [tag, again_lines])
+			if _shots() or OS.get_cmdline_user_args().has("--rival-shots"):
+				if tag.begins_with("100 ") or tag.begins_with("125 "):
+					var lang := "ru" if tag.ends_with("ru") else "en"
+					var size := "125" if tag.begins_with("125") else "100"
+					await _save_shot(st, "/opt/cursor/artifacts/p92_yard_mixed_%s_%s.png" % [lang, size])
 	if _shots() and (tag.begins_with("100 ") or tag.begins_with("125 ")):
 		await _shot_yards(st, tag)
 	_clear_yards(st)
@@ -433,7 +464,7 @@ func _save_shot(st, path: String) -> void:
 
 
 func _clear_yards(st) -> void:
-	for key in ["regular_float", "sday_float", "carry_float", "echo_float"]:
+	for key in ["regular_float", "sday_float", "carry_float", "echo_float", "rival_float"]:
 		var tween = st.get(key + "_tween")
 		if tween != null and is_instance_valid(tween) and tween.is_valid():
 			tween.kill()

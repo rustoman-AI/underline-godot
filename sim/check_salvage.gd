@@ -422,7 +422,7 @@ func _raid() -> void:
 
 
 func _save() -> void:
-	_expect(Game.SAVE_SCHEMA == 22, "Save schema is 22", str(Game.SAVE_SCHEMA))
+	_expect(Game.SAVE_SCHEMA == 23, "Save schema is 23", str(Game.SAVE_SCHEMA))
 	var game := _game()
 	game.stock.blueprints = 4
 	game.salvage.strip_week = 9

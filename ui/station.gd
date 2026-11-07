@@ -224,6 +224,9 @@ var carry_float_tween: Tween
 var echo_float: PanelContainer
 var echo_float_label: Label
 var echo_float_tween: Tween
+var rival_float: PanelContainer
+var rival_float_label: Label
+var rival_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1605,6 +1608,7 @@ func _process(_delta: float) -> void:
 	_try_station_day_float()
 	_try_carry_float()
 	_try_echo_float()
+	_try_rival_float()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -7999,6 +8003,7 @@ func _show_regular_yard(text: String) -> void:
 	regular_float.modulate.a = 1.0
 	regular_float.visible = true
 	_place_yard_notice(regular_float, regular_float_label, [])
+	_restack_yard_notices()
 	if regular_float_tween != null and regular_float_tween.is_valid():
 		regular_float_tween.kill()
 	regular_float_tween = create_tween()
@@ -8047,6 +8052,7 @@ func _show_sday_yard(text: String) -> void:
 	sday_float.modulate.a = 1.0
 	sday_float.visible = true
 	_place_yard_notice(sday_float, sday_float_label, [regular_float])
+	_restack_yard_notices()
 	if sday_float_tween != null and sday_float_tween.is_valid():
 		sday_float_tween.kill()
 	sday_float_tween = create_tween()
@@ -8094,6 +8100,7 @@ func _show_carry_yard(text: String) -> void:
 	carry_float.modulate.a = 1.0
 	carry_float.visible = true
 	_place_yard_notice(carry_float, carry_float_label, [regular_float, sday_float])
+	_restack_yard_notices()
 	if carry_float_tween != null and carry_float_tween.is_valid():
 		carry_float_tween.kill()
 	carry_float_tween = create_tween()
@@ -8142,6 +8149,7 @@ func _show_echo_yard(text: String) -> void:
 	echo_float.modulate.a = 1.0
 	echo_float.visible = true
 	_place_yard_notice(echo_float, echo_float_label, [regular_float, sday_float, carry_float])
+	_restack_yard_notices()
 	if echo_float_tween != null and echo_float_tween.is_valid():
 		echo_float_tween.kill()
 	echo_float_tween = create_tween()
@@ -8185,6 +8193,77 @@ func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> vo
 		if other != null and is_instance_valid(other) and other.visible:
 			y = maxf(y, other.position.y + other.size.y + 4.0)
 	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
+
+
+## Face, Days, Carry, Echo, then the rival note. Re-show measures each line again.
+func _restack_yard_notices() -> void:
+	var stack := [
+		[regular_float, regular_float_label, []],
+		[sday_float, sday_float_label, [regular_float]],
+		[carry_float, carry_float_label, [regular_float, sday_float]],
+		[echo_float, echo_float_label, [regular_float, sday_float, carry_float]],
+		[rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float]],
+	]
+	for row in stack:
+		var plate := row[0] as PanelContainer
+		var label := row[1] as Label
+		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
+			continue
+		_place_yard_notice(plate, label, row[2])
+
+
+## P61 first-float. Map uses the X1 slip; the yard uses the shared notice stack. Not a dawn chip.
+func _try_rival_float() -> void:
+	if game == null or not RivalDesk.has_pending(game):
+		return
+	if showing_network:
+		if network_view != null and network_view.has_method("_show_rival_float") and network_view.visible and network_view.is_inside_tree():
+			var line := RivalDesk.claim(game)
+			if line != "":
+				network_view._show_rival_float(line)
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := RivalDesk.claim(game)
+	if line == "":
+		return
+	_show_rival_yard(line)
+
+
+func _show_rival_yard(text: String) -> void:
+	if rival_float == null:
+		rival_float = PanelContainer.new()
+		rival_float.z_index = 8
+		rival_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rival_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		rival_float.set_meta("rival_yard_float", true)
+		rival_float_label = Label.new()
+		rival_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		rival_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		rival_float_label.clip_text = false
+		rival_float_label.add_theme_font_size_override("font_size", 18)
+		rival_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		rival_float_label.add_theme_constant_override("outline_size", 0)
+		rival_float.add_child(rival_float_label)
+		add_child(rival_float)
+	rival_float_label.text = text
+	rival_float.modulate.a = 1.0
+	rival_float.visible = true
+	_place_yard_notice(rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float])
+	_restack_yard_notices()
+	if rival_float_tween != null and rival_float_tween.is_valid():
+		rival_float_tween.kill()
+	rival_float_tween = create_tween()
+	if _motion_off():
+		rival_float_tween.tween_interval(4.2)
+	else:
+		rival_float_tween.tween_interval(1.1)
+		rival_float_tween.tween_property(rival_float, "modulate:a", 0.0, 0.8)
+	rival_float_tween.tween_callback(func() -> void:
+		if rival_float != null:
+			rival_float.visible = false)
 
 
 func _show_dawn() -> void:
