@@ -4928,10 +4928,15 @@ func _salvage_node(row: Dictionary) -> Control:
 	elif str(row.get("reason", "")) != "":
 		sub = str(row.reason)
 	if sub != "":
-		var why := _label(sub, 13)
+		var why := _label("", 13, false, false)
+		why.text = sub
 		why.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		why.add_theme_color_override("font_color", DELTA_DOWN if gate != "" else PAPER_MUTED)
+		_hold_label(why, 13)
+		if why.custom_minimum_size.x > 200.0:
+			why.custom_minimum_size.x = 180.0
+			why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		box.add_child(why)
 	if not fitted and int(row.get("materials", 0)) > 0:
 		var cost := HBoxContainer.new()
@@ -4985,11 +4990,12 @@ func _strip_card(on_board: bool) -> Control:
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(button)
 	panel.add_child(row)
-	var tip := _label(Copy.t("salvage.strip_tip"), 13)
-	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip.add_theme_color_override("font_color", PAPER_MUTED if on_paper else MUTED)
+	var tip := _label("", 13, false, false)
+	tip.text = Copy.t("salvage.strip_tip")
 	if str(info.reason) != "" and not bool(info.ok):
 		tip.text = str(info.reason)
+	tip.add_theme_color_override("font_color", PAPER_MUTED if on_paper else MUTED)
+	_wrap_in_card(tip, _card_inner())
 	panel.add_child(tip)
 	return panel
 
@@ -6069,8 +6075,11 @@ func _law_branch(branch: Array) -> VBoxContainer:
 		col.add_child(_law_side(law_id, why))
 		if why != "" and not tipped and game.week >= 6:
 			var lab := _label(why, 13)
-			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			lab.add_theme_color_override("font_color", PAPER_MUTED)
+			var share := 180.0
+			if card_body != null and card_body.custom_minimum_size.x > 240.0:
+				share = maxf(140.0, (card_body.custom_minimum_size.x - 48.0) / float(BOOK_CREEDS.size()))
+			_wrap_in_card(lab, share)
 			col.add_child(lab)
 			tipped = true
 	return col
@@ -8737,9 +8746,9 @@ func _add_party_member() -> void:
 
 func _breach_craft_card() -> void:
 	card_body.add_child(_label("breach.section", 16, true))
-	var cost := _label("", 16)
+	var cost := _label("", 16, false, false)
 	cost.text = Copy.t("breach.cost") % game.breach_stock()
-	cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hold_label(cost, 16)
 	card_body.add_child(cost)
 	if game.breach_stock() >= 1:
 		_body("breach.held")
@@ -10380,6 +10389,21 @@ func _label(text: String, size: int, display: bool = false, translate: bool = tr
 	lab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	lab.clip_text = false
 	return lab
+
+
+func _card_inner() -> float:
+	if card_body != null and card_body.custom_minimum_size.x > 120.0:
+		return card_body.custom_minimum_size.x
+	return 480.0
+
+
+## Long copy wraps at a real parent width. SHRINK_BEGIN plus WORD_SMART with no
+## width collapses the label to one glyph.
+func _wrap_in_card(lab: Label, width: float) -> void:
+	lab.clip_text = false
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.custom_minimum_size.x = maxf(width, 80.0)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 ## Short chrome stays one horizontal line. WORD_SMART before the row has a width
