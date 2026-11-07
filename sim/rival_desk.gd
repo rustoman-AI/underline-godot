@@ -4,7 +4,7 @@ extends RefCounted
 ## P92 Rival Desk. Last resolved move of Exchange, Directorate, and Synod.
 ## Recording only. No rng, no AI, no stock, hope, opinion, or garrison change.
 ## Soft dawn: none. Map mark: none. `rival.first` is a P61 first-float, not a dawn chip.
-## Schema 22 is reserved for unmerged P91 `echoes`. This script never reads it.
+## The log never reads neighbor memory or the sim outcome.
 ## Click opens the logged target station, never the faction capital.
 
 const SEEN := "seen_rival_desk"

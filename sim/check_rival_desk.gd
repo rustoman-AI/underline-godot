@@ -428,29 +428,91 @@ func _save(catalog: Catalog) -> bool:
 	if not carry_load.carry.pocket.is_empty() or not carry_load.rival_log.is_empty():
 		_bad("schema 20 kept a note or a log")
 		return false
-	for with_echoes in [true, false]:
-		var echo := game.export_state()
-		echo.erase("rival_log")
-		echo["schema"] = 22
-		if with_echoes:
-			echo["echoes"] = {"jayst": {"kind": "deal", "station": "plaza", "week": 4}}
-		else:
-			echo.erase("echoes")
-		var loaded := Game.new()
-		loaded.catalog = catalog
-		if not loaded.import_state(echo):
-			_bad("schema 22 load echoes=%s %s" % [with_echoes, loaded.load_error])
-			return false
-		if not loaded.rival_log.is_empty():
-			_bad("schema 22 kept a log")
-			return false
-		var back := loaded.export_state()
-		if back.has("echoes"):
-			_bad("schema 22 echoes became state")
-			return false
-		if not (loaded.sdays is Dictionary) or not (loaded.carry is Dictionary):
-			_bad("schema 22 dropped sdays or carry")
-			return false
+	var heard := {"plaza": {"kind": "deal", "from": "mill", "week": 8}}
+	game.echoes = heard.duplicate(true)
+	game.sdays.kept = {"plaza": [8]}
+	game.carry.pocket = {"thread": "lamp_copper", "leg": 1, "opened": false, "week": 8}
+	var full := game.export_state()
+	full["schema"] = 23
+	var round := Game.new()
+	round.catalog = catalog
+	if not round.import_state(full):
+		_bad("schema 23 round trip " + round.load_error)
+		return false
+	if str(round.rival_log.exchange.get("kind", "")) != "bought" or str(round.echoes.plaza.get("kind", "")) != "deal":
+		_bad("schema 23 dropped rival_log or echoes")
+		return false
+	if str(round.carry.pocket.get("thread", "")) != "lamp_copper" or round.sdays.kept.get("plaza", []) != [8]:
+		_bad("schema 23 dropped carry or sdays")
+		return false
+	var no_echo := full.duplicate(true)
+	no_echo.erase("echoes")
+	var missing_echo := Game.new()
+	missing_echo.catalog = catalog
+	if missing_echo.import_state(no_echo):
+		_bad("schema 23 accepted a save with no echoes")
+		return false
+	var echo22 := full.duplicate(true)
+	echo22.erase("rival_log")
+	echo22["schema"] = 22
+	var kept := Game.new()
+	kept.catalog = catalog
+	if not kept.import_state(echo22):
+		_bad("schema 22 load " + kept.load_error)
+		return false
+	if str(kept.echoes.plaza.get("kind", "")) != "deal" or str(kept.echoes.plaza.get("from", "")) != "mill":
+		_bad("schema 22 lost echoes")
+		return false
+	if not kept.rival_log.is_empty():
+		_bad("schema 22 invented a log")
+		return false
+	if str(kept.carry.pocket.get("thread", "")) != "lamp_copper":
+		_bad("schema 22 lost carry")
+		return false
+	echo22.erase("echoes")
+	var bare22 := Game.new()
+	bare22.catalog = catalog
+	if bare22.import_state(echo22):
+		_bad("schema 22 accepted a save with no echoes")
+		return false
+	var s21 := full.duplicate(true)
+	s21.erase("echoes")
+	s21.erase("rival_log")
+	s21["schema"] = 21
+	var mig21 := Game.new()
+	mig21.catalog = catalog
+	if not mig21.import_state(s21):
+		_bad("schema 21 migrate " + mig21.load_error)
+		return false
+	if not mig21.echoes.is_empty() or not mig21.rival_log.is_empty():
+		_bad("schema 21 kept a newer key")
+		return false
+	if str(mig21.carry.pocket.get("thread", "")) != "lamp_copper" or mig21.sdays.kept.get("plaza", []) != [8]:
+		_bad("schema 21 lost carry or sdays")
+		return false
+	var s20 := full.duplicate(true)
+	s20.erase("carry")
+	s20.erase("echoes")
+	s20.erase("rival_log")
+	s20["schema"] = 20
+	var mig20 := Game.new()
+	mig20.catalog = catalog
+	if not mig20.import_state(s20):
+		_bad("schema 20 migrate " + mig20.load_error)
+		return false
+	if not mig20.carry.pocket.is_empty() or not mig20.echoes.is_empty() or not mig20.rival_log.is_empty():
+		_bad("schema 20 invented a newer key")
+		return false
+	if mig20.sdays.kept.get("plaza", []) != [8]:
+		_bad("schema 20 lost sdays")
+		return false
+	var kept20 := s20.duplicate(true)
+	kept20["echoes"] = heard.duplicate(true)
+	var old_new := Game.new()
+	old_new.catalog = catalog
+	if not old_new.import_state(kept20) or str(old_new.echoes.plaza.get("kind", "")) != "deal":
+		_bad("schema 20 dropped a newer key that was present")
+		return false
 	var bad_type := game.export_state()
 	bad_type["rival_log"] = []
 	bad_type["schema"] = 23
@@ -471,19 +533,19 @@ func _save(catalog: Catalog) -> bool:
 
 func _bounds() -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 23") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V22_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 23") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if src.find("const SAVE_SCHEMA := 22") >= 0:
-		_bad("schema 22 was consumed")
+		_bad("schema stopped at 22")
 		return false
 	var persist_at := src.find("\"transfer_hub_sids\"")
-	var persist := src.substr(persist_at, 180) if persist_at >= 0 else ""
-	if persist.find("echoes") >= 0 or persist.find("rival_log") < 0:
+	var persist := src.substr(persist_at, 220) if persist_at >= 0 else ""
+	if persist.find("echoes") < 0 or persist.find("rival_log") < 0 or persist.find("carry") < 0 or persist.find("sdays") < 0:
 		_bad("persist list")
 		return false
-	if src.find("Version 22 is reserved") < 0 or src.find("<= 22 and V22_ADDED") < 0:
-		_bad("reservation note")
+	if src.find("<= 21 and V21_ADDED") < 0 or src.find("<= 22 and V22_ADDED") < 0 or src.find("<= 20 and V20_ADDED") < 0:
+		_bad("migration chain")
 		return false
 	if src.find("\"sdays\"") < 0 or src.find("\"carry\"") < 0 or src.find("\"rival_log\"") < 0:
 		_bad("persist chain")
@@ -518,8 +580,11 @@ func _bounds() -> bool:
 		_bad("bonus wired in the panel")
 		return false
 	var yard := _fn(FileAccess.get_file_as_string("res://ui/station.gd"), "_show_rival_yard")
-	if yard.find("_tip_plate_style") < 0 or yard.find("outline_size\", 0") < 0 or yard.find("AUTOWRAP_OFF") < 0:
+	if yard.find("_tip_plate_style") < 0 or yard.find("outline_size\", 0") < 0 or yard.find("_place_yard_notice") < 0 or yard.find("_restack_yard_notices") < 0:
 		_bad("yard float plate")
+		return false
+	if yard.find("custom_minimum_size = Vector2(420, 36)") >= 0 or yard.find("size = Vector2(420, 36)") >= 0:
+		_bad("yard plate sizes before the line has a width")
 		return false
 	var map_fn := _fn(view, "_show_rival_float")
 	if map_fn.find("_bind_float_plate") < 0:
