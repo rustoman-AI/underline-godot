@@ -143,7 +143,7 @@ func _rebuild() -> void:
 	_hint = _lab(Copy.t("obs.hint"), 14, false, PAPER_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tail.add_child(_hint)
-	var close := _btn("Close", _close)
+	var close := _btn(Copy.t("Close"), _close)
 	close.set_meta("obs_focus", "close")
 	close.custom_minimum_size = Vector2(110, 40)
 	_tail.add_child(close)

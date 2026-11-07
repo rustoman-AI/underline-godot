@@ -368,6 +368,8 @@ var room_hover := ""
 var radio_panel: PanelContainer
 var radio_text: Label
 var radio_tween: Tween
+## True while a cable-radio card should be on screen. A desk hides the card without ending the hold.
+var radio_hold := false
 var vo_pill: PanelContainer
 var vo_label: Label
 var vo_bars: Control
@@ -1625,6 +1627,8 @@ func _process(_delta: float) -> void:
 	_try_caller_float()
 	_try_caller_left()
 	_try_scar_float()
+	_sync_yard_notice_cover()
+	_sync_chatter_cover()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -2973,6 +2977,8 @@ func _toggle_network() -> void:
 	room_hover = ""
 	_sync_room_sound()
 	_place_chrome()
+	_sync_yard_notice_cover()
+	_sync_chatter_cover()
 
 
 func _skill_line(person: Dictionary) -> String:
@@ -5338,6 +5344,7 @@ func _show_trace_float(text: String) -> void:
 	trace_float_label.text = text
 	trace_float.modulate.a = 1.0
 	trace_float.visible = true
+	_arm_yard_notice(trace_float)
 	_place_yard_notice(trace_float, trace_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float])
 	_restack_yard_notices()
 	if trace_float_tween != null and trace_float_tween.is_valid():
@@ -5349,8 +5356,7 @@ func _show_trace_float(text: String) -> void:
 		trace_float_tween.tween_interval(1.1)
 		trace_float_tween.tween_property(trace_float, "modulate:a", 0.0, 0.8)
 	trace_float_tween.tween_callback(func() -> void:
-		if trace_float != null:
-			trace_float.visible = false)
+		_end_yard_notice(trace_float))
 
 
 func _listening_card(uid: String) -> void:
@@ -7442,6 +7448,7 @@ func _show_radio(text: String, hold: float) -> void:
 				_hide_radio())
 		add_child(radio_panel)
 	radio_text.text = text
+	radio_hold = true
 	radio_panel.visible = true
 	radio_panel.modulate.a = 1.0
 	radio_panel.reset_size()
@@ -7453,16 +7460,81 @@ func _show_radio(text: String, hold: float) -> void:
 	radio_tween.tween_interval(hold)
 	radio_tween.tween_property(radio_panel, "modulate:a", 0.0, 0.5)
 	radio_tween.tween_callback(func() -> void:
-		radio_panel.visible = false)
+		radio_hold = false
+		if radio_panel != null:
+			radio_panel.visible = false)
+	_sync_chatter_cover()
 
 
 func _hide_radio() -> void:
 	if Voice.playing() and Voice.now_kind == "radio":
 		Voice.stop()
+	radio_hold = false
 	if radio_tween != null:
 		radio_tween.kill()
 	if radio_panel != null:
 		radio_panel.visible = false
+
+
+## An open desk paints above the yard. Chatter keeps its hold and stays out of that rect.
+func _chatter_blocked(node: Control) -> bool:
+	if node == null:
+		return false
+	if dim != null and dim.visible:
+		return true
+	if showing_network and network_view != null and network_view.visit != null and network_view.visit.visible:
+		return true
+	var mine := _chatter_rect(node)
+	if observer_panel != null and observer_panel.visible and _rects_hit(mine, observer_panel.get_global_rect()):
+		return true
+	if showing_network and network_view != null:
+		var sheet: Control = network_view.sheet
+		if sheet != null and sheet.visible and _rects_hit(mine, sheet.get_global_rect()):
+			return true
+		if _chatter_hits_map_notes(mine):
+			return true
+	if life_epilogue != null and life_epilogue.visible and life_epilogue_panel != null and _rects_hit(mine, life_epilogue_panel.get_global_rect()):
+		return true
+	return false
+
+
+func _chatter_rect(node: Control) -> Rect2:
+	var sz := node.size
+	if sz.x < 8.0 or sz.y < 8.0:
+		sz = node.get_combined_minimum_size()
+	if sz.x < 8.0:
+		sz.x = 400.0
+	if sz.y < 8.0:
+		sz.y = 64.0
+	return Rect2(node.global_position, sz)
+
+
+func _rects_hit(a: Rect2, b: Rect2) -> bool:
+	if a.size.x < 1.0 or a.size.y < 1.0 or b.size.x < 1.0 or b.size.y < 1.0:
+		return false
+	return a.grow(-1.0).intersects(b.grow(-1.0))
+
+
+func _chatter_hits_map_notes(mine: Rect2) -> bool:
+	if network_view == null:
+		return false
+	for key in ["_rival_float", "_sday_float", "_caller_float", "_toll_float", "_scar_float", "_ledger_float"]:
+		var lab: CanvasItem = network_view.get(key)
+		if lab == null or not is_instance_valid(lab) or not lab.visible:
+			continue
+		var plate: Control = lab as Control
+		if network_view.has_method("_float_plate") and lab is Label:
+			plate = network_view._float_plate(lab)
+		if plate != null and _rects_hit(mine, plate.get_global_rect()):
+			return true
+	return false
+
+
+func _sync_chatter_cover() -> void:
+	if radio_panel != null and radio_hold:
+		radio_panel.visible = not _chatter_blocked(radio_panel)
+	if vo_pill != null and vo_pill.visible and _chatter_blocked(vo_pill):
+		vo_pill.visible = false
 
 
 func _journal_line(row: Dictionary) -> String:
@@ -8166,6 +8238,7 @@ func _show_regular_yard(text: String) -> void:
 	regular_float_label.text = text
 	regular_float.modulate.a = 1.0
 	regular_float.visible = true
+	_arm_yard_notice(regular_float)
 	_restack_yard_notices()
 	if regular_float_tween != null and regular_float_tween.is_valid():
 		regular_float_tween.kill()
@@ -8176,8 +8249,7 @@ func _show_regular_yard(text: String) -> void:
 		regular_float_tween.tween_interval(1.1)
 		regular_float_tween.tween_property(regular_float, "modulate:a", 0.0, 0.8)
 	regular_float_tween.tween_callback(func() -> void:
-		if regular_float != null:
-			regular_float.visible = false)
+		_end_yard_notice(regular_float))
 
 
 ## P61 first-float on the YA1 tip plate when the map could not show it.
@@ -8214,6 +8286,7 @@ func _show_sday_yard(text: String) -> void:
 	sday_float_label.text = text
 	sday_float.modulate.a = 1.0
 	sday_float.visible = true
+	_arm_yard_notice(sday_float)
 	_restack_yard_notices()
 	if sday_float_tween != null and sday_float_tween.is_valid():
 		sday_float_tween.kill()
@@ -8224,8 +8297,7 @@ func _show_sday_yard(text: String) -> void:
 		sday_float_tween.tween_interval(1.1)
 		sday_float_tween.tween_property(sday_float, "modulate:a", 0.0, 0.8)
 	sday_float_tween.tween_callback(func() -> void:
-		if sday_float != null:
-			sday_float.visible = false)
+		_end_yard_notice(sday_float))
 
 
 ## P61 first-float on the YA1 tip plate when the first caller is met off the map.
@@ -8261,6 +8333,7 @@ func _show_caller_yard(text: String) -> void:
 	caller_float_label.text = text
 	caller_float.modulate.a = 1.0
 	caller_float.visible = true
+	_arm_yard_notice(caller_float)
 	_place_yard_notice(caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float])
 	_restack_yard_notices()
 	if caller_float_tween != null and caller_float_tween.is_valid():
@@ -8272,8 +8345,7 @@ func _show_caller_yard(text: String) -> void:
 		caller_float_tween.tween_interval(1.1)
 		caller_float_tween.tween_property(caller_float, "modulate:a", 0.0, 0.8)
 	caller_float_tween.tween_callback(func() -> void:
-		if caller_float != null:
-			caller_float.visible = false)
+		_end_yard_notice(caller_float))
 
 
 ## Quiet P56 toast when the courier leaves. Not a modal and not a dawn chip.
@@ -8319,6 +8391,7 @@ func _show_carry_yard(text: String) -> void:
 	carry_float_label.text = text
 	carry_float.modulate.a = 1.0
 	carry_float.visible = true
+	_arm_yard_notice(carry_float)
 	_restack_yard_notices()
 	if carry_float_tween != null and carry_float_tween.is_valid():
 		carry_float_tween.kill()
@@ -8329,8 +8402,7 @@ func _show_carry_yard(text: String) -> void:
 		carry_float_tween.tween_interval(1.1)
 		carry_float_tween.tween_property(carry_float, "modulate:a", 0.0, 0.8)
 	carry_float_tween.tween_callback(func() -> void:
-		if carry_float != null:
-			carry_float.visible = false)
+		_end_yard_notice(carry_float))
 
 
 ## P61 first-float on the YA1 tip plate when the map could not show the first echo.
@@ -8367,6 +8439,7 @@ func _show_echo_yard(text: String) -> void:
 	echo_float_label.text = text
 	echo_float.modulate.a = 1.0
 	echo_float.visible = true
+	_arm_yard_notice(echo_float)
 	_place_yard_notice(echo_float, echo_float_label, [regular_float, sday_float, carry_float])
 	_restack_yard_notices()
 	if echo_float_tween != null and echo_float_tween.is_valid():
@@ -8378,8 +8451,7 @@ func _show_echo_yard(text: String) -> void:
 		echo_float_tween.tween_interval(1.1)
 		echo_float_tween.tween_property(echo_float, "modulate:a", 0.0, 0.8)
 	echo_float_tween.tween_callback(func() -> void:
-		if echo_float != null:
-			echo_float.visible = false)
+		_end_yard_notice(echo_float))
 
 
 ## WORD_SMART with no width shapes one glyph per line, and the plate keeps that
@@ -8446,6 +8518,84 @@ func _restack_yard_notices() -> void:
 		_place_yard_notice(plate, label, row[2])
 
 
+## The eight first-notice plates. The hold stays live while a desk covers them.
+func _yard_notice_rows() -> Array:
+	return [
+		[regular_float, regular_float_tween],
+		[sday_float, sday_float_tween],
+		[carry_float, carry_float_tween],
+		[echo_float, echo_float_tween],
+		[rival_float, rival_float_tween],
+		[caller_float, caller_float_tween],
+		[scar_float, scar_float_tween],
+		[trace_float, trace_float_tween],
+	]
+
+
+func _arm_yard_notice(plate: CanvasItem) -> void:
+	if plate == null:
+		return
+	plate.set_meta("yard_notice_live", true)
+	plate.set_meta("yard_notice_held", false)
+	plate.set_meta("yard_notice_paused", false)
+
+
+func _end_yard_notice(plate: CanvasItem) -> void:
+	if plate == null or not is_instance_valid(plate):
+		return
+	plate.set_meta("yard_notice_live", false)
+	plate.set_meta("yard_notice_held", false)
+	plate.set_meta("yard_notice_paused", false)
+	plate.visible = false
+
+
+## Map, Visit, the pause menu, and the Observer desk cover the yard.
+## A room card does not: the first trace line is born on that card.
+## The once-flags are already claimed. The hold pauses; it does not start over.
+func _yard_notices_covered() -> bool:
+	if showing_network or at_menu:
+		return true
+	if observer_panel != null and observer_panel.visible:
+		return true
+	if menu_layer != null and menu_layer.visible:
+		return true
+	if hub_layer != null and hub_layer.visible:
+		return true
+	if deck.top_token() == "menu":
+		return true
+	return false
+
+
+func _sync_yard_notice_cover() -> void:
+	var covered := _yard_notices_covered()
+	for row in _yard_notice_rows():
+		var plate: CanvasItem = row[0]
+		var tween: Tween = row[1]
+		if plate == null or not is_instance_valid(plate):
+			continue
+		if not bool(plate.get_meta("yard_notice_live", false)):
+			continue
+		if covered:
+			plate.visible = false
+			if bool(plate.get_meta("yard_notice_held", false)):
+				continue
+			plate.set_meta("yard_notice_held", true)
+			if tween != null and is_instance_valid(tween) and tween.is_valid() and tween.is_running():
+				tween.pause()
+				plate.set_meta("yard_notice_paused", true)
+			continue
+		if not bool(plate.get_meta("yard_notice_held", false)):
+			continue
+		plate.set_meta("yard_notice_held", false)
+		if not bool(plate.get_meta("yard_notice_paused", false)):
+			_end_yard_notice(plate)
+			continue
+		plate.set_meta("yard_notice_paused", false)
+		plate.visible = true
+		if tween != null and is_instance_valid(tween) and tween.is_valid():
+			tween.play()
+
+
 ## P61 first-float on the YA1 tip plate when the first scar is written off the map.
 func _try_scar_float() -> void:
 	if game == null or showing_network:
@@ -8479,6 +8629,7 @@ func _show_scar_yard(text: String) -> void:
 	scar_float_label.text = text
 	scar_float.modulate.a = 1.0
 	scar_float.visible = true
+	_arm_yard_notice(scar_float)
 	_place_yard_notice(scar_float, scar_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float, caller_float])
 	_restack_yard_notices()
 	if scar_float_tween != null and scar_float_tween.is_valid():
@@ -8490,8 +8641,7 @@ func _show_scar_yard(text: String) -> void:
 		scar_float_tween.tween_interval(1.1)
 		scar_float_tween.tween_property(scar_float, "modulate:a", 0.0, 0.8)
 	scar_float_tween.tween_callback(func() -> void:
-		if scar_float != null:
-			scar_float.visible = false)
+		_end_yard_notice(scar_float))
 
 
 ## P61 first-float. Map uses the X1 slip; the yard uses the shared notice stack. Not a dawn chip.
@@ -8533,6 +8683,7 @@ func _show_rival_yard(text: String) -> void:
 	rival_float_label.text = text
 	rival_float.modulate.a = 1.0
 	rival_float.visible = true
+	_arm_yard_notice(rival_float)
 	_place_yard_notice(rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float])
 	_restack_yard_notices()
 	if rival_float_tween != null and rival_float_tween.is_valid():
@@ -8544,8 +8695,7 @@ func _show_rival_yard(text: String) -> void:
 		rival_float_tween.tween_interval(1.1)
 		rival_float_tween.tween_property(rival_float, "modulate:a", 0.0, 0.8)
 	rival_float_tween.tween_callback(func() -> void:
-		if rival_float != null:
-			rival_float.visible = false)
+		_end_yard_notice(rival_float))
 
 
 func _show_dawn() -> void:
