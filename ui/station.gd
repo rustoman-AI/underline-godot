@@ -227,6 +227,9 @@ var echo_float_tween: Tween
 var rival_float: PanelContainer
 var rival_float_label: Label
 var rival_float_tween: Tween
+var caller_float: PanelContainer
+var caller_float_label: Label
+var caller_float_tween: Tween
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -1609,6 +1612,8 @@ func _process(_delta: float) -> void:
 	_try_carry_float()
 	_try_echo_float()
 	_try_rival_float()
+	_try_caller_float()
+	_try_caller_left()
 	if end_button == null:
 		return
 	if _choice_shelved():
@@ -8066,6 +8071,65 @@ func _show_sday_yard(text: String) -> void:
 			sday_float.visible = false)
 
 
+## P61 first-float on the YA1 tip plate when the first caller is met off the map.
+func _try_caller_float() -> void:
+	if game == null or showing_network:
+		return
+	if deck.top_priority() == ModalDeck.NARRATIVE:
+		return
+	if dim != null and dim.visible:
+		return
+	var line := PlatformCallers.claim_first(game)
+	if line == "":
+		return
+	_show_caller_yard(line)
+
+
+func _show_caller_yard(text: String) -> void:
+	if caller_float == null:
+		caller_float = PanelContainer.new()
+		caller_float.z_index = 8
+		caller_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caller_float.add_theme_stylebox_override("panel", _tip_plate_style())
+		caller_float.set_meta("caller_yard_float", true)
+		caller_float_label = Label.new()
+		caller_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caller_float_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		caller_float_label.clip_text = false
+		caller_float_label.add_theme_font_size_override("font_size", 18)
+		caller_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+		caller_float_label.add_theme_constant_override("outline_size", 0)
+		caller_float.add_child(caller_float_label)
+		add_child(caller_float)
+	caller_float_label.text = text
+	caller_float.modulate.a = 1.0
+	caller_float.visible = true
+	_place_yard_notice(caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float])
+	_restack_yard_notices()
+	if caller_float_tween != null and caller_float_tween.is_valid():
+		caller_float_tween.kill()
+	caller_float_tween = create_tween()
+	if _motion_off():
+		caller_float_tween.tween_interval(4.2)
+	else:
+		caller_float_tween.tween_interval(1.1)
+		caller_float_tween.tween_property(caller_float, "modulate:a", 0.0, 0.8)
+	caller_float_tween.tween_callback(func() -> void:
+		if caller_float != null:
+			caller_float.visible = false)
+
+
+## Quiet P56 toast when the courier leaves. Not a modal and not a dawn chip.
+func _try_caller_left() -> void:
+	if game == null or not bool(game.get("caller_left_toast")):
+		return
+	game.caller_left_toast = false
+	var line := Copy.t("caller.left")
+	if line == "":
+		return
+	_toast(line)
+
+
 ## P61 first-float on the YA1 tip plate when the first note is taken off the map.
 func _try_carry_float() -> void:
 	if game == null or showing_network:
@@ -8195,7 +8259,7 @@ func _place_yard_notice(plate: PanelContainer, label: Label, above: Array) -> vo
 	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
 
 
-## Face, Days, Carry, Echo, then the rival note. Re-show measures each line again.
+## Face, Days, Carry, Echo, Rival, then the caller. Re-show measures each line again.
 func _restack_yard_notices() -> void:
 	var stack := [
 		[regular_float, regular_float_label, []],
@@ -8203,6 +8267,7 @@ func _restack_yard_notices() -> void:
 		[carry_float, carry_float_label, [regular_float, sday_float]],
 		[echo_float, echo_float_label, [regular_float, sday_float, carry_float]],
 		[rival_float, rival_float_label, [regular_float, sday_float, carry_float, echo_float]],
+		[caller_float, caller_float_label, [regular_float, sday_float, carry_float, echo_float, rival_float]],
 	]
 	for row in stack:
 		var plate := row[0] as PanelContainer

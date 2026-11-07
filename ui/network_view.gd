@@ -226,6 +226,8 @@ var _echo_float: Label
 var _echo_float_tween: Tween
 var _rival_float: Label
 var _rival_float_tween: Tween
+var _caller_float: Label
+var _caller_float_tween: Tween
 var _ledger_figure: Font
 var legend_button: Button
 var legend_panel: PanelContainer
@@ -6017,6 +6019,98 @@ func _show_visit(sid: String) -> void:
 	_redraw()
 
 
+## Home only. One courier above Details, never inside the Face row. No button.
+func _add_caller_row(parent: Node, game, sid: String) -> void:
+	if not PlatformCallers.enabled or game == null or str(sid) != str(game.capital_id):
+		return
+	var card: Dictionary = PlatformCallers.card(game)
+	if card.is_empty():
+		return
+	var block := VBoxContainer.new()
+	block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	block.add_theme_constant_override("separation", 4)
+	var title := _lab(Copy.t("caller.title"), 14, true)
+	title.clip_text = false
+	title.set_meta("caller_title", true)
+	block.add_child(title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_meta("caller_hbox", true)
+	var portrait_id := str(card.portrait)
+	if host != null and host.has_method("_portrait_box"):
+		var portrait: TextureRect = host._portrait_box(portrait_id, 36)
+		portrait.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		portrait.custom_minimum_size = Vector2(36, 36)
+		portrait.set_meta("caller_portrait", portrait_id)
+		row.add_child(portrait)
+	var words := VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.add_theme_constant_override("separation", 2)
+	var who := HBoxContainer.new()
+	who.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	who.add_theme_constant_override("separation", 0)
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name := Label.new()
+	name.text = Copy.t(str(card.name_key))
+	name.clip_text = false
+	name.autowrap_mode = TextServer.AUTOWRAP_OFF
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name.add_theme_font_size_override("font_size", 15)
+	name.add_theme_color_override("font_color", INK)
+	name.set_meta("caller_name", true)
+	who.add_child(name)
+	var dot := Label.new()
+	dot.text = " · "
+	dot.clip_text = false
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dot.add_theme_font_size_override("font_size", 15)
+	dot.add_theme_color_override("font_color", MUTED)
+	who.add_child(dot)
+	var role := Label.new()
+	role.text = Copy.t(str(card.role_key))
+	role.clip_text = false
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	role.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	role.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role.add_theme_font_size_override("font_size", 15)
+	role.add_theme_color_override("font_color", MUTED)
+	role.set_meta("caller_role", true)
+	who.add_child(role)
+	words.add_child(who)
+	var quote := Label.new()
+	quote.text = Copy.t(str(card.line_key))
+	quote.clip_text = false
+	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quote.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	quote.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quote.add_theme_font_size_override("font_size", 14)
+	quote.add_theme_font_override("font", _quote_font())
+	quote.add_theme_color_override("font_color", INK)
+	quote.custom_minimum_size = Vector2(420, 0)
+	quote.set_meta("caller_quote", true)
+	words.add_child(quote)
+	row.add_child(words)
+	block.add_child(row)
+	var shell := MarginContainer.new()
+	shell.set_meta("caller_row", true)
+	shell.set_meta("caller_fid", str(card.fid))
+	shell.set_meta("caller_why", str(card.why))
+	shell.set_meta("caller_line_key", str(card.line_key))
+	shell.set_meta("caller_home", "visit")
+	shell.tooltip_text = Copy.t("caller.tip")
+	shell.mouse_filter = Control.MOUSE_FILTER_STOP
+	shell.focus_mode = Control.FOCUS_NONE
+	shell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shell.add_theme_constant_override("margin_right", 16)
+	shell.add_child(block)
+	parent.add_child(shell)
+
+
 ## Muted gossip under the Face (or under the head when that row is absent). Not a Face slot.
 func _add_echo_line(parent: Node, game, sid: String) -> bool:
 	var text := LineEcho.line_text(game, sid)
@@ -6326,6 +6420,78 @@ func _show_regular_float(line: String) -> void:
 			_regular_float.visible = false
 		if is_instance_valid(plate):
 			plate.visible = false)
+
+
+## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
+func _note_first_caller() -> void:
+	if not visible or not is_inside_tree():
+		return
+	var game = _game()
+	if game == null or _visit_sid != str(game.capital_id):
+		return
+	var line := PlatformCallers.claim_first(game)
+	if line == "":
+		return
+	_show_caller_float(line)
+
+
+func _show_caller_float(line: String) -> void:
+	if _caller_float == null:
+		_caller_float = Label.new()
+		_caller_float.z_index = 8
+		_caller_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_caller_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_caller_float.add_theme_font_size_override("font_size", 18)
+		_caller_float.set_meta("caller_float", true)
+		_bind_float_plate(_caller_float)
+	var plate := _float_plate(_caller_float)
+	_caller_float.text = line
+	_caller_float.modulate.a = 1.0
+	plate.modulate.a = 1.0
+	_caller_float.visible = true
+	plate.visible = true
+	if _caller_float_tween != null and _caller_float_tween.is_valid():
+		_caller_float_tween.kill()
+	_place_caller_float()
+	if not is_inside_tree():
+		return
+	_caller_float_tween = create_tween()
+	if _motion_off():
+		_caller_float_tween.tween_interval(4.2)
+	else:
+		var rise := plate.position.y - 18.0
+		_caller_float_tween.tween_property(plate, "position:y", rise, 2.4)
+		_caller_float_tween.parallel().tween_property(plate, "modulate:a", 0.0, 2.4).set_delay(1.0)
+	_caller_float_tween.tween_callback(func() -> void:
+		if _caller_float != null:
+			_caller_float.visible = false
+		if is_instance_valid(plate):
+			plate.visible = false)
+
+
+func _place_caller_float() -> void:
+	if _caller_float == null or not _caller_float.visible:
+		return
+	var y := _float_top()
+	if _deal_float != null and _deal_float.visible:
+		y += 34.0
+	if _warm_float != null and _warm_float.visible:
+		y += 34.0
+	if _leaf_float != null and _leaf_float.visible:
+		y += 34.0
+	if _transfer_float != null and _transfer_float.visible:
+		y += 34.0
+	if _regular_float != null and _regular_float.visible:
+		y += 34.0
+	if _sday_float != null and _sday_float.visible:
+		y += 34.0
+	if _carry_float != null and _carry_float.visible:
+		y += 34.0
+	if _echo_float != null and _echo_float.visible:
+		y += 34.0
+	if _rival_float != null and _rival_float.visible:
+		y += 34.0
+	_place_float_chip(_caller_float, y)
 
 
 ## P61 first-float on the X1 map slip. Once per run. Not a dawn chip.
@@ -6701,6 +6867,7 @@ func _fill_visit(sid: String) -> void:
 	_visit_body.add_child(head)
 	_add_face_row(_visit_body, game, sid)
 	var echo_shown := _add_echo_line(_visit_body, game, sid)
+	_add_caller_row(_visit_body, game, sid)
 	var details := _details_box()
 	var who: String = game.station_text(sid, "who")
 	var conflict: String = game.station_text(sid, "conflict")
@@ -6727,6 +6894,7 @@ func _fill_visit(sid: String) -> void:
 	_note_first_station_day(day_shown)
 	_note_first_carry()
 	_note_first_echo(echo_shown)
+	_note_first_caller()
 
 
 ## The picture keeps its own proportions at the sheet's width, cut no taller than banner_cap().

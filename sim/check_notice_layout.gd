@@ -102,6 +102,8 @@ func _yards(st, tag: String, view: Vector2) -> void:
 		"sday": Copy.t("sday.first"),
 		"carry": Copy.t("carry.first"),
 		"echo": Copy.t("echo.first"),
+		"rival": Copy.t("rival.first"),
+		"caller": Copy.t("caller.first"),
 	}
 	st._show_regular_yard(lines.regular)
 	st._show_sday_yard(lines.sday)
@@ -129,14 +131,14 @@ func _yards(st, tag: String, view: Vector2) -> void:
 			_bad("%s notices overlap %s | %s | %s | %s" % [tag, top, mid, bot, echo])
 		if mid.position.y < top.end.y - 1.0 or bot.position.y < mid.end.y - 1.0 or echo.position.y < bot.end.y - 1.0:
 			_bad("%s notice stack %s %s %s %s" % [tag, top, mid, bot, echo])
-		st._show_rival_yard(Copy.t("rival.first"))
+		st._show_rival_yard(lines.rival)
 		for _i in 2:
 			await process_frame
 		var rival_plate: PanelContainer = st.rival_float
 		var rival_lab: Label = st.rival_float_label
 		echo = st.echo_float.get_global_rect()
 		bot = st.carry_float.get_global_rect()
-		if rival_plate == null or rival_lab == null or str(rival_lab.text) != Copy.t("rival.first"):
+		if rival_plate == null or rival_lab == null or str(rival_lab.text) != lines.rival:
 			_bad("%s rival missing" % tag)
 		else:
 			_notice(tag + " rival", rival_plate, rival_lab, view)
@@ -144,22 +146,42 @@ func _yards(st, tag: String, view: Vector2) -> void:
 			if _hits(echo, rival_rect) or _hits(bot, rival_rect) or rival_rect.position.y < echo.end.y - 1.0:
 				_bad("%s rival overlap %s echo %s" % [tag, rival_rect, echo])
 			var again_lines := rival_lab.get_line_count()
-			st._show_rival_yard(Copy.t("rival.first"))
+			st._show_rival_yard(lines.rival)
 			for _i in 2:
 				await process_frame
 			rival_plate = st.rival_float
 			rival_lab = st.rival_float_label
-			if rival_plate == null or rival_lab == null or str(rival_lab.text) != Copy.t("rival.first"):
+			if rival_plate == null or rival_lab == null or str(rival_lab.text) != lines.rival:
 				_bad("%s rival second show" % tag)
 			elif rival_plate.size.x < rival_plate.size.y * 2.0 or rival_lab.get_line_count() > 3 or rival_lab.get_line_count() < 1:
 				_bad("%s rival slab %s lines %d" % [tag, rival_plate.size, rival_lab.get_line_count()])
 			elif again_lines > 3:
 				_bad("%s rival first show stacked %d" % [tag, again_lines])
+			st._show_caller_yard(lines.caller)
+			for _i in 2:
+				await process_frame
+			var caller_plate: PanelContainer = st.caller_float
+			var caller_lab: Label = st.caller_float_label
+			rival_rect = st.rival_float.get_global_rect()
+			if caller_plate == null or caller_lab == null or str(caller_lab.text) != lines.caller:
+				_bad("%s caller missing" % tag)
+			else:
+				_notice(tag + " caller", caller_plate, caller_lab, view)
+				var caller_rect := caller_plate.get_global_rect()
+				if _hits(rival_rect, caller_rect) or caller_rect.position.y < rival_rect.end.y - 1.0:
+					_bad("%s caller overlap %s rival %s" % [tag, caller_rect, rival_rect])
+				st._show_caller_yard(lines.caller)
+				for _i in 2:
+					await process_frame
+				if st.caller_float == null or st.caller_float.size.x < st.caller_float.size.y * 2.0 or st.caller_float_label.get_line_count() > 3:
+					_bad("%s caller second show %s" % [tag, st.caller_float.size if st.caller_float != null else "null"])
+			if not await _reverse_stack(st, tag, lines, view):
+				return
 			if _shots() or OS.get_cmdline_user_args().has("--rival-shots"):
 				if tag.begins_with("100 ") or tag.begins_with("125 "):
 					var lang := "ru" if tag.ends_with("ru") else "en"
 					var size := "125" if tag.begins_with("125") else "100"
-					await _save_shot(st, "/opt/cursor/artifacts/p92_yard_mixed_%s_%s.png" % [lang, size])
+					await _save_shot(st, "/opt/cursor/artifacts/p93_yard_mixed_%s_%s.png" % [lang, size])
 	if _shots() and (tag.begins_with("100 ") or tag.begins_with("125 ")):
 		await _shot_yards(st, tag)
 	_clear_yards(st)
@@ -463,8 +485,38 @@ func _save_shot(st, path: String) -> void:
 	print("SHOT %s %dx%d err %s" % [path, img.get_width(), img.get_height(), err])
 
 
+func _reverse_stack(st, tag: String, lines: Dictionary, view: Vector2) -> bool:
+	_clear_yards(st)
+	st._show_caller_yard(lines.caller)
+	st._show_rival_yard(lines.rival)
+	st._show_echo_yard(lines.echo)
+	st._show_carry_yard(lines.carry)
+	st._show_sday_yard(lines.sday)
+	st._show_regular_yard(lines.regular)
+	st._restack_yard_notices()
+	for _i in 2:
+		await process_frame
+	var order := ["regular", "sday", "carry", "echo", "rival", "caller"]
+	var prev := Rect2()
+	var first := true
+	for key in order:
+		var plate: PanelContainer = st.get(key + "_float")
+		var lab: Label = st.get(key + "_float_label")
+		if plate == null or lab == null or not plate.visible or str(lab.text) != str(lines[key]):
+			_bad("%s reverse %s missing" % [tag, key])
+			return false
+		_notice(tag + " reverse " + key, plate, lab, view)
+		var rect := plate.get_global_rect()
+		if not first and (rect.position.y < prev.end.y - 1.0 or _hits(prev, rect)):
+			_bad("%s reverse order %s %s then %s" % [tag, key, rect, prev])
+			return false
+		prev = rect
+		first = false
+	return true
+
+
 func _clear_yards(st) -> void:
-	for key in ["regular_float", "sday_float", "carry_float", "echo_float", "rival_float"]:
+	for key in ["regular_float", "sday_float", "carry_float", "echo_float", "rival_float", "caller_float"]:
 		var tween = st.get(key + "_tween")
 		if tween != null and is_instance_valid(tween) and tween.is_valid():
 			tween.kill()

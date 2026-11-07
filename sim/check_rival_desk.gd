@@ -77,7 +77,7 @@ func _run() -> void:
 		quit(1)
 		return
 	var balance := FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 23:
+	if Game.SAVE_SCHEMA != 24:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
 		_bad("soft dawn stack changed")
@@ -522,29 +522,29 @@ func _save(catalog: Catalog) -> bool:
 		_bad("schema 23 accepted a list")
 		return false
 	var future := game.export_state()
-	future["schema"] = 24
+	future["schema"] = 25
 	var ahead := Game.new()
 	ahead.catalog = catalog
 	if ahead.import_state(future):
-		_bad("schema 24 loaded")
+		_bad("schema 25 loaded")
 		return false
 	return true
 
 
 func _bounds() -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 23") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 24") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0:
 		_bad("schema source")
 		return false
-	if src.find("const SAVE_SCHEMA := 22") >= 0:
-		_bad("schema stopped at 22")
+	if src.find("const SAVE_SCHEMA := 22") >= 0 or src.find("const SAVE_SCHEMA := 23") >= 0:
+		_bad("schema stopped early")
 		return false
 	var persist_at := src.find("\"transfer_hub_sids\"")
 	var persist := src.substr(persist_at, 220) if persist_at >= 0 else ""
-	if persist.find("echoes") < 0 or persist.find("rival_log") < 0 or persist.find("carry") < 0 or persist.find("sdays") < 0:
+	if persist.find("echoes") < 0 or persist.find("rival_log") < 0 or persist.find("carry") < 0 or persist.find("sdays") < 0 or persist.find("callers") < 0:
 		_bad("persist list")
 		return false
-	if src.find("<= 21 and V21_ADDED") < 0 or src.find("<= 22 and V22_ADDED") < 0 or src.find("<= 20 and V20_ADDED") < 0:
+	if src.find("<= 21 and V21_ADDED") < 0 or src.find("<= 22 and V22_ADDED") < 0 or src.find("<= 23 and V23_ADDED") < 0 or src.find("<= 20 and V20_ADDED") < 0:
 		_bad("migration chain")
 		return false
 	if src.find("\"sdays\"") < 0 or src.find("\"carry\"") < 0 or src.find("\"rival_log\"") < 0:
