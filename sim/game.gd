@@ -219,6 +219,8 @@ var regulars := {}
 var sdays := {"kept": {}, "intruded": {}, "quiet": {}}
 ## P90 Carried Word. Pocket and thread memory only. Outcomes never read it.
 var carry := {"pocket": {}, "threads": {}, "delivered": 0, "lines": []}
+## P94 Passage Scars. Edge id -> {kind, week, count}. Memory only. Outcomes never read it.
+var scars := {}
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -292,6 +294,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	obs_ui_block = false
 	regulars = {}
 	sdays = {"kept": {}, "intruded": {}, "quiet": {}}
+	scars = {}
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -6519,6 +6522,7 @@ func _sorties() -> void:
 		if place == "":
 			place = Copy.t(str(stations[raider].name))
 		_lose_soldiers(hit, Copy.t("A raid from %s") % place)
+		PassageScars.note_raid(self, here)
 
 
 func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
@@ -6563,6 +6567,8 @@ func _step_squad(sq: Dictionary, nxt: String, player_move: bool) -> bool:
 	if not player_move and owner == player:
 		sq["assault_player_week"] = week
 	var win := _battle(sq, nxt)
+	if not player_move:
+		PassageScars.note_raid(self, nxt)
 	if win:
 		_press_loyalty(stations[nxt], str(sq.faction))
 		if _capture(nxt, str(sq.faction), true):
@@ -11923,7 +11929,7 @@ const PERSIST := [
 	"vo_heard", "radio_week", "standing", "standing_memory", "audience", "audience_last",
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
-	"transfer_hub_sids", "obs", "regulars", "sdays", "carry",
+	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "scars",
 ]
 
 
@@ -11944,7 +11950,15 @@ const PERSIST := [
 ## Version 19 added the platform faces. Older saves start with nobody met.
 ## Version 20 added station days. Older saves start with nothing remembered.
 ## Version 21 added carried words. Older saves start with an empty pocket.
-const SAVE_SCHEMA := 21
+## Versions 22–24 are reserved by unmerged drafts and are not imported here:
+##   22 echoes (P91), 23 rival_log (P92), 24 callers (P93).
+## A save may include those keys or omit them. They are not PERSIST keys on this branch,
+## so a present key is ignored and a missing key is not required.
+## When those drafts merge, add them as V21_ADDED / V22_ADDED / V23_ADDED and leave scars at 25.
+## A schema 25 save from this branch has scars and no echoes / rival_log / callers; the merged
+## game should backfill those three through schema 25 the same way (optional below 25).
+## Version 25 added passage scars. Older saves start with nothing remembered on a passage.
+const SAVE_SCHEMA := 25
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -11996,6 +12010,9 @@ const V18_ADDED := ["regulars"]
 const V19_ADDED := ["sdays"]
 ## Fields a version 1 to 20 save may lack: no carried word yet.
 const V20_ADDED := ["carry"]
+## Fields a version 1 to 24 save may lack: no passage scars yet.
+## 22 echoes, 23 rival_log, and 24 callers are not added here (unmerged; tolerated as extra keys).
+const V24_ADDED := ["scars"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -12053,7 +12070,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -12230,6 +12247,9 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 	for tunnel in state.tunnels:
 		if not (tunnel is Dictionary) or not state.stations.has(str(tunnel.get("a", ""))) or not state.stations.has(str(tunnel.get("b", ""))):
 			return "tunnel to an unknown station"
+	var why_scars := PassageScars.problem(state.scars, int(state.week))
+	if why_scars != "":
+		return why_scars
 	var why_shape := _shape_problem(state, cat)
 	if why_shape != "":
 		return why_shape
@@ -13511,6 +13531,11 @@ func carried_word_dawn_chip() -> bool:
 	return CarriedWord.dawn_chip()
 
 
+## Always false. P94 Passage Scars is an edge tip, one Visit line, and a first float. Not a soft dawn chip.
+func passage_scars_dawn_chip() -> bool:
+	return PassageScars.dawn_chip()
+
+
 func _party_position_away(sq: Dictionary) -> bool:
 	if bool(sq.get("away", false)):
 		return true
@@ -14221,6 +14246,7 @@ func _order_raid(dest: String, immediate: bool) -> bool:
 	var win := bool(fought.get("win", false))
 	var st: Dictionary = stations[dest]
 	var place := _station_place(dest)
+	PassageScars.note_raid(self, dest)
 	if win:
 		_add_opinion(str(st.owner), int(bal.get("raid_opinion", -15)))
 		for n in _neighbors(dest):
@@ -14287,6 +14313,8 @@ func _order_assault(dest: String, _immediate: bool) -> bool:
 		_log(Copy.fill("combat.log.unbidden", {"week": str(week), "place": place}), true)
 	var fought := _resolve_battle(squads[player], dest, spend)
 	var win := bool(fought.get("win", false))
+	## Scar from ownership at the resolve, before a capture turns the target's other edges into ours.
+	PassageScars.note_raid(self, dest)
 	var captured := false
 	var sq: Dictionary = squads[player]
 	if win:

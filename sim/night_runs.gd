@@ -523,6 +523,7 @@ static func _kill(game, pid: String, site: Dictionary) -> void:
 		place = str(game.stations[str(site.station)].get("name", ""))
 	game.people[pid]["on_run"] = false
 	game._remove_resident(pid, true, "night_run", "died", place)
+	PassageScars.note_night(game, str(site.get("station", "")))
 
 
 static func _weakest(game, ids: Array) -> String:
