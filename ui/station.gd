@@ -1,5 +1,7 @@
 extends Control
 
+const TermsRemembered = preload("res://sim/terms_remembered.gd")
+
 ## Cut-away of the station. Placeholder shapes on a painted wall. The sim stays in charge of the week.
 
 const INK := Color("efe6d2")
@@ -8811,16 +8813,14 @@ func _paint_night_resolve(ev: Dictionary) -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		for choice in ev.choices:
-			var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
-			if bool(choice.get("obs_line", false)):
-				_obs_dress_choice(pick, str(choice.get("obs_kind", "")), str(choice.get("obs_id", "")))
+			var pick := _event_choice_button(ev, choice)
 			pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(pick)
 		inner.add_child(row)
 		card_body.add_child(nest)
 	else:
 		for choice in ev.choices:
-			card_body.add_child(_choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id))))
+			card_body.add_child(_event_choice_button(ev, choice))
 
 
 func _night_shots() -> void:
@@ -9006,9 +9006,7 @@ func _paint_dawn() -> void:
 			_check_block(ev, choice)
 		elif choice.has("bet"):
 			_body("The odds are hidden.")
-		var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
-		if bool(choice.get("obs_line", false)):
-			_obs_dress_choice(pick, str(choice.get("obs_kind", "")), str(choice.get("obs_id", "")))
+		var pick := _event_choice_button(ev, choice)
 		var why := ""
 		if game.choice_locked(choice):
 			why = game.lock_reason(choice)
@@ -10225,6 +10223,7 @@ func _starts(text: String, prefixes: Array) -> bool:
 
 func _pick_event(event_id: String, choice_id: String) -> void:
 	var before := str(game.front_event().get("id", ""))
+	var offered: Dictionary = game.front_event()
 	var choice := _choice_by_id(event_id, choice_id)
 	var action := {"kind": "event", "event_id": event_id, "choice_id": choice_id}
 	if choice.has("check"):
@@ -10253,9 +10252,14 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		footer.text = _check_result_line()
 		footer.visible = footer.text != ""
 	if game.over != "":
+		if not check_flash:
+			footer.text = ""
+			footer.visible = false
 		_close_card()
 		_show_ending()
 		return
+	if not check_flash:
+		_note_terms(offered, choice)
 	if not _check_voice(event_id, choice_id):
 		_say(Voice.event_line(event_id, choice_id), title)
 	if event_id == "law_week6" and choice_id == "open":
@@ -10678,6 +10682,51 @@ func _style_choice(button: Button) -> void:
 	button.add_theme_color_override("font_hover_color", PAPER_INK)
 	button.add_theme_color_override("font_pressed_color", PAPER_INK)
 	button.add_theme_color_override("font_disabled_color", PAPER_MUTED)
+
+
+## Choice caption for an event card. Terms overlay replaces only a whitelisted label.
+## The button is still built from the canonical label first, so Copy.t keeps the old translation
+## when the context falls back. Mirror buttons are dressed here and keep their own words.
+func _event_choice_button(ev: Dictionary, choice: Dictionary) -> Button:
+	var canonical := game.line_of(choice, "label")
+	var shown := TermsRemembered.visible_label(game, ev, choice)
+	var pick := _choice_button(canonical, choice, _pick_event.bind(str(ev.id), str(choice.id)))
+	pick.set_meta("event_choice", true)
+	if shown != canonical:
+		pick.text = shown
+		pick.set_meta("terms_overlay", true)
+		_fit_terms_choice(pick)
+	if bool(choice.get("obs_line", false)):
+		_obs_dress_choice(pick, str(choice.get("obs_kind", "")), str(choice.get("obs_id", "")))
+	return pick
+
+
+## A remembered label may run to two lines. The cost line under the button is unchanged.
+func _fit_terms_choice(button: Button) -> void:
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var px := 18
+	var font: Font = button.get_theme_font("font")
+	if font == null:
+		font = display_font if display_font != null else ThemeDB.fallback_font
+	var width := maxf(_card_inner() - 48.0, 280.0)
+	var measured := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, width, px)
+	var line_h := maxf(font.get_height(px), float(px))
+	var lines := maxi(1, ceili(measured.y / maxf(line_h, 1.0)))
+	button.custom_minimum_size = Vector2(0, maxf(48.0, 14.0 + line_h * float(lines)))
+
+
+## One gesture sentence in the existing footer. Critical lines and a finished run do not use this.
+func _note_terms(ev: Dictionary, choice: Dictionary) -> void:
+	if ev.is_empty() or choice.is_empty():
+		return
+	var line := TermsRemembered.response_for(ev, choice)
+	if line == "":
+		return
+	footer.text = line
+	footer.visible = true
+	footer.clip_text = false
 
 
 func _choice_button(label: String, _choice: Dictionary, cb: Callable) -> Button:
