@@ -3780,6 +3780,7 @@ var _gov_list: VBoxContainer
 var _gov_scroll: ScrollContainer
 var _gov_send: Button
 var _gov_back: Button
+var _gov_opener: Button
 var _gov_notice: Label
 var _gov_hint: Label
 var _gov_sid := ""
@@ -3828,7 +3829,11 @@ func _add_governor(game, st: Dictionary, sid: String, parent: Node) -> void:
 		pick.text = Copy.t("Appoint")
 		pick.tooltip_text = Copy.t("%d influence, then %d a week.") % [int(game.bal.governor.appoint_influence), int(game.bal.governor.weekly_influence)]
 		pick.disabled = game.governor_candidates(sid).is_empty()
-		pick.pressed.connect(func(): open_governor_menu(sid, pick.get_global_rect().position - get_global_rect().position + Vector2(0, pick.size.y)))
+		pick.set_meta("govpick_role", "appoint")
+		pick.pressed.connect(func():
+			_gov_opener = pick
+			open_governor_menu(sid, pick.get_global_rect().position - get_global_rect().position + Vector2(0, pick.size.y))
+		)
 	parent.add_child(block)
 
 
@@ -4058,6 +4063,10 @@ func _fill_govpick() -> void:
 	_gov_send.pressed.connect(_govpick_send)
 	actions.add_child(_gov_send)
 	_gov_back = _gov_button(Copy.t("Back"))
+	_gov_back.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_gov_back.clip_text = false
+	_gov_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_gov_back.custom_minimum_size.x = _gov_back_min_width(_gov_back.text)
 	_gov_back.set_meta("govpick_role", "back")
 	_gov_back.pressed.connect(_govpick_cancel)
 	actions.add_child(_gov_back)
@@ -4331,6 +4340,23 @@ func _govpick_cancel() -> void:
 	if _gov_sending:
 		return
 	_close_govpick()
+	_govpick_return_focus()
+
+
+## Back, Esc, and Cancel hide the sheet. The Appoint control that opened it takes focus again.
+func _govpick_return_focus() -> void:
+	var opener := _gov_opener
+	if opener == null or not is_instance_valid(opener):
+		return
+	if not opener.is_visible_in_tree() or opener.disabled:
+		return
+	opener.call_deferred("grab_focus")
+
+
+func _gov_back_min_width(text: String) -> float:
+	var font := _font()
+	var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	return ceil(text_w) + 24.0
 
 
 func _close_govpick() -> void:

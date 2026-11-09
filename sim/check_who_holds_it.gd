@@ -712,6 +712,119 @@ func _ui() -> void:
 	view.close_governor_menu()
 	_restore_goods(saved)
 	print("Sheet: candidates %d" % rows.size())
+	await _back_and_focus()
+
+
+func _back_and_focus() -> void:
+	if st == null or st.game == null:
+		_bad("focus station")
+		return
+	Copy.set_lang("en")
+	var game = st.game
+	var sid := _neighbor(game, 1)
+	_arm(game, sid, 3, "food", 40)
+	for tag in ["100", "125", "125scale"]:
+		await _apply_view(tag)
+		_show_map(sid)
+		for _i in 4:
+			await process_frame
+		var view = st.network_view
+		view.close_governor_menu()
+		var appoint := _appoint_button(view)
+		if appoint == null:
+			_bad("%s appoint missing" % tag)
+			continue
+		appoint.pressed.emit()
+		for _i in 3:
+			await process_frame
+		_assert_back_width(view, tag)
+		var back: Button = view._gov_back
+		if back == null:
+			_bad("%s back missing" % tag)
+			continue
+		back.pressed.emit()
+		for _i in 3:
+			await process_frame
+		_assert_focus(tag, "back", appoint)
+		appoint.pressed.emit()
+		for _i in 2:
+			await process_frame
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_ESCAPE
+		ev.pressed = true
+		view._unhandled_key_input(ev)
+		for _i in 3:
+			await process_frame
+		_assert_focus(tag, "esc", appoint)
+		appoint.pressed.emit()
+		for _i in 2:
+			await process_frame
+		view._govpick_cancel()
+		for _i in 3:
+			await process_frame
+		_assert_focus(tag, "cancel", appoint)
+
+
+func _apply_view(tag: String) -> void:
+	var window: Window = st.get_window()
+	window.mode = Window.MODE_WINDOWED
+	var win := Vector2i(1920, 1080)
+	var factor := 1.0
+	if tag == "125":
+		win = Vector2i(1536, 864)
+	elif tag == "125scale":
+		factor = 1.25
+	window.size = win
+	root.size = win
+	Settings.ui_scale_auto = false
+	Settings.ui_scale = factor
+	if absf(factor - 1.0) < 0.01:
+		window.content_scale_factor = 1.0
+		window.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+		window.content_scale_size = win
+	else:
+		Settings.apply_scale(window)
+	for _i in 3:
+		await process_frame
+	if st.has_method("_layout"):
+		st._layout()
+	await process_frame
+	print("VIEW %s window %s scale %.2f viewport %s" % [tag, window.size, window.content_scale_factor, st.get_viewport_rect().size])
+
+
+func _assert_back_width(view, tag: String) -> void:
+	var back: Button = view._gov_back
+	if back == null or not back.visible or back.text == "" or back.clip_text:
+		_bad("%s back hidden" % tag)
+		return
+	var font: Font = back.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var fs := back.get_theme_font_size("font_size")
+	if fs <= 0:
+		fs = 16
+	var need := font.get_string_size(back.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var rect := back.get_global_rect()
+	if back.size.x + 0.5 < need or rect.size.x + 0.5 < need or rect.size.y < 8.0:
+		_bad("%s back %s rect %s need %.1f text %s" % [tag, back.size, rect, need, back.text])
+		return
+	print("BACK %s size %s rect %s need %.1f" % [tag, back.size, rect, need])
+
+
+func _assert_focus(tag: String, path: String, appoint: Button) -> void:
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	if owner == null:
+		_bad("%s %s focus null" % [tag, path])
+		return
+	if owner != appoint or str(owner.get_meta("govpick_role", "")) != "appoint":
+		_bad("%s %s focus %s" % [tag, path, owner])
+
+
+func _appoint_button(view) -> Button:
+	for node in _all(view):
+		if node is Button and str(node.get_meta("govpick_role", "")) == "appoint":
+			return node
+	return null
 
 
 func _shots() -> void:
