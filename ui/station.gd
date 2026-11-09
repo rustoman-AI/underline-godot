@@ -14848,7 +14848,7 @@ func _governor_shots() -> void:
 	await _frame()
 	await _frame()
 	_save("network_governor_pick")
-	network_view._gov_menu.hide()
+	network_view.close_governor_menu()
 	var pick: Dictionary = game.governor_candidates(held)[0]
 	game.apply({"kind": "appoint", "station": held, "person": str(pick.id)})
 	network_view.refresh()

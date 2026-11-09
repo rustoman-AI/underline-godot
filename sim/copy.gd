@@ -367,10 +367,12 @@ static func _load_keys() -> void:
 	_merge_pack("res://data/platform_callers.json")
 	_merge_pack("res://data/passage_scars.json")
 	_merge_pack("res://data/room_trace.json")
-	## P96, P97, and P100 chrome are interim drafts. None of these packs is a Texts or canon approval.
+	## P96, P97, P100, and P101 chrome are interim drafts. None of these packs is a Texts or canon approval.
 	_merge_pack("res://data/between_shifts.json")
 	_merge_pack("res://data/decision_receipts.json")
 	_merge_pack("res://data/cutplan.json")
+	## P101 RU is empty on purpose, so the appoint sheet stays hidden in Russian.
+	_merge_pack("res://data/who_holds_it.json")
 
 
 ## A locked Texts pack. `by_key` wins over ui_strings for the same id. Meta keys are skipped.
