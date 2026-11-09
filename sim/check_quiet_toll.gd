@@ -51,8 +51,8 @@ func _run() -> void:
 		quit(1)
 		return
 	var balance_text := FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 25:
-		_bad("schema is %s, want 25" % str(Game.SAVE_SCHEMA))
+	if Game.SAVE_SCHEMA != 26:
+		_bad("schema is %s, want 26" % str(Game.SAVE_SCHEMA))
 	if not _strings():
 		_failed = true
 	else:
@@ -422,7 +422,7 @@ func _tip(catalog: Catalog) -> bool:
 	Copy.set_lang("en")
 	var snap := game.export_state()
 	snap["schema"] = Game.SAVE_SCHEMA
-	if int(snap.schema) != 25:
+	if int(snap.schema) != 26:
 		_bad("schema bumped")
 		return false
 	if not bool(snap.flags.get(Toll.FLAG, false)):
@@ -634,7 +634,7 @@ func _dawn() -> bool:
 	if picker == "" or picker.find("toll") >= 0 or picker.find("quiet_toll") >= 0:
 		_bad("dawn picker knows the toll")
 		return false
-	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 26") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0:
 		_bad("schema bump")
 		return false
 	var view := FileAccess.get_file_as_string("res://ui/network_view.gd")

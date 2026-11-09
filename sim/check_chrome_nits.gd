@@ -22,7 +22,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 26:
 		_bad("SAVE_SCHEMA %s" % str(Game.SAVE_SCHEMA))
 	_c1_source()
 	var st = load("res://ui/station.tscn").instantiate()

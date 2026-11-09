@@ -362,6 +362,10 @@ var modal_tween: Tween
 var drawer_tween: Tween
 var modal_open := false
 var dossier_tab := "profile"
+## P96 fold. Scroll to restore on Back. -1 means the person card was not opened from the fold.
+var shiftword_scroll := -1
+var shiftword_fold := false
+var shiftword_person := ""
 var journal_filter := ""
 var room_open := ""
 var room_hover := ""
@@ -7917,6 +7921,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_menu_back()
 		get_viewport().set_input_as_handled()
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and shiftword_fold and deck.top_token() == "person":
+		Sound.play("click")
+		_shiftword_back()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_J and not at_menu and game != null:
 		if deck.top_token() == "journal":
 			_close_card()
@@ -10903,6 +10912,8 @@ func _help_badge(type: String, line: Label) -> Button:
 
 
 func _close_card() -> void:
+	shiftword_fold = false
+	shiftword_scroll = -1
 	if deck.top_token() == "raid_share" and game != null and game.raid_share_open():
 		_pick_raid_share("stockpile")
 		return
@@ -12046,6 +12057,7 @@ func _show_person(person_id: String) -> void:
 	text.add_child(_label(_where(person_id), 14))
 	row.add_child(text)
 	card_body.add_child(row)
+	_shiftword_action(person_id)
 	if not game.cast_bio_locked(person):
 		_section("Before the Silence", game.life_line(person, "before"))
 		_section("Keepsake", game.life_line(person, "keepsake"))
@@ -12060,6 +12072,126 @@ func _show_person(person_id: String) -> void:
 			caption += " •"
 		card_body.add_child(_button(caption, _open_dossier.bind(person_id), "dossier_open"))
 	card_body.add_child(_button("Close", _close_card))
+	_shiftword_restore_scroll()
+
+
+## Quiet text action after whereabouts. Hidden when the resident cannot talk or a line is missing.
+func _shiftword_action(person_id: String) -> void:
+	var offer := BetweenShifts.offer(game, person_id)
+	if offer != "talk" and offer != "archive":
+		return
+	var key := "shiftword.archive" if offer == "archive" else "shiftword.open"
+	var caption := BetweenShifts.line(key)
+	if caption == "":
+		return
+	var button := _shiftword_button(caption, _open_shiftword.bind(person_id))
+	button.set_meta("shiftword", offer)
+	card_body.add_child(button)
+	if shiftword_scroll >= 0:
+		button.grab_focus.call_deferred()
+
+
+func _open_shiftword(person_id: String) -> void:
+	if card_scroll != null:
+		shiftword_scroll = int(card_scroll.scroll_vertical)
+	shiftword_person = person_id
+	_show_shiftword(person_id)
+
+
+func _show_shiftword(person_id: String) -> void:
+	if game == null or not game.people.has(person_id):
+		return
+	if not _claim(ModalDeck.AMBIENT, "person", _show_shiftword.bind(person_id)):
+		return
+	shiftword_person = person_id
+	var person: Dictionary = game.people[person_id]
+	_open_card(_resident_name(person), true)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.add_child(_portrait_box(person_id, 64))
+	var name := _label(_resident_name(person), 22, true, false)
+	name.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(name)
+	card_body.add_child(row)
+	var offer := BetweenShifts.offer(game, person_id)
+	if offer != "talk" and offer != "archive":
+		var stale := BetweenShifts.line("shiftword.unavailable")
+		if stale == "":
+			shiftword_fold = false
+			_show_person(person_id)
+			return
+		_shiftword_line(stale, "unavailable")
+		shiftword_fold = true
+		_shiftword_back_button()
+		return
+	shiftword_fold = true
+	var scene := BetweenShifts.line(BetweenShifts.person_key(person_id, "scene"))
+	_shiftword_line(scene, "scene")
+	if offer == "talk":
+		for choice in ["a", "b"]:
+			var caption := BetweenShifts.line(BetweenShifts.person_key(person_id, choice))
+			var button := _shiftword_button(caption, _shiftword_reply.bind(person_id, choice))
+			button.set_meta("shiftword", "reply_" + choice)
+			card_body.add_child(button)
+	else:
+		var choice := BetweenShifts.choice_of(game, person_id)
+		_shiftword_line(BetweenShifts.line(BetweenShifts.person_key(person_id, choice)), "question")
+		_shiftword_line(BetweenShifts.line(BetweenShifts.person_key(person_id, "answer_" + choice)), "answer")
+		if BetweenShifts.reveal_follow(game, person_id):
+			_shiftword_line(BetweenShifts.line(BetweenShifts.person_key(person_id, "follow_" + choice)), "follow")
+	_shiftword_back_button()
+
+
+func _shiftword_reply(person_id: String, choice: String) -> void:
+	BetweenShifts.reply(game, person_id, choice)
+	_show_shiftword(person_id)
+
+
+func _shiftword_back() -> void:
+	shiftword_fold = false
+	var person_id := shiftword_person
+	if person_id == "" or game == null or not game.people.has(person_id):
+		_close_card()
+		return
+	_show_person(person_id)
+
+
+func _shiftword_line(text: String, role: String) -> void:
+	if text == "":
+		return
+	var lab := _label(text, 16, false, false)
+	_wrap_in_card(lab, _card_inner())
+	lab.set_meta("shiftword", role)
+	card_body.add_child(lab)
+
+
+func _shiftword_back_button() -> void:
+	var caption := BetweenShifts.line("shiftword.back")
+	if caption == "":
+		return
+	var button := _shiftword_button(caption, _shiftword_back)
+	button.set_meta("shiftword", "back")
+	card_body.add_child(button)
+
+
+func _shiftword_button(caption: String, cb: Callable) -> Button:
+	var button := _button(caption, cb, "click")
+	button.text = caption
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", PAPER_MUTED)
+	button.add_theme_color_override("font_hover_color", PAPER_INK)
+	button.custom_minimum_size = Vector2(0, 36)
+	_measure_button(button)
+	return button
+
+
+func _shiftword_restore_scroll() -> void:
+	if shiftword_scroll < 0 or card_scroll == null:
+		return
+	var y := shiftword_scroll
+	shiftword_scroll = -1
+	card_scroll.scroll_vertical = y
+	card_scroll.set_deferred("scroll_vertical", y)
 
 
 func _open_dossier(person_id: String) -> void:

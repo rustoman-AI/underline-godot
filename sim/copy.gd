@@ -367,6 +367,7 @@ static func _load_keys() -> void:
 	_merge_pack("res://data/platform_callers.json")
 	_merge_pack("res://data/passage_scars.json")
 	_merge_pack("res://data/room_trace.json")
+	_merge_pack("res://data/between_shifts.json")
 
 
 ## A locked Texts pack. `by_key` wins over ui_strings for the same id. Meta keys are skipped.
