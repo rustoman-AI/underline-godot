@@ -1,0 +1,89 @@
+{
+  "_note": "P97 Decision Receipts. INTERIM chrome only. EN lines are the t280u spec starters, not a Texts stamp and not Temur-approved. RU lines are an unapproved layout draft so the screen never shows raw keys; Texts must replace them. Do not treat this file as canon.",
+  "_roadmap": "P97",
+  "_status": "INTERIM — not Texts-approved, not Temur-approved, not UIUX Soft-A. EN copied from the P97 spec starters. RU is an unapproved draft for layout. 20 receipt.* keys.",
+  "_soft_dawn": "NONE",
+  "_placeholders": ["{n}", "{choice}"],
+  "by_key": {
+    "receipt.details": {
+      "en": "Details",
+      "ru": "Подробнее"
+    },
+    "receipt.title": {
+      "en": "Decision record",
+      "ru": "Запись решения"
+    },
+    "receipt.week": {
+      "en": "Week {n}",
+      "ru": "Неделя {n}"
+    },
+    "receipt.chosen": {
+      "en": "Chosen: {choice}",
+      "ru": "Выбор: {choice}"
+    },
+    "receipt.changes": {
+      "en": "Tracked immediate changes",
+      "ru": "Отмеченные немедленные изменения"
+    },
+    "receipt.none": {
+      "en": "No tracked immediate changes.",
+      "ru": "Отмеченных немедленных изменений нет."
+    },
+    "receipt.result.success": {
+      "en": "Check succeeded.",
+      "ru": "Проверка удалась."
+    },
+    "receipt.result.failure": {
+      "en": "Check failed.",
+      "ru": "Проверка не удалась."
+    },
+    "receipt.result.unrecorded": {
+      "en": "Result not recorded.",
+      "ru": "Результат не записан."
+    },
+    "receipt.result.bet_success": {
+      "en": "The bet paid out.",
+      "ru": "Ставка сыграла."
+    },
+    "receipt.result.bet_failure": {
+      "en": "The bet did not pay out.",
+      "ru": "Ставка не сыграла."
+    },
+    "receipt.previous": {
+      "en": "Earlier decision · Week {n}",
+      "ru": "Прежнее решение · Неделя {n}"
+    },
+    "receipt.pruned": {
+      "en": "Earlier entry no longer retained.",
+      "ru": "Прежняя запись больше не хранится."
+    },
+    "receipt.event_missing": {
+      "en": "Recorded event",
+      "ru": "Записанное событие"
+    },
+    "receipt.choice_missing": {
+      "en": "Recorded choice",
+      "ru": "Записанный выбор"
+    },
+    "receipt.locale_fallback": {
+      "en": "Original language",
+      "ru": "Язык оригинала"
+    },
+    "receipt.back": {
+      "en": "Back",
+      "ru": "Назад"
+    },
+    "receipt.opinion": {
+      "en": "Faction opinion",
+      "ru": "Мнение фракции"
+    },
+    "receipt.regard": {
+      "en": "Leader regard",
+      "ru": "Отношение лидера"
+    },
+    "receipt.scope": {
+      "en": "Selected numeric changes only; health and other effects are not summarized.",
+      "ru": "Только выбранные числовые изменения; здоровье и прочие последствия здесь не сведены."
+    }
+  }
+}
