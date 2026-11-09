@@ -675,6 +675,9 @@ func _card_case(st, lang: String, tag: String, renderer: bool) -> bool:
 		if st.footer.text != Copy.t("That choice did not take."):
 			_bad("failed click showed a response")
 			return false
+		if _terms_plate(st) != null and _terms_plate(st).visible:
+			_bad("failed click showed a plate")
+			return false
 		st.game.stock.tokens = 40
 		st.game.stock.materials = 20
 		if not _show_loan(st, "decline"):
@@ -682,17 +685,44 @@ func _card_case(st, lang: String, tag: String, renderer: bool) -> bool:
 			return false
 		for _i in 2:
 			await process_frame
+		st.footer.text = ""
+		st.footer.visible = false
 		st._pick_event("loan_next", "default")
 		for _i in 3:
 			await process_frame
-		if st.footer.text != "You repeat the refusal. You do not pretend a note was signed.":
-			_bad("footer " + st.footer.text)
+		if not _plate_shows(st, "You repeat the refusal. You do not pretend a note was signed."):
+			_bad("plate missing refusal")
+			return false
+		if st.footer.text != "":
+			_bad("footer still holds the sentence")
 			return false
 		if str(st.game.front_event().get("id", "")) == "loan_next":
 			_bad("card stayed")
 			return false
+		var widest := _widest_result(st)
+		st._show_terms_line(widest)
+		if not await _layout_views(st, widest, renderer):
+			return false
+		st._hide_terms_plate()
+	if lang == "ru" and tag == "100":
+		if not _show_loan(st, "decline"):
+			_bad("ru response card")
+			return false
+		for _i in 2:
+			await process_frame
+		st.footer.text = ""
+		st.footer.visible = false
+		st._pick_event("loan_next", "default")
+		for _i in 3:
+			await process_frame
+		if st.footer.text != "":
+			_bad("ru footer sentence")
+			return false
+		if _terms_plate(st) != null and _terms_plate(st).visible:
+			_bad("ru plate without strings")
+			return false
 		if renderer:
-			await _shot(st, "p98_after_response_en_100.png")
+			await _shot(st, "p98_after_response_ru_100.png")
 	TermsRemembered.enabled = true
 	return true
 
@@ -773,13 +803,114 @@ func _view(st, win_size: Vector2i, scale: float) -> void:
 	win.mode = Window.MODE_WINDOWED
 	win.size = win_size
 	root.size = win_size
-	win.content_scale_factor = 1.0
-	win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
-	win.content_scale_size = win_size
+	if absf(scale - 1.0) < 0.01:
+		win.content_scale_factor = 1.0
+		win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+		win.content_scale_size = win_size
+	else:
+		Settings.apply_scale(win)
 	for _i in 3:
 		await process_frame
 	if st.has_method("_layout"):
 		st._layout()
+
+
+func _layout_views(st, line: String, renderer: bool) -> bool:
+	if st.hub_button != null:
+		st.hub_button.visible = true
+	var views: Array = [
+		[Vector2i(1920, 1080), 1.0, "100"],
+		[Vector2i(1536, 864), 1.0, "125"],
+		[Vector2i(1920, 1080), 1.25, "125scale"],
+	]
+	for row in views:
+		var win_size: Vector2i = row[0]
+		var scale := float(row[1])
+		var tag := str(row[2])
+		await _view(st, win_size, scale)
+		st._show_terms_line(line)
+		for _i in 3:
+			await process_frame
+		st._layout()
+		st._place_terms_plate()
+		for _i in 2:
+			await process_frame
+		var view: Vector2 = st.get_viewport_rect().size
+		print("VIEW %s window %s scale %.2f viewport %s" % [tag, win_size, st.get_window().content_scale_factor, view])
+		if tag == "125scale" and st.get_window().content_scale_factor < 1.2:
+			_bad("125scale factor %s" % st.get_window().content_scale_factor)
+			return false
+		if not _plate_shows(st, line):
+			_bad("plate " + tag)
+			return false
+		if not _plate_clear(st, line, tag):
+			return false
+		if renderer and (tag == "100" or tag == "125"):
+			await _shot(st, "p98_after_response_en_%s.png" % tag)
+	return true
+
+
+func _widest_result(st) -> String:
+	var font: Font = st.body_font if st.body_font != null else ThemeDB.fallback_font
+	var best := ""
+	var best_w := -1.0
+	for key in TermsRemembered.all_keys():
+		if not str(key).ends_with(".result"):
+			continue
+		var text := TermsRemembered._cell(str(key), "en")
+		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+		if width > best_w:
+			best_w = width
+			best = text
+	return best
+
+
+func _terms_plate(st) -> Control:
+	return st.terms_float
+
+
+func _plate_shows(st, line: String) -> bool:
+	var plate := _terms_plate(st)
+	if plate == null or not plate.visible or st.terms_float_label == null:
+		return false
+	return str(st.terms_float_label.text) == line
+
+
+func _plate_clear(st, line: String, tag: String) -> bool:
+	var plate := _terms_plate(st)
+	var sentence: Rect2 = st.terms_float_label.get_global_rect()
+	if sentence.size.x < 8.0 or sentence.size.y < 8.0:
+		_bad("%s sentence size %s" % [tag, sentence])
+		return false
+	if str(st.footer.text) == line:
+		_bad("%s footer holds the sentence" % tag)
+		return false
+	var blocks: Array = []
+	if st.tray != null:
+		for child in st.tray.get_children():
+			if child is Button and (child as Button).visible:
+				blocks.append(child)
+	if st.hub_button != null and st.hub_button.visible:
+		blocks.append(st.hub_button)
+	for node in blocks:
+		var button := node as Control
+		var rect := button.get_global_rect()
+		var name := str(button.name)
+		if button is Button:
+			name = str((button as Button).text)
+		if _overlaps(sentence, rect):
+			_bad("%s sentence %s hits %s %s" % [tag, sentence, name, rect])
+			return false
+		if plate != null and _overlaps(plate.get_global_rect(), rect):
+			_bad("%s plate %s hits %s %s" % [tag, plate.get_global_rect(), name, rect])
+			return false
+	return true
+
+
+func _overlaps(a: Rect2, b: Rect2) -> bool:
+	if a.size.x < 1.0 or a.size.y < 1.0 or b.size.x < 1.0 or b.size.y < 1.0:
+		return false
+	return a.grow(-0.5).intersects(b.grow(-0.5))
 
 
 func _renderer_live() -> bool:

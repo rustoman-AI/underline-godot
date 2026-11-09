@@ -241,6 +241,10 @@ var yard_trace_label: Label
 var trace_float: PanelContainer
 var trace_float_label: Label
 var trace_float_tween: Tween
+## P98 gesture. Same 420-wide yard notice plate. Not a footer line, not a modal, not a dawn chip.
+var terms_float: PanelContainer
+var terms_float_label: Label
+var terms_line := ""
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -2390,6 +2394,7 @@ func _place_chrome() -> void:
 	_place_rail_noise()
 	_place_dawn_chip(hud_h)
 	_place_home_float()
+	_place_terms_plate()
 	_place_drawer()
 	_place_card()
 	_place_ahead()
@@ -2794,6 +2799,7 @@ func _refresh() -> void:
 	if not _sticky_note(footer.text):
 		footer.text = ""
 		footer.visible = false
+	_hide_terms_plate()
 	if pending_button != null:
 		pending_button.visible = game.over == "" and not game.white_pending.is_empty()
 	_sync_waiting()
@@ -8544,6 +8550,7 @@ func _restack_yard_notices() -> void:
 		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
 			continue
 		_place_yard_notice(plate, label, row[2])
+	_place_terms_plate()
 
 
 ## The eight first-notice plates. The hold stays live while a desk covers them.
@@ -8623,6 +8630,7 @@ func _sync_yard_notice_cover() -> void:
 		plate.visible = true
 		if tween != null and is_instance_valid(tween) and tween.is_valid():
 			tween.play()
+	_place_terms_plate()
 
 
 ## P61 first-float on the YA1 tip plate when the first scar is written off the map.
@@ -10234,6 +10242,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if not game.apply(action):
 		footer.text = Copy.t("That choice did not take.")
 		footer.visible = true
+		_hide_terms_plate()
 		return
 	if choice.has("check") or choice.has("bet"):
 		check_flash = true
@@ -10717,16 +10726,73 @@ func _fit_terms_choice(button: Button) -> void:
 	button.custom_minimum_size = Vector2(0, maxf(48.0, 14.0 + line_h * float(lines)))
 
 
-## One gesture sentence in the existing footer. Critical lines and a finished run do not use this.
+## One gesture sentence on the yard notice plate. The footer stays clear of the tool row.
+## A check, an ending, or the next refresh replaces it. Not a modal and not a dawn token.
 func _note_terms(ev: Dictionary, choice: Dictionary) -> void:
 	if ev.is_empty() or choice.is_empty():
+		_hide_terms_plate()
 		return
 	var line := TermsRemembered.response_for(ev, choice)
 	if line == "":
+		_hide_terms_plate()
 		return
-	footer.text = line
-	footer.visible = true
-	footer.clip_text = false
+	_show_terms_line(line)
+
+
+func _show_terms_line(line: String) -> void:
+	if line == "":
+		_hide_terms_plate()
+		return
+	_ensure_terms_plate()
+	terms_line = line
+	terms_float_label.text = line
+	terms_float.modulate.a = 1.0
+	_place_terms_plate()
+
+
+func _ensure_terms_plate() -> void:
+	if terms_float != null:
+		return
+	terms_float = PanelContainer.new()
+	terms_float.z_index = 8
+	terms_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	terms_float.focus_mode = Control.FOCUS_NONE
+	terms_float.add_theme_stylebox_override("panel", _tip_plate_style())
+	terms_float.set_meta("terms_plate", true)
+	terms_float_label = Label.new()
+	terms_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	terms_float_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	terms_float_label.clip_text = false
+	terms_float_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	terms_float_label.focus_mode = Control.FOCUS_NONE
+	terms_float_label.add_theme_font_size_override("font_size", 18)
+	terms_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+	terms_float_label.add_theme_constant_override("outline_size", 0)
+	if body_font != null:
+		terms_float_label.add_theme_font_override("font", body_font)
+	terms_float.add_child(terms_float_label)
+	add_child(terms_float)
+
+
+## Under the other yard notices, 420 wide, wrapped. Hidden while a desk covers the yard.
+func _place_terms_plate() -> void:
+	if terms_float == null or terms_float_label == null or terms_line == "":
+		return
+	if _yard_notices_covered():
+		terms_float.visible = false
+		return
+	terms_float.visible = true
+	_place_yard_notice(terms_float, terms_float_label, [
+		regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float, trace_float,
+	])
+
+
+func _hide_terms_plate() -> void:
+	terms_line = ""
+	if terms_float != null:
+		terms_float.visible = false
+	if terms_float_label != null:
+		terms_float_label.text = ""
 
 
 func _choice_button(label: String, _choice: Dictionary, cb: Callable) -> Button:
