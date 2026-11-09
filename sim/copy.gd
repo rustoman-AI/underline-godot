@@ -367,10 +367,11 @@ static func _load_keys() -> void:
 	_merge_pack("res://data/platform_callers.json")
 	_merge_pack("res://data/passage_scars.json")
 	_merge_pack("res://data/room_trace.json")
-	## P96 and P97 chrome are interim drafts. Neither pack is a Texts or canon approval.
+	## P96, P97, P100, and P101 chrome are interim drafts. None of these packs is a Texts or canon approval.
 	_merge_pack("res://data/between_shifts.json")
 	_merge_pack("res://data/decision_receipts.json")
-	## P101 chrome is an interim draft. Not a Texts or canon approval. RU is empty on purpose.
+	_merge_pack("res://data/cutplan.json")
+	## P101 RU is empty on purpose, so the appoint sheet stays hidden in Russian.
 	_merge_pack("res://data/who_holds_it.json")
 
 

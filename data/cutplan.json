@@ -1,0 +1,106 @@
+{
+  "_note": "P100 Keep the Lights. INTERIM WIRING DRAFT. Not Texts-approved. Not canon. Not a final EN/RU gate. EN lines are the proposed spec copy. RU is intentionally empty. A missing or empty string in the active locale hides Compare and leaves the existing Power order panel. No raw key, no filler, no other-language fallback. Namespace cutplan.* only. 24 keys.",
+  "_roadmap": "P100",
+  "_status": "INTERIM DRAFT — not canon-approved. EN for wiring only. RU outstanding.",
+  "_canon": false,
+  "_soft_dawn": "NONE",
+  "_placeholders": ["{power}", "{spares}", "{draw}", "{room}", "{other}"],
+  "by_key": {
+    "cutplan.compare": {
+      "en": "Compare",
+      "ru": ""
+    },
+    "cutplan.title": {
+      "en": "Compare power priority",
+      "ru": ""
+    },
+    "cutplan.now": {
+      "en": "Current order",
+      "ru": ""
+    },
+    "cutplan.after": {
+      "en": "With this move",
+      "ru": ""
+    },
+    "cutplan.up": {
+      "en": "Compare up",
+      "ru": ""
+    },
+    "cutplan.down": {
+      "en": "Compare down",
+      "ru": ""
+    },
+    "cutplan.apply_up": {
+      "en": "Move up",
+      "ru": ""
+    },
+    "cutplan.apply_down": {
+      "en": "Move down",
+      "ru": ""
+    },
+    "cutplan.keep": {
+      "en": "Keep current",
+      "ru": ""
+    },
+    "cutplan.gains": {
+      "en": "No longer cut",
+      "ru": ""
+    },
+    "cutplan.losses": {
+      "en": "Newly cut",
+      "ru": ""
+    },
+    "cutplan.unchanged": {
+      "en": "No allocation change.",
+      "ru": ""
+    },
+    "cutplan.cut": {
+      "en": "Cut by priority",
+      "ru": ""
+    },
+    "cutplan.within": {
+      "en": "Within allocation",
+      "ru": ""
+    },
+    "cutplan.not_drawing": {
+      "en": "No competing draw",
+      "ru": ""
+    },
+    "cutplan.budget": {
+      "en": "Pool after generator use: {power}. Reserve allocations: {spares}.",
+      "ru": ""
+    },
+    "cutplan.draw": {
+      "en": "Group draw: {draw}",
+      "ru": ""
+    },
+    "cutplan.scope": {
+      "en": "Current conditions only. Changes before night can change the allocation.",
+      "ru": ""
+    },
+    "cutplan.changed": {
+      "en": "Conditions or neighbors changed. Compare again before moving.",
+      "ru": ""
+    },
+    "cutplan.unavailable": {
+      "en": "Allocation comparison unavailable. Original move controls still work.",
+      "ru": ""
+    },
+    "cutplan.group": {
+      "en": "The first eligible linked room sets the group's priority.",
+      "ru": ""
+    },
+    "cutplan.reserve": {
+      "en": "A reserve allocation can cover a group without spending the remaining pool.",
+      "ru": ""
+    },
+    "cutplan.swap_up": {
+      "en": "Move {room} ahead of {other}.",
+      "ru": ""
+    },
+    "cutplan.swap_down": {
+      "en": "Move {room} behind {other}.",
+      "ru": ""
+    }
+  }
+}
