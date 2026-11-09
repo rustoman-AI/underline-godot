@@ -74,7 +74,7 @@ func _run() -> void:
 		print("PLATFORM CALLERS FAIL catalog")
 		quit(1)
 		return
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
 		_bad("soft dawn stack changed")
@@ -196,7 +196,7 @@ func _rules(catalog: Catalog) -> bool:
 		_bad("game dawn")
 		return false
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("\"callers\"") < 0:
+	if src.find("const SAVE_SCHEMA := 27") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("\"callers\"") < 0:
 		_bad("schema source")
 		return false
 	if src.find("<= 21 and V21_ADDED") < 0 or src.find("<= 22 and V22_ADDED") < 0 or src.find("<= 23 and V23_ADDED") < 0:
@@ -625,9 +625,9 @@ func _migrate(catalog: Catalog) -> bool:
 		_bad("schema 25 without callers accepted")
 		return false
 	var future := full.duplicate(true)
-	future["schema"] = 26
+	future["schema"] = 28
 	if Game.stage_state(future, catalog).error == "":
-		_bad("schema 26 accepted")
+		_bad("schema 28 accepted")
 		return false
 	return true
 

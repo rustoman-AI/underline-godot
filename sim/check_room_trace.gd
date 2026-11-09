@@ -167,8 +167,8 @@ func _check_strings() -> bool:
 
 
 func _check_bounds() -> bool:
-	if Game.SAVE_SCHEMA != 25:
-		_bad("schema is %s, want 25 (flag stays in flags; no 26)" % str(Game.SAVE_SCHEMA))
+	if Game.SAVE_SCHEMA != 27:
+		_bad("schema is %s, want 27 (room trace stays in flags; 26 is shiftword_state)" % str(Game.SAVE_SCHEMA))
 		return false
 	if RoomTrace.map_mark() or RoomTrace.dawn_chip() or RoomTrace.joins_soft_dawn():
 		_bad("mark or dawn helper")
@@ -181,11 +181,11 @@ func _check_bounds() -> bool:
 		_bad("reader touches hope or stock")
 		return false
 	var game_src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if game_src.find("const SAVE_SCHEMA := 25") < 0 or game_src.find("V21_ADDED") < 0 or game_src.find("V22_ADDED") < 0 or game_src.find("V23_ADDED") < 0 or game_src.find("V24_ADDED") < 0:
+	if game_src.find("const SAVE_SCHEMA := 27") < 0 or game_src.find("V21_ADDED") < 0 or game_src.find("V22_ADDED") < 0 or game_src.find("V23_ADDED") < 0 or game_src.find("V24_ADDED") < 0 or game_src.find("V25_ADDED") < 0 or game_src.find("V26_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if game_src.find("const SAVE_SCHEMA := 21") >= 0 or game_src.find("const SAVE_SCHEMA := 26") >= 0:
-		_bad("schema moved off 25")
+		_bad("schema moved off 27")
 		return false
 	if game_src.find("const DAWN_SOFT_STACK := [\"rumor\", \"border.dawn_new\", \"rail\", \"homecoming\"]") < 0:
 		_bad("soft dawn stack moved")
@@ -197,7 +197,7 @@ func _check_bounds() -> bool:
 	if net.find("room_trace") >= 0 or net.find("trace.yard") >= 0 or net.find("seen_room_trace") >= 0:
 		_bad("map view gained a trace")
 		return false
-	print("Bounds: schema 25, dawn none, map none")
+	print("Bounds: schema 27, dawn none, map none")
 	print("Trace fields: " + ", ".join(RoomTrace.fields_read()))
 	return true
 
@@ -341,7 +341,7 @@ func _check_lines(catalog: Catalog) -> bool:
 
 
 func _check_save(catalog: Catalog) -> bool:
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("export schema")
 		return false
 	var game := _fresh(catalog)
@@ -416,13 +416,13 @@ func _check_save(catalog: Catalog) -> bool:
 		_bad("schema 21 accepted missing carry")
 		return false
 	var future := game.export_state()
-	future["schema"] = 26
+	future["schema"] = 28
 	var too_new := Game.new()
 	too_new.catalog = catalog
 	if too_new.import_state(future):
-		_bad("schema 26 accepted")
+		_bad("schema 28 accepted")
 		return false
-	print("Save: ok (schema 25 round-trip, 20-24 keep present fields, 26 rejected)")
+	print("Save: ok (schema 25 round-trip, 20-24 keep present fields, 28 rejected)")
 	return true
 
 

@@ -132,6 +132,14 @@ var next_person := 0
 var demand_seq := 1
 var log: Array = []
 var journal: Array = []
+## Last issued decision-receipt id. 0 means none yet. Schema 27. Observational only.
+var receipt_seq := 0
+## One ordinary accepted event, from validation until apply() journals that same entry. Not saved.
+var _receipt_buf: Dictionary = {}
+var _receipt_pre: Dictionary = {}
+var _receipt_roll: Dictionary = {}
+## True only while apply() is dispatching an event, so dismiss and end-week auto-resolve do not mint a receipt.
+var _receipt_arm := false
 ## Voice lines already heard this playthrough, keyed by line id.
 var vo_heard := {}
 var radio_week := 0
@@ -229,6 +237,9 @@ var callers := {"here": "", "until": 0, "why": "", "seen": {}, "cool_until": {},
 var caller_left_toast := false
 ## P94 Passage Scars. Edge id -> {kind, week, count}. Memory only. Outcomes never read it.
 var scars := {}
+## P96 Between Shifts. person id -> {vignette_id, choice_id, answered_week, follow_seen}.
+## Narrative only. Outcomes never read it. Older saves load {}.
+var shiftword_state := {}
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -308,6 +319,9 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	callers = PlatformCallers.blank()
 	caller_left_toast = false
 	scars = {}
+	shiftword_state = {}
+	receipt_seq = 0
+	_receipt_drop()
 	notices = []
 	raid_share = {}
 	raid_share_hold = false
@@ -477,13 +491,16 @@ func _vo_watch() -> void:
 func apply(action: Dictionary) -> bool:
 	if over != "":
 		return false
+	_receipt_drop()
 	var kind := str(action.get("kind", ""))
 	var entry := _journal_context(kind, action)
 	var scene: bool = kind == "event" and not pending.is_empty() and pending[0].has("trigger")
 	var ok := false
 	match kind:
 		"event":
+			_receipt_arm = true
 			ok = _apply_event(action)
+			_receipt_arm = false
 		"build":
 			ok = _apply_build(str(action.get("type", "")), int(action.get("level", -1)), int(action.get("cell", -1)))
 		"dig":
@@ -541,6 +558,9 @@ func apply(action: Dictionary) -> bool:
 			ok = _apply_help() if bool(action.get("help", false)) else _apply_audience(bool(action.get("accept", false)))
 		_:
 			ok = false
+	if ok and kind == "event" and int(_receipt_buf.get("instance", 0)) > 0:
+		entry["receipt"] = _receipt_buf.duplicate(true)
+	_receipt_drop()
 	if ok and not entry.is_empty():
 		_journal(kind, entry)
 	if ok and watcher.is_valid():
@@ -595,6 +615,500 @@ func _journal(kind: String, data: Dictionary) -> void:
 ## Notes a player action that happens outside apply(), such as a radio item heard.
 func journal_note(kind: String, data: Dictionary) -> void:
 	_journal(kind, data)
+
+
+## P97. Parent event id → the follow id that may carry this receipt's instance. No other chains.
+const RECEIPT_NEXT := {
+	"toll": "toll_next",
+	"toll_next": "toll_last",
+	"knock": "knock_next",
+	"knock_next": "knock_last",
+	"loan": "loan_next",
+}
+const RECEIPT_STOCK := ["food", "air", "power", "materials", "tokens", "influence", "blueprints"]
+const RECEIPT_TEXT_MAX := 240
+const RECEIPT_LOAD_MAX := 400
+
+
+func _receipt_drop() -> void:
+	_receipt_buf = {}
+	_receipt_pre = {}
+	_receipt_roll = {}
+
+
+## Meters the receipt is allowed to remember. Papers is the artifact, not a stock key.
+func _receipt_meters() -> Dictionary:
+	var stock_now := {}
+	for key in stock:
+		stock_now[str(key)] = int(stock[key])
+	var op := {}
+	for fid in opinions:
+		op[str(fid)] = int(opinions[fid])
+	var regard := {}
+	for fid in standing:
+		regard[str(fid)] = int(standing[fid])
+	return {
+		"stock": stock_now,
+		"hope": int(hope),
+		"discontent": int(discontent),
+		"opinions": op,
+		"standing": regard,
+		"synod": int(synod),
+		"papers": int(artifacts.get("papers", 0)),
+	}
+
+
+func _receipt_clip(text: String) -> String:
+	if text.length() <= RECEIPT_TEXT_MAX:
+		return text
+	return text.substr(0, RECEIPT_TEXT_MAX)
+
+
+## The other language, only when it is already stored on this offered node. Never switches Copy.lang.
+func _receipt_stored(node: Dictionary, key: String, lang: String) -> String:
+	if lang == "ru" and node.get("ru_own", null) is Dictionary and node.ru_own.has(key):
+		return _receipt_clip(str(node.ru_own[key]))
+	if not node.has(key):
+		return ""
+	var pack = node[key]
+	if pack is Dictionary:
+		return _receipt_clip(str(pack.get(lang, "")))
+	return ""
+
+
+func _receipt_pair(node: Dictionary, key: String) -> Dictionary:
+	var lang := "ru" if Copy.ru() else "en"
+	var out := {}
+	## What the card shows now. Copy.t is the current locale only; it does not switch language.
+	var visible := _receipt_clip(Copy.t(line_of(node, key)))
+	if visible != "":
+		out[lang] = visible
+	var other := "en" if lang == "ru" else "ru"
+	var alt := _receipt_stored(node, key, other)
+	if alt == "" and other == "en" and node.has(key) and typeof(node[key]) == TYPE_STRING:
+		alt = _receipt_clip(str(node[key]))
+	if alt != "" and alt != str(out.get(lang, "")):
+		out[other] = alt
+	return out
+
+
+## After validation, before payment. Identity only; the numbers wait until the action has finished.
+func _receipt_begin(ev: Dictionary, choice: Dictionary) -> void:
+	_receipt_roll = {}
+	_receipt_pre = _receipt_meters()
+	receipt_seq += 1
+	var buf := {
+		"v": 1,
+		"instance": receipt_seq,
+		"event_id": str(ev.get("id", "")),
+		"choice_id": str(choice.get("id", "")),
+		"title": _receipt_pair(ev, "title"),
+		"label": _receipt_pair(choice, "label"),
+		"original_lang": "ru" if Copy.ru() else "en",
+	}
+	if bool(choice.get("obs_line", false)):
+		var mirror := str(choice.get("mirror", ""))
+		if mirror != "":
+			buf["mirror"] = mirror
+	var prev := int(ev.get("receipt_from", 0))
+	if prev > 0 and RECEIPT_NEXT.values().has(str(ev.get("id", ""))):
+		buf["previous_instance"] = prev
+	_receipt_buf = buf
+
+
+func _receipt_delta_map(before: Dictionary, after: Dictionary) -> Dictionary:
+	var out := {}
+	var keys := {}
+	for key in before:
+		keys[str(key)] = true
+	for key in after:
+		keys[str(key)] = true
+	for key in keys:
+		var delta := int(after.get(key, 0)) - int(before.get(key, 0))
+		if delta != 0:
+			out[key] = delta
+	return out
+
+
+func _receipt_finish(choice: Dictionary) -> void:
+	if int(_receipt_buf.get("instance", 0)) <= 0:
+		return
+	var post := _receipt_meters()
+	var pre: Dictionary = _receipt_pre
+	var deltas := {}
+	var stock_delta := _receipt_delta_map(pre.get("stock", {}), post.get("stock", {}))
+	if not stock_delta.is_empty():
+		deltas["stock"] = stock_delta
+	for key in ["hope", "discontent", "synod", "papers"]:
+		var delta := int(post.get(key, 0)) - int(pre.get(key, 0))
+		if delta != 0:
+			deltas[key] = delta
+	var opinions_delta := _receipt_delta_map(pre.get("opinions", {}), post.get("opinions", {}))
+	if not opinions_delta.is_empty():
+		deltas["opinions"] = opinions_delta
+	var standing_delta := _receipt_delta_map(pre.get("standing", {}), post.get("standing", {}))
+	if not standing_delta.is_empty():
+		deltas["standing"] = standing_delta
+	if not deltas.is_empty():
+		_receipt_buf["deltas"] = deltas
+	var result := _receipt_result(choice)
+	if not result.is_empty():
+		_receipt_buf["result"] = result
+
+
+## A roll result only when this action's resolver wrote one. A stale last_check is not a result.
+func _receipt_result(choice: Dictionary) -> Dictionary:
+	var kind := ""
+	if choice.has("check"):
+		kind = "check"
+	elif choice.has("bet"):
+		kind = "bet"
+	if kind == "":
+		return {}
+	var roll: Dictionary = _receipt_roll
+	if roll.is_empty() or str(roll.get("kind", "")) != kind:
+		return {"kind": kind, "tag": "unrecorded"}
+	var tag := str(roll.get("tag", ""))
+	if not ["success", "failure", "other", "unrecorded"].has(tag):
+		tag = "unrecorded"
+	var out := {"kind": kind, "tag": tag}
+	if tag == "other":
+		var key := str(roll.get("key", ""))
+		if key == "":
+			out["tag"] = "unrecorded"
+		else:
+			out["key"] = key
+	var pid := str(roll.get("person_id", ""))
+	if pid != "":
+		out["person_id"] = pid
+	var en := str(roll.get("name_en", ""))
+	if en != "":
+		out["name_en"] = en
+	var ru_name := str(roll.get("name_ru", ""))
+	if ru_name != "":
+		out["name_ru"] = ru_name
+	return out
+
+
+func _receipt_note_check(person_id: String, success: bool) -> void:
+	var row := {"kind": "check", "tag": "success" if success else "failure"}
+	if people.has(person_id):
+		row["person_id"] = person_id
+		var en := str(people[person_id].get("name", ""))
+		if en != "":
+			row["name_en"] = en
+		var ru_name := str(people[person_id].get("name_ru", ""))
+		if ru_name != "":
+			row["name_ru"] = ru_name
+	_receipt_roll = row
+
+
+func _receipt_note_bet(success: bool) -> void:
+	_receipt_roll = {"kind": "bet", "tag": "success" if success else "failure"}
+
+
+func receipt_find(instance: int) -> Dictionary:
+	if instance <= 0:
+		return {}
+	for row in journal:
+		if not (row is Dictionary):
+			continue
+		var raw = row.get("receipt", null)
+		if raw is Dictionary and int(raw.get("instance", 0)) == instance:
+			return row
+	return {}
+
+
+static func _receipt_whole(value) -> int:
+	if typeof(value) == TYPE_INT:
+		return value
+	if typeof(value) == TYPE_FLOAT and is_equal_approx(float(value), float(int(value))):
+		return int(value)
+	return -999999999
+
+
+## {} hides Details. A bad receipt never refuses the save.
+static func _receipt_clean(raw) -> Dictionary:
+	if not (raw is Dictionary):
+		return {}
+	if _receipt_whole(raw.get("v", 0)) != 1:
+		return {}
+	var instance := _receipt_whole(raw.get("instance", 0))
+	if instance < 1 or instance > 1000000000:
+		return {}
+	var event_id := str(raw.get("event_id", ""))
+	var choice_id := str(raw.get("choice_id", ""))
+	if event_id == "" or choice_id == "" or event_id.length() > 80 or choice_id.length() > 80:
+		return {}
+	var lang := str(raw.get("original_lang", ""))
+	if lang != "en" and lang != "ru":
+		return {}
+	var title = _receipt_clean_pair(raw.get("title", {}))
+	var label = _receipt_clean_pair(raw.get("label", {}))
+	if title == null or label == null:
+		return {}
+	var out := {
+		"v": 1,
+		"instance": instance,
+		"event_id": event_id,
+		"choice_id": choice_id,
+		"title": title,
+		"label": label,
+		"original_lang": lang,
+	}
+	if raw.has("mirror"):
+		var mirror := str(raw.get("mirror", ""))
+		if mirror == "" or mirror.length() > 80:
+			return {}
+		out["mirror"] = mirror
+	if raw.has("previous_instance"):
+		var prev := _receipt_whole(raw.get("previous_instance", 0))
+		if prev < 1:
+			return {}
+		out["previous_instance"] = prev
+	if raw.has("deltas"):
+		var deltas = _receipt_clean_deltas(raw.get("deltas", {}))
+		if deltas == null:
+			return {}
+		if not deltas.is_empty():
+			out["deltas"] = deltas
+	if raw.has("result"):
+		var result = _receipt_clean_result(raw.get("result", {}))
+		if result == null:
+			return {}
+		if not result.is_empty():
+			out["result"] = result
+	return out
+
+
+static func _receipt_clean_pair(raw):
+	if not (raw is Dictionary):
+		return null
+	var out := {}
+	for key in raw:
+		if str(key) != "en" and str(key) != "ru":
+			return null
+		if typeof(raw[key]) != TYPE_STRING:
+			return null
+		var text := str(raw[key])
+		if text.length() > RECEIPT_LOAD_MAX:
+			return null
+		if text != "":
+			out[str(key)] = text
+	return out
+
+
+static func _receipt_clean_deltas(raw):
+	if not (raw is Dictionary):
+		return null
+	var out := {}
+	for key in raw:
+		var name := str(key)
+		if name in ["hope", "discontent", "synod", "papers"]:
+			var n := _receipt_whole(raw[key])
+			if n == -999999999 or absi(n) > 1000000:
+				return null
+			if n != 0:
+				out[name] = n
+		elif name in ["stock", "opinions", "standing"]:
+			if not (raw[key] is Dictionary):
+				return null
+			var group := {}
+			for fid in raw[key]:
+				if str(fid).length() > 40:
+					return null
+				var amount := _receipt_whole(raw[key][fid])
+				if amount == -999999999 or absi(amount) > 1000000:
+					return null
+				if amount != 0:
+					group[str(fid)] = amount
+			if not group.is_empty():
+				out[name] = group
+		else:
+			return null
+	return out
+
+
+static func _receipt_clean_result(raw):
+	if not (raw is Dictionary):
+		return null
+	var kind := str(raw.get("kind", ""))
+	var tag := str(raw.get("tag", ""))
+	if not ["check", "bet"].has(kind) or not ["success", "failure", "other", "unrecorded"].has(tag):
+		return null
+	var out := {"kind": kind, "tag": tag}
+	if tag == "other":
+		var key := str(raw.get("key", ""))
+		if key == "" or key.length() > 80:
+			return null
+		out["key"] = key
+	if raw.has("person_id"):
+		var pid := str(raw.get("person_id", ""))
+		if pid == "" or pid.length() > 80:
+			return null
+		out["person_id"] = pid
+	for key in ["name_en", "name_ru"]:
+		if raw.has(key):
+			var text := str(raw.get(key, ""))
+			if text == "" or text.length() > 80:
+				return null
+			out[key] = text
+	return out
+
+
+static func _sanitize_receipts(state: Dictionary) -> void:
+	var seq := _receipt_whole(state.get("receipt_seq", 0))
+	if seq < 0 or seq == -999999999:
+		seq = 0
+	var max_id := 0
+	var rows: Array = state.get("journal", [])
+	for row in rows:
+		if not (row is Dictionary) or not row.has("receipt"):
+			continue
+		var clean := _receipt_clean(row.get("receipt"))
+		if clean.is_empty():
+			row.erase("receipt")
+			push_warning("P97 receipt hidden: malformed journal metadata")
+			continue
+		row["receipt"] = clean
+		max_id = maxi(max_id, int(clean.instance))
+		max_id = maxi(max_id, int(clean.get("previous_instance", 0)))
+	for item in state.get("follows", []):
+		max_id = maxi(max_id, _receipt_keep_from(item))
+	for ev in state.get("pending", []) + state.get("white_pending", []):
+		max_id = maxi(max_id, _receipt_keep_from(ev))
+	state["receipt_seq"] = maxi(seq, max_id)
+
+
+static func _receipt_keep_from(item) -> int:
+	if not (item is Dictionary) or not item.has("receipt_from"):
+		return 0
+	var n := _receipt_whole(item.get("receipt_from", 0))
+	if n < 1 or n == -999999999:
+		item.erase("receipt_from")
+		push_warning("P97 receipt hidden: malformed provenance")
+		return 0
+	item["receipt_from"] = n
+	return n
+
+
+func _receipt_phrase(pair, missing_key: String) -> String:
+	if not (pair is Dictionary):
+		return Copy.t(missing_key)
+	var lang := "ru" if Copy.ru() else "en"
+	var have := str(pair.get(lang, "")).strip_edges()
+	if have != "":
+		return have
+	var other := "en" if lang == "ru" else "ru"
+	var alt := str(pair.get(other, "")).strip_edges()
+	if alt != "":
+		return "%s (%s)" % [alt, Copy.t("receipt.locale_fallback")]
+	return Copy.t(missing_key)
+
+
+func _receipt_signed(n: int) -> String:
+	if n > 0:
+		return "+%d" % n
+	return str(n)
+
+
+func _receipt_result_line(result: Dictionary) -> String:
+	var kind := str(result.get("kind", ""))
+	var tag := str(result.get("tag", ""))
+	if tag == "other":
+		var key := str(result.get("key", ""))
+		if key != "" and Copy.keys.has(key):
+			var shown := Copy.t(key)
+			if shown != "" and shown != key:
+				return shown
+		return Copy.t("receipt.result.unrecorded")
+	if kind == "bet" and tag == "success":
+		return Copy.t("receipt.result.bet_success")
+	if kind == "bet" and tag == "failure":
+		return Copy.t("receipt.result.bet_failure")
+	if kind == "check" and tag == "success":
+		return Copy.t("receipt.result.success")
+	if kind == "check" and tag == "failure":
+		return Copy.t("receipt.result.failure")
+	return Copy.t("receipt.result.unrecorded")
+
+
+func _receipt_change_lines(deltas: Dictionary) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	var stock_delta: Dictionary = deltas.get("stock", {})
+	var ordered: Array = RECEIPT_STOCK.duplicate()
+	for key in stock_delta:
+		if not ordered.has(str(key)):
+			ordered.append(str(key))
+	for key in ordered:
+		if not stock_delta.has(key):
+			continue
+		lines.append("%s %s" % [Copy.res(str(key)), _receipt_signed(int(stock_delta[key]))])
+	if deltas.has("hope"):
+		lines.append("%s %s" % [Copy.res("hope"), _receipt_signed(int(deltas.hope))])
+	if deltas.has("discontent"):
+		lines.append("%s %s" % [Copy.res("discontent"), _receipt_signed(int(deltas.discontent))])
+	var op: Dictionary = deltas.get("opinions", {})
+	for fid in ["exchange", "directorate", "synod", "depot", "black_flag"]:
+		if op.has(fid):
+			lines.append("%s · %s %s" % [Copy.t("receipt.opinion"), Copy.t(_fname(fid)), _receipt_signed(int(op[fid]))])
+	for fid in op:
+		if fid in ["exchange", "directorate", "synod", "depot", "black_flag"]:
+			continue
+		lines.append("%s · %s %s" % [Copy.t("receipt.opinion"), Copy.t(_fname(str(fid))), _receipt_signed(int(op[fid]))])
+	var regard: Dictionary = deltas.get("standing", {})
+	for fid in regard:
+		var who := _leader_display(str(fid))
+		lines.append("%s · %s %s" % [Copy.t("receipt.regard"), who, _receipt_signed(int(regard[fid]))])
+	if deltas.has("synod"):
+		lines.append("%s %s" % [Copy.t("Synod"), _receipt_signed(int(deltas.synod))])
+	if deltas.has("papers"):
+		lines.append("%s %s" % [Copy.t("Papers"), _receipt_signed(int(deltas.papers))])
+	return lines
+
+
+## Read-only detail. Does not touch sim state. ok is false when Details must stay hidden.
+func receipt_view(row: Dictionary) -> Dictionary:
+	var clean := _receipt_clean(row.get("receipt", null))
+	if clean.is_empty():
+		return {"ok": false}
+	var choice := _receipt_phrase(clean.get("label", {}), "receipt.choice_missing")
+	var view := {
+		"ok": true,
+		"instance": int(clean.instance),
+		"week_line": Copy.fill("receipt.week", {"n": str(int(row.get("week", 0)))}),
+		"title": _receipt_phrase(clean.get("title", {}), "receipt.event_missing"),
+		"chosen": Copy.fill("receipt.chosen", {"choice": choice}),
+		"result": "",
+		"changes_head": Copy.t("receipt.changes"),
+		"changes": PackedStringArray(),
+		"none": true,
+		"previous_button": "",
+		"previous_title": "",
+		"previous_chosen": "",
+		"previous_instance": 0,
+		"pruned": false,
+		"scope": Copy.t("receipt.scope"),
+	}
+	if clean.has("result"):
+		view["result"] = _receipt_result_line(clean.result)
+	var deltas: Dictionary = clean.get("deltas", {})
+	var lines := _receipt_change_lines(deltas)
+	view["changes"] = lines
+	view["none"] = lines.is_empty()
+	var prev_id := int(clean.get("previous_instance", 0))
+	if prev_id > 0:
+		var prev := receipt_find(prev_id)
+		if prev.is_empty():
+			view["pruned"] = true
+		else:
+			var prev_clean := _receipt_clean(prev.get("receipt", {}))
+			var prev_choice := _receipt_phrase(prev_clean.get("label", {}), "receipt.choice_missing")
+			view["previous_instance"] = prev_id
+			view["previous_button"] = Copy.fill("receipt.previous", {"n": str(int(prev.get("week", 0)))})
+			view["previous_title"] = _receipt_phrase(prev_clean.get("title", {}), "receipt.event_missing")
+			view["previous_chosen"] = Copy.fill("receipt.chosen", {"choice": prev_choice})
+	return view
 
 
 func report() -> Dictionary:
@@ -8806,8 +9320,13 @@ func _present_due_follows() -> void:
 		if by is Dictionary and by.has(memory):
 			copy.text = str(by[memory])
 			copy.follow_memory = memory
+		var from := int(item.get("receipt_from", 0))
+		var stamp := from > 0 and RECEIPT_NEXT.values().has(str(item.get("id", "")))
 		if _present_event(copy):
 			presented += 1
+			## After _present_event's JSON copy, so the id stays an int and save bytes match.
+			if stamp and not pending.is_empty():
+				pending[pending.size() - 1]["receipt_from"] = from
 	follows = keep
 
 
@@ -8845,7 +9364,11 @@ func _schedule_follow(ev: Dictionary, choice: Dictionary) -> void:
 	if earliest > due:
 		return
 	var memory := str(choice.get("mirror", choice.get("id", ""))) if bool(choice.get("obs_line", false)) else str(choice.get("id", ""))
-	follows.append({"id": follow, "due": due, "memory": memory})
+	var row := {"id": follow, "due": due, "memory": memory}
+	var inst := int(_receipt_buf.get("instance", 0))
+	if inst > 0 and str(RECEIPT_NEXT.get(str(ev.get("id", "")), "")) == follow:
+		row["receipt_from"] = inst
+	follows.append(row)
 
 
 func front_event() -> Dictionary:
@@ -8906,6 +9429,7 @@ func dismiss_front() -> bool:
 		return true
 	if not _apply_event({"event_id": str(ev.id), "choice_id": str(choice.id)}):
 		pending.pop_front()
+	_receipt_drop()
 	return pending.is_empty() or str(pending[0].get("id", "")) != str(ev.id)
 
 
@@ -9019,6 +9543,7 @@ func _resolve_pending() -> void:
 			person = best_check_resident(str(choice.check.get("skill", "")))
 		if not _apply_event({"event_id": ev.id, "choice_id": choice.id, "person": person}):
 			pending.pop_front()
+		_receipt_drop()
 
 
 func choice_locked(choice: Dictionary) -> bool:
@@ -9594,6 +10119,7 @@ func _resolve_check(ev: Dictionary, choice: Dictionary, person_id: String) -> bo
 		"name": str(people[person_id].name) if people.has(person_id) else "",
 		"outcome": line_of(outcome_block, "text"),
 	}
+	_receipt_note_check(person_id, success)
 	_note_check(color, success, retried)
 	var face := "double 6" if box else ("double 1" if snake else "%d+%d" % [d1, d2])
 	var verdict := "Success" if success else "Failure"
@@ -9663,6 +10189,7 @@ func _resolve_bet(choice: Dictionary) -> void:
 	var d2 := check_rng.randi_range(1, 6)
 	var win := d1 + d2 >= int(bet.get("target", 7))
 	last_check = {"bet": true, "d1": d1, "d2": d2, "success": win, "box": d1 == 6 and d2 == 6, "snake": d1 == 1 and d2 == 1}
+	_receipt_note_bet(win)
 	if win:
 		stock.tokens = int(stock.tokens) + int(bet.get("win", 0))
 		if Copy.ru():
@@ -9688,6 +10215,7 @@ func _note_check(color: String, success: bool, retried: bool) -> void:
 
 
 func _apply_event(action: Dictionary) -> bool:
+	_receipt_drop()
 	if pending.is_empty():
 		return false
 	var ev: Dictionary = pending[0]
@@ -9716,6 +10244,9 @@ func _apply_event(action: Dictionary) -> bool:
 		decisions += 1
 		_log("NIGHT %s" % str(choice.get("id", "")), true)
 		return true
+	var receipt_on := _receipt_arm and str(ev.get("burial_id", "")) == ""
+	if receipt_on:
+		_receipt_begin(ev, choice)
 	_pay(choice.get("cost", {}))
 	var keep := true
 	if choice.has("check"):
@@ -9729,6 +10260,8 @@ func _apply_event(action: Dictionary) -> bool:
 		_apply_deep_life_flavor(ev, choice)
 	decisions += 1
 	if not keep:
+		if receipt_on:
+			_receipt_finish(choice)
 		return true
 	if _state_dilemma(ev):
 		_apply_dilemma_choice(ev, choice)
@@ -9755,6 +10288,8 @@ func _apply_event(action: Dictionary) -> bool:
 		if named != "" and people.has(named):
 			_life_note(people[named], "named_dilemma", {})
 	MarksKit.note_arrivals(self, ev, choice)
+	if receipt_on:
+		_receipt_finish(choice)
 	return true
 
 
@@ -11955,6 +12490,7 @@ const PERSIST := [
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
 	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "echoes", "rival_log", "callers", "scars",
+	"shiftword_state", "receipt_seq",
 ]
 
 
@@ -11979,11 +12515,21 @@ const PERSIST := [
 ## Version 23 added the rival desk. Older saves start with an empty rival_log.
 ## Version 24 adds platform callers. Older saves start with nobody on the stairs.
 ## Version 25 added passage scars. Older saves start with nothing remembered on a passage.
+## Version 26 added between-shift exchanges. Older saves start with no exchange.
+## Version 27 added the decision-receipt sequence. Older saves start at 0, then move past any
+## receipt id already stored on a journal row, follow, or pending card.
 ## Schema <= 19 may omit sdays. Schema <= 20 may omit carry. Schema <= 21 may omit echoes.
 ## Schema <= 22 may omit rival_log. Schema <= 23 may omit callers. Schema <= 24 may omit scars.
+## Schema <= 25 may omit shiftword_state. Schema <= 26 may omit receipt_seq.
 ## A key that is already in the file is kept. Schema 24 keeps callers, rival_log, echoes, carry,
-## and sdays, and receives an empty scars dict. Schema 25 requires scars and every earlier key.
-const SAVE_SCHEMA := 25
+## and sdays, and receives an empty scars dict. Schema 25 requires scars and every earlier key,
+## and receives an empty shiftword_state plus receipt_seq 0. Schema 26 requires shiftword_state
+## and receives receipt_seq 0 when that key is absent. Schema 27 requires receipt_seq.
+## A schema 27 file written by P97 before shiftword_state existed may omit that key. The loader
+## fills {}. A shiftword_state that is present is kept. A non-dictionary shiftword_state is rejected.
+## A bad row inside an otherwise valid dictionary is P96's documented case: the save loads and that
+## vignette stays hidden. Schema 28 and above is rejected.
+const SAVE_SCHEMA := 27
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
 ## leader's start_opinion, never anything from the run being replaced.
@@ -12043,6 +12589,10 @@ const V22_ADDED := ["rival_log"]
 const V23_ADDED := ["callers"]
 ## Fields a version 1 to 24 save may lack: no passage scars yet.
 const V24_ADDED := ["scars"]
+## Fields a version 1 to 25 save may lack: no between-shift exchange yet.
+const V25_ADDED := ["shiftword_state"]
+## Fields a version 1 to 26 save may lack: no decision-receipt sequence yet.
+const V26_ADDED := ["receipt_seq"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
 var load_error := ""
@@ -12100,7 +12650,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 21 and V21_ADDED.has(key)) or (int(schema) <= 22 and V22_ADDED.has(key)) or (int(schema) <= 23 and V23_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 21 and V21_ADDED.has(key)) or (int(schema) <= 22 and V22_ADDED.has(key)) or (int(schema) <= 23 and V23_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)) or (int(schema) <= 25 and V25_ADDED.has(key)) or (int(schema) <= 26 and V26_ADDED.has(key)) or (int(schema) == 27 and key == "shiftword_state"):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -12132,6 +12682,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	## Blueprints live on stock. Saves from before the salvage board have none; they start at zero.
 	if int(schema) <= 11 and state.stock is Dictionary and not state.stock.has("blueprints"):
 		state.stock["blueprints"] = 0
+	_sanitize_receipts(state)
 	var why := _state_problem(state, cat)
 	if why != "":
 		return {"error": why, "state": {}}
@@ -12280,6 +12831,9 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 	var why_scars := PassageScars.problem(state.scars, int(state.week))
 	if why_scars != "":
 		return why_scars
+	var why_shift := BetweenShifts.problem(state.shiftword_state)
+	if why_shift != "":
+		return why_shift
 	var why_shape := _shape_problem(state, cat)
 	if why_shape != "":
 		return why_shape
