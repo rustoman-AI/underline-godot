@@ -78,6 +78,7 @@ func _run() -> void:
 	_locale()
 	_browse_then_apply()
 	_receipt_from_compare()
+	await _layout_views()
 	await _shots()
 	_wipe(ProjectSettings.globalize_path("user://check_risk_roster"))
 	if is_instance_valid(st):
@@ -354,10 +355,13 @@ func _rows_and_room() -> void:
 		_bad("more hidden")
 	var highlighted := 0
 	for row in _roles(st.card_body, "row"):
-		if str(_label_text(row, "skill")).find("Current choice") >= 0:
-			highlighted += 1
-			if str(row.get_meta("checkpick_id", "")) != bare_id:
-				_bad("highlight")
+		if _label_text(row, "current") == "":
+			continue
+		highlighted += 1
+		if str(row.get_meta("checkpick_id", "")) != bare_id:
+			_bad("highlight")
+		if _label_text(row, "skill").find("Current choice") >= 0:
+			_bad("current wrapped in the name")
 	if highlighted != 1:
 		_bad("highlight count %d" % highlighted)
 
@@ -750,6 +754,153 @@ func _receipt_from_compare() -> void:
 		found = true
 	if not found:
 		_bad("receipt not journaled")
+
+
+func _layout_views() -> void:
+	var views := [
+		[Vector2i(1920, 1080), 1.0, "100"],
+		[Vector2i(1536, 864), 1.0, "125"],
+		[Vector2i(1920, 1080), 1.25, "125scale"],
+	]
+	for view in views:
+		await _apply_view(st, view[0], float(view[1]))
+		var viewport: Vector2 = st.get_viewport_rect().size
+		var tag := str(view[2])
+		print("VIEW %s window %s scale %.2f viewport %s" % [tag, view[0], st.get_window().content_scale_factor, viewport])
+		if tag == "100" and (viewport.x < 1800.0 or viewport.y < 1000.0):
+			_bad("%s viewport %s" % [tag, viewport])
+		if tag == "125" and (absf(viewport.x - 1536.0) > 2.0 or absf(viewport.y - 864.0) > 2.0):
+			_bad("%s viewport %s" % [tag, viewport])
+		if tag == "125scale" and (st.get_window().content_scale_factor < 1.2 or viewport.y > 900.0):
+			_bad("%s scale %s viewport %s" % [tag, st.get_window().content_scale_factor, viewport])
+		await _layout_case(tag)
+
+
+func _layout_case(tag: String) -> void:
+	Copy.set_lang("en")
+	_offer("garden_mold", 8)
+	_long_wits(st.game)
+	var council := ""
+	for seat in st.game.council:
+		var pid := str(seat.get("id", ""))
+		if st._check_roster().has(pid):
+			council = pid
+			break
+	if council == "":
+		_bad("%s no council" % tag)
+		return
+	st.check_picks["garden_mold:burn"] = council
+	st._show_dawn()
+	for _i in 3:
+		await process_frame
+	var actor = _actor("garden_mold:burn")
+	if actor == null:
+		_bad("%s no burn summary" % tag)
+		return
+	var summary = _child_role(actor, "summary")
+	var opener = _child_role(actor, "open")
+	if summary == null or opener == null:
+		_bad("%s summary button" % tag)
+		return
+	var summary_box: Rect2 = summary.get_global_rect()
+	var button_box: Rect2 = opener.get_global_rect()
+	if button_box.position.y < summary_box.end.y - 1.0:
+		_bad("%s summary beside button %s %s" % [tag, summary_box, button_box])
+	if summary_box.size.x + 4.0 < button_box.size.x:
+		_bad("%s summary narrow %s" % [tag, summary_box.size])
+	st._open_checkpick("garden_mold", "burn")
+	for _i in 4:
+		await process_frame
+	var row = _row(council)
+	if row == null:
+		_bad("%s council row" % tag)
+		return
+	var skill = _child_role(row, "skill")
+	var current = _child_role(row, "current")
+	if skill == null or current == null:
+		_bad("%s current tag" % tag)
+		return
+	if str(skill.text).find("Current choice") >= 0:
+		_bad("%s current in name" % tag)
+	if current.autowrap_mode != TextServer.AUTOWRAP_OFF or current.clip_text:
+		_bad("%s current wraps" % tag)
+	var current_box: Rect2 = current.get_global_rect()
+	var skill_box: Rect2 = skill.get_global_rect()
+	if current_box.position.y < skill_box.end.y - 1.0:
+		_bad("%s current not own line %s" % [tag, current_box])
+	if current_box.size.y > 28.0:
+		_bad("%s current tall %s" % [tag, current_box.size])
+	var lists := _roles(st.card_body, "list")
+	var mores := _roles(st.card_body, "more")
+	if lists.is_empty() or mores.is_empty():
+		_bad("%s more missing" % tag)
+		return
+	var scroll: ScrollContainer = lists[lists.size() - 1]
+	var more: Control = mores[mores.size() - 1]
+	st._checkpick_sync_more(scroll)
+	await process_frame
+	if not more.visible:
+		_bad("%s more hidden at top" % tag)
+	var bar := scroll.get_v_scroll_bar()
+	scroll.scroll_vertical = int(ceili(maxf(0.0, bar.max_value)))
+	st._checkpick_sync_more(scroll)
+	await process_frame
+	if more.visible:
+		_bad("%s more stays at end" % tag)
+	scroll.scroll_vertical = 0
+	st._checkpick_sync_more(scroll)
+	await process_frame
+	if not more.visible:
+		_bad("%s more stays hidden" % tag)
+
+
+func _long_wits(game) -> void:
+	game.laws_on["engineers_charter"] = true
+	for room in game.rooms:
+		if str(room.type) != "workshop":
+			continue
+		var staff: Array = []
+		for person in game.residents:
+			if staff.size() >= 2:
+				break
+			if int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+				continue
+			staff.append(str(person.id))
+		room.staff = staff
+		room.offline = false
+
+
+func _actor(key: String):
+	for node in _roles(st.card_body, "actor"):
+		if str(node.get_meta("checkpick_key", "")) == key:
+			return node
+	return null
+
+
+func _child_role(root: Node, role: String):
+	if root == null:
+		return null
+	for node in _all(root):
+		if node != root and str(node.get_meta("checkpick_role", "")) == role:
+			return node
+	return null
+
+
+func _apply_view(st, win_size: Vector2i, scale: float) -> void:
+	var win: Window = st.get_window()
+	Settings.ui_scale_auto = false
+	Settings.ui_scale = scale
+	win.mode = Window.MODE_WINDOWED
+	root.size = win_size
+	win.size = win_size
+	if absf(scale - 1.0) < 0.01:
+		win.content_scale_factor = 1.0
+		win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+		win.content_scale_size = win_size
+	else:
+		Settings.apply_scale(win)
+	for _i in 4:
+		await process_frame
 
 
 func _shots() -> void:
