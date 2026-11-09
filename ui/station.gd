@@ -4327,11 +4327,13 @@ func _paint_power() -> void:
 		_body("%d. %s" % [index, name])
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
-		row.add_child(_power_dir_button("Up", id, true))
-		row.add_child(_power_dir_button("Down", id, false))
+		var at := game.power_order.find(id)
+		row.add_child(_power_dir_button("Up", id, true, at))
+		row.add_child(_power_dir_button("Down", id, false, at))
 		if Cutplan.locale_ready():
 			var compare := _button("cutplan.compare", _cutplan_open.bind(id))
 			compare.set_meta("cutplan_compare", id)
+			compare.set_meta("power_index", at)
 			var either := _cutplan_can(id, true) or _cutplan_can(id, false)
 			compare.disabled = not either
 			compare.focus_mode = Control.FOCUS_ALL if either else Control.FOCUS_NONE
@@ -4340,15 +4342,17 @@ func _paint_power() -> void:
 		if id == cutplan_room and Cutplan.locale_ready():
 			_paint_cutplan()
 	card_body.add_child(_button("Close", _close_card))
+	_cutplan_retarget_close()
 
 
-func _power_dir_button(label: String, uid: String, up: bool) -> Button:
+func _power_dir_button(label: String, uid: String, up: bool, at: int) -> Button:
 	var button := _button(label, _nudge_power.bind(uid, up))
 	var legal := _cutplan_can(uid, up)
 	button.disabled = not legal
 	button.focus_mode = Control.FOCUS_ALL if legal else Control.FOCUS_NONE
 	button.set_meta("power_uid", uid)
 	button.set_meta("power_dir", "up" if up else "down")
+	button.set_meta("power_index", at)
 	return button
 
 
@@ -4361,6 +4365,7 @@ func _nudge_power(uid: String, up: bool) -> void:
 	game.apply({"kind": "power", "room": uid, "up": up})
 	_show_power()
 	_refresh()
+	_cutplan_focus_dir(uid, up)
 
 
 func _cutplan_can(uid: String, up: bool) -> bool:
@@ -4413,8 +4418,10 @@ func _cutplan_set_dir(up: bool) -> void:
 
 
 func _cutplan_keep() -> void:
+	var uid := cutplan_room
 	_cutplan_reset()
 	_show_power()
+	_cutplan_focus_compare(uid)
 
 
 func _cutplan_boundary_same() -> bool:
@@ -4443,6 +4450,7 @@ func _cutplan_move() -> void:
 	game.apply({"kind": "power", "room": uid, "up": up})
 	_show_power()
 	_refresh()
+	_cutplan_focus_dir(uid, up)
 
 
 func _cutplan_capture() -> void:
@@ -4552,13 +4560,67 @@ func _cutplan_dir_button(up: bool) -> Button:
 	return button
 
 
+## Inside the expansion's padded panel. The scope sentence is wider than the
+## panel if it is given the card width, and the last word then wraps alone.
+func _cutplan_inner_width() -> float:
+	return maxf(_card_inner() - 36.0, 200.0)
+
+
 func _cutplan_text(parent: Node, text: String, size: int, display: bool) -> Label:
 	var lab := _label(text, size, display, false)
+	var wrap_w := _cutplan_inner_width()
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lab.custom_minimum_size.x = maxf(_card_inner() - 48.0, 220.0)
+	lab.custom_minimum_size = Vector2(wrap_w, lab.custom_minimum_size.y)
+	lab.custom_maximum_size = Vector2(wrap_w, -1)
 	parent.add_child(lab)
 	return lab
+
+
+func _cutplan_focus_compare(uid: String) -> void:
+	_cutplan_focus_button.call_deferred("cutplan_compare", uid)
+
+
+func _cutplan_focus_dir(uid: String, up: bool) -> void:
+	var dir := "up" if up else "down"
+	_cutplan_focus_button.call_deferred("power_dir", dir, uid)
+
+
+func _cutplan_focus_button(key: String, value: String, uid: String = "") -> void:
+	if card_body == null:
+		return
+	var found := _cutplan_find_focus(key, value, uid)
+	if (found == null or found.disabled) and key == "power_dir":
+		found = _cutplan_find_focus("cutplan_compare", uid, "")
+	if found == null or not found.is_visible_in_tree() or found.disabled:
+		return
+	found.grab_focus()
+
+
+func _cutplan_find_focus(key: String, value: String, uid: String) -> Button:
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and here.has_meta(key) and str(here.get_meta(key)) == value:
+			if uid == "" or str(here.get_meta("power_uid", here.get_meta("cutplan_compare", ""))) == uid:
+				return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
+
+
+## Header Close is wired to _close_card. While a preview is open, that path
+## returns to this list and focuses Compare instead of dropping the card.
+func _cutplan_retarget_close() -> void:
+	if card_body == null:
+		return
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and str((here as Button).text) == Copy.t("Close"):
+			here.set_meta("power_close", true)
+		for child in here.get_children():
+			stack.append(child)
 
 
 func _cutplan_title(uid: String) -> String:
@@ -11900,6 +11962,12 @@ func _help_badge(type: String, line: Label) -> Button:
 
 
 func _close_card() -> void:
+	if deck.top_token() == "power" and cutplan_room != "":
+		var uid := cutplan_room
+		_cutplan_reset()
+		_paint_power()
+		_cutplan_focus_compare(uid)
+		return
 	_cutplan_reset()
 	_checkpick_clear()
 	if deck.top_token() == "journal":

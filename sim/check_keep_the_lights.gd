@@ -774,13 +774,14 @@ func _ui() -> void:
 	_ok(ru.find("cutplan.") < 0 and ru.find("Compare") < 0 and ru.find("Keep current") < 0, "ru leaked en compare")
 	_ok(_dir_button(st, hydro, "up") != null and _dir_button(st, hydro, "down") != null, "ru lost direct moves")
 	Copy.set_lang("en")
+	await _focus_views(st)
 	if not _renderer_live():
 		_shots_skipped = true
 		for spec in [["en", "100", "before"], ["en", "100", "after"], ["en", "125", "before"], ["en", "125", "after"], ["ru", "100", "before"], ["ru", "100", "after"]]:
 			print("CUTPLAN SHOT SKIP %s %s %s" % [spec[0], spec[1], spec[2]])
 	else:
 		await _shoot_pair(st, "en", "100")
-		await _shoot_pair(st, "en", "125")
+		await _shoot_pair(st, "en", "125scale")
 		await _shoot_pair(st, "ru", "100")
 	if is_instance_valid(st):
 		st.free()
@@ -825,25 +826,157 @@ func _shoot_pair(st, lang: String, scale: String) -> void:
 func _apply_view(st, scale: String) -> void:
 	var window: Window = st.get_window()
 	window.mode = Window.MODE_WINDOWED
+	var win := Vector2i(1920, 1080)
+	var factor := 1.0
 	if scale == "125":
-		window.size = Vector2i(1920, 1080)
-		root.size = Vector2i(1920, 1080)
-		Settings.ui_scale_auto = false
-		Settings.ui_scale = 1.25
-		Settings.apply_scale(window)
-	else:
-		window.size = Vector2i(1920, 1080)
-		root.size = Vector2i(1920, 1080)
-		Settings.ui_scale_auto = false
-		Settings.ui_scale = 1.0
+		win = Vector2i(1536, 864)
+	elif scale == "125scale":
+		factor = 1.25
+	window.size = win
+	root.size = win
+	Settings.ui_scale_auto = false
+	Settings.ui_scale = factor
+	if absf(factor - 1.0) < 0.01:
 		window.content_scale_factor = 1.0
 		window.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
-		window.content_scale_size = Vector2i(1920, 1080)
+		window.content_scale_size = win
+	else:
+		Settings.apply_scale(window)
 	for _i in 3:
 		await process_frame
 	if st.has_method("_layout"):
 		st._layout()
 	await process_frame
+	print("VIEW %s window %s scale %.2f viewport %s" % [scale, window.size, window.content_scale_factor, st.get_viewport_rect().size])
+
+
+func _focus_views(st) -> void:
+	for tag in ["100", "125", "125scale"]:
+		await _apply_view(st, tag)
+		await _focus_paths(st, tag)
+		await _wrap_scope(st, tag)
+
+
+func _focus_paths(st, tag: String) -> void:
+	var hydro := _uid(st.game, "hydroponics")
+	var filt := _uid(st.game, "air_filter")
+	var inf := _uid(st.game, "infirmary")
+	await _open_compare(st, hydro)
+	await _press(st, _meta_button(st.card_body, "cutplan_keep", true))
+	_expect_focus(st, tag, "keep", "cutplan_compare", hydro)
+	await _open_compare(st, hydro)
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_ESCAPE
+	ev.pressed = true
+	st._unhandled_key_input(ev)
+	await _focus_settle()
+	_expect_focus(st, tag, "esc", "cutplan_compare", hydro)
+	await _open_compare(st, hydro)
+	var close := _find_button(st.card_body, "Close")
+	await _press(st, close)
+	_ok(st.deck.top_token() == "power" and st.cutplan_room == "", "%s close left the preview or the card" % tag)
+	_expect_focus(st, tag, "close", "cutplan_compare", hydro)
+	_shape_worked(st.game)
+	await _open_compare(st, filt)
+	await _press(st, _meta_button(st.card_body, "cutplan_move", "down"))
+	_expect_focus(st, tag, "move down", "power_dir", "down", filt)
+	_shape_worked(st.game)
+	await _open_compare(st, hydro)
+	await _press(st, _meta_button(st.card_body, "cutplan_move", "up"))
+	var up_after := _dir_button(st, hydro, "up")
+	if up_after != null and up_after.disabled:
+		_expect_focus(st, tag, "move up", "cutplan_compare", hydro)
+	else:
+		_expect_focus(st, tag, "move up", "power_dir", "up", hydro)
+	_shape_worked(st.game)
+	st._show_power()
+	await _focus_settle()
+	await _press(st, _dir_button(st, inf, "up"))
+	_expect_focus(st, tag, "direct up", "power_dir", "up", inf)
+	_shape_worked(st.game)
+	st._show_power()
+	await _focus_settle()
+	await _press(st, _dir_button(st, hydro, "down"))
+	_expect_focus(st, tag, "direct down", "power_dir", "down", hydro)
+
+
+func _wrap_scope(st, tag: String) -> void:
+	var hydro := _uid(st.game, "hydroponics")
+	_shape_worked(st.game)
+	await _open_compare(st, hydro)
+	await _focus_settle()
+	var panel := _meta_control(st.card_body, "cutplan_panel")
+	var scope := _meta_control(st.card_body, "cutplan_scope")
+	_ok(panel != null and scope != null, "%s scope missing" % tag)
+	if panel == null or scope == null:
+		return
+	_ok(scope.autowrap_mode == TextServer.AUTOWRAP_WORD_SMART, "%s scope does not wrap" % tag)
+	_ok(str(scope.text) == "Current conditions only. Changes before night can change the allocation.", "%s scope copy changed" % tag)
+	_ok(scope.size.x <= panel.size.x + 0.5, "%s scope %s wider than panel %s" % [tag, scope.size, panel.size])
+	_ok(scope.get_global_rect().end.x <= panel.get_global_rect().end.x + 1.0, "%s scope escapes the panel" % tag)
+	_ok(scope.get_line_count() >= 2, "%s scope lines %d" % [tag, scope.get_line_count()])
+	_ok(scope.custom_maximum_size.x <= panel.size.x + 0.5, "%s scope max %s panel %s" % [tag, scope.custom_maximum_size, panel.size])
+	print("SCOPE %s panel %s label %s lines %d" % [tag, panel.size, scope.size, scope.get_line_count()])
+
+
+func _open_compare(st, uid: String) -> void:
+	_shape_worked(st.game)
+	st._show_power()
+	await _focus_settle()
+	await _press(st, _meta_button(st.card_body, "cutplan_compare", uid))
+
+
+func _press(st, button: Button) -> void:
+	_ok(button != null, "missing button")
+	if button == null:
+		return
+	st.card_click_guard = 0
+	button.pressed.emit()
+	await _focus_settle()
+
+
+func _focus_settle() -> void:
+	for _i in 3:
+		await process_frame
+
+
+func _expect_focus(st, tag: String, path: String, key: String, value: String, uid: String = "") -> void:
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	_ok(owner != null, "%s %s focus null" % [tag, path])
+	if owner == null:
+		return
+	_ok(owner.has_meta(key) and str(owner.get_meta(key)) == value, "%s %s focused %s" % [tag, path, owner])
+	var who := uid if uid != "" else value
+	if owner.has_meta("power_index"):
+		_ok(int(owner.get_meta("power_index")) == st.game.power_order.find(who), "%s %s index %s order %s" % [tag, path, owner.get_meta("power_index"), st.game.power_order.find(who)])
+	if key == "power_dir":
+		_ok(str(owner.get_meta("power_uid", "")) == uid, "%s %s uid" % [tag, path])
+
+
+func _find_button(node: Node, text: String) -> Button:
+	if node == null:
+		return null
+	var stack: Array = [node]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and str((here as Button).text) == text:
+			return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
+
+
+func _meta_control(node: Node, key: String) -> Control:
+	if node == null:
+		return null
+	var stack: Array = [node]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Control and here.has_meta(key):
+			return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
 
 
 func _reveal_compare(st) -> void:
@@ -888,7 +1021,8 @@ func _shoot(st, lang: String, scale: String, opened: bool) -> void:
 	RenderingServer.force_draw()
 	var tex: ViewportTexture = st.get_viewport().get_texture()
 	var img: Image = tex.get_image() if tex != null else null
-	var name := "cutplan_%s_%s_%s.png" % [lang, scale, phase]
+	var shot_scale := "125" if scale == "125scale" else scale
+	var name := "cutplan_%s_%s_%s.png" % [lang, shot_scale, phase]
 	var path := _shot_dir().path_join(name)
 	if img == null or img.get_width() < 2:
 		_bad("no image " + name)
