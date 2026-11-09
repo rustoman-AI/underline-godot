@@ -205,6 +205,14 @@ var log_over := ""
 var ahead: PanelContainer
 var deck = ModalDeck.new()
 var ambient_restore: Callable = Callable()
+## P100. One optional Compare expansion inside Power order. Not saved.
+var cutplan_room := ""
+var cutplan_up := true
+var cutplan_neighbor := ""
+var cutplan_fp := ""
+var cutplan_note := ""
+var cutplan_now: Dictionary = {}
+var cutplan_cand: Dictionary = {}
 var shelved_event := ""
 var check_picks := {}
 var check_flash := false
@@ -4292,8 +4300,20 @@ func _open_forecast_at(hint: String, level: int, cell: int) -> void:
 
 
 func _show_power() -> void:
-	if not _claim(ModalDeck.AMBIENT, "power", _show_power):
+	if not _claim(ModalDeck.AMBIENT, "power", _show_power_restored):
 		return
+	_paint_power()
+
+
+## Modal preemption, load, and Close rebuild the list with no comparison armed.
+func _show_power_restored() -> void:
+	_cutplan_reset()
+	_paint_power()
+
+
+func _paint_power() -> void:
+	if cutplan_room != "" and not Cutplan.locale_ready():
+		_cutplan_reset()
 	_open_card("Power order")
 	_body("Higher rooms keep their power when it runs short. The rest go dark.")
 	var index := 0
@@ -4301,21 +4321,447 @@ func _show_power() -> void:
 		var room = game._room(str(uid))
 		if room == null:
 			continue
+		var id := str(uid)
 		index += 1
 		var name := room_title(room)
 		_body("%d. %s" % [index, name])
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
-		row.add_child(_button("Up", _nudge_power.bind(str(uid), true)))
-		row.add_child(_button("Down", _nudge_power.bind(str(uid), false)))
+		var at := game.power_order.find(id)
+		row.add_child(_power_dir_button("Up", id, true, at))
+		row.add_child(_power_dir_button("Down", id, false, at))
+		if Cutplan.locale_ready():
+			var compare := _button("cutplan.compare", _cutplan_open.bind(id))
+			compare.set_meta("cutplan_compare", id)
+			compare.set_meta("power_index", at)
+			var either := _cutplan_can(id, true) or _cutplan_can(id, false)
+			compare.disabled = not either
+			compare.focus_mode = Control.FOCUS_ALL if either else Control.FOCUS_NONE
+			row.add_child(compare)
 		card_body.add_child(row)
+		if id == cutplan_room and Cutplan.locale_ready():
+			_paint_cutplan()
 	card_body.add_child(_button("Close", _close_card))
+	_cutplan_retarget_close()
+
+
+func _power_dir_button(label: String, uid: String, up: bool, at: int) -> Button:
+	var button := _button(label, _nudge_power.bind(uid, up))
+	var legal := _cutplan_can(uid, up)
+	button.disabled = not legal
+	button.focus_mode = Control.FOCUS_ALL if legal else Control.FOCUS_NONE
+	button.set_meta("power_uid", uid)
+	button.set_meta("power_dir", "up" if up else "down")
+	button.set_meta("power_index", at)
+	return button
 
 
 func _nudge_power(uid: String, up: bool) -> void:
+	if not _cutplan_can(uid, up):
+		_cutplan_reset()
+		_show_power()
+		return
+	_cutplan_reset()
 	game.apply({"kind": "power", "room": uid, "up": up})
 	_show_power()
 	_refresh()
+	_cutplan_focus_dir(uid, up)
+
+
+func _cutplan_can(uid: String, up: bool) -> bool:
+	return _cutplan_neighbor_of(uid, up) != ""
+
+
+func _cutplan_neighbor_of(uid: String, up: bool) -> String:
+	var i := game.power_order.find(uid)
+	if i < 0:
+		return ""
+	var j := i - 1 if up else i + 1
+	if j < 0 or j >= game.power_order.size():
+		return ""
+	return str(game.power_order[j])
+
+
+func _cutplan_reset() -> void:
+	cutplan_room = ""
+	cutplan_up = true
+	cutplan_neighbor = ""
+	cutplan_fp = ""
+	cutplan_note = ""
+	cutplan_now = {}
+	cutplan_cand = {}
+
+
+func _cutplan_open(uid: String) -> void:
+	if not Cutplan.locale_ready():
+		return
+	if cutplan_room == uid:
+		return
+	if not _cutplan_can(uid, true) and not _cutplan_can(uid, false):
+		return
+	cutplan_room = uid
+	cutplan_up = _cutplan_can(uid, true)
+	cutplan_note = ""
+	_cutplan_capture()
+	_show_power()
+
+
+func _cutplan_set_dir(up: bool) -> void:
+	if cutplan_room == "" or not _cutplan_can(cutplan_room, up):
+		return
+	if cutplan_up == up and cutplan_note == "":
+		return
+	cutplan_up = up
+	cutplan_note = ""
+	_cutplan_capture()
+	_show_power()
+
+
+func _cutplan_keep() -> void:
+	var uid := cutplan_room
+	_cutplan_reset()
+	_show_power()
+	_cutplan_focus_compare(uid)
+
+
+func _cutplan_boundary_same() -> bool:
+	if game == null or game._room(cutplan_room) == null:
+		return false
+	var neighbor := _cutplan_neighbor_of(cutplan_room, cutplan_up)
+	return neighbor != "" and neighbor == cutplan_neighbor
+
+
+func _cutplan_move() -> void:
+	if cutplan_room == "" or cutplan_note == "unavailable":
+		return
+	if not _cutplan_boundary_same():
+		_cutplan_reset()
+		_show_power()
+		return
+	var fp := Cutplan.fingerprint(game)
+	if cutplan_fp == "" or fp != cutplan_fp:
+		cutplan_note = "changed"
+		_cutplan_capture()
+		_show_power()
+		return
+	var uid := cutplan_room
+	var up := cutplan_up
+	_cutplan_reset()
+	game.apply({"kind": "power", "room": uid, "up": up})
+	_show_power()
+	_refresh()
+	_cutplan_focus_dir(uid, up)
+
+
+func _cutplan_capture() -> void:
+	cutplan_neighbor = _cutplan_neighbor_of(cutplan_room, cutplan_up)
+	cutplan_fp = Cutplan.fingerprint(game)
+	var now: Dictionary = Cutplan.project(game, game.power_order)
+	if not bool(now.get("ok", false)):
+		cutplan_note = "unavailable"
+		cutplan_now = {}
+		cutplan_cand = {}
+		return
+	var cand: Dictionary = Cutplan.project(game, Cutplan.swapped(game.power_order, cutplan_room, cutplan_up))
+	if not bool(cand.get("ok", false)):
+		cutplan_note = "unavailable"
+		cutplan_now = {}
+		cutplan_cand = {}
+		return
+	cutplan_now = now
+	cutplan_cand = cand
+
+
+func _paint_cutplan() -> void:
+	var box := PanelContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.set_meta("cutplan_panel", cutplan_room)
+	var face := StyleBoxFlat.new()
+	face.bg_color = Color(0.2, 0.15, 0.1, 0.28)
+	face.border_color = Color(BRASS.r, BRASS.g, BRASS.b, 0.45)
+	face.set_border_width_all(1)
+	face.set_content_margin_all(10)
+	face.set_corner_radius_all(3)
+	box.add_theme_stylebox_override("panel", face)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(col)
+	card_body.add_child(box)
+	_cutplan_text(col, Cutplan.line("cutplan.title"), 20, true)
+	var scope := _cutplan_text(col, Cutplan.line("cutplan.scope"), 15, false)
+	scope.set_meta("cutplan_scope", true)
+	var dirs := HBoxContainer.new()
+	dirs.add_theme_constant_override("separation", 8)
+	dirs.add_child(_cutplan_dir_button(true))
+	dirs.add_child(_cutplan_dir_button(false))
+	col.add_child(dirs)
+	var room_name := _cutplan_escape(_cutplan_title(cutplan_room))
+	var other_name := _cutplan_escape(_cutplan_title(cutplan_neighbor))
+	if room_name != "" and other_name != "":
+		var swap_key := "cutplan.swap_up" if cutplan_up else "cutplan.swap_down"
+		_cutplan_text(col, Cutplan.fill(swap_key, {"room": room_name, "other": other_name}), 17, false)
+	if cutplan_note != "unavailable" and not cutplan_now.is_empty():
+		_cutplan_text(col, Cutplan.fill("cutplan.budget", {
+			"power": str(maxi(0, int(cutplan_now.get("pool", 0)))),
+			"spares": str(maxi(0, int(cutplan_now.get("spares", 0)))),
+		}), 17, false)
+		if int(cutplan_now.get("spares", 0)) > 0:
+			_cutplan_text(col, Cutplan.line("cutplan.reserve"), 15, false)
+		if _cutplan_any_merged():
+			_cutplan_text(col, Cutplan.line("cutplan.group"), 15, false)
+	if cutplan_note == "changed":
+		_cutplan_text(col, Cutplan.line("cutplan.changed"), 17, false)
+	if cutplan_note == "unavailable":
+		_cutplan_text(col, Cutplan.line("cutplan.unavailable"), 17, false)
+	else:
+		var split := _cutplan_split()
+		var gains: Array = split.gains
+		var losses: Array = split.losses
+		if gains.is_empty() and losses.is_empty():
+			_cutplan_text(col, Cutplan.line("cutplan.unchanged"), 17, false)
+			_paint_cutplan_group(col, _cutplan_selected_group(), true)
+		else:
+			if not gains.is_empty():
+				_cutplan_text(col, Cutplan.line("cutplan.gains"), 17, true)
+				for grp in gains:
+					_paint_cutplan_group(col, grp, false)
+			if not losses.is_empty():
+				_cutplan_text(col, Cutplan.line("cutplan.losses"), 17, true)
+				for grp in losses:
+					_paint_cutplan_group(col, grp, false)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	if cutplan_note != "unavailable":
+		var move_key := "cutplan.apply_up" if cutplan_up else "cutplan.apply_down"
+		var move := _button(move_key, _cutplan_move)
+		move.set_meta("cutplan_move", "up" if cutplan_up else "down")
+		move.focus_mode = Control.FOCUS_ALL
+		actions.add_child(move)
+	var keep := _button("cutplan.keep", _cutplan_keep)
+	keep.set_meta("cutplan_keep", true)
+	keep.focus_mode = Control.FOCUS_ALL
+	actions.add_child(keep)
+	col.add_child(actions)
+
+
+func _cutplan_dir_button(up: bool) -> Button:
+	var key := "cutplan.up" if up else "cutplan.down"
+	var button := _button(key, _cutplan_set_dir.bind(up))
+	var legal := _cutplan_can(cutplan_room, up)
+	button.disabled = not legal
+	button.focus_mode = Control.FOCUS_ALL if legal else Control.FOCUS_NONE
+	button.set_meta("cutplan_dir", "up" if up else "down")
+	if legal and cutplan_up == up:
+		button.set_meta("cutplan_active", true)
+		button.add_theme_color_override("font_color", Color("8a5a12"))
+	return button
+
+
+## Inside the expansion's padded panel. The scope sentence is wider than the
+## panel if it is given the card width, and the last word then wraps alone.
+func _cutplan_inner_width() -> float:
+	return maxf(_card_inner() - 36.0, 200.0)
+
+
+func _cutplan_text(parent: Node, text: String, size: int, display: bool) -> Label:
+	var lab := _label(text, size, display, false)
+	var wrap_w := _cutplan_inner_width()
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.custom_minimum_size = Vector2(wrap_w, lab.custom_minimum_size.y)
+	lab.custom_maximum_size = Vector2(wrap_w, -1)
+	parent.add_child(lab)
+	return lab
+
+
+func _cutplan_focus_compare(uid: String) -> void:
+	_cutplan_focus_button.call_deferred("cutplan_compare", uid)
+
+
+func _cutplan_focus_dir(uid: String, up: bool) -> void:
+	var dir := "up" if up else "down"
+	_cutplan_focus_button.call_deferred("power_dir", dir, uid)
+
+
+func _cutplan_focus_button(key: String, value: String, uid: String = "") -> void:
+	if card_body == null:
+		return
+	var found := _cutplan_find_focus(key, value, uid)
+	if (found == null or found.disabled) and key == "power_dir":
+		found = _cutplan_find_focus("cutplan_compare", uid, "")
+	if found == null or not found.is_visible_in_tree() or found.disabled:
+		return
+	found.grab_focus()
+
+
+func _cutplan_find_focus(key: String, value: String, uid: String) -> Button:
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and here.has_meta(key) and str(here.get_meta(key)) == value:
+			if uid == "" or str(here.get_meta("power_uid", here.get_meta("cutplan_compare", ""))) == uid:
+				return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
+
+
+## Header Close is wired to _close_card. While a preview is open, that path
+## returns to this list and focuses Compare instead of dropping the card.
+func _cutplan_retarget_close() -> void:
+	if card_body == null:
+		return
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and str((here as Button).text) == Copy.t("Close"):
+			here.set_meta("power_close", true)
+		for child in here.get_children():
+			stack.append(child)
+
+
+func _cutplan_title(uid: String) -> String:
+	var room = game._room(uid)
+	if room == null:
+		return ""
+	return room_title(room)
+
+
+func _cutplan_escape(text: String) -> String:
+	return text.replace("{", "(").replace("}", ")")
+
+
+func _cutplan_status(code: String) -> String:
+	if code == "cut":
+		return Cutplan.line("cutplan.cut")
+	if code == "within":
+		return Cutplan.line("cutplan.within")
+	return Cutplan.line("cutplan.not_drawing")
+
+
+func _cutplan_group_key(grp: Dictionary, fallback: String) -> String:
+	var members: Array = grp.get("members", [])
+	if members.is_empty():
+		return fallback
+	var ids: PackedStringArray = []
+	for uid in members:
+		ids.append(str(uid))
+	ids.sort()
+	return "|".join(ids)
+
+
+func _cutplan_group_for(proj: Dictionary, uid: String) -> Dictionary:
+	for grp in proj.get("groups", []):
+		if grp is Dictionary and (grp.get("members", []) as Array).has(uid):
+			return grp
+	return {}
+
+
+func _cutplan_selected_group() -> Dictionary:
+	var found: Dictionary = _cutplan_group_for(cutplan_now, cutplan_room)
+	if not found.is_empty():
+		return found
+	return {"anchor": cutplan_room, "members": [cutplan_room], "draw": 0, "status": "not_drawing"}
+
+
+func _cutplan_any_merged() -> bool:
+	for proj in [cutplan_now, cutplan_cand]:
+		for grp in proj.get("groups", []):
+			if grp is Dictionary and (grp.get("members", []) as Array).size() > 1:
+				return true
+	return false
+
+
+func _cutplan_split() -> Dictionary:
+	var now_dark := {}
+	var cand_dark := {}
+	for uid in cutplan_now.get("dark", []):
+		now_dark[str(uid)] = true
+	for uid in cutplan_cand.get("dark", []):
+		cand_dark[str(uid)] = true
+	var gains: Array = []
+	var losses: Array = []
+	var seen_g := {}
+	var seen_l := {}
+	for uid in now_dark:
+		if cand_dark.has(uid):
+			continue
+		var grp: Dictionary = _cutplan_group_for(cutplan_now, str(uid))
+		var key := _cutplan_group_key(grp, str(uid))
+		if seen_g.has(key):
+			continue
+		seen_g[key] = true
+		if grp.is_empty():
+			grp = {"anchor": str(uid), "members": [str(uid)], "draw": 0, "status": "cut"}
+		gains.append(grp)
+	for uid in cand_dark:
+		if now_dark.has(uid):
+			continue
+		var grp: Dictionary = _cutplan_group_for(cutplan_cand, str(uid))
+		var key := _cutplan_group_key(grp, str(uid))
+		if seen_l.has(key):
+			continue
+		seen_l[key] = true
+		if grp.is_empty():
+			grp = {"anchor": str(uid), "members": [str(uid)], "draw": 0, "status": "cut"}
+		losses.append(grp)
+	return {"gains": gains, "losses": losses}
+
+
+func _paint_cutplan_group(parent: Node, grp: Dictionary, same: bool) -> void:
+	if grp.is_empty():
+		return
+	var anchor := str(grp.get("anchor", ""))
+	var now_g: Dictionary = _cutplan_match(cutplan_now, grp)
+	var cand_g: Dictionary = _cutplan_match(cutplan_cand, grp)
+	var title := _cutplan_member_line(anchor)
+	if title == "":
+		title = _cutplan_member_line(str(now_g.get("anchor", cutplan_room)))
+	_cutplan_text(parent, title, 17, true)
+	var draw := int(grp.get("draw", 0))
+	if not now_g.is_empty():
+		draw = int(now_g.get("draw", draw))
+	_cutplan_text(parent, Cutplan.fill("cutplan.draw", {"draw": str(maxi(0, draw))}), 15, false)
+	var now_status := str(now_g.get("status", grp.get("status", "not_drawing")))
+	var cand_status := now_status if same else str(cand_g.get("status", "within"))
+	_cutplan_text(parent, "%s: %s" % [Cutplan.line("cutplan.now"), _cutplan_status(now_status)], 15, false)
+	_cutplan_text(parent, "%s: %s" % [Cutplan.line("cutplan.after"), _cutplan_status(cand_status)], 15, false)
+	var members: Array = now_g.get("members", grp.get("members", []))
+	if members.size() > 1:
+		for uid in members:
+			var who := _cutplan_member_line(str(uid))
+			if who != "":
+				_cutplan_text(parent, who, 15, false)
+
+
+func _cutplan_match(proj: Dictionary, grp: Dictionary) -> Dictionary:
+	var anchor := str(grp.get("anchor", ""))
+	var found: Dictionary = _cutplan_group_for(proj, anchor)
+	if not found.is_empty():
+		return found
+	for uid in grp.get("members", []):
+		found = _cutplan_group_for(proj, str(uid))
+		if not found.is_empty():
+			return found
+	return {}
+
+
+func _cutplan_member_line(uid: String) -> String:
+	var room = game._room(uid)
+	if room == null:
+		return ""
+	var title := room_title(room)
+	var tags: PackedStringArray = []
+	if bool(room.get("offline", false)) or int(room.get("disabled", 0)) > 0:
+		tags.append(Copy.t("station.status_offline"))
+	if game._flood_silences(room):
+		tags.append(Copy.t("Flood"))
+	if tags.is_empty():
+		return title
+	return "%s (%s)" % [title, ", ".join(tags)]
 
 
 func _tap_cell(level: int, cell: int) -> void:
@@ -8045,6 +8491,11 @@ func _fragment_title(id: String) -> String:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and deck.top_token() == "power" and cutplan_room != "":
+		Sound.play("click")
+		_cutplan_keep()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_ESCAPE and deck.top_token() == "journal" and journal_detail != 0:
 		Sound.play("click")
 		_receipt_back()
@@ -11570,6 +12021,13 @@ func _help_badge(type: String, line: Label) -> Button:
 
 
 func _close_card() -> void:
+	if deck.top_token() == "power" and cutplan_room != "":
+		var uid := cutplan_room
+		_cutplan_reset()
+		_paint_power()
+		_cutplan_focus_compare(uid)
+		return
+	_cutplan_reset()
 	_checkpick_clear()
 	if deck.top_token() == "journal":
 		journal_detail = 0
@@ -14660,6 +15118,7 @@ func _show_main_menu() -> void:
 
 
 func _begin_new_game(intro: bool) -> void:
+	_cutplan_reset()
 	at_menu = false
 	if menu_layer != null:
 		menu_layer.visible = false
@@ -14687,6 +15146,7 @@ func _begin_new_game(intro: bool) -> void:
 
 
 func _continue_game() -> void:
+	_cutplan_reset()
 	if game == null or not SaveGame.load_latest(game):
 		Sound.play("error")
 		return
@@ -14720,6 +15180,7 @@ func _manual_save() -> void:
 
 
 func _manual_load() -> void:
+	_cutplan_reset()
 	if game == null or not SaveGame.load_manual(game):
 		Sound.play("error")
 		return
