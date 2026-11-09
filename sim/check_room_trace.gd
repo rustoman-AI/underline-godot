@@ -167,8 +167,8 @@ func _check_strings() -> bool:
 
 
 func _check_bounds() -> bool:
-	if Game.SAVE_SCHEMA != 25:
-		_bad("schema is %s, want 25 (flag stays in flags; no 26)" % str(Game.SAVE_SCHEMA))
+	if Game.SAVE_SCHEMA != 27:
+		_bad("schema is %s, want 27 (room trace stays in flags; schema 26 is not taken)" % str(Game.SAVE_SCHEMA))
 		return false
 	if RoomTrace.map_mark() or RoomTrace.dawn_chip() or RoomTrace.joins_soft_dawn():
 		_bad("mark or dawn helper")
@@ -181,7 +181,7 @@ func _check_bounds() -> bool:
 		_bad("reader touches hope or stock")
 		return false
 	var game_src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if game_src.find("const SAVE_SCHEMA := 25") < 0 or game_src.find("V21_ADDED") < 0 or game_src.find("V22_ADDED") < 0 or game_src.find("V23_ADDED") < 0 or game_src.find("V24_ADDED") < 0:
+	if game_src.find("const SAVE_SCHEMA := 27") < 0 or game_src.find("V21_ADDED") < 0 or game_src.find("V22_ADDED") < 0 or game_src.find("V23_ADDED") < 0 or game_src.find("V24_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if game_src.find("const SAVE_SCHEMA := 21") >= 0 or game_src.find("const SAVE_SCHEMA := 26") >= 0:
@@ -341,7 +341,7 @@ func _check_lines(catalog: Catalog) -> bool:
 
 
 func _check_save(catalog: Catalog) -> bool:
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("export schema")
 		return false
 	var game := _fresh(catalog)

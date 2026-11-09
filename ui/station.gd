@@ -363,6 +363,10 @@ var drawer_tween: Tween
 var modal_open := false
 var dossier_tab := "profile"
 var journal_filter := ""
+## P97. 0 is the journal list. A positive id is the open decision receipt. Back restores the stack.
+var journal_detail := 0
+var journal_back: Array = []
+var _journal_scroll_restore := -1
 var room_open := ""
 var room_hover := ""
 var radio_panel: PanelContainer
@@ -7750,7 +7754,12 @@ func _show_journal() -> void:
 		flow.add_child(button)
 	card_body.add_child(flow)
 	if journal_filter == "truth":
+		journal_detail = 0
 		_truth_page()
+		return
+	if journal_detail > 0:
+		_receipt_page()
+		_journal_restore_scroll()
 		return
 	var shown := 0
 	var week_seen := -1
@@ -7767,14 +7776,29 @@ func _show_journal() -> void:
 			var head := _label(Copy.t("Week %d") % week_n, 18, true)
 			head.add_theme_color_override("font_color", Color("e2a63a"))
 			card_body.add_child(head)
-		var text := _label(_journal_line(row), 15)
+		var line := _journal_line(row)
+		var text := _label(line, 15, false, false)
 		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if kind == "radio":
 			text.add_theme_color_override("font_color", PAPER_MUTED)
 		elif kind in ["flood", "deaths", "war", "ultimatum", "handed_over", "papers_burned", "false_way"] or (kind == "season" and not bool(row.get("soon", false))):
 			text.add_theme_color_override("font_color", ALERT_INK)
-		card_body.add_child(text)
+		if kind == "event" and bool(game.receipt_view(row).get("ok", false)):
+			var box := HBoxContainer.new()
+			box.add_theme_constant_override("separation", 8)
+			box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			box.add_child(text)
+			var details := _button("receipt.details", _receipt_open.bind(int(row.receipt.instance)))
+			details.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			details.add_theme_font_size_override("font_size", 16)
+			details.custom_minimum_size = Vector2(0, 40)
+			details.focus_mode = Control.FOCUS_ALL
+			_measure_button(details)
+			box.add_child(details)
+			card_body.add_child(box)
+		else:
+			card_body.add_child(text)
 		shown += 1
 		if shown >= 150:
 			break
@@ -7784,7 +7808,90 @@ func _show_journal() -> void:
 
 func _pick_journal_filter(key: String) -> void:
 	journal_filter = key
+	journal_detail = 0
+	journal_back = []
+	_journal_scroll_restore = -1
 	_show_journal()
+
+
+func _journal_restore_scroll() -> void:
+	if _journal_scroll_restore < 0 or card_scroll == null:
+		return
+	var want := _journal_scroll_restore
+	_journal_scroll_restore = -1
+	card_scroll.scroll_vertical = want
+	card_scroll.set_deferred("scroll_vertical", want)
+
+
+func _receipt_open(instance: int) -> void:
+	var scroll := 0
+	if card_scroll != null:
+		scroll = card_scroll.scroll_vertical
+	journal_back.append({"detail": journal_detail, "scroll": scroll, "filter": journal_filter})
+	journal_detail = instance
+	_journal_scroll_restore = 0
+	_show_journal()
+
+
+func _receipt_back() -> void:
+	if journal_back.is_empty():
+		journal_detail = 0
+		_journal_scroll_restore = 0
+	else:
+		var prev: Dictionary = journal_back.pop_back()
+		journal_detail = int(prev.get("detail", 0))
+		journal_filter = str(prev.get("filter", journal_filter))
+		_journal_scroll_restore = int(prev.get("scroll", 0))
+	_show_journal()
+
+
+func _receipt_wrap(text: String, size: int, muted := false) -> Label:
+	var lab := _label(text, size, false, false)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if muted:
+		lab.add_theme_color_override("font_color", PAPER_MUTED)
+	return lab
+
+
+## Journal detail for one accepted ordinary choice. Read-only. Back returns to the list or the prior receipt.
+func _receipt_page() -> void:
+	var row := game.receipt_find(journal_detail)
+	var view := game.receipt_view(row)
+	if row.is_empty() or not bool(view.get("ok", false)):
+		_receipt_back()
+		return
+	var back := _button("receipt.back", _receipt_back)
+	back.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	back.focus_mode = Control.FOCUS_ALL
+	card_body.add_child(back)
+	card_body.add_child(_receipt_wrap(str(view.week_line), 18, false))
+	var title := _receipt_wrap(str(view.title), 20, false)
+	title.add_theme_font_size_override("font_size", 20)
+	card_body.add_child(title)
+	card_body.add_child(_receipt_wrap(str(view.chosen), 16, false))
+	if str(view.result) != "":
+		card_body.add_child(_receipt_wrap(str(view.result), 16, false))
+	card_body.add_child(_receipt_wrap(str(view.changes_head), 16, false))
+	if bool(view.none):
+		card_body.add_child(_receipt_wrap(Copy.t("receipt.none"), 15, false))
+	else:
+		for line in view.changes:
+			card_body.add_child(_receipt_wrap(str(line), 15, false))
+	if bool(view.pruned):
+		card_body.add_child(_receipt_wrap(Copy.t("receipt.pruned"), 15, true))
+	elif int(view.previous_instance) > 0:
+		var jump := _button("receipt.previous", _receipt_open.bind(int(view.previous_instance)))
+		jump.text = str(view.previous_button)
+		jump.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		jump.focus_mode = Control.FOCUS_ALL
+		jump.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_measure_button(jump)
+		card_body.add_child(jump)
+		card_body.add_child(_receipt_wrap(str(view.previous_title), 15, true))
+		card_body.add_child(_receipt_wrap(str(view.previous_chosen), 15, true))
+	card_body.add_child(_receipt_wrap(str(view.scope), 14, true))
+	back.grab_focus.call_deferred()
 
 
 const SLIP_PAPER := Color("efe4c8")
@@ -7903,6 +8010,11 @@ func _fragment_title(id: String) -> String:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and deck.top_token() == "journal" and journal_detail != 0:
+		Sound.play("click")
+		_receipt_back()
+		get_viewport().set_input_as_handled()
 		return
 	if (event as InputEventKey).keycode == KEY_ESCAPE and _dismiss_undo_toast():
 		get_viewport().set_input_as_handled()
@@ -10903,6 +11015,10 @@ func _help_badge(type: String, line: Label) -> Button:
 
 
 func _close_card() -> void:
+	if deck.top_token() == "journal":
+		journal_detail = 0
+		journal_back = []
+		_journal_scroll_restore = -1
 	if deck.top_token() == "raid_share" and game != null and game.raid_share_open():
 		_pick_raid_share("stockpile")
 		return
