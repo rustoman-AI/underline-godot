@@ -1,5 +1,7 @@
 extends Control
 
+const TermsRemembered = preload("res://sim/terms_remembered.gd")
+
 ## Cut-away of the station. Placeholder shapes on a painted wall. The sim stays in charge of the week.
 
 const INK := Color("efe6d2")
@@ -247,6 +249,10 @@ var yard_trace_label: Label
 var trace_float: PanelContainer
 var trace_float_label: Label
 var trace_float_tween: Tween
+## P98 gesture. Same 420-wide yard notice plate. Not a footer line, not a modal, not a dawn chip.
+var terms_float: PanelContainer
+var terms_float_label: Label
+var terms_line := ""
 var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
@@ -2404,6 +2410,7 @@ func _place_chrome() -> void:
 	_place_rail_noise()
 	_place_dawn_chip(hud_h)
 	_place_home_float()
+	_place_terms_plate()
 	_place_drawer()
 	_place_card()
 	_place_ahead()
@@ -2808,6 +2815,7 @@ func _refresh() -> void:
 	if not _sticky_note(footer.text):
 		footer.text = ""
 		footer.visible = false
+	_hide_terms_plate()
 	if pending_button != null:
 		pending_button.visible = game.over == "" and not game.white_pending.is_empty()
 	_sync_waiting()
@@ -9052,6 +9060,7 @@ func _restack_yard_notices() -> void:
 		if plate == null or label == null or not is_instance_valid(plate) or not plate.visible:
 			continue
 		_place_yard_notice(plate, label, row[2])
+	_place_terms_plate()
 
 
 ## The eight first-notice plates. The hold stays live while a desk covers them.
@@ -9131,6 +9140,7 @@ func _sync_yard_notice_cover() -> void:
 		plate.visible = true
 		if tween != null and is_instance_valid(tween) and tween.is_valid():
 			tween.play()
+	_place_terms_plate()
 
 
 ## P61 first-float on the YA1 tip plate when the first scar is written off the map.
@@ -9321,16 +9331,14 @@ func _paint_night_resolve(ev: Dictionary) -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		for choice in ev.choices:
-			var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
-			if bool(choice.get("obs_line", false)):
-				_obs_dress_choice(pick, str(choice.get("obs_kind", "")), str(choice.get("obs_id", "")))
+			var pick := _event_choice_button(ev, choice)
 			pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(pick)
 		inner.add_child(row)
 		card_body.add_child(nest)
 	else:
 		for choice in ev.choices:
-			card_body.add_child(_choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id))))
+			card_body.add_child(_event_choice_button(ev, choice))
 
 
 func _night_shots() -> void:
@@ -9516,9 +9524,7 @@ func _paint_dawn() -> void:
 			_check_block(ev, choice)
 		elif choice.has("bet"):
 			_body("The odds are hidden.")
-		var pick := _choice_button(game.line_of(choice, "label"), choice, _pick_event.bind(str(ev.id), str(choice.id)))
-		if bool(choice.get("obs_line", false)):
-			_obs_dress_choice(pick, str(choice.get("obs_kind", "")), str(choice.get("obs_id", "")))
+		var pick := _event_choice_button(ev, choice)
 		var why := ""
 		if game.choice_locked(choice):
 			why = game.lock_reason(choice)
@@ -10735,6 +10741,7 @@ func _starts(text: String, prefixes: Array) -> bool:
 
 func _pick_event(event_id: String, choice_id: String) -> void:
 	var before := str(game.front_event().get("id", ""))
+	var offered: Dictionary = game.front_event()
 	var choice := _choice_by_id(event_id, choice_id)
 	var action := {"kind": "event", "event_id": event_id, "choice_id": choice_id}
 	if choice.has("check"):
@@ -10745,6 +10752,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if not game.apply(action):
 		footer.text = Copy.t("That choice did not take.")
 		footer.visible = true
+		_hide_terms_plate()
 		return
 	if choice.has("check") or choice.has("bet"):
 		check_flash = true
@@ -10763,9 +10771,14 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		footer.text = _check_result_line()
 		footer.visible = footer.text != ""
 	if game.over != "":
+		if not check_flash:
+			footer.text = ""
+			footer.visible = false
 		_close_card()
 		_show_ending()
 		return
+	if not check_flash:
+		_note_terms(offered, choice)
 	if not _check_voice(event_id, choice_id):
 		_say(Voice.event_line(event_id, choice_id), title)
 	if event_id == "law_week6" and choice_id == "open":
@@ -11188,6 +11201,110 @@ func _style_choice(button: Button) -> void:
 	button.add_theme_color_override("font_hover_color", PAPER_INK)
 	button.add_theme_color_override("font_pressed_color", PAPER_INK)
 	button.add_theme_color_override("font_disabled_color", PAPER_MUTED)
+
+
+## Choice caption for an event card. Terms overlay replaces only a whitelisted label.
+## The button is still built from the canonical label first, so Copy.t keeps the old translation
+## when the context falls back. Mirror buttons are dressed here and keep their own words.
+func _event_choice_button(ev: Dictionary, choice: Dictionary) -> Button:
+	var canonical := game.line_of(choice, "label")
+	var shown := TermsRemembered.visible_label(game, ev, choice)
+	var pick := _choice_button(canonical, choice, _pick_event.bind(str(ev.id), str(choice.id)))
+	pick.set_meta("event_choice", true)
+	if shown != canonical:
+		pick.text = shown
+		pick.set_meta("terms_overlay", true)
+		_fit_terms_choice(pick)
+	if bool(choice.get("obs_line", false)):
+		_obs_dress_choice(pick, str(choice.get("obs_kind", "")), str(choice.get("obs_id", "")))
+	return pick
+
+
+## A remembered label may run to two lines. The cost line under the button is unchanged.
+func _fit_terms_choice(button: Button) -> void:
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var px := 18
+	var font: Font = button.get_theme_font("font")
+	if font == null:
+		font = display_font if display_font != null else ThemeDB.fallback_font
+	var width := maxf(_card_inner() - 48.0, 280.0)
+	var measured := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, width, px)
+	var line_h := maxf(font.get_height(px), float(px))
+	var lines := maxi(1, ceili(measured.y / maxf(line_h, 1.0)))
+	button.custom_minimum_size = Vector2(0, maxf(48.0, 14.0 + line_h * float(lines)))
+
+
+## One gesture sentence on the yard notice plate. The footer stays clear of the tool row.
+## A check, an ending, or the next refresh replaces it. Not a modal and not a dawn token.
+func _note_terms(ev: Dictionary, choice: Dictionary) -> void:
+	if ev.is_empty() or choice.is_empty():
+		_hide_terms_plate()
+		return
+	var line := TermsRemembered.response_for(ev, choice)
+	if line == "":
+		_hide_terms_plate()
+		return
+	_show_terms_line(line)
+
+
+func _show_terms_line(line: String) -> void:
+	if line == "":
+		_hide_terms_plate()
+		return
+	_ensure_terms_plate()
+	terms_line = line
+	terms_float_label.text = line
+	terms_float.modulate.a = 1.0
+	_place_terms_plate()
+
+
+func _ensure_terms_plate() -> void:
+	if terms_float != null:
+		return
+	terms_float = PanelContainer.new()
+	terms_float.z_index = 8
+	terms_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	terms_float.focus_mode = Control.FOCUS_NONE
+	terms_float.add_theme_stylebox_override("panel", _tip_plate_style())
+	terms_float.set_meta("terms_plate", true)
+	terms_float_label = Label.new()
+	terms_float_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	terms_float_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	terms_float_label.clip_text = false
+	terms_float_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	terms_float_label.focus_mode = Control.FOCUS_NONE
+	terms_float_label.add_theme_font_size_override("font_size", 18)
+	terms_float_label.add_theme_color_override("font_color", Color("efe6d2"))
+	terms_float_label.add_theme_constant_override("outline_size", 0)
+	if body_font != null:
+		terms_float_label.add_theme_font_override("font", body_font)
+	terms_float.add_child(terms_float_label)
+	add_child(terms_float)
+
+
+## Under the other yard notices, 420 wide, wrapped.
+## Hidden while a desk, the map, or any card covers the yard, so the receipt
+## and the between-shifts fold never share pixels with the sentence.
+func _place_terms_plate() -> void:
+	if terms_float == null or terms_float_label == null or terms_line == "":
+		return
+	if _yard_notices_covered() or (dim != null and dim.visible):
+		terms_float.visible = false
+		return
+	terms_float.visible = true
+	_place_yard_notice(terms_float, terms_float_label, [
+		regular_float, sday_float, carry_float, echo_float, rival_float, caller_float, scar_float, trace_float,
+	])
+
+
+func _hide_terms_plate() -> void:
+	terms_line = ""
+	if terms_float != null:
+		terms_float.visible = false
+	if terms_float_label != null:
+		terms_float_label.text = ""
 
 
 func _choice_button(label: String, _choice: Dictionary, cb: Callable) -> Button:
@@ -13590,6 +13707,7 @@ func _reveal_modal() -> void:
 		dim.modulate.a = 1.0
 		card.modulate.a = 1.0
 		card.scale = Vector2.ONE
+		_place_terms_plate()
 		return
 	dim.modulate.a = 0.0
 	card.modulate.a = 0.0
@@ -13599,6 +13717,7 @@ func _reveal_modal() -> void:
 	modal_tween.tween_property(dim, "modulate:a", 1.0, 0.2)
 	modal_tween.parallel().tween_property(card, "modulate:a", 1.0, 0.18)
 	modal_tween.parallel().tween_property(card, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_place_terms_plate()
 
 
 func _hide_modal() -> void:
@@ -13612,6 +13731,7 @@ func _hide_modal() -> void:
 		if card != null:
 			card.scale = Vector2.ONE
 			card.modulate.a = 1.0
+		_place_terms_plate()
 		return
 	modal_tween = create_tween()
 	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.16)
@@ -13628,6 +13748,7 @@ func _finish_hide_modal() -> void:
 	if card != null:
 		card.scale = Vector2.ONE
 		card.modulate.a = 1.0
+	_place_terms_plate()
 
 
 func _check_shots() -> void:
