@@ -918,6 +918,10 @@ func _careful(catalog: Catalog) -> bool:
 func _play(catalog: Catalog, run_seed: int, on: bool) -> Dictionary:
 	Words.enabled = on
 	var game := Game.new()
+	# stats.best_score is filled from user://records.cfg at game over. A second
+	# Godot (rendered pass, another gate) can change that file between the on
+	# and off plays and fail this equality without moving the sim.
+	game.records_path = "user://check_between_shifts_%d.cfg" % OS.get_process_id()
 	game.setup(catalog, run_seed, 40)
 	game.audit = false
 	game.raid_share_profile = "careful"
