@@ -1962,6 +1962,62 @@
   "focus.set": {
     "en": "Focus set to {name}.",
     "ru": "Уклон — {name}."
+  },
+  "checkpick.open": {
+    "en": "Compare people",
+    "ru": ""
+  },
+  "checkpick.title": {
+    "en": "Who takes the check?",
+    "ru": ""
+  },
+  "checkpick.current": {
+    "en": "Current choice",
+    "ru": ""
+  },
+  "checkpick.use": {
+    "en": "Use {name}",
+    "ru": ""
+  },
+  "checkpick.back": {
+    "en": "Back without changing",
+    "ru": ""
+  },
+  "checkpick.empty": {
+    "en": "No one in the current selection list.",
+    "ru": ""
+  },
+  "checkpick.changed": {
+    "en": "The people or choice changed. Compare again.",
+    "ru": ""
+  },
+  "checkpick.preview_only": {
+    "en": "Choosing a name does not roll or move them.",
+    "ru": ""
+  },
+  "checkpick.injury": {
+    "en": "This option can put the selected resident out of work.",
+    "ru": ""
+  },
+  "checkpick.work": {
+    "en": "Current room: {room}",
+    "ru": ""
+  },
+  "checkpick.no_room": {
+    "en": "No room assignment",
+    "ru": ""
+  },
+  "checkpick.shared": {
+    "en": "Shared modifiers",
+    "ru": ""
+  },
+  "checkpick.more": {
+    "en": "More people below",
+    "ru": ""
+  },
+  "checkpick.no_extra_cost": {
+    "en": "Selecting a name adds no cost. The action's cost is unchanged.",
+    "ru": ""
   }
 }
 

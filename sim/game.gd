@@ -9806,13 +9806,44 @@ func check_bonus(skill: String, person_id: String) -> int:
 
 
 func check_chance(skill: String, difficulty: int, person_id: String, color: String = "") -> int:
-	var bonus := check_bonus(skill, person_id)
+	return _check_chance_bonus(check_bonus(skill, person_id), difficulty, color)
+
+
+## 36 ordered dice. Doubles and the red tie rule stay the resolver's.
+func _check_chance_bonus(bonus: int, difficulty: int, color: String) -> int:
 	var ok := 0
 	for a in 6:
 		for b in 6:
 			if _check_hits(a + 1, b + 1, bonus, difficulty, color):
 				ok += 1
 	return int(round(float(ok) * 100.0 / 36.0))
+
+
+## Skill value for a row the player is only looking at. A missing checks dict is
+## derived on a copy. The resident in the running game is not stamped.
+func check_value_projected(person: Dictionary, skill: String) -> int:
+	if person.has("checks"):
+		return int(person.get("checks", {}).get(skill, 0))
+	var copy: Dictionary = person.duplicate(true)
+	_stamp_checks(copy)
+	return int(copy.get("checks", {}).get(skill, 0))
+
+
+func check_chance_projected(person: Dictionary, skill: String, difficulty: int, color: String) -> int:
+	var bonus := check_value_projected(person, skill)
+	for row in check_modifiers(skill):
+		bonus += int(row.get("amount", 0))
+	return _check_chance_bonus(bonus, difficulty, color)
+
+
+## True only when the runtime success or failure block has positive injured.
+## Sick, resident loss, and a raw fail.effects bag do not count.
+func check_injures_actor(choice: Dictionary) -> bool:
+	for key in ["success", "failure"]:
+		var block = choice.get(key, {})
+		if block is Dictionary and int((block as Dictionary).get("injured", 0)) > 0:
+			return true
+	return false
 
 
 func _check_hits(d1: int, d2: int, bonus: int, difficulty: int, color: String) -> bool:
