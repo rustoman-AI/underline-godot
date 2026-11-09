@@ -67,7 +67,7 @@ func _run() -> void:
 		quit(1)
 		return
 	var balance := FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	if Game.DAWN_SOFT_STACK != ["rumor", "border.dawn_new", "rail", "homecoming"]:
 		_bad("soft dawn stack changed")
@@ -522,7 +522,7 @@ func _foreign_pair(game: Game) -> Array:
 
 func _save(catalog: Catalog) -> bool:
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
-	if src.find("const SAVE_SCHEMA := 25") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("V24_ADDED") < 0:
+	if src.find("const SAVE_SCHEMA := 27") < 0 or src.find("V19_ADDED") < 0 or src.find("V20_ADDED") < 0 or src.find("V21_ADDED") < 0 or src.find("V22_ADDED") < 0 or src.find("V23_ADDED") < 0 or src.find("V24_ADDED") < 0:
 		_bad("schema source")
 		return false
 	if src.find("\"sdays\"") < 0 or src.find("\"carry\"") < 0 or src.find("\"echoes\"") < 0 or src.find("\"rival_log\"") < 0 or src.find("\"callers\"") < 0 or src.find("\"scars\"") < 0:
@@ -646,11 +646,11 @@ func _save(catalog: Catalog) -> bool:
 		_bad("bad kind accepted")
 		return false
 	var future := game.export_state()
-	future["schema"] = 26
+	future["schema"] = 28
 	var too_new := Game.new()
 	too_new.catalog = catalog
 	if too_new.import_state(future):
-		_bad("schema 26 accepted")
+		_bad("schema 28 accepted")
 		return false
 	var no_carry := game.export_state()
 	no_carry.erase("carry")

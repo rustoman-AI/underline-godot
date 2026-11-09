@@ -1,0 +1,194 @@
+{
+  "_note": "P96 Between Shifts. INTERIM WIRING DRAFT. Not Texts-approved. Not canon. Not a final EN/RU gate. EN lines are the proposed spec copy (Ruth and Samira worked examples verbatim; the other four follow the spec briefs and resident_profiles without new plot facts). RU is intentionally empty. A missing or empty string in the active locale hides that vignette. No raw key, no filler, no other-language fallback. Namespace shiftword.* only.",
+  "_roadmap": "P96",
+  "_status": "INTERIM DRAFT — not canon-approved. EN for wiring only. RU outstanding.",
+  "_canon": false,
+  "_soft_dawn": "NONE",
+  "_placeholders": [],
+  "by_key": {
+    "shiftword.open": {
+      "en": "Talk between shifts",
+      "ru": ""
+    },
+    "shiftword.archive": {
+      "en": "Our exchange",
+      "ru": ""
+    },
+    "shiftword.back": {
+      "en": "Back",
+      "ru": ""
+    },
+    "shiftword.unavailable": {
+      "en": "Not here to talk.",
+      "ru": ""
+    },
+    "shiftword.ruth.scene": {
+      "en": "Ruth lowers the needles when you sit down. The scarf has an unfinished edge. She leaves a space beside it, but does not begin a story for you.",
+      "ru": ""
+    },
+    "shiftword.ruth.a": {
+      "en": "Ask about the scarf.",
+      "ru": ""
+    },
+    "shiftword.ruth.b": {
+      "en": "Ask what keeps her awake.",
+      "ru": ""
+    },
+    "shiftword.ruth.answer_a": {
+      "en": "This edge keeps curling. I can tell you where the stitch went wrong. That is something I can show you.",
+      "ru": ""
+    },
+    "shiftword.ruth.answer_b": {
+      "en": "A quiet platform is not the same as a quiet watch. Some nights I count the time. I would rather leave the rest there.",
+      "ru": ""
+    },
+    "shiftword.ruth.follow_a": {
+      "en": "Ruth turns the unfinished edge toward you. 'The stitch we spoke about is here.' She keeps the needles in her own hands.",
+      "ru": ""
+    },
+    "shiftword.ruth.follow_b": {
+      "en": "'You asked about the hours last time,' Ruth says. 'Ask me what is in front of me today.' She picks up the scarf.",
+      "ru": ""
+    },
+    "shiftword.benny.scene": {
+      "en": "Benny holds the old shop bell without ringing it. The yard has no shop door. He sets the bell on his knee, clapper quiet, and waits. He will talk about the door it came from, or about the minute after the shop went dark. He does not offer you a price.",
+      "ru": ""
+    },
+    "shiftword.benny.a": {
+      "en": "Ask what the bell announced.",
+      "ru": ""
+    },
+    "shiftword.benny.b": {
+      "en": "Ask what followed closing time.",
+      "ru": ""
+    },
+    "shiftword.benny.answer_a": {
+      "en": "It announced a customer at the door. Someone who already knew the brand they wanted. That is all the bell was for. I am not opening a route from it.",
+      "ru": ""
+    },
+    "shiftword.benny.answer_b": {
+      "en": "Closing left me one quiet minute. The sign was turned. The street had nothing to ask. The bell stayed on its hook, and that minute stayed mine.",
+      "ru": ""
+    },
+    "shiftword.benny.follow_a": {
+      "en": "'You asked what arrival it announced,' Benny says. He keeps the clapper still. 'A customer who already knew the door. I have not turned that into a route.'",
+      "ru": ""
+    },
+    "shiftword.benny.follow_b": {
+      "en": "'You asked about the minute after closing,' Benny says. He sets the bell down. 'It sounded like a street with nothing owed. I am not selling that quiet.'",
+      "ru": ""
+    },
+    "shiftword.samira.scene": {
+      "en": "Samira turns the brass piston in the light. The engine it belongs to is unfinished. She waits to see whether you mean to ask about the machine or the work.",
+      "ru": ""
+    },
+    "shiftword.samira.a": {
+      "en": "Ask what the engine sounded like.",
+      "ru": ""
+    },
+    "shiftword.samira.b": {
+      "en": "Ask where the work stopped.",
+      "ru": ""
+    },
+    "shiftword.samira.answer_a": {
+      "en": "It never ran. In my head it starts too cleanly. A little two-stroke would cough first; I keep forgetting that.",
+      "ru": ""
+    },
+    "shiftword.samira.answer_b": {
+      "en": "Before the last fit. Close enough to see the shape, not close enough to turn it over. That is where the work stopped.",
+      "ru": ""
+    },
+    "shiftword.samira.follow_a": {
+      "en": "'There was a cough before the sound,' Samira says. 'I left it out when I told you.' She turns the piston once.",
+      "ru": ""
+    },
+    "shiftword.samira.follow_b": {
+      "en": "'That last fit we spoke about is still missing,' Samira says. 'I wanted you to know where it stopped, not promise to finish it.'",
+      "ru": ""
+    },
+    "shiftword.owen.scene": {
+      "en": "Owen taps the old drumsticks against his palm, away from the ration line. The bowls are already counted. He keeps the sticks off the table, and he waits. You can ask about the old cadence, or about why the count is done twice. He does not offer a bowl.",
+      "ru": ""
+    },
+    "shiftword.owen.a": {
+      "en": "Ask about the parade rhythm.",
+      "ru": ""
+    },
+    "shiftword.owen.b": {
+      "en": "Ask why he counts twice.",
+      "ru": ""
+    },
+    "shiftword.owen.answer_a": {
+      "en": "A marching cadence, nothing more. The same step, said for the street. I can give the next bar in words. It changes no one's nerve and no ration.",
+      "ru": ""
+    },
+    "shiftword.owen.answer_b": {
+      "en": "Twice, because once was not careful enough. The second count is only my caution. I am not calling the line safe, and no ration moves because you asked.",
+      "ru": ""
+    },
+    "shiftword.owen.follow_a": {
+      "en": "'The next bar is the same step again,' Owen says. He keeps the sticks off the bowls. 'You asked for the cadence. I will not play it for the line.'",
+      "ru": ""
+    },
+    "shiftword.owen.follow_b": {
+      "en": "'You asked why the count is twice,' Owen says. He does not touch the bowls. 'I heard you. The second count stays. I will not call it safe.'",
+      "ru": ""
+    },
+    "shiftword.lila.scene": {
+      "en": "Lila holds her square of tar paper near the home lamps. The lamps are the whole sky she has down here. She turns the square so the warm side faces her palm, and she waits. You can ask what the roofs looked like, or what the paper feels like now. She is not offering a way up.",
+      "ru": ""
+    },
+    "shiftword.lila.a": {
+      "en": "Ask about the rooftops.",
+      "ru": ""
+    },
+    "shiftword.lila.b": {
+      "en": "Ask what the paper feels like.",
+      "ru": ""
+    },
+    "shiftword.lila.answer_a": {
+      "en": "Roofs and tar and vents, and a tank if the building had one. I remember that view. I am not handing you the surface, and I am not going up.",
+      "ru": ""
+    },
+    "shiftword.lila.answer_b": {
+      "en": "Warm on one side, gritty on the other. It stays in my hands. I am telling you the texture. I am not treating what the dark does to me.",
+      "ru": ""
+    },
+    "shiftword.lila.follow_a": {
+      "en": "'You asked about the roofs,' Lila says. She keeps the paper near the lamp. 'The seam beside a vent. I watched that. I am not sending anyone up.'",
+      "ru": ""
+    },
+    "shiftword.lila.follow_b": {
+      "en": "'You asked how the paper feels,' Lila says. She presses the square once. 'Still warm, still gritty. I am answering with that. Nothing in me has changed.'",
+      "ru": ""
+    },
+    "shiftword.pete.scene": {
+      "en": "Pete brushes dirt from the single shingle he keeps. He does not fit it to anything. The home roof is not this conversation. He turns the shingle so you can see the nail hole, and he waits. You can ask how a roof begins, or about the Sunday promise. He is not hiring himself out.",
+      "ru": ""
+    },
+    "shiftword.pete.a": {
+      "en": "Ask how a roof begins.",
+      "ru": ""
+    },
+    "shiftword.pete.b": {
+      "en": "Ask about the Sunday promise.",
+      "ru": ""
+    },
+    "shiftword.pete.answer_a": {
+      "en": "One straight course, before the leak is even argued. That is the first step I remember. It does not change the build, and I am not starting one.",
+      "ru": ""
+    },
+    "shiftword.pete.answer_b": {
+      "en": "Every Sunday, and the shingle is still unpaid. You can let the promise stand. I am not sending you after her, and this is not a job.",
+      "ru": ""
+    },
+    "shiftword.pete.follow_a": {
+      "en": "'You asked how a roof begins,' Pete says. He turns the shingle over. 'Next was the second course, lapped on the first. I am not building it.'",
+      "ru": ""
+    },
+    "shiftword.pete.follow_b": {
+      "en": "'You let the Sunday promise stand,' Pete says. He brushes the shingle again. 'I remember you did not settle it. I am not asking you to start.'",
+      "ru": ""
+    }
+  }
+}
