@@ -216,6 +216,28 @@ var cutplan_cand: Dictionary = {}
 var shelved_event := ""
 var check_picks := {}
 var check_flash := false
+## P99 Risk Roster. Which choice is expanded, a one-shot Changed line, and where
+## focus returns. Not saved. Opening this list does not roll, pay, or stamp checks.
+var checkpick_open := ""
+var checkpick_notice := ""
+var checkpick_focus := ""
+var checkpick_keep := false
+var checkpick_shown := false
+const CHECKPICK_EVENTS := {
+	"queens_expedition": true,
+	"garden_mold": true,
+	"moles_vents": true,
+	"generator_sabotage": true,
+	"showtime_betting": true,
+}
+const CHECKPICK_ROWS := 6
+const CHECKPICK_ROW_H := 58.0
+const CHECKPICK_KEYS := [
+	"checkpick.open", "checkpick.title", "checkpick.current", "checkpick.use",
+	"checkpick.back", "checkpick.empty", "checkpick.changed", "checkpick.preview_only",
+	"checkpick.injury", "checkpick.work", "checkpick.no_room", "checkpick.shared",
+	"checkpick.more", "checkpick.no_extra_cost",
+]
 var pending_button: Button
 var charges_button: Button
 var observer_button: Button
@@ -8420,6 +8442,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if (event as InputEventKey).keycode == KEY_ESCAPE and _dismiss_undo_toast():
 		get_viewport().set_input_as_handled()
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and checkpick_open != "":
+		_back_checkpick()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_ESCAPE and game != null and deck.top_token() == "raid_share":
 		Sound.play("click")
 		_pick_raid_share("stockpile")
@@ -9432,6 +9458,10 @@ func _night_shots() -> void:
 
 
 func _paint_dawn() -> void:
+	if not checkpick_keep:
+		_checkpick_clear()
+	checkpick_keep = false
+	checkpick_shown = false
 	var lines := _morning_lines()
 	var show_event: bool = not game.pending.is_empty() and (event_mode != "dawn" or game.event_is_big(game.front_event()))
 	if show_event:
@@ -9517,6 +9547,13 @@ func _paint_dawn() -> void:
 		_morning_notes(folded)
 		_forecast_buttons(_forecast_rows(URGENT_WEEKS, 99))
 	_choice_divider()
+	if checkpick_notice != "":
+		var changed := _label(checkpick_notice, 16, false, false)
+		changed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		changed.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		changed.add_theme_color_override("font_color", DELTA_DOWN)
+		changed.set_meta("checkpick_role", "notice")
+		card_body.add_child(changed)
 	for choice in ev.choices:
 		if not game.choice_offered(choice):
 			continue
@@ -9525,6 +9562,10 @@ func _paint_dawn() -> void:
 		elif choice.has("bet"):
 			_body("The odds are hidden.")
 		var pick := _event_choice_button(ev, choice)
+		var choice_key := _check_key(str(ev.id), str(choice.id))
+		pick.set_meta("check_choice_key", choice_key)
+		if checkpick_focus == choice_key and checkpick_open != choice_key:
+			pick.grab_focus.call_deferred()
 		var why := ""
 		if game.choice_locked(choice):
 			why = game.lock_reason(choice)
@@ -9544,6 +9585,8 @@ func _paint_dawn() -> void:
 		after_n = game.pending.size() - game.small_pending() - 1
 	elif event_mode == "one":
 		after_n = 0
+	if checkpick_open != "" and not checkpick_shown:
+		checkpick_open = ""
 	if after_n > 0:
 		_body(Copy.t("%s waiting after this one.") % Words.count(after_n, "other", "others"))
 	var later := _button("Not now", _close_card)
@@ -10746,6 +10789,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	var action := {"kind": "event", "event_id": event_id, "choice_id": choice_id}
 	if choice.has("check"):
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
+	_checkpick_clear()
 	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
 	var snapshot := _tally_snapshot()
 	var regard_before: Dictionary = game.standing.duplicate()
@@ -10996,14 +11040,25 @@ func _check_block(ev: Dictionary, choice: Dictionary) -> void:
 	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	line.add_child(lab)
 	if _check_roster().size() > 1:
-		var swap := _button("Someone else", _swap_check.bind(str(ev.id), str(choice.id)))
-		swap.custom_minimum_size = Vector2(0, 36)
+		var swap: Button
+		if _checkpick_show(ev, choice):
+			swap = _button("Someone else", _open_checkpick.bind(str(ev.id), str(choice.id)))
+			swap.text = _checkpick_line("checkpick.open")
+			swap.set_meta("checkpick_role", "open")
+			swap.set_meta("checkpick_key", key)
+		else:
+			swap = _button("Someone else", _swap_check.bind(str(ev.id), str(choice.id)))
+			swap.set_meta("checkpick_role", "cycle")
+		_measure_button(swap)
+		swap.custom_minimum_size.y = 36
 		swap.autowrap_mode = TextServer.AUTOWRAP_OFF
 		swap.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		swap.add_theme_font_size_override("font_size", 16)
 		swap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		line.add_child(swap)
 	card_body.add_child(line)
+	if checkpick_open == key and _checkpick_show(ev, choice):
+		_checkpick_panel(ev, choice)
 
 
 func _check_roster() -> Array:
@@ -11027,6 +11082,321 @@ func _swap_check(event_id: String, choice_id: String) -> void:
 		_paint_dawn()
 	else:
 		_show_dawn()
+
+
+## The five converted cards, including a P87 mirror already offered on one of them.
+func _checkpick_scoped(ev: Dictionary, choice: Dictionary) -> bool:
+	if not choice.has("check"):
+		return false
+	return CHECKPICK_EVENTS.has(str(ev.get("id", "")))
+
+
+func _checkpick_show(ev: Dictionary, choice: Dictionary) -> bool:
+	return _checkpick_scoped(ev, choice) and _check_roster().size() > 1 and _checkpick_ready()
+
+
+## Interim EN is wired. An empty locale string falls back to Someone else.
+## The raw checkpick.* key is never player-facing copy.
+func _checkpick_line(key: String) -> String:
+	if not Copy.keys.has(key):
+		return ""
+	var row: Dictionary = Copy.keys[key]
+	var text := ""
+	if Copy.ru():
+		text = str(row.get("ru", "")).strip_edges()
+	else:
+		text = str(row.get("en", "")).strip_edges()
+	if text == "" or text == key:
+		return ""
+	return text
+
+
+func _checkpick_fill(key: String, vars: Dictionary) -> String:
+	var line := _checkpick_line(key)
+	if line == "":
+		return ""
+	for token in vars:
+		line = line.replace("{%s}" % str(token), str(vars[token]))
+	return line
+
+
+func _checkpick_ready() -> bool:
+	for key in CHECKPICK_KEYS:
+		if _checkpick_line(str(key)) == "":
+			return false
+	return true
+
+
+func _checkpick_clear() -> void:
+	checkpick_open = ""
+	checkpick_notice = ""
+	checkpick_focus = ""
+	checkpick_keep = false
+
+
+func _checkpick_roster_fp() -> String:
+	var ids: PackedStringArray = []
+	for id in _check_roster():
+		ids.append(str(id))
+	return "|".join(ids)
+
+
+func _checkpick_choice_fp(choice: Dictionary) -> String:
+	var check: Dictionary = choice.get("check", {})
+	var hurt_ok := 0
+	var hurt_bad := 0
+	var success = choice.get("success", {})
+	var failure = choice.get("failure", {})
+	if success is Dictionary:
+		hurt_ok = int(success.get("injured", 0))
+	if failure is Dictionary:
+		hurt_bad = int(failure.get("injured", 0))
+	return "%s|%s|%s|%d|%d|%d" % [
+		str(choice.get("id", "")),
+		str(check.get("skill", "")),
+		str(check.get("color", "")),
+		int(check.get("difficulty", 10)),
+		hurt_ok,
+		hurt_bad,
+	]
+
+
+func _check_band_word(chance: int) -> String:
+	var odds := Copy.t("Unlikely.")
+	if chance >= 60:
+		odds = Copy.t("Likely.")
+	elif chance >= 40:
+		odds = Copy.t("Uncertain.")
+	if odds.ends_with("."):
+		return odds.substr(0, odds.length() - 1)
+	return odds
+
+
+## Child, council seat, or governor. No invented "available worker" tag.
+func _checkpick_role(person: Dictionary) -> String:
+	if game._is_child(person):
+		return Copy.t("Child")
+	var id := str(person.get("id", ""))
+	for seat in game.council:
+		if str(seat.get("id", "")) == id:
+			var role := str(seat.get("role", "")).capitalize()
+			return Copy.t(role) if role != "" else ""
+	if game.governor_of(id) != "":
+		return Copy.t("Governor")
+	return ""
+
+
+func _checkpick_room_line(person_id: String) -> String:
+	var uid := _staff_room(person_id)
+	if uid == "":
+		return _checkpick_line("checkpick.no_room")
+	var room = game._room(uid)
+	if room == null:
+		return _checkpick_line("checkpick.no_room")
+	return _checkpick_fill("checkpick.work", {"room": room_title(room)})
+
+
+func _open_checkpick(event_id: String, choice_id: String) -> void:
+	var key := _check_key(event_id, choice_id)
+	var choice := _choice_by_id(event_id, choice_id)
+	var ev: Dictionary = game.front_event()
+	if not _checkpick_show(ev, choice):
+		return
+	checkpick_open = key
+	checkpick_notice = ""
+	checkpick_focus = ""
+	checkpick_keep = true
+	_paint_dawn()
+
+
+func _back_checkpick() -> void:
+	if checkpick_open == "":
+		return
+	var key := checkpick_open
+	checkpick_open = ""
+	checkpick_notice = ""
+	checkpick_focus = key
+	checkpick_keep = true
+	_paint_dawn()
+
+
+func _use_checkpick(event_id: String, choice_id: String, person_id: String, roster_fp: String, choice_fp: String) -> void:
+	var ev: Dictionary = game.front_event()
+	var choice := _choice_by_id(event_id, choice_id)
+	var live := _checkpick_roster_fp()
+	var now := _checkpick_choice_fp(choice) if not choice.is_empty() else ""
+	if str(ev.get("id", "")) != event_id or choice.is_empty() or live != roster_fp or now != choice_fp or _check_roster().find(person_id) < 0:
+		checkpick_notice = _checkpick_line("checkpick.changed")
+		if checkpick_notice == "":
+			checkpick_notice = Copy.t("That choice did not take.")
+		checkpick_focus = ""
+		checkpick_keep = true
+		_paint_dawn()
+		return
+	check_picks[_check_key(event_id, choice_id)] = person_id
+	checkpick_open = ""
+	checkpick_notice = ""
+	checkpick_focus = _check_key(event_id, choice_id)
+	checkpick_keep = true
+	_paint_dawn()
+
+
+func _checkpick_panel(ev: Dictionary, choice: Dictionary) -> void:
+	checkpick_shown = true
+	var event_id := str(ev.get("id", ""))
+	var choice_id := str(choice.get("id", ""))
+	var key := _check_key(event_id, choice_id)
+	var check: Dictionary = choice.get("check", {})
+	var skill := str(check.get("skill", ""))
+	var color := str(check.get("color", ""))
+	var difficulty := int(check.get("difficulty", 10))
+	var roster := _check_roster()
+	var roster_fp := _checkpick_roster_fp()
+	var choice_fp := _checkpick_choice_fp(choice)
+	var selected := str(check_picks.get(key, ""))
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 6)
+	box.set_meta("checkpick_role", "panel")
+	box.set_meta("checkpick_key", key)
+	var title := _label(_checkpick_line("checkpick.title"), 18, true, false)
+	title.set_meta("checkpick_role", "title")
+	box.add_child(title)
+	for hint_key in ["checkpick.preview_only", "checkpick.no_extra_cost"]:
+		var hint := _label(_checkpick_line(hint_key), 15, false, false)
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hint.add_theme_color_override("font_color", PAPER_MUTED)
+		hint.set_meta("checkpick_role", hint_key)
+		box.add_child(hint)
+	var mods: Array = game.check_modifiers(skill)
+	if not mods.is_empty():
+		var bits: PackedStringArray = []
+		for row in mods:
+			var amount := int(row.get("amount", 0))
+			var signed := "+%d" % amount if amount >= 0 else str(amount)
+			bits.append("%s %s" % [signed, Copy.t(str(row.get("text", "")))])
+		var shared := _label("%s: %s" % [_checkpick_line("checkpick.shared"), " · ".join(bits)], 15, false, false)
+		shared.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		shared.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		shared.set_meta("checkpick_role", "shared")
+		box.add_child(shared)
+	if game.check_injures_actor(choice):
+		var warn := _label(_checkpick_line("checkpick.injury"), 15, false, false)
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		warn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		warn.add_theme_color_override("font_color", DELTA_DOWN)
+		warn.set_meta("checkpick_role", "injury")
+		box.add_child(warn)
+	if roster.is_empty():
+		var empty := _label(_checkpick_line("checkpick.empty"), 16, false, false)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		empty.set_meta("checkpick_role", "empty")
+		box.add_child(empty)
+	else:
+		var scroll := ScrollContainer.new()
+		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.custom_minimum_size.y = float(mini(roster.size(), CHECKPICK_ROWS)) * CHECKPICK_ROW_H
+		scroll.set_meta("checkpick_role", "list")
+		var rows := VBoxContainer.new()
+		rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rows.add_theme_constant_override("separation", 4)
+		scroll.add_child(rows)
+		var first_use = null
+		for id in roster:
+			var person: Dictionary = game.people[str(id)]
+			var row := _checkpick_row(person, skill, color, difficulty, selected, event_id, choice_id, roster_fp, choice_fp)
+			rows.add_child(row)
+			if first_use == null:
+				first_use = row.get_meta("checkpick_use")
+		box.add_child(scroll)
+		if roster.size() > CHECKPICK_ROWS:
+			var more := _label(_checkpick_line("checkpick.more"), 14, false, false)
+			more.add_theme_color_override("font_color", PAPER_MUTED)
+			more.set_meta("checkpick_role", "more")
+			box.add_child(more)
+		if first_use != null:
+			first_use.grab_focus.call_deferred()
+	var back := _button("Someone else", _back_checkpick)
+	back.text = _checkpick_line("checkpick.back")
+	_measure_button(back)
+	back.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	back.set_meta("checkpick_role", "back")
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	var shortcut := Shortcut.new()
+	shortcut.events.append(esc)
+	back.shortcut = shortcut
+	box.add_child(back)
+	card_body.add_child(box)
+
+
+func _checkpick_row(person: Dictionary, skill: String, color: String, difficulty: int, selected: String, event_id: String, choice_id: String, roster_fp: String, choice_fp: String) -> PanelContainer:
+	var pid := str(person.get("id", ""))
+	var value := game.check_value_projected(person, skill)
+	var chance := game.check_chance_projected(person, skill, difficulty, color)
+	var who := _resident_name(person)
+	var plate := PanelContainer.new()
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plate.set_meta("checkpick_role", "row")
+	plate.set_meta("checkpick_id", pid)
+	var face := StyleBoxFlat.new()
+	var current := pid == selected
+	face.bg_color = Color(0.89, 0.65, 0.23, 0.14) if current else Color(0, 0, 0, 0.12)
+	face.border_color = Color("e2a63a") if current else Color(PAPER_EDGE, 0.35)
+	face.set_border_width_all(2 if current else 1)
+	face.set_corner_radius_all(3)
+	face.set_content_margin_all(6)
+	plate.add_theme_stylebox_override("panel", face)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 2)
+	var role := _checkpick_role(person)
+	var headline := "%s · %s %d · %s" % [who, Copy.skill(skill), value, _check_band_word(chance)]
+	if role != "":
+		headline = "%s · %s" % [headline, role]
+	if current:
+		headline = "%s · %s" % [headline, _checkpick_line("checkpick.current")]
+	var name := _label(headline, 16, false, false)
+	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name.custom_minimum_size.x = 180
+	name.set_meta("checkpick_role", "skill")
+	text.add_child(name)
+	var room := _label(_checkpick_room_line(pid), 14, false, false)
+	room.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	room.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	room.custom_minimum_size.x = 180
+	room.add_theme_color_override("font_color", PAPER_MUTED)
+	room.set_meta("checkpick_role", "room")
+	text.add_child(room)
+	row.add_child(text)
+	var use := _button("Someone else", _use_checkpick.bind(event_id, choice_id, pid, roster_fp, choice_fp))
+	use.text = _checkpick_fill("checkpick.use", {"name": who})
+	use.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	use.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	use.clip_text = false
+	use.custom_minimum_size = Vector2(148, 44)
+	use.size_flags_horizontal = Control.SIZE_SHRINK_END
+	use.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	use.add_theme_font_size_override("font_size", 16)
+	use.set_meta("checkpick_role", "use")
+	use.set_meta("checkpick_id", pid)
+	use.set_meta("checkpick_fp", roster_fp)
+	use.set_meta("checkpick_choice_fp", choice_fp)
+	_measure_button(use)
+	if use.custom_minimum_size.x > 220.0:
+		use.custom_minimum_size.x = 220.0
+		use.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(use)
+	plate.add_child(row)
+	plate.set_meta("checkpick_use", use)
+	return plate
 
 
 func _check_result_line() -> String:
@@ -11531,6 +11901,7 @@ func _help_badge(type: String, line: Label) -> Button:
 
 func _close_card() -> void:
 	_cutplan_reset()
+	_checkpick_clear()
 	if deck.top_token() == "journal":
 		journal_detail = 0
 		journal_back = []
