@@ -10642,32 +10642,53 @@ func _check_block(ev: Dictionary, choice: Dictionary) -> void:
 		var amount := int(row.get("amount", 0))
 		var signed := "+%d" % amount if amount >= 0 else str(amount)
 		bits.append("%s %s" % [signed, Copy.t(str(row.get("text", "")))])
-	var line := HBoxContainer.new()
-	line.add_theme_constant_override("separation", 8)
-	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var lab := _label(" · ".join(bits), 17)
-	_hold_label(lab, 17)
-	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	line.add_child(lab)
-	if _check_roster().size() > 1:
-		var swap: Button
-		if _checkpick_show(ev, choice):
-			swap = _button("Someone else", _open_checkpick.bind(str(ev.id), str(choice.id)))
-			swap.text = _checkpick_line("checkpick.open")
-			swap.set_meta("checkpick_role", "open")
-			swap.set_meta("checkpick_key", key)
-		else:
-			swap = _button("Someone else", _swap_check.bind(str(ev.id), str(choice.id)))
-			swap.set_meta("checkpick_role", "cycle")
+	var line_text := " · ".join(bits)
+	if _check_roster().size() > 1 and _checkpick_show(ev, choice):
+		## The modifier summary takes the full card width. Compare people sits on the next line.
+		var stack := VBoxContainer.new()
+		stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stack.add_theme_constant_override("separation", 6)
+		stack.set_meta("checkpick_role", "actor")
+		stack.set_meta("checkpick_key", key)
+		var lab := _label(line_text, 17)
+		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lab.clip_text = false
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lab.custom_minimum_size.x = maxf(_card_inner() - 8.0, 240.0)
+		lab.set_meta("checkpick_role", "summary")
+		stack.add_child(lab)
+		var swap := _button("Someone else", _open_checkpick.bind(str(ev.id), str(choice.id)))
+		swap.text = _checkpick_line("checkpick.open")
+		swap.set_meta("checkpick_role", "open")
+		swap.set_meta("checkpick_key", key)
 		_measure_button(swap)
 		swap.custom_minimum_size.y = 36
 		swap.autowrap_mode = TextServer.AUTOWRAP_OFF
 		swap.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		swap.add_theme_font_size_override("font_size", 16)
-		swap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		line.add_child(swap)
-	card_body.add_child(line)
+		swap.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		stack.add_child(swap)
+		card_body.add_child(stack)
+	else:
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 8)
+		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var lab := _label(line_text, 17)
+		_hold_label(lab, 17)
+		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(lab)
+		if _check_roster().size() > 1:
+			var swap := _button("Someone else", _swap_check.bind(str(ev.id), str(choice.id)))
+			swap.set_meta("checkpick_role", "cycle")
+			_measure_button(swap)
+			swap.custom_minimum_size.y = 36
+			swap.autowrap_mode = TextServer.AUTOWRAP_OFF
+			swap.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			swap.add_theme_font_size_override("font_size", 16)
+			swap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			line.add_child(swap)
+		card_body.add_child(line)
 	if checkpick_open == key and _checkpick_show(ev, choice):
 		_checkpick_panel(ev, choice)
 
@@ -10852,6 +10873,26 @@ func _use_checkpick(event_id: String, choice_id: String, person_id: String, rost
 	_paint_dawn()
 
 
+func _checkpick_on_more_scroll(_value: float, scroll: ScrollContainer) -> void:
+	_checkpick_sync_more(scroll)
+
+
+## Hide the hint once the list is at the bottom. Show it again while rows remain below.
+func _checkpick_sync_more(scroll: ScrollContainer) -> void:
+	if scroll == null or not is_instance_valid(scroll):
+		return
+	var more: Control = scroll.get_meta("checkpick_more", null)
+	if more == null or not is_instance_valid(more):
+		return
+	var bar := scroll.get_v_scroll_bar()
+	if bar == null:
+		more.visible = false
+		return
+	var room := maxf(0.0, bar.max_value - bar.page)
+	var at_end := float(scroll.scroll_vertical) >= room - 1.0
+	more.visible = room > 1.0 and not at_end
+
+
 func _checkpick_panel(ev: Dictionary, choice: Dictionary) -> void:
 	checkpick_shown = true
 	var event_id := str(ev.get("id", ""))
@@ -10926,8 +10967,15 @@ func _checkpick_panel(ev: Dictionary, choice: Dictionary) -> void:
 		if roster.size() > CHECKPICK_ROWS:
 			var more := _label(_checkpick_line("checkpick.more"), 14, false, false)
 			more.add_theme_color_override("font_color", PAPER_MUTED)
+			more.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			more.set_meta("checkpick_role", "more")
+			scroll.set_meta("checkpick_more", more)
+			var bar := scroll.get_v_scroll_bar()
+			bar.value_changed.connect(_checkpick_on_more_scroll.bind(scroll))
+			bar.changed.connect(_checkpick_sync_more.bind(scroll))
+			rows.resized.connect(_checkpick_sync_more.bind(scroll))
 			box.add_child(more)
+			_checkpick_sync_more.call_deferred(scroll)
 		if first_use != null:
 			first_use.grab_focus.call_deferred()
 	var back := _button("Someone else", _back_checkpick)
@@ -10971,14 +11019,25 @@ func _checkpick_row(person: Dictionary, skill: String, color: String, difficulty
 	var headline := "%s · %s %d · %s" % [who, Copy.skill(skill), value, _check_band_word(chance)]
 	if role != "":
 		headline = "%s · %s" % [headline, role]
-	if current:
-		headline = "%s · %s" % [headline, _checkpick_line("checkpick.current")]
 	var name := _label(headline, 16, false, false)
 	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name.custom_minimum_size.x = 180
 	name.set_meta("checkpick_role", "skill")
 	text.add_child(name)
+	if current:
+		var current_line := _checkpick_line("checkpick.current")
+		var tag := _label(current_line, 14, false, false)
+		tag.autowrap_mode = TextServer.AUTOWRAP_OFF
+		tag.clip_text = false
+		tag.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		var tag_font: Font = tag.get_theme_font("font")
+		if tag_font == null:
+			tag_font = body_font if body_font != null else ThemeDB.fallback_font
+		var tag_w := tag_font.get_string_size(current_line, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		tag.custom_minimum_size = Vector2(ceili(tag_w), maxi(tag_font.get_height(14), 16.0))
+		tag.set_meta("checkpick_role", "current")
+		text.add_child(tag)
 	var room := _label(_checkpick_room_line(pid), 14, false, false)
 	room.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	room.size_flags_horizontal = Control.SIZE_EXPAND_FILL
