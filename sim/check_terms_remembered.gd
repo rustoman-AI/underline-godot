@@ -1,22 +1,21 @@
 extends SceneTree
 
-## P98 Terms Remembered. Overlay on follow_memory. Schema stays 25.
+## P98 Terms Remembered. Overlay on follow_memory. Schema stays 27 (P96/P97). P98 adds no field.
 ##   godot --headless --path . -s res://sim/check_terms_remembered.gd
 ## Headless prints TERMS SHOTS SKIP. A real renderer also writes the before/after cards.
 
 const SCRATCH := "user://check_terms_remembered"
-const RECORDS := "user://check_terms_records.cfg"
 const SHOTS := "/opt/cursor/artifacts"
-## Careful seeds 1-60 on master 0a43a462, full export_state. Lost 20/60.
+## Careful seeds 1-60 on master 2ff8ee5 (schema 27). Full export_state. Lost 20/60.
 const BASELINE_LOST := 20
 const LOST_SEEDS := "1,8,11,12,13,14,23,27,28,30,33,35,39,40,41,45,51,52,56,57"
 const MASTER_HASH := [
-	1396264772, 1347371159, 220654524, 732840667, 1442243520, 1441876690, 1649746673, 473079119, 1061355793, 1619188803,
-	1208547276, 1952560883, 1486275541, 1031602631, 400793929, 1076883704, 1865514417, 234030490, 1453131875, 894632713,
-	159696039, 1948917637, 482903206, 399079687, 2083804332, 574433947, 1916329205, 606813208, 2011576170, 785000255,
-	1431870509, 1254408340, 1666499131, 2127869649, 524144797, 715363415, 970149526, 1040207160, 1005128800, 758714067,
-	2124060934, 1594905657, 1450139760, 1033131903, 1256784552, 1881540794, 253930989, 1851066156, 559077435, 1928794609,
-	1898962004, 976391835, 1886852305, 717810835, 1048165102, 1492834888, 803203699, 1394320756, 463245485, 1426999646,
+	1605735331, 866952926, 1944171662, 1172819603, 840966171, 455225675, 1907429179, 925835296, 1457657443, 203745562,
+	2035539013, 2025937854, 1407104758, 318919757, 609531193, 1928552686, 1386601259, 1851982354, 854078541, 700092115,
+	931110160, 1023351465, 991923807, 1237413430, 855306211, 1708122900, 1737907208, 527644536, 1607004064, 1111292874,
+	2135684766, 1839213577, 1167465643, 1636577905, 1695667839, 1419442698, 1114166981, 560428306, 1733950776, 581684334,
+	1981225094, 310867999, 659170614, 719340779, 1163606510, 1795238164, 408337711, 56312270, 1355289304, 2082608247,
+	1848928715, 184196473, 1661332809, 621704301, 691963890, 642154268, 1731587614, 950664366, 417081616, 1879468081,
 ]
 const MASTER_RNG := [
 	"-1585339728350562702|6676566666903880397|6129313785023254715|8081095023476173026|5780948062496209201",
@@ -84,6 +83,7 @@ const MASTER_RNG := [
 var _failed := false
 var catalog: Catalog
 var _balance := ""
+var _records := ""
 
 
 func _init() -> void:
@@ -100,7 +100,7 @@ func _run() -> void:
 		_finish()
 		return
 	_balance = FileAccess.get_file_as_string("res://data/balance.json")
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("schema %d" % Game.SAVE_SCHEMA)
 	if not _check_pack():
 		_failed = true
@@ -520,7 +520,7 @@ func _check_equivalence() -> bool:
 
 
 func _check_save() -> bool:
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("schema")
 		return false
 	var game := _fresh()
@@ -528,8 +528,11 @@ func _check_save() -> bool:
 	_inject(game, "toll_next", "detour")
 	var data := game.export_state()
 	data["schema"] = Game.SAVE_SCHEMA
-	if data.has("terms") or data.has("terms_remembered"):
+	if data.has("terms") or data.has("terms_remembered") or data.has("terms_line"):
 		_bad("new persist key")
+		return false
+	if not data.has("shiftword_state") or not data.has("receipt_seq"):
+		_bad("master keys missing")
 		return false
 	var fresh := _fresh()
 	var fresh_keys: Array = fresh.export_state().keys()
@@ -568,7 +571,7 @@ func _check_save() -> bool:
 		if TermsRemembered.visible_label(hold, legacy, choice) != hold.line_of(choice, "label"):
 			_bad("legacy pending")
 			return false
-	print("Save: ok schema 25")
+	print("Save: ok schema 27")
 	return true
 
 
@@ -702,6 +705,8 @@ func _card_case(st, lang: String, tag: String, renderer: bool) -> bool:
 		var widest := _widest_result(st)
 		st._show_terms_line(widest)
 		if not await _layout_views(st, widest, renderer):
+			return false
+		if not await _check_desks(st, widest):
 			return false
 		st._hide_terms_plate()
 	if lang == "ru" and tag == "100":
@@ -850,6 +855,102 @@ func _layout_views(st, line: String, renderer: bool) -> bool:
 	return true
 
 
+func _check_desks(st, line: String) -> bool:
+	if not _plate_shows(st, line):
+		_bad("plate before desks")
+		return false
+	var instance := 0
+	var canonical := ""
+	for row in st.game.journal:
+		var receipt = row.get("receipt", null)
+		if receipt is Dictionary and int(receipt.get("instance", 0)) > 0:
+			instance = int(receipt.instance)
+			var label = receipt.get("label", {})
+			if label is Dictionary:
+				canonical = str(label.get("en", ""))
+	if instance <= 0:
+		_bad("no receipt")
+		return false
+	if canonical == "" or canonical == line or canonical.find("despite the fill") >= 0:
+		_bad("receipt took the gesture")
+		return false
+	st.journal_filter = "decisions"
+	st.journal_detail = instance
+	st._show_journal()
+	for _i in 4:
+		await process_frame
+	if _terms_plate(st) != null and _terms_plate(st).visible:
+		_bad("plate over receipt")
+		return false
+	var saw := false
+	for lab in st.card_body.find_children("*", "Label", true, false):
+		var text := str(lab.text)
+		if text == line:
+			_bad("receipt shows the gesture")
+			return false
+		if text.find(canonical) >= 0:
+			saw = true
+	if not saw:
+		_bad("receipt missing canonical label")
+		return false
+	st._close_card()
+	for _i in 3:
+		await process_frame
+	st._place_terms_plate()
+	if not _plate_shows(st, line):
+		_bad("plate did not return after receipt")
+		return false
+	var speaker := ""
+	for person_id in BetweenShifts.SPEAKERS:
+		if BetweenShifts.offer(st.game, str(person_id)) == "talk":
+			speaker = str(person_id)
+			break
+	if speaker == "":
+		for person_id in BetweenShifts.SPEAKERS:
+			if not st.game.people.has(str(person_id)):
+				continue
+			var person: Dictionary = st.game.people[str(person_id)]
+			person["sick"] = 0
+			person["absent"] = 0
+			if BetweenShifts.offer(st.game, str(person_id)) == "talk":
+				speaker = str(person_id)
+				break
+	if speaker == "":
+		_bad("no between-shifts speaker")
+		return false
+	st._show_person(speaker)
+	for _i in 3:
+		await process_frame
+	st._open_shiftword(speaker)
+	for _i in 4:
+		await process_frame
+	if _terms_plate(st) != null and _terms_plate(st).visible:
+		_bad("plate over shiftword")
+		return false
+	var fold := 0
+	for node in st.card_body.find_children("*", "Control", true, false):
+		if str(node.get_meta("shiftword", "")) == "":
+			continue
+		fold += 1
+		if _terms_plate(st) != null and _terms_plate(st).visible and _overlaps(node.get_global_rect(), _terms_plate(st).get_global_rect()):
+			_bad("shiftword overlaps the plate")
+			return false
+	if fold < 1:
+		_bad("shiftword fold missing")
+		return false
+	st._close_card()
+	for _i in 3:
+		await process_frame
+	st._place_terms_plate()
+	if not _plate_shows(st, line):
+		_bad("plate did not return after shiftword")
+		return false
+	if not _plate_clear(st, line, "desks"):
+		return false
+	print("Desks: receipt and shiftword stay off the plate")
+	return true
+
+
 func _widest_result(st) -> String:
 	var font: Font = st.body_font if st.body_font != null else ThemeDB.fallback_font
 	var best := ""
@@ -941,7 +1042,9 @@ func _careful() -> bool:
 	if MASTER_HASH.size() != 60 or MASTER_RNG.size() != 60:
 		_bad("baseline length")
 		return false
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(RECORDS))
+	var records := "user://check_terms_records_%d.cfg" % OS.get_process_id()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(records))
+	_records = records
 	var clean := Catalog.new()
 	if not clean.load_all():
 		_bad("careful catalog")
@@ -971,7 +1074,7 @@ func _careful() -> bool:
 func _play(clean: Catalog, run_seed: int) -> Dictionary:
 	TermsRemembered.enabled = true
 	var game := Game.new()
-	game.records_path = RECORDS
+	game.records_path = _records
 	game.setup(clean, run_seed, 40)
 	game.audit = false
 	game.raid_share_profile = "careful"

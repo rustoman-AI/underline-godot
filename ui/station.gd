@@ -10895,11 +10895,13 @@ func _ensure_terms_plate() -> void:
 	add_child(terms_float)
 
 
-## Under the other yard notices, 420 wide, wrapped. Hidden while a desk covers the yard.
+## Under the other yard notices, 420 wide, wrapped.
+## Hidden while a desk, the map, or any card covers the yard, so the receipt
+## and the between-shifts fold never share pixels with the sentence.
 func _place_terms_plate() -> void:
 	if terms_float == null or terms_float_label == null or terms_line == "":
 		return
-	if _yard_notices_covered():
+	if _yard_notices_covered() or (dim != null and dim.visible):
 		terms_float.visible = false
 		return
 	terms_float.visible = true
@@ -13315,6 +13317,7 @@ func _reveal_modal() -> void:
 		dim.modulate.a = 1.0
 		card.modulate.a = 1.0
 		card.scale = Vector2.ONE
+		_place_terms_plate()
 		return
 	dim.modulate.a = 0.0
 	card.modulate.a = 0.0
@@ -13324,6 +13327,7 @@ func _reveal_modal() -> void:
 	modal_tween.tween_property(dim, "modulate:a", 1.0, 0.2)
 	modal_tween.parallel().tween_property(card, "modulate:a", 1.0, 0.18)
 	modal_tween.parallel().tween_property(card, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_place_terms_plate()
 
 
 func _hide_modal() -> void:
@@ -13337,6 +13341,7 @@ func _hide_modal() -> void:
 		if card != null:
 			card.scale = Vector2.ONE
 			card.modulate.a = 1.0
+		_place_terms_plate()
 		return
 	modal_tween = create_tween()
 	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.16)
@@ -13353,6 +13358,7 @@ func _finish_hide_modal() -> void:
 	if card != null:
 		card.scale = Vector2.ONE
 		card.modulate.a = 1.0
+	_place_terms_plate()
 
 
 func _check_shots() -> void:
