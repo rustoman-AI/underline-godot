@@ -18,6 +18,7 @@ const LeafletDust = preload("res://sim/leaflet_dust.gd")
 const NeedTick = preload("res://sim/need_tick.gd")
 const TransferHubs = preload("res://sim/transfer_hubs.gd")
 const Ledger = preload("res://sim/outpost_ledger.gd")
+const WhoHoldsIt = preload("res://sim/who_holds_it.gd")
 const QuietToll = preload("res://sim/quiet_toll.gd")
 const PassageScars = preload("res://sim/passage_scars.gd")
 const PINS_JSON := "res://data/map_pins.json"
@@ -374,6 +375,7 @@ func bind(station) -> void:
 
 
 func refresh() -> void:
+	_govpick_expire()
 	_track_hops()
 	var game_seen = _game()
 	if game_seen != null:
@@ -403,6 +405,7 @@ func _redraw() -> void:
 
 
 func open_sheet(sid: String) -> void:
+	_close_govpick()
 	drop_tip()
 	_details_open = false
 	selected = sid
@@ -460,6 +463,7 @@ func drop_tip() -> void:
 
 
 func close_sheet() -> void:
+	_close_govpick()
 	selected = ""
 	sheet.visible = false
 	_redraw()
@@ -3771,6 +3775,22 @@ func _paper_menu(picked: Callable) -> PopupMenu:
 var _gov_menu: PopupMenu
 var _gov_menu_sid := ""
 var _gov_menu_ids: Array = []
+var _govpick: PanelContainer
+var _gov_list: VBoxContainer
+var _gov_scroll: ScrollContainer
+var _gov_send: Button
+var _gov_back: Button
+var _gov_notice: Label
+var _gov_hint: Label
+var _gov_sid := ""
+var _gov_pid := ""
+var _gov_rev := ""
+var _gov_block := ""
+var _gov_ids: Array = []
+var _gov_short := false
+var _gov_sending := false
+var _gov_arm := false
+var _gov_expanded := {}
 
 
 func _add_governor(game, st: Dictionary, sid: String, parent: Node) -> void:
@@ -3816,6 +3836,18 @@ func open_governor_menu(sid: String, at: Vector2) -> void:
 	var game = _game()
 	if game == null or not game.stations.has(sid):
 		return
+	if WhoHoldsIt.locale_ready():
+		_open_govpick(sid, at)
+		return
+	_open_governor_popup(sid, at)
+
+
+## The comma popup. Kept for a locale that has no govpick strings, so RU never shows raw keys.
+func _open_governor_popup(sid: String, at: Vector2) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	_close_govpick()
 	if _gov_menu == null:
 		_gov_menu = _paper_menu(_on_governor_picked)
 	_gov_menu.clear()
@@ -3842,6 +3874,12 @@ func open_governor_menu(sid: String, at: Vector2) -> void:
 	_gov_menu.add_separator(Copy.t("%d influence, then %d a week.") % [int(g.appoint_influence), int(g.weekly_influence)])
 	_gov_menu.reset_size()
 	_gov_menu.popup(Rect2i(Vector2i(get_screen_position() + at), Vector2i.ZERO))
+
+
+func close_governor_menu() -> void:
+	if _gov_menu != null:
+		_gov_menu.hide()
+	_close_govpick()
 
 
 func _on_governor_picked(id: int) -> void:
@@ -3873,9 +3911,518 @@ func _after_governor() -> void:
 	refresh()
 
 
+## Comparison sheet for who to send. One row per governor_candidates entry, no 8-row cap.
+## Selecting a row does not appoint. Send fires the existing appoint command once.
+func _open_govpick(sid: String, at: Vector2) -> void:
+	var game = _game()
+	if game == null or not game.stations.has(sid):
+		return
+	if _gov_menu != null:
+		_gov_menu.hide()
+	_gov_sid = sid
+	_gov_pid = ""
+	_gov_block = ""
+	_gov_sending = false
+	_gov_arm = false
+	_gov_expanded = {}
+	_gov_rev = WhoHoldsIt.revision(game, sid)
+	if _govpick == null:
+		_build_govpick()
+	_fill_govpick()
+	_govpick.visible = true
+	_place_govpick(at)
+	if _gov_back != null:
+		_gov_back.grab_focus()
+	_gov_arm = true
+
+
+func _build_govpick() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "GovPick"
+	panel.z_index = 40
+	panel.visible = false
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.focus_mode = Control.FOCUS_ALL
+	var style := StyleBoxFlat.new()
+	style.bg_color = CARD
+	style.border_color = Color("8a6a44")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	style.set_content_margin_all(12)
+	style.shadow_color = Color(0, 0, 0, 0.35)
+	style.shadow_size = 6
+	style.shadow_offset = Vector2(2, 3)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.set_meta("govpick_role", "sheet")
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 6)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(column)
+	_gov_scroll = ScrollContainer.new()
+	_gov_scroll.name = "GovPickList"
+	_gov_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gov_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_gov_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	_gov_scroll.set_meta("govpick_role", "list")
+	_gov_list = VBoxContainer.new()
+	_gov_list.add_theme_constant_override("separation", 8)
+	_gov_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gov_scroll.add_child(_gov_list)
+	column.add_child(_gov_scroll)
+	panel.custom_minimum_size = Vector2(500, 0)
+	add_child(panel)
+	_govpick = panel
+
+
+func _fill_govpick() -> void:
+	var game = _game()
+	if game == null or _govpick == null or not game.stations.has(_gov_sid):
+		return
+	_gov_arm = false
+	var column := _govpick.get_child(0) as VBoxContainer
+	var kept := _gov_scroll
+	var drop: Array = []
+	for child in column.get_children():
+		if child != kept:
+			drop.append(child)
+	for child in drop:
+		column.remove_child(child)
+		child.free()
+	var g: Dictionary = game.bal.governor
+	var place := str(game.station_text(_gov_sid, "community"))
+	var title := _gov_label(Copy.t("Who holds %s?") % place, 18, true)
+	title.set_meta("govpick_role", "title")
+	column.add_child(title)
+	column.move_child(title, 0)
+	var cost := _gov_label(Copy.t("%d influence, then %d a week.") % [int(g.appoint_influence), int(g.weekly_influence)], 15, false)
+	cost.set_meta("govpick_role", "cost")
+	column.add_child(cost)
+	column.move_child(cost, 1)
+	var focus := str(game.stations[_gov_sid].get("focus", "food"))
+	var focus_line := WhoHoldsIt.fill("govpick.for_focus", {"focus": Copy.t("focus." + focus)})
+	if focus_line != "":
+		var focus_label := _gov_label(focus_line, 14, false)
+		focus_label.set_meta("govpick_role", "focus")
+		column.add_child(focus_label)
+		column.move_child(focus_label, 2)
+	_gov_short = int(game.stock.influence) < int(g.appoint_influence)
+	if _gov_short:
+		var why := _gov_label(game.influence_short(), 15, true)
+		why.set_meta("govpick_role", "short")
+		column.add_child(why)
+		column.move_child(why, 3)
+	_gov_notice = _gov_label("", 15, true)
+	_gov_notice.visible = false
+	_gov_notice.set_meta("govpick_role", "notice")
+	_gov_notice.add_theme_color_override("font_color", ORDER_RED)
+	column.add_child(_gov_notice)
+	column.move_child(_gov_notice, _gov_scroll.get_index())
+	for child in _gov_list.get_children():
+		child.free()
+	_gov_ids.clear()
+	var readable := WhoHoldsIt.goods_readable(game, _gov_sid)
+	for row in game.governor_candidates(_gov_sid):
+		var pid := str(row.get("id", ""))
+		_gov_ids.append(pid)
+		_gov_list.add_child(_gov_row(game, row, readable))
+	var shown := mini(WhoHoldsIt.VISIBLE_ROWS, _gov_ids.size())
+	var list_h := 0.0
+	for i in shown:
+		list_h += (_gov_list.get_child(i) as Control).get_combined_minimum_size().y
+	if shown > 1:
+		list_h += float(shown - 1) * 8.0
+	var cap := list_h
+	if size.y > 360.0:
+		var scale := 1.0
+		var win := get_window()
+		if win != null:
+			scale = maxf(1.0, win.content_scale_factor)
+		cap = maxf(150.0, size.y / scale - 340.0)
+	_gov_scroll.scroll_vertical = 0
+	_gov_scroll.custom_minimum_size = Vector2(460, minf(list_h, cap))
+	var footer := _gov_label(Copy.t("%d influence, then %d a week.") % [int(g.appoint_influence), int(g.weekly_influence)], 14, false)
+	footer.set_meta("govpick_role", "footer")
+	column.add_child(footer)
+	var runs := WhoHoldsIt.text("govpick.runs_out")
+	if runs != "":
+		var home := _gov_label(runs, 14, false)
+		home.set_meta("govpick_role", "runs_out")
+		column.add_child(home)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 8)
+	_gov_send = _gov_button(_gov_send_caption(game))
+	_gov_send.disabled = _gov_short or _gov_pid == ""
+	_gov_send.set_meta("govpick_role", "send")
+	_gov_send.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gov_send.pressed.connect(_govpick_send)
+	actions.add_child(_gov_send)
+	_gov_back = _gov_button(Copy.t("Back"))
+	_gov_back.set_meta("govpick_role", "back")
+	_gov_back.pressed.connect(_govpick_cancel)
+	actions.add_child(_gov_back)
+	column.add_child(actions)
+	_gov_hint = _gov_label(WhoHoldsIt.text("govpick.pick_first"), 14, false)
+	_gov_hint.set_meta("govpick_role", "hint")
+	_gov_hint.visible = not _gov_short and _gov_pid == ""
+	column.add_child(_gov_hint)
+	_mark_gov_selection()
+
+
+func _gov_row(game, row: Dictionary, readable: bool) -> Control:
+	var pid := str(row.get("id", ""))
+	var plate := PanelContainer.new()
+	plate.set_meta("govpick_role", "row")
+	plate.set_meta("govpick_id", pid)
+	plate.mouse_filter = Control.MOUSE_FILTER_STOP
+	plate.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	plate.add_theme_stylebox_override("panel", _gov_row_face(false))
+	plate.gui_input.connect(_gov_row_click.bind(pid))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_child(box)
+	var person: Dictionary = game.people[pid]
+	var who := Copy.person(str(person.get("name", row.get("name", ""))))
+	var skill := "%s %d" % [Copy.skill(str(row.get("skill_key", ""))), int(row.get("skill", 0))]
+	var select := _gov_name_button("%s  ·  %s" % [who, skill])
+	select.set_meta("govpick_role", "pick")
+	select.set_meta("govpick_id", pid)
+	select.disabled = _gov_short
+	select.pressed.connect(_govpick_select.bind(pid))
+	select.focus_entered.connect(_govpick_focus.bind(pid))
+	box.add_child(select)
+	var project: Dictionary = WhoHoldsIt.project(game, _gov_sid, pid)
+	if readable and bool(project.get("ok", false)):
+		var next_flow: Dictionary = project.get("next", {})
+		var nxt := WhoHoldsIt.next_line(next_flow)
+		if nxt != "":
+			box.add_child(_gov_meta(_gov_label(nxt, 15, true), "next"))
+		if bool(project.get("differs", false)):
+			var settled_flow: Dictionary = project.get("settled", {})
+			var once := WhoHoldsIt.settled_line(settled_flow)
+			if once != "":
+				box.add_child(_gov_meta(_gov_label(once, 14, false), "settled"))
+		var weeks := WhoHoldsIt.settle_line(int(project.get("settle_weeks", 0)))
+		if weeks != "":
+			box.add_child(_gov_meta(_gov_label(weeks, 14, false), "settle"))
+	else:
+		box.add_child(_gov_meta(_gov_label(WhoHoldsIt.comma_line(game, _gov_sid, row), 15, true), "comma"))
+	box.add_child(_gov_meta(_gov_label(WhoHoldsIt.home_line(_gov_room_title(game, pid)), 14, false), "room"))
+	var all: Array = WhoHoldsIt.tags(game, _gov_sid, pid)
+	var open: bool = bool(_gov_expanded.get(pid, false))
+	var shown: Array = all if open else all.slice(0, WhoHoldsIt.MAX_TAGS)
+	for tag in shown:
+		var chip := _gov_label(str(tag.get("text", "")), 14, false)
+		chip.set_meta("govpick_role", "tag")
+		chip.set_meta("govpick_tag", str(tag.get("id", "")))
+		box.add_child(chip)
+	if not open and all.size() > WhoHoldsIt.MAX_TAGS:
+		var more := _gov_button(WhoHoldsIt.fill("govpick.more", {"n": all.size() - WhoHoldsIt.MAX_TAGS}))
+		more.set_meta("govpick_role", "more")
+		more.set_meta("govpick_id", pid)
+		more.pressed.connect(_govpick_expand.bind(pid))
+		box.add_child(more)
+	return plate
+
+
+func _gov_meta(label: Label, role: String) -> Label:
+	label.set_meta("govpick_role", role)
+	return label
+
+
+func _gov_name_button(text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_ALL
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.clip_text = false
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.custom_minimum_size = Vector2(420, 0)
+	button.add_theme_font_override("font", _font())
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", CARD_INK)
+	button.add_theme_color_override("font_hover_color", CARD_INK)
+	button.add_theme_color_override("font_pressed_color", CARD_INK)
+	button.add_theme_color_override("font_focus_color", CARD_INK)
+	button.add_theme_color_override("font_disabled_color", CARD_INK)
+	var bare := StyleBoxEmpty.new()
+	button.add_theme_stylebox_override("normal", bare)
+	button.add_theme_stylebox_override("hover", bare)
+	button.add_theme_stylebox_override("pressed", bare)
+	button.add_theme_stylebox_override("focus", bare)
+	button.add_theme_stylebox_override("disabled", bare)
+	return button
+
+
+func _gov_row_click(event: InputEvent, pid: String) -> void:
+	var press := event as InputEventMouseButton
+	if press == null or not press.pressed or press.button_index != MOUSE_BUTTON_LEFT:
+		return
+	_govpick_select(pid)
+
+
+func _gov_row_face(selected: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(TRADE_GOLD, 0.34) if selected else Color("f6efe0")
+	style.border_color = TRADE_GOLD if selected else Color("8a6a44")
+	style.set_border_width_all(2 if selected else 1)
+	style.set_corner_radius_all(3)
+	style.set_content_margin_all(8)
+	return style
+
+
+func _gov_room_title(game, pid: String) -> String:
+	var uid := str(game._staff_room_of(pid))
+	if uid == "":
+		return ""
+	var room = game._room(uid)
+	if room == null:
+		return ""
+	if host != null and host.has_method("room_title"):
+		return str(host.room_title(room))
+	var type := str(room.get("type", ""))
+	if game.catalog.rooms.has(type):
+		return Copy.t(str(game.catalog.rooms[type].name))
+	return ""
+
+
+func _gov_send_caption(game) -> String:
+	if _gov_pid == "" or game == null or not game.people.has(_gov_pid):
+		return Copy.t("Appoint")
+	var who := Copy.person(str(game.people[_gov_pid].get("name", "")))
+	var line := WhoHoldsIt.fill("govpick.send", {"name": who})
+	return line if line != "" else Copy.t("Appoint")
+
+
+func _govpick_focus(pid: String) -> void:
+	if not _gov_arm:
+		return
+	_govpick_select(pid)
+
+
+func _govpick_select(pid: String) -> void:
+	if _gov_short or _gov_sending:
+		return
+	if _govpick == null or not _govpick.visible:
+		return
+	if not _gov_ids.has(pid):
+		return
+	var game = _game()
+	if game == null:
+		return
+	_gov_pid = pid
+	_gov_block = game.governor_block(_gov_sid, pid)
+	if _gov_send != null:
+		_gov_send.text = _gov_send_caption(game)
+		_gov_send.disabled = _gov_short or _gov_block != ""
+	if _gov_hint != null:
+		_gov_hint.visible = false
+	_mark_gov_selection()
+
+
+func _mark_gov_selection() -> void:
+	if _gov_list == null:
+		return
+	for row in _gov_list.get_children():
+		var pid := str(row.get_meta("govpick_id", ""))
+		var selected := pid == _gov_pid and pid != ""
+		row.set_meta("govpick_selected", selected)
+		if row is PanelContainer:
+			row.add_theme_stylebox_override("panel", _gov_row_face(selected))
+
+
+func _govpick_expand(pid: String) -> void:
+	_gov_expanded[pid] = true
+	call_deferred("_govpick_refill_keep", pid)
+
+
+func _govpick_refill_keep(pid: String) -> void:
+	var game = _game()
+	if game == null or _govpick == null or not _govpick.visible:
+		return
+	_gov_rev = WhoHoldsIt.revision(game, _gov_sid)
+	_fill_govpick()
+	_gov_arm = true
+	if pid != "":
+		_govpick_select(pid)
+
+
+func _govpick_move(delta: int) -> void:
+	if _gov_ids.is_empty() or _gov_short:
+		return
+	var idx := _gov_ids.find(_gov_pid)
+	if idx < 0:
+		idx = 0 if delta > 0 else _gov_ids.size() - 1
+	else:
+		idx = clampi(idx + delta, 0, _gov_ids.size() - 1)
+	_govpick_select(str(_gov_ids[idx]))
+	_govpick_reveal(str(_gov_ids[idx]))
+
+
+func _govpick_reveal(pid: String) -> void:
+	if _gov_list == null or _gov_scroll == null:
+		return
+	for row in _gov_list.get_children():
+		if str(row.get_meta("govpick_id", "")) != pid:
+			continue
+		var y := (row as Control).position.y
+		var view := _gov_scroll.size.y
+		var top := float(_gov_scroll.scroll_vertical)
+		if y < top:
+			_gov_scroll.scroll_vertical = int(y)
+		elif y + (row as Control).size.y > top + view:
+			_gov_scroll.scroll_vertical = int(y + (row as Control).size.y - view)
+		return
+
+
+func _govpick_send() -> void:
+	if _gov_sending:
+		return
+	if _govpick == null or not _govpick.visible or _gov_pid == "" or _gov_short:
+		return
+	var game = _game()
+	if game == null or not game.stations.has(_gov_sid) or not game.people.has(_gov_pid):
+		return
+	_gov_sending = true
+	var sid := _gov_sid
+	var pid := _gov_pid
+	var rev := WhoHoldsIt.revision(game, sid)
+	var block: String = game.governor_block(sid, pid)
+	if rev != _gov_rev or block != _gov_block:
+		_gov_sending = false
+		_gov_pid = ""
+		_gov_block = ""
+		_gov_expanded = {}
+		_gov_rev = rev
+		call_deferred("_govpick_show_changed")
+		return
+	if not game.apply({"kind": "appoint", "station": sid, "person": pid}):
+		_gov_sending = false
+		var why: String = game.governor_block(sid, pid)
+		if why != "":
+			_gov_show_notice(why)
+		return
+	_gov_sending = false
+	_close_govpick()
+	if host != null and host.has_method("_toast"):
+		host._toast(Copy.t("%s now holds %s for us.") % [Copy.person(str(game.people[pid].name)), str(game.station_text(sid, "community"))])
+	_after_governor()
+
+
+func _govpick_show_changed() -> void:
+	if _govpick == null or not _govpick.visible:
+		return
+	_fill_govpick()
+	_gov_show_notice(WhoHoldsIt.text("govpick.changed"))
+	_gov_arm = true
+
+
+func _gov_show_notice(line: String) -> void:
+	if _gov_notice == null:
+		return
+	_gov_notice.text = line
+	_gov_notice.visible = line != ""
+
+
+func _govpick_cancel() -> void:
+	if _gov_sending:
+		return
+	_close_govpick()
+
+
+func _close_govpick() -> void:
+	_gov_sid = ""
+	_gov_pid = ""
+	_gov_rev = ""
+	_gov_block = ""
+	_gov_ids.clear()
+	_gov_short = false
+	_gov_sending = false
+	_gov_arm = false
+	_gov_expanded = {}
+	if _govpick != null:
+		_govpick.visible = false
+
+
+func _govpick_expire() -> void:
+	if _govpick == null or not _govpick.visible or _gov_sid == "":
+		return
+	var game = _game()
+	if game == null or not game.stations.has(_gov_sid):
+		_close_govpick()
+		return
+	var st: Dictionary = game.stations[_gov_sid]
+	if str(st.get("owner", "")) != str(game.player) or str(st.get("governor", "")) != "" or _gov_sid == str(game.capital_id):
+		_close_govpick()
+		return
+	if WhoHoldsIt.revision(game, _gov_sid) != _gov_rev:
+		_close_govpick()
+
+
+func _place_govpick(at: Vector2) -> void:
+	if _govpick == null:
+		return
+	var want := _govpick.get_combined_minimum_size()
+	var x := clampf(at.x, 12.0, maxf(12.0, size.x - want.x - 12.0))
+	var y := clampf(at.y, 12.0, maxf(12.0, size.y - want.y - 12.0))
+	_govpick.position = Vector2(x, y)
+
+
+func _gov_label(text: String, px: int, strong: bool) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.custom_minimum_size.x = 420
+	label.add_theme_font_size_override("font_size", px)
+	label.add_theme_color_override("font_color", CARD_INK if strong else CARD_MUTED)
+	label.add_theme_font_override("font", _font())
+	return label
+
+
+func _gov_button(text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_ALL
+	button.clip_text = false
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_override("font", _font())
+	button.add_theme_font_size_override("font_size", 16)
+	button.add_theme_color_override("font_color", CARD_INK)
+	button.add_theme_color_override("font_hover_color", CARD_INK)
+	button.add_theme_color_override("font_pressed_color", CARD_INK)
+	button.add_theme_color_override("font_disabled_color", Color(CARD_INK, 0.55))
+	button.add_theme_color_override("font_focus_color", CARD_INK)
+	button.add_theme_stylebox_override("normal", _gov_button_face(false))
+	button.add_theme_stylebox_override("hover", _gov_button_face(true))
+	button.add_theme_stylebox_override("pressed", _gov_button_face(true))
+	button.add_theme_stylebox_override("focus", _gov_button_face(true))
+	button.add_theme_stylebox_override("disabled", _gov_button_face(false))
+	return button
+
+
+func _gov_button_face(hot: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(TRADE_GOLD, 0.28) if hot else Color(CARD, 0.2)
+	style.border_color = Color("8a6a44")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	return style
+
+
 ## The focus menu under a held station's chips: one row per focus with what it would ship, the current one
 ## ticked. Same four ids as the visit picker. The numbers are the existing shipment preview.
 func open_focus_menu(sid: String, screen_at: Vector2) -> void:
+	_close_govpick()
 	var game = _game()
 	if game == null or not game.stations.has(sid):
 		return
@@ -4441,6 +4988,12 @@ func _font() -> Font:
 
 
 func _gui_input(event: InputEvent) -> void:
+	if _govpick != null and _govpick.visible and event is InputEventMouseButton:
+		var press := event as InputEventMouseButton
+		if press.pressed and (press.button_index == MOUSE_BUTTON_LEFT or press.button_index == MOUSE_BUTTON_RIGHT):
+			_govpick_cancel()
+			accept_event()
+			return
 	if event is InputEventMagnifyGesture:
 		var pinch := event as InputEventMagnifyGesture
 		_zoom_at(pinch.position, pinch.factor)
@@ -6149,7 +6702,26 @@ func _size_visit() -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key == null or not key.pressed or key.echo or key.keycode != KEY_ESCAPE:
+	if key == null or not key.pressed or key.echo:
+		return
+	if _govpick != null and _govpick.visible:
+		if key.keycode == KEY_ESCAPE:
+			_govpick_cancel()
+			get_viewport().set_input_as_handled()
+			return
+		var focus := get_viewport().gui_get_focus_owner()
+		var inside := focus != null and is_instance_valid(focus) and _govpick.is_ancestor_of(focus)
+		if not inside and (key.keycode == KEY_UP or key.keycode == KEY_DOWN):
+			_govpick_move(-1 if key.keycode == KEY_UP else 1)
+			get_viewport().set_input_as_handled()
+			return
+		if key.keycode == KEY_ENTER or key.keycode == KEY_KP_ENTER:
+			if inside and focus != _gov_send:
+				return
+			_govpick_send()
+			get_viewport().set_input_as_handled()
+			return
+	if key.keycode != KEY_ESCAPE:
 		return
 	if visit != null and visit.is_visible_in_tree():
 		close_visit()
@@ -6166,6 +6738,7 @@ var _obs_read := ""
 
 
 func open_visit(sid: String) -> void:
+	_close_govpick()
 	_cam_origin = origin
 	_cam_zoom = zoom
 	var game = _game()

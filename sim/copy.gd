@@ -370,6 +370,8 @@ static func _load_keys() -> void:
 	## P96 and P97 chrome are interim drafts. Neither pack is a Texts or canon approval.
 	_merge_pack("res://data/between_shifts.json")
 	_merge_pack("res://data/decision_receipts.json")
+	## P101 chrome is an interim draft. Not a Texts or canon approval. RU is empty on purpose.
+	_merge_pack("res://data/who_holds_it.json")
 
 
 ## A locked Texts pack. `by_key` wins over ui_strings for the same id. Meta keys are skipped.

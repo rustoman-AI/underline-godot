@@ -1,0 +1,72 @@
+{
+  "_note": "P101 Who Holds It. INTERIM WIRING DRAFT. Not Texts-approved. Not canon. Not Temur-approved. EN lines are the spec proposal copied as interim keys. RU is intentionally empty: an empty locale keeps the existing appoint popup and never shows a raw govpick.* key. When Texts writes RU, weeks and material plurals go through Words.count. No new formatter. 16 govpick.* keys.",
+  "_roadmap": "P101",
+  "_status": "INTERIM — not Texts-approved, not Temur-approved, not canon. EN is the unapproved spec proposal. RU is empty on purpose.",
+  "_placeholders": ["{flow}", "{n}", "{room}", "{name}", "{focus}"],
+  "by_key": {
+    "govpick.next_dawn": {
+      "en": "Next dawn: {flow}",
+      "ru": ""
+    },
+    "govpick.settled": {
+      "en": "Once settled: {flow}",
+      "ru": ""
+    },
+    "govpick.settling": {
+      "en": "Still settling: costs {n} material",
+      "ru": ""
+    },
+    "govpick.settle_in": {
+      "en": "Settles in {n} weeks",
+      "ru": ""
+    },
+    "govpick.for_focus": {
+      "en": "Shown for {focus} focus",
+      "ru": ""
+    },
+    "govpick.leaves": {
+      "en": "Leaves {room}. Post kept for their return.",
+      "ru": ""
+    },
+    "govpick.no_room": {
+      "en": "No room assignment",
+      "ru": ""
+    },
+    "govpick.order_now": {
+      "en": "One order fewer this week",
+      "ru": ""
+    },
+    "govpick.garrison": {
+      "en": "Garrison +{n}",
+      "ru": ""
+    },
+    "govpick.devout": {
+      "en": "Eases unrest by 1 a week",
+      "ru": ""
+    },
+    "govpick.marketeer": {
+      "en": "Tokens +{n} a week while supplied",
+      "ru": ""
+    },
+    "govpick.more": {
+      "en": "+{n} more",
+      "ru": ""
+    },
+    "govpick.send": {
+      "en": "Send {name}",
+      "ru": ""
+    },
+    "govpick.pick_first": {
+      "en": "Pick who goes.",
+      "ru": ""
+    },
+    "govpick.changed": {
+      "en": "Things changed. Compare again.",
+      "ru": ""
+    },
+    "govpick.runs_out": {
+      "en": "If influence runs out, they come home.",
+      "ru": ""
+    }
+  }
+}
