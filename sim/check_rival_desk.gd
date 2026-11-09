@@ -522,11 +522,11 @@ func _save(catalog: Catalog) -> bool:
 		_bad("schema 23 accepted a list")
 		return false
 	var future := game.export_state()
-	future["schema"] = 26
+	future["schema"] = 28
 	var ahead := Game.new()
 	ahead.catalog = catalog
 	if ahead.import_state(future):
-		_bad("schema 26 loaded")
+		_bad("schema 28 loaded")
 		return false
 	return true
 

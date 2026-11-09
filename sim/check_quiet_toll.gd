@@ -422,7 +422,7 @@ func _tip(catalog: Catalog) -> bool:
 	Copy.set_lang("en")
 	var snap := game.export_state()
 	snap["schema"] = Game.SAVE_SCHEMA
-	if int(snap.schema) != 25:
+	if int(snap.schema) != 26:
 		_bad("schema bumped")
 		return false
 	if not bool(snap.flags.get(Toll.FLAG, false)):

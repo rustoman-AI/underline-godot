@@ -237,6 +237,9 @@ var callers := {"here": "", "until": 0, "why": "", "seen": {}, "cool_until": {},
 var caller_left_toast := false
 ## P94 Passage Scars. Edge id -> {kind, week, count}. Memory only. Outcomes never read it.
 var scars := {}
+## P96 Between Shifts. person id -> {vignette_id, choice_id, answered_week, follow_seen}.
+## Narrative only. Outcomes never read it. Older saves load {}.
+var shiftword_state := {}
 var last_check := {}
 var crunch_power := false
 var belt_down := false
@@ -316,6 +319,7 @@ func setup(cat: Catalog, run_seed: int, weeks: int) -> void:
 	callers = PlatformCallers.blank()
 	caller_left_toast = false
 	scars = {}
+	shiftword_state = {}
 	receipt_seq = 0
 	_receipt_drop()
 	notices = []
@@ -12486,7 +12490,7 @@ const PERSIST := [
 	"audience_due", "audience_deals", "vo_cues", "leader_answers", "fragments", "story_words", "help_last",
 	"story_queue", "proof_extra", "charges", "promise", "mandate",
 	"transfer_hub_sids", "obs", "regulars", "sdays", "carry", "echoes", "rival_log", "callers", "scars",
-	"receipt_seq",
+	"shiftword_state", "receipt_seq",
 ]
 
 
@@ -12511,18 +12515,20 @@ const PERSIST := [
 ## Version 23 added the rival desk. Older saves start with an empty rival_log.
 ## Version 24 adds platform callers. Older saves start with nobody on the stairs.
 ## Version 25 added passage scars. Older saves start with nothing remembered on a passage.
-## Version 26 is not used on this branch. Unmerged P96 draft #97 (79ce301) already claims schema 26
-## for shiftword_state. This pack does not add that field. Integration must keep shiftword_state as
-## the schema-26 key and receipt_seq as the schema-27 key, and must still default a missing
-## shiftword_state on schema-27 files written before the two branches are combined.
+## Version 26 added between-shift exchanges. Older saves start with no exchange.
 ## Version 27 added the decision-receipt sequence. Older saves start at 0, then move past any
 ## receipt id already stored on a journal row, follow, or pending card.
 ## Schema <= 19 may omit sdays. Schema <= 20 may omit carry. Schema <= 21 may omit echoes.
 ## Schema <= 22 may omit rival_log. Schema <= 23 may omit callers. Schema <= 24 may omit scars.
-## Schema <= 26 may omit receipt_seq.
+## Schema <= 25 may omit shiftword_state. Schema <= 26 may omit receipt_seq.
 ## A key that is already in the file is kept. Schema 24 keeps callers, rival_log, echoes, carry,
-## and sdays, and receives an empty scars dict. Schema 25 requires scars and every earlier key.
-## Schema 27 requires receipt_seq as well.
+## and sdays, and receives an empty scars dict. Schema 25 requires scars and every earlier key,
+## and receives an empty shiftword_state plus receipt_seq 0. Schema 26 requires shiftword_state
+## and receives receipt_seq 0 when that key is absent. Schema 27 requires receipt_seq.
+## A schema 27 file written by P97 before shiftword_state existed may omit that key. The loader
+## fills {}. A shiftword_state that is present is kept. A non-dictionary shiftword_state is rejected.
+## A bad row inside an otherwise valid dictionary is P96's documented case: the save loads and that
+## vignette stays hidden. Schema 28 and above is rejected.
 const SAVE_SCHEMA := 27
 const RNG_KEYS := ["rng_state", "crunch_state", "net_state", "check_state", "story_state"]
 ## Fields a version 1 save may lack. They get the class defaults of a fresh Game, standing gets each
@@ -12583,8 +12589,9 @@ const V22_ADDED := ["rival_log"]
 const V23_ADDED := ["callers"]
 ## Fields a version 1 to 24 save may lack: no passage scars yet.
 const V24_ADDED := ["scars"]
-## Fields a version 1 to 26 save may lack. Schema 26 itself is reserved for unmerged P96 shiftword_state
-## and is not written here. receipt_seq is the schema 27 key.
+## Fields a version 1 to 25 save may lack: no between-shift exchange yet.
+const V25_ADDED := ["shiftword_state"]
+## Fields a version 1 to 26 save may lack: no decision-receipt sequence yet.
 const V26_ADDED := ["receipt_seq"]
 
 ## Why the last import_state() refused its data; "" after a successful import.
@@ -12643,7 +12650,7 @@ static func stage_state(data: Dictionary, cat: Catalog) -> Dictionary:
 	for key in PERSIST:
 		if data.has(key):
 			state[key] = data[key]
-		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 21 and V21_ADDED.has(key)) or (int(schema) <= 22 and V22_ADDED.has(key)) or (int(schema) <= 23 and V23_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)) or (int(schema) <= 26 and V26_ADDED.has(key)):
+		elif (int(schema) == 1 and V1_ADDED.has(key)) or (int(schema) <= 2 and V2_ADDED.has(key)) or (int(schema) <= 3 and V3_ADDED.has(key)) or (int(schema) <= 4 and V4_ADDED.has(key)) or (int(schema) <= 5 and V5_ADDED.has(key)) or (int(schema) <= 8 and V8_ADDED.has(key)) or (int(schema) <= 9 and V9_ADDED.has(key)) or (int(schema) <= 10 and V10_ADDED.has(key)) or (int(schema) <= 11 and V11_ADDED.has(key)) or (int(schema) <= 12 and V12_ADDED.has(key)) or (int(schema) <= 13 and V13_ADDED.has(key)) or (int(schema) <= 14 and V14_ADDED.has(key)) or (int(schema) <= 15 and V15_ADDED.has(key)) or (int(schema) <= 16 and V16_ADDED.has(key)) or (int(schema) <= 17 and V17_ADDED.has(key)) or (int(schema) <= 18 and V18_ADDED.has(key)) or (int(schema) <= 19 and V19_ADDED.has(key)) or (int(schema) <= 20 and V20_ADDED.has(key)) or (int(schema) <= 21 and V21_ADDED.has(key)) or (int(schema) <= 22 and V22_ADDED.has(key)) or (int(schema) <= 23 and V23_ADDED.has(key)) or (int(schema) <= 24 and V24_ADDED.has(key)) or (int(schema) <= 25 and V25_ADDED.has(key)) or (int(schema) <= 26 and V26_ADDED.has(key)) or (int(schema) == 27 and key == "shiftword_state"):
 			state[key] = base.get(key)
 		else:
 			return {"error": "missing %s" % key, "state": {}}
@@ -12824,6 +12831,9 @@ static func _state_problem(state: Dictionary, cat: Catalog) -> String:
 	var why_scars := PassageScars.problem(state.scars, int(state.week))
 	if why_scars != "":
 		return why_scars
+	var why_shift := BetweenShifts.problem(state.shiftword_state)
+	if why_shift != "":
+		return why_shift
 	var why_shape := _shape_problem(state, cat)
 	if why_shape != "":
 		return why_shape

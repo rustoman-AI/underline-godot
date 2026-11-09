@@ -112,6 +112,7 @@ func _run() -> void:
 	var balance := FileAccess.get_file_as_string("res://data/balance.json")
 	_strings()
 	_schema()
+	_shiftword_excluded()
 	_groups()
 	_clamps()
 	_checks()
@@ -224,23 +225,41 @@ func _schema() -> void:
 	_ok(Game.SAVE_SCHEMA == 27, "schema %s" % str(Game.SAVE_SCHEMA))
 	var src := FileAccess.get_file_as_string("res://sim/game.gd")
 	_ok(src.find("const SAVE_SCHEMA := 27") >= 0, "schema const")
-	_ok(src.find("const SAVE_SCHEMA := 26") < 0, "schema 26 claimed")
-	_ok(src.find("var shiftword_state") < 0, "shiftword imported")
-	_ok(src.find("V26_ADDED") >= 0 and src.find("receipt_seq") >= 0, "migration")
+	_ok(src.find("const SAVE_SCHEMA := 26") < 0, "schema const is 26")
+	_ok(src.find("var shiftword_state") >= 0 and src.find("V25_ADDED") >= 0 and src.find("V26_ADDED") >= 0, "both fields")
 	var game := _game()
+	game.flags["seen_room_trace"] = true
+	game.shiftword_state = {"pete": {"vignette_id": "pete", "choice_id": "b", "answered_week": 4, "follow_seen": true}}
+	var both := game.export_state()
+	both["schema"] = 27
+	var round := Game.new()
+	round.catalog = catalog
+	_ok(round.import_state(both), "combined 27 " + round.load_error)
+	_ok(str(round.shiftword_state.get("pete", {}).get("choice_id", "")) == "b", "round trip dropped shiftword")
+	_ok(int(round.receipt_seq) == int(game.receipt_seq), "round trip dropped receipt_seq")
+	_ok(bool(round.flags.get("seen_room_trace", false)), "round trip dropped a flag")
 	var old := game.export_state()
 	old["schema"] = 25
 	old.erase("receipt_seq")
+	old.erase("shiftword_state")
 	var host := _game(9)
 	host.receipt_seq = 44
+	host.shiftword_state = {"ruth": {"choice_id": "a"}}
 	_ok(host.import_state(old), "schema 25 load " + host.load_error)
-	_ok(host.receipt_seq == 0, "legacy seq %s" % str(host.receipt_seq))
+	_ok(host.receipt_seq == 0 and host.shiftword_state.is_empty(), "schema 25 defaults %s %s" % [str(host.receipt_seq), str(host.shiftword_state)])
 	var bare := game.export_state()
 	bare["schema"] = 27
 	bare.erase("receipt_seq")
 	var refuse := Game.new()
 	refuse.catalog = catalog
 	_ok(not refuse.import_state(bare), "schema 27 without seq should fail")
+	var p97_only := game.export_state()
+	p97_only["schema"] = 27
+	p97_only.erase("shiftword_state")
+	var filled := Game.new()
+	filled.catalog = catalog
+	_ok(filled.import_state(p97_only), "P97-only schema 27 " + filled.load_error)
+	_ok(filled.shiftword_state.is_empty() and int(filled.receipt_seq) == int(game.receipt_seq), "P97-only fill")
 	var gap := game.export_state()
 	gap["schema"] = 26
 	gap.erase("receipt_seq")
@@ -251,18 +270,53 @@ func _schema() -> void:
 	}}
 	gap.journal = [row]
 	var loaded := _game(8)
-	_ok(loaded.import_state(gap), "schema 26 with stray shiftword " + loaded.load_error)
+	_ok(loaded.import_state(gap), "schema 26 " + loaded.load_error)
 	_ok(loaded.receipt_seq == 6, "seq raised to existing id %s" % str(loaded.receipt_seq))
-	_ok(loaded.get("shiftword_state") == null, "shiftword survived import")
+	_ok(int(loaded.shiftword_state.get("ruth", 0)) == 1, "schema 26 dropped shiftword")
 	_ok(loaded.journal.size() == 1 and loaded.journal[0].receipt.instance == 6, "schema 26 kept receipt")
+	var missing_shift := game.export_state()
+	missing_shift["schema"] = 26
+	missing_shift.erase("shiftword_state")
+	var no_shift := Game.new()
+	no_shift.catalog = catalog
+	_ok(not no_shift.import_state(missing_shift), "schema 26 missing shiftword_state was accepted")
+	var ahead := game.export_state()
+	ahead["schema"] = 28
+	var too_new := Game.new()
+	too_new.catalog = catalog
+	_ok(not too_new.import_state(ahead), "schema 28 accepted")
+	var listed := game.export_state()
+	listed["schema"] = 27
+	listed["shiftword_state"] = []
+	var wrong := Game.new()
+	wrong.catalog = catalog
+	_ok(not wrong.import_state(listed), "shiftword list accepted")
 	var bad := game.export_state()
 	bad["schema"] = 27
 	bad.journal.append({"kind": "event", "week": 1, "event_id": "x", "choice_id": "y", "receipt": {"v": 9, "instance": "no"}})
 	var healed := _game(7)
-	_ok(healed.import_state(bad), "malformed receipt blocked load " + healed.load_error)
+	_ok(healed.import_state(bad), "malformed receipt blocked the save " + healed.load_error)
 	var last = healed.journal[healed.journal.size() - 1]
 	_ok(not last.has("receipt"), "malformed receipt still visible")
-	print("Schema: 27, 26 reserved")
+	print("Schema: combined 27")
+
+
+func _shiftword_excluded() -> void:
+	var game := _game(4)
+	game.week = 4
+	var seq := game.receipt_seq
+	var n := game.journal.size()
+	var streams := _rng(game)
+	var result := BetweenShifts.reply(game, "ruth", "a")
+	_ok(result == "ok", "ruth reply " + result)
+	_ok(game.receipt_seq == seq and game.journal.size() == n, "shiftword wrote a receipt or journal row")
+	_ok(_rng(game) == streams, "shiftword moved rng")
+	_ok(str(game.shiftword_state.get("ruth", {}).get("choice_id", "")) == "a", "reply not stored")
+	var ev := _put(game, "stores_turn")
+	_ok(_take(game, ev, "feast"), "event after shiftword")
+	var rows := _event_rows(game)
+	_ok(rows.size() == 1 and rows[0].has("receipt") and str(rows[0].get("event_id", "")) == "stores_turn", "ordinary receipt after shiftword")
+	print("Shiftword excluded from receipts")
 
 
 func _groups() -> void:

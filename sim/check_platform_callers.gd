@@ -625,9 +625,9 @@ func _migrate(catalog: Catalog) -> bool:
 		_bad("schema 25 without callers accepted")
 		return false
 	var future := full.duplicate(true)
-	future["schema"] = 26
+	future["schema"] = 28
 	if Game.stage_state(future, catalog).error == "":
-		_bad("schema 26 accepted")
+		_bad("schema 28 accepted")
 		return false
 	return true
 

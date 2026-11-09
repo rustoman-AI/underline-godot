@@ -367,7 +367,8 @@ static func _load_keys() -> void:
 	_merge_pack("res://data/platform_callers.json")
 	_merge_pack("res://data/passage_scars.json")
 	_merge_pack("res://data/room_trace.json")
-	## P97 interim chrome. EN starters are the spec proposal. RU is an unapproved layout draft.
+	## P96 and P97 chrome are interim drafts. Neither pack is a Texts or canon approval.
+	_merge_pack("res://data/between_shifts.json")
 	_merge_pack("res://data/decision_receipts.json")
 
 

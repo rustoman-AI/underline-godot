@@ -646,11 +646,11 @@ func _save(catalog: Catalog) -> bool:
 		_bad("bad kind accepted")
 		return false
 	var future := game.export_state()
-	future["schema"] = 26
+	future["schema"] = 28
 	var too_new := Game.new()
 	too_new.catalog = catalog
 	if too_new.import_state(future):
-		_bad("schema 26 accepted")
+		_bad("schema 28 accepted")
 		return false
 	var no_carry := game.export_state()
 	no_carry.erase("carry")
