@@ -77,6 +77,7 @@ func _run() -> void:
 	_out_of_scope()
 	_locale()
 	_browse_then_apply()
+	_receipt_from_compare()
 	await _shots()
 	_wipe(ProjectSettings.globalize_path("user://check_risk_roster"))
 	if is_instance_valid(st):
@@ -109,7 +110,7 @@ func _copy_keys() -> void:
 
 
 func _schema() -> void:
-	if Game.SAVE_SCHEMA != 25:
+	if Game.SAVE_SCHEMA != 27:
 		_bad("schema %s" % str(Game.SAVE_SCHEMA))
 	var data: Dictionary = st.game.export_state()
 	for key in data:
@@ -117,6 +118,8 @@ func _schema() -> void:
 			_bad("saved " + str(key))
 	if data.has("check_picks"):
 		_bad("picks saved")
+	if not data.has("shiftword_state") or not data.has("receipt_seq"):
+		_bad("master save fields missing")
 
 
 func _dice() -> void:
@@ -695,6 +698,58 @@ func _browse_then_apply() -> void:
 		_bad("browse changed apply")
 	elif int(other.rng.state) != int(game.rng.state) or int(other.check_rng.state) != int(game.check_rng.state) or int(other.crunch_rng.state) != int(game.crunch_rng.state) or int(other.net_rng.state) != int(game.net_rng.state) or int(other.story_rng.state) != int(game.story_rng.state):
 		_bad("browse rng streams")
+
+
+## The original action, after Compare people, still journals a P97 check receipt for that person.
+func _receipt_from_compare() -> void:
+	_offer("moles_vents", 8)
+	var roster: Array = st._check_roster()
+	if roster.size() < 2:
+		_bad("receipt roster")
+		return
+	var chosen := str(roster[roster.size() - 1])
+	var key := _check_key("moles_vents", "cut")
+	st.check_picks[key] = str(roster[0])
+	st._open_checkpick("moles_vents", "cut")
+	var fp := ""
+	var cfp := ""
+	for use in _roles(st.card_body, "use"):
+		if str(use.get_meta("checkpick_id", "")) == chosen:
+			fp = str(use.get_meta("checkpick_fp", ""))
+			cfp = str(use.get_meta("checkpick_choice_fp", ""))
+	st._use_checkpick("moles_vents", "cut", chosen, fp, cfp)
+	if str(st.check_picks.get(key, "")) != chosen:
+		_bad("receipt pick")
+		return
+	var mark: int = st.game.journal.size()
+	st._pick_event("moles_vents", "cut")
+	var found := false
+	for i in range(mark, st.game.journal.size()):
+		var row = st.game.journal[i]
+		if not (row is Dictionary):
+			continue
+		var rec = row.get("receipt", null)
+		if not (rec is Dictionary):
+			continue
+		if str(rec.get("event_id", "")) != "moles_vents" or str(rec.get("choice_id", "")) != "cut":
+			continue
+		var result = rec.get("result", {})
+		if not (result is Dictionary):
+			_bad("receipt result missing")
+			return
+		if str(result.get("kind", "")) != "check":
+			_bad("receipt kind " + str(result.get("kind", "")))
+			return
+		if str(result.get("person_id", "")) != chosen:
+			_bad("receipt person " + str(result.get("person_id", "")))
+			return
+		var tag := str(result.get("tag", ""))
+		if tag != "success" and tag != "failure":
+			_bad("receipt tag " + tag)
+			return
+		found = true
+	if not found:
+		_bad("receipt not journaled")
 
 
 func _shots() -> void:
