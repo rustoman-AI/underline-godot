@@ -17707,11 +17707,20 @@ class Yard extends Control:
 		if host.is_empty():
 			return
 		var rect := _rect(geo, int(host.get("level", 0)), int(host.get("cell", 0)))
-		var ph := rect.size.y * 0.52
-		var pw := ph * float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
-		var dest := Rect2(rect.end.x - pw - rect.size.x * 0.05, rect.position.y + rect.size.y * 0.2, pw, ph)
+		var dest := _line_wall_dest(rect)
+		if dest.size.x < 1.0:
+			return
 		draw_texture_rect(tex, dest, false)
 		wall_hit = Rect2(pan + dest.position * zoom, dest.size * zoom)
+
+	## World rect of the platform line wall. Empty when the art is missing.
+	func _line_wall_dest(rect: Rect2) -> Rect2:
+		var tex := _line_wall_tex()
+		if tex == null:
+			return Rect2()
+		var ph := rect.size.y * 0.52
+		var pw := ph * float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
+		return Rect2(rect.end.x - pw - rect.size.x * 0.05, rect.position.y + rect.size.y * 0.2, pw, ph)
 
 	func _line_wall_tex() -> Texture2D:
 		if line_wall_tex != null:
@@ -19256,18 +19265,61 @@ class Yard extends Control:
 			var left := clampf(cx - name_size.x * 0.5, rect.position.x + 2.0, maxf(rect.position.x + 2.0, rect.end.x - 2.0 - name_size.x))
 			var draw_w := minf(name_size.x, rect.end.x - 2.0 - left)
 			draw_string(font, Vector2(left, y), name, HORIZONTAL_ALIGNMENT_LEFT, draw_w, 13, Color("f4efe4"))
-			if not station.game.is_known(person):
-				continue
-			var tag := Copy.t("named.known")
-			var tag_size := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
-			var plate_w := minf(tag_size.x + 16.0, maxf(8.0, rect.size.x - 8.0))
-			var plate_x := clampf(left + draw_w * 0.5 - plate_w * 0.5, rect.position.x + 2.0, rect.end.x - 2.0 - plate_w)
-			var plate := Rect2(plate_x, y + 4.0, plate_w, 22.0)
-			if plate.end.y > rect.end.y:
-				continue
-			draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
-			draw_rect(plate, Color("e2a63a"), false, 1.0)
-			draw_string(font, Vector2(plate.position.x + 8.0, plate.position.y + 15.0), tag, HORIZONTAL_ALIGNMENT_LEFT, maxf(8.0, plate_w - 16.0), 12, Color("f0c070"))
+		_draw_known_plates(rect, font, ids, n, y)
+
+	## Known plates share the row under the names. Pack them so they do not cover each other
+	## or the line wall, with 4 screen px of air.
+	func _draw_known_plates(rect: Rect2, font: Font, ids: Array, n: int, name_base: float) -> void:
+		var tag := Copy.t("named.known")
+		var text_w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		var known := 0
+		for i in n:
+			var person: Dictionary = station.game.people.get(str(ids[i]), {})
+			if not person.is_empty() and station.game.is_known(person):
+				known += 1
+		if known == 0:
+			return
+		## 6 screen px between rects. The 1 px brass border eats part of a 4 px gap.
+		var gap := 6.0 / maxf(zoom, 0.01)
+		var wall := _line_wall_dest(rect)
+		var right := rect.end.x - 2.0
+		var top := name_base + 4.0
+		var stack_h := 22.0 * float(known) + gap * float(known - 1)
+		if wall.size.x > 1.0 and top < wall.end.y and top + stack_h > wall.position.y:
+			right = minf(right, wall.position.x - gap)
+		var left := rect.position.x + 2.0
+		var inner := maxf(8.0, right - left)
+		## Full padding when two plates fit. Otherwise tighten so a row of two still clears the wall.
+		var pad := 4.0
+		var side := mini(known, 2)
+		for try_pad in [16.0, 12.0, 8.0, 6.0, 4.0]:
+			var w := text_w + float(try_pad)
+			var need := w * float(side) + gap * float(side - 1)
+			if w <= inner and need <= inner:
+				pad = float(try_pad)
+				break
+		var plate_w := minf(text_w + pad, inner)
+		var per_row := 1
+		while per_row < known:
+			var need := plate_w * float(per_row + 1) + gap * float(per_row)
+			if need > inner:
+				break
+			per_row += 1
+		var py := top
+		var drawn := 0
+		while drawn < known and py + 22.0 <= rect.end.y - 2.0:
+			var count := mini(per_row, known - drawn)
+			var row_w := plate_w * float(count) + gap * float(count - 1)
+			var x := left + maxf(0.0, (inner - row_w) * 0.5)
+			for _i in count:
+				var plate := Rect2(x, py, plate_w, 22.0)
+				draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
+				draw_rect(plate, Color("e2a63a"), false, 1.0)
+				var text_room := maxf(4.0, plate.size.x - pad)
+				draw_string(font, plate.position + Vector2(pad * 0.5, 15.0), tag, HORIZONTAL_ALIGNMENT_LEFT, text_room, 12, Color("f0c070"))
+				x += plate_w + gap
+			drawn += count
+			py += 22.0 + gap
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))
