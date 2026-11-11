@@ -367,6 +367,8 @@ static func _load_keys() -> void:
 	_merge_pack("res://data/platform_callers.json")
 	_merge_pack("res://data/passage_scars.json")
 	_merge_pack("res://data/room_trace.json")
+	## V3a feel.* — Designer draft, pending Texts approval. Not a Texts or UIUX stamp.
+	_merge_pack("res://data/feel.json")
 	## P96, P97, P100, and P101 chrome are interim drafts. None of these packs is a Texts or canon approval.
 	_merge_pack("res://data/between_shifts.json")
 	_merge_pack("res://data/decision_receipts.json")

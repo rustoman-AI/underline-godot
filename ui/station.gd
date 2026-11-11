@@ -93,6 +93,7 @@ const YIELD_STEP := {
 	"push": "pushed",
 }
 const ModalDeck = preload("res://ui/modals.gd")
+const FeelFXScript = preload("res://ui/feel/feel_fx.gd")
 const NetworkViewScript = preload("res://ui/network_view.gd")
 const ArtPack = preload("res://ui/art_pack.gd")
 const Brief = preload("res://sim/brief.gd")
@@ -392,7 +393,7 @@ var settings_from_game := false
 var filling_settings := false
 var stock_shown := {}
 var stock_week := 0
-var stock_tween: Tween
+var feel
 var modal_tween: Tween
 ## Slides the People drawer open and shut.
 var drawer_tween: Tween
@@ -1713,6 +1714,7 @@ func _build() -> void:
 	yard.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(yard)
 	_build_yard_trace()
+	_build_feel()
 	network_view = NetworkViewScript.new()
 	network_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	network_view.visible = false
@@ -1828,6 +1830,26 @@ func _build() -> void:
 	_build_source_panel()
 
 	_build_overlay()
+
+
+func _build_feel() -> void:
+	var node := FeelFXScript.new()
+	node.name = "Feel"
+	node.station = self
+	feel = node
+	add_child(node)
+
+
+func _feel_fly_landed(key: String, lab: Node) -> void:
+	if feel != null:
+		feel.stock.pop_landed(key)
+	if is_instance_valid(lab):
+		lab.queue_free()
+
+
+func _exit_tree() -> void:
+	if feel != null:
+		feel.reset()
 
 
 func _tool(kind: String, caption: String, cb: Callable) -> Button:
@@ -3414,19 +3436,8 @@ func _paint_stocks(roll: bool) -> void:
 				settled = false
 		if settled:
 			return
-	if stock_tween != null:
-		stock_tween.kill()
-	var can_roll := roll and not _motion_off()
-	if can_roll:
-		stock_tween = create_tween()
-	for key in STOCK_KEYS:
-		var target := float(int(game.stock.get(key, 0)))
-		var start := float(stock_shown.get(key, target))
-		stock_shown[key] = target
-		if can_roll and not is_equal_approx(start, target):
-			stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), start, target, 0.45)
-		else:
-			_set_stock_text(target, str(key))
+	if feel != null:
+		feel.stock.sync(game, roll)
 
 
 func _set_stock_text(value: float, key: String) -> void:
@@ -8639,19 +8650,14 @@ func _hide_undo_toast() -> void:
 func note_spend(cost: Dictionary) -> void:
 	if game == null:
 		return
-	if stock_tween != null:
-		stock_tween.kill()
-	stock_tween = create_tween()
 	for key in cost:
 		var spent := int(cost[key])
 		if spent == 0 or not chips.has(str(key)):
 			continue
-		var target := float(int(game.stock.get(key, 0)))
-		var start := target + float(spent)
-		stock_shown[str(key)] = target
 		chips[str(key)].delta.text = "-%d" % spent
 		chips[str(key)].delta.add_theme_color_override("font_color", DELTA_DOWN)
-		stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), start, target, 0.45)
+	if feel != null:
+		feel.stock.sync(game, true)
 
 
 func _sync_obs_block() -> void:
@@ -10984,25 +10990,18 @@ func _choice_tally() -> void:
 func note_change(changes: Dictionary) -> void:
 	if game == null or changes.is_empty():
 		return
-	if stock_tween != null:
-		stock_tween.kill()
-	stock_tween = create_tween()
 	var any := false
 	for key in changes:
 		if not chips.has(str(key)):
 			continue
 		var d := int(changes[key])
-		var target := float(int(game.stock.get(key, 0)))
-		stock_shown[str(key)] = target
 		chips[str(key)].delta.text = "%+d" % d
 		chips[str(key)].delta.add_theme_color_override("font_color", DELTA_UP if d > 0 else DELTA_DOWN)
-		stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), target - float(d), target, 0.45)
 		any = true
-	if not any:
-		stock_tween.kill()
-		stock_tween = null
-		return
-	delta_hold_until = Time.get_ticks_msec() + 1500
+	if any:
+		delta_hold_until = Time.get_ticks_msec() + 1500
+	if feel != null:
+		feel.stock.sync(game, true)
 
 
 func _change_anchor(key: String) -> Vector2:
@@ -11029,6 +11028,8 @@ func _show_perk_floats() -> void:
 
 
 func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:
+	if feel != null:
+		feel.stock.mark_flown(changes)
 	if Settings.reduced():
 		return
 	var start := from_global - get_global_rect().position
@@ -11056,7 +11057,7 @@ func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:
 		hop.tween_interval(0.06 * float(i))
 		hop.tween_property(lab, "position", goal - Vector2(10.0, 14.0), 0.75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 		hop.tween_property(lab, "modulate:a", 0.0, 0.25)
-		hop.tween_callback(lab.queue_free)
+		hop.tween_callback(_feel_fly_landed.bind(str(key), lab))
 		i += 1
 
 
@@ -15131,6 +15132,8 @@ func _begin_new_game(intro: bool) -> void:
 	hold_dawn = false
 	stock_week = 0
 	stock_shown = {}
+	if feel != null:
+		feel.reset()
 	hints_late = false
 	_hide_hint()
 	_refresh()
@@ -15155,6 +15158,8 @@ func _continue_game() -> void:
 		menu_layer.visible = false
 	stock_week = 0
 	stock_shown = {}
+	if feel != null:
+		feel.reset()
 	hold_dawn = false
 	_loaded_hints()
 	Sound.play("confirm")
@@ -15186,6 +15191,8 @@ func _manual_load() -> void:
 		return
 	stock_week = 0
 	stock_shown = {}
+	if feel != null:
+		feel.reset()
 	_loaded_hints()
 	Sound.play("confirm")
 	_close_card()
