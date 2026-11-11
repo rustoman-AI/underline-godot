@@ -76,6 +76,9 @@ func _run() -> void:
 		await _section_3()
 	await _section_4()
 	await _section_5()
+	await _section_6()
+	await _section_7()
+	await _section_9()
 	await _section_13()
 	_section_14()
 	_finish()
@@ -387,6 +390,279 @@ func _section_5() -> void:
 	_section_done(mark, "SECTION 5 reduce")
 
 
+func _section_6() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	var decisions := int(game.decisions)
+	var journal := game.journal.size()
+	var finishes := int(st.feel_pick_finishes)
+	_queue_check(game, "white", 8, false)
+	st._pick_event("feel_gate", "try")
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("check reveal did not open")
+	else:
+		_click_check()
+		_click_check()
+		await create_timer(0.5).timeout
+		if int(st.feel_pick_finishes) != finishes + 1:
+			_bad("finish ran %d" % [int(st.feel_pick_finishes) - finishes])
+		if int(game.decisions) != decisions + 1:
+			_bad("decisions %d" % [int(game.decisions) - decisions])
+		if game.journal.size() != journal + 1:
+			_bad("journal %d" % [game.journal.size() - journal])
+		if st.feel.check.open:
+			_bad("reveal still open")
+	_section_done(mark, "SECTION 6 check input")
+
+
+func _section_7() -> void:
+	var mark := bad.size()
+	for lang in ["en", "ru"]:
+		Copy.set_lang(lang)
+		st._refresh()
+		for size in [Vector2i(1920, 1080), Vector2i(1536, 864)]:
+			await _apply_view(size)
+			await _overlap_case("%s %s" % [lang, size])
+		await _apply_view(Vector2i(1920, 1080))
+		st.get_window().content_scale_factor = 1.25
+		st.get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		st.get_window().content_scale_size = Vector2i(1920, 1080)
+		for _i in 3:
+			await process_frame
+		await _overlap_case("%s 125" % lang)
+	Copy.set_lang("en")
+	_arm_feel(true, false)
+	_section_done(mark, "SECTION 7 overlap")
+
+
+func _section_9() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	var stale := {"name": "Stale", "skill": "wits", "color": "white", "success": true, "outcome": "stale line"}
+	game.last_check = stale.duplicate()
+	var state := int(game.check_rng.state)
+	_queue_plain(game)
+	st._pick_event("feel_plain", "ok")
+	if st.feel.check.open:
+		_bad("stale last_check opened a reveal")
+		st.feel.check.reset()
+	if int(game.check_rng.state) != state:
+		_bad("plain choice moved check_rng")
+	game.week = 3
+	game.last_check = stale.duplicate()
+	state = int(game.check_rng.state)
+	var red_early := _check_choice("red", 10, false)
+	game._resolve_check({"id": "feel_red_early", "title": "Early"}, red_early, "")
+	if int(game.check_rng.state) != state:
+		_bad("red before week 6 rolled")
+	if str(game.last_check.get("name", "")) != "Stale":
+		_bad("red before week 6 replaced last_check")
+	game.over = ""
+	game.week = 8
+	var finishes := int(st.feel_pick_finishes)
+	game.watcher = func(what, _data):
+		if str(what) == "action":
+			game.over = "hope"
+	_queue_check(game, "white", 8, false)
+	st._pick_event("feel_gate", "try")
+	game.watcher = Callable()
+	if st.feel.check.open:
+		_bad("game.over still revealed")
+		st.feel.check.reset()
+	if int(st.feel_pick_finishes) != finishes + 1:
+		_bad("over path skipped finish")
+	game.over = ""
+	_queue_check(game, "white", 4, true)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or str(st.feel.check.banner.text) != Copy.t("feel.check.bet"):
+		_bad("bet banner [%s]" % [st.feel.check.banner.text if st.feel.check.banner != null else ""])
+	if st.feel.check.full_reveal:
+		_bad("bet used the full reveal")
+	if str(st.feel.check.banner.text).find(" ") < 0 and false:
+		pass
+	st.feel.check.reset()
+	game.over = ""
+	game.week = 8
+	_queue_check(game, "red", 4, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or not st.feel.check.full_reveal:
+		_bad("red check was not a full reveal")
+	elif st.feel.check.planned_sec < 2.0 or st.feel.check.planned_sec > 2.6:
+		_bad("full duration %s" % st.feel.check.planned_sec)
+	st.feel.check.reset()
+	var likely := _difficulty_for(game, "white", 60)
+	_queue_check(game, "white", likely, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.full_reveal:
+		_bad("likely white used the full reveal")
+	elif st.feel.check.planned_sec < 0.55 or st.feel.check.planned_sec > 0.7:
+		_bad("short duration %s" % st.feel.check.planned_sec)
+	st.feel.check.reset()
+	var unlikely := _difficulty_for(game, "white", 0)
+	_queue_check(game, "white", unlikely, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or not st.feel.check.full_reveal:
+		_bad("unlikely white was short")
+	st.feel.check.reset()
+	game.last_check = {"bet": true, "d1": 6, "d2": 6, "success": true, "box": true, "snake": false}
+	var box_line: String = st._check_result_line()
+	if box_line != Copy.t("Double 6. The bet wins."):
+		_bad("double 6 line [%s]" % box_line)
+	st.feel.check.start(game.last_check.duplicate(true), {"bet": {}}, Callable())
+	if not is_equal_approx(st.feel.check.punch, 1.8):
+		_bad("box punch %s" % st.feel.check.punch)
+	if st.feel.check.subline.text != box_line:
+		_bad("box subline [%s]" % st.feel.check.subline.text)
+	st.feel.check.reset()
+	game.last_check = {"bet": true, "d1": 1, "d2": 1, "success": false, "box": false, "snake": true}
+	if st._check_result_line() != Copy.t("Double 1. The bet loses."):
+		_bad("double 1 line [%s]" % st._check_result_line())
+	_arm_feel(true, true)
+	_queue_check(game, "white", likely, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.stamp_box == null or not st.feel.check.stamp_box.visible:
+		_bad("reduced plate missing stamp")
+	elif not is_equal_approx(st.feel.check.stamp.scale.x, 1.0):
+		_bad("reduced stamp scaled")
+	st.feel.check.reset()
+	_arm_feel(true, false)
+	game.over = ""
+	_section_done(mark, "SECTION 9 check reveal")
+
+
+func _overlap_case(tag: String) -> void:
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	if st.toast_plate != null:
+		st.toast_plate.visible = false
+	await process_frame
+	if st.toast_plate != null:
+		st.toast_plate.visible = false
+	_queue_check(game, "red", 10, false)
+	st._pick_event("feel_gate", "try")
+	await process_frame
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("%s reveal missing" % tag)
+		return
+	if st.toast_plate != null and st.toast_plate.visible:
+		_bad("%s toast visible" % tag)
+	if st.notice_layer != null:
+		_bad("%s notice open" % tag)
+	if st.feel.layer.z_index >= 90:
+		_bad("%s z %s" % [tag, st.feel.layer.z_index])
+	var view: Rect2 = st.get_viewport_rect()
+	var plate: Control = st.feel.check.plate
+	if plate == null:
+		_bad("%s no plate" % tag)
+	else:
+		var rect := plate.get_global_rect()
+		if not view.encloses(rect) and not view.grow(-1).encloses(rect):
+			if rect.position.x < -1.0 or rect.position.y < -1.0 or rect.end.x > view.size.x + 1.0 or rect.end.y > view.size.y + 1.0:
+				_bad("%s plate outside %s view %s" % [tag, rect, view])
+		for node_name in ["away_badge", "sick_badge", "undo_toast", "rail_chip", "radio_panel"]:
+			var node: Control = st.get(node_name)
+			if node != null and node.visible and _hits(rect, node.get_global_rect()):
+				_bad("%s hits %s" % [tag, node_name])
+	st.feel.check.reset()
+
+
+func _shot_check(tag: String, path: String, color: String) -> void:
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	_queue_check(game, color, 8 if color == "red" else 4, false)
+	st._pick_event("feel_gate", "try")
+	await process_frame
+	if not host_reduced():
+		await create_timer(0.95).timeout
+	_save_view(path)
+	print("SHOT check %s open %s" % [tag, st.feel.check.open])
+	st.feel.check.reset()
+
+
+func host_reduced() -> bool:
+	return st.feel.reduced()
+
+
+func _queue_check(game: Game, color: String, difficulty: int, bet: bool) -> void:
+	game.pending = [_check_event(color, difficulty, bet)]
+
+
+func _queue_plain(game: Game) -> void:
+	game.pending = [{
+		"id": "feel_plain",
+		"title": {"en": "A plain errand", "ru": "Обычное дело"},
+		"text": {"en": "Nothing to roll.", "ru": "Броска нет."},
+		"choices": [{"id": "ok", "label": {"en": "Go", "ru": "Идём"}}],
+	}]
+
+
+func _check_event(color: String, difficulty: int, bet: bool) -> Dictionary:
+	return {
+		"id": "feel_gate",
+		"title": {"en": "A test", "ru": "Проверка"},
+		"text": {"en": "Roll.", "ru": "Бросок."},
+		"choices": [_check_choice(color, difficulty, bet)],
+	}
+
+
+func _check_choice(color: String, difficulty: int, bet: bool) -> Dictionary:
+	if bet:
+		return {
+			"id": "try",
+			"label": {"en": "Bet", "ru": "Ставка"},
+			"bet": {"target": 7, "win": 1},
+		}
+	return {
+		"id": "try",
+		"label": {"en": "Try", "ru": "Пробовать"},
+		"check": {"skill": "wits", "difficulty": difficulty, "color": color},
+		"success": {"text": "The line holds."},
+		"failure": {"text": "The line fails."},
+	}
+
+
+func _difficulty_for(game: Game, color: String, want: int) -> int:
+	var skill := "wits"
+	var who := str(game.best_check_resident(skill))
+	var bonus := int(game.check_bonus(skill, who))
+	var best := 10
+	var best_gap := 999
+	for difficulty in range(2, 28):
+		var chance := int(game._check_chance_bonus(bonus, difficulty, color))
+		var gap := absi(chance - want)
+		if want >= 60 and chance >= 60 and gap < best_gap:
+			best = difficulty
+			best_gap = gap
+		elif want < 40 and chance < 40 and gap < best_gap:
+			best = difficulty
+			best_gap = gap
+	return best
+
+
+func _click_check() -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	st._input(ev)
+
+
+func _hits(a: Rect2, b: Rect2) -> bool:
+	return a.intersects(b, true)
+
+
 func _section_12() -> void:
 	var mark := bad.size()
 	var path := Settings.path
@@ -425,6 +701,9 @@ func _section_13() -> void:
 	var mark := bad.size()
 	_arm_feel(true, false)
 	_park(st)
+	if st.feel != null:
+		st.feel.reset()
+	await process_frame
 	var before := _node_count(st.feel)
 	var pool := int(st.feel.stock.pool.size())
 	st.feel.stock.peak_chips = 0
@@ -495,7 +774,17 @@ func _shots() -> void:
 	_save_view("/opt/cursor/artifacts/feel_f1_counters_reduce.png")
 	Settings.reduce_motion = false
 	_arm_feel(true, false)
-	print("SHOTS wrote feel_f1")
+	await _shot_check("en", "/opt/cursor/artifacts/feel_f2_check_en.png", "red")
+	Copy.set_lang("ru")
+	st._refresh()
+	await _shot_check("ru", "/opt/cursor/artifacts/feel_f2_check_ru.png", "red")
+	Copy.set_lang("en")
+	st._refresh()
+	_arm_feel(true, true)
+	await _shot_check("reduce", "/opt/cursor/artifacts/feel_f2_check_reduce.png", "white")
+	Settings.reduce_motion = false
+	_arm_feel(true, false)
+	print("SHOTS wrote feel_f1 and feel_f2")
 
 
 func _bump_shot(tag: String, path: String) -> void:

@@ -394,6 +394,7 @@ var filling_settings := false
 var stock_shown := {}
 var stock_week := 0
 var feel
+var feel_pick_finishes := 0
 var modal_tween: Tween
 ## Slides the People drawer open and shut.
 var drawer_tween: Tween
@@ -10858,6 +10859,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if choice.has("check"):
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
 	_checkpick_clear()
+	var state_before := int(game.check_rng.state)
 	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
 	var snapshot := _tally_snapshot()
 	var regard_before: Dictionary = game.standing.duplicate()
@@ -10875,6 +10877,14 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		if moved != 0:
 			regard[str(fid)] = moved
 	_record_choice(title, game.line_of(choice, "label"), changes, regard)
+	var fresh := (choice.has("check") or choice.has("bet")) and int(game.check_rng.state) != state_before
+	if fresh and game.over == "" and feel != null and feel.check != null and feel.check.start(game.last_check.duplicate(true), choice, _finish_pick.bind(before, changes, title, event_id, choice_id, offered, choice)):
+		return
+	_finish_pick(before, changes, title, event_id, choice_id, offered, choice)
+
+
+func _finish_pick(before: String, changes: Dictionary, title: String, event_id: String, choice_id: String, offered: Dictionary, choice: Dictionary) -> void:
+	feel_pick_finishes += 1
 	_refresh()
 	note_change(changes)
 	if card != null and dim.visible:
@@ -15972,6 +15982,9 @@ func _end_log() -> void:
 
 func _input(event: InputEvent) -> void:
 	if _life_epilogue_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if feel != null and feel.handle_input(event):
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton or event is InputEventKey or event is InputEventMouseMotion or event is InputEventScreenTouch:

@@ -5,11 +5,13 @@ extends Node
 
 const Style = preload("res://ui/feel/feel_style.gd")
 const StockScript = preload("res://ui/feel/feel_stock.gd")
+const CheckScript = preload("res://ui/feel/feel_check.gd")
 
 var station
 var layer: Control
 var chips_root: Control
 var stock
+var check
 var jitter := RandomNumberGenerator.new()
 var perf_n := 0
 var perf_total_us := 0
@@ -24,6 +26,16 @@ func _ready() -> void:
 	stock.host = self
 	stock.station = station
 	stock.build_pool()
+	check = CheckScript.new()
+	check.name = "FeelCheck"
+	check.host = self
+	check.station = station
+	check.visible = false
+	check.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	check.set_anchors_preset(Control.PRESET_FULL_RECT)
+	check.z_as_relative = false
+	check.z_index = Style.Z_CHECK
+	layer.add_child(check)
 
 
 func enabled() -> bool:
@@ -45,14 +57,18 @@ func reduced() -> bool:
 
 
 func busy() -> bool:
-	return false
+	return check != null and check.open
 
 
-func handle_input(_event: InputEvent) -> bool:
+func handle_input(event: InputEvent) -> bool:
+	if check != null and check.open:
+		return check.handle_input(event)
 	return false
 
 
 func reset() -> void:
+	if check != null:
+		check.reset()
 	if stock != null:
 		stock.reset()
 	perf_n = 0
