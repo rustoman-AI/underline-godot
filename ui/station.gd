@@ -19003,6 +19003,10 @@ class Yard extends Control:
 		return Rect2(x, y, w, 28.0)
 
 	func _get_tooltip(at_position: Vector2) -> String:
+		for tip in _name_tips:
+			var hit: Rect2 = tip["rect"]
+			if hit.has_point(at_position):
+				return str(tip["full"])
 		if RoomTrace.enabled and trace_rect.has_point(at_position):
 			var glance := RoomTrace.tip()
 			if glance != "":
@@ -19240,143 +19244,350 @@ class Yard extends Control:
 				flip = true
 		_draw_anim("walk", body, x, foot_y, body_h, id, flip, frame)
 
-	## Static names on the platform. Known sits under them when memory ≥ 40. Figures stay where they are.
+	var _name_tips: Array = []
+
+	## Names on the platform. Size stays at least 11. Two rows when one row would overlap.
+	## Known is a row under the names when the figures leave room, otherwise a plate beside the name.
 	func _draw_name_tokens(rect: Rect2, ids: Array) -> void:
+		_name_tips = []
 		var n := mini(4, ids.size())
 		if n <= 0:
 			return
 		var font: Font = ThemeDB.fallback_font
 		if station.body_font != null:
 			font = station.body_font
-		var names := PackedStringArray()
+		var people: Array = []
 		for i in n:
 			var person: Dictionary = station.game.people.get(str(ids[i]), {})
 			if person.is_empty():
 				continue
-			names.append(str(station._resident_name(person)))
-		var count := names.size()
-		if count <= 0:
+			people.append({
+				"full": str(station._resident_name(person)),
+				"known": station.game.is_known(person),
+			})
+		if people.is_empty():
 			return
-		## Room sign is 22 px of screen under a 4 px inset. Seven more screen px keep
-		## the ink at least 7 px under that border at a small size. The em top stays put
-		## when the size drops, so the sign gap does not shrink.
-		var em_top := rect.position.y + 33.0 / maxf(zoom, 0.01)
+		var layout := _name_layout(font, people, rect)
+		var size := int(layout["size"])
+		var rows: Array = layout["rows"]
+		var ascent := font.get_ascent(size)
+		var descent := font.get_descent(size)
+		## 26 screen px clears the room sign. Five more keep the ink at least 7 px under its border.
+		var y := rect.position.y + _screen(31.0) + ascent
+		## Six screen px between the two inks. The em box is taller than the ink, so the step is not a full line.
+		var step := ascent * 0.72 + _screen(6.0)
+		var inline := false
+		if rows.size() > 1:
+			var lower := y + step * float(rows.size() - 1) + descent
+			var known := 0
+			for entry in people:
+				if bool(entry.known):
+					known += 1
+			inline = known > 0 and not _known_row_fits(font, rect, lower, known)
+		for r in rows.size():
+			_draw_name_row(font, rows[r], size, rect, y + step * float(r), inline)
+		if not inline:
+			var lowest := y + step * float(rows.size() - 1) + descent
+			_draw_known_plates(rect, font, people, lowest)
+
+	## One row at 13, 12 or 11 when the names do not overlap. Otherwise the same sizes
+	## on two staggered rows. 11 is the floor.
+	func _name_layout(font: Font, people: Array, rect: Rect2) -> Dictionary:
+		var staggered := _stagger_names(people)
+		for size in [13, 12, 11]:
+			if _rows_fit(font, [people], size, rect, false):
+				return {"size": size, "rows": [people]}
+			if staggered.size() > 1 and _rows_fit(font, staggered, size, rect, false):
+				return {"size": size, "rows": staggered}
+		if staggered.size() > 1:
+			return {"size": 11, "rows": staggered}
+		return {"size": 11, "rows": [people]}
+
+	## Even indexes on the upper row, odd indexes on the lower row.
+	func _stagger_names(people: Array) -> Array:
+		var top: Array = []
+		var bottom: Array = []
+		for i in people.size():
+			if i % 2 == 0:
+				top.append(people[i])
+			else:
+				bottom.append(people[i])
+		var rows: Array = []
+		if not top.is_empty():
+			rows.append(top)
+		if not bottom.is_empty():
+			rows.append(bottom)
+		return rows
+
+	func _rows_fit(font: Font, rows: Array, size: int, rect: Rect2, inline: bool) -> bool:
+		var gap := _screen(6.0)
+		var right := _label_right(rect, rect.position.y + _screen(20.0), _screen(40.0))
+		var inner := maxf(8.0, right - rect.position.x - 2.0)
+		for row in rows:
+			var width := 0.0
+			var count := 0
+			for entry in row:
+				width += font.get_string_size(str(entry.full), HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+				count += 1
+				if inline and bool(entry.known):
+					var plate := _plate_width(font, 11)
+					if plate > 0.0:
+						width += gap + plate
+			if count > 1:
+				width += gap * float(count - 1)
+			if width > inner + 0.5:
+				return false
+		return true
+
+	func _draw_name_row(font: Font, row: Array, size: int, rect: Rect2, baseline: float, inline: bool) -> void:
+		if row.is_empty():
+			return
+		var gap := _screen(6.0)
 		var left := rect.position.x + 2.0
-		var min_gap := 6.0 / maxf(zoom, 0.01)
-		var name_px := _name_px(font, names, rect, em_top, min_gap)
-		var ink_h := font.get_ascent(name_px) + font.get_descent(name_px)
-		var right := _label_right(rect, em_top, ink_h)
-		var inner := maxf(8.0, right - left)
-		var widths: Array[float] = []
-		var sum := 0.0
-		for name in names:
-			var w := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, name_px).x
-			widths.append(w)
-			sum += w
-		var use_gap := min_gap
-		if count > 1:
-			use_gap = maxf(min_gap, (inner - sum) / float(count - 1))
-		var row_w := sum + use_gap * float(count - 1)
-		var x := left
-		if row_w <= inner:
-			x = left + (inner - row_w) * 0.5
-		var y := minf(em_top + font.get_ascent(name_px), rect.end.y - 4.0)
-		for i in count:
-			draw_string(font, Vector2(x, y), names[i], HORIZONTAL_ALIGNMENT_LEFT, -1, name_px, Color("f4efe4"))
-			x += widths[i] + use_gap
-		_draw_known_plates(rect, font, ids, n, y + font.get_descent(name_px))
+		var room_right := rect.end.x - 2.0
+		var wall_right := _label_right(rect, baseline - font.get_ascent(size), font.get_ascent(size) + font.get_descent(size))
+		var span_right := minf(room_right, wall_right)
+		var ascent := font.get_ascent(size)
+		var descent := font.get_descent(size)
+		var natural: Array[float] = []
+		var natural_sum := 0.0
+		for entry in row:
+			var w := font.get_string_size(str(entry.full), HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			natural.append(w)
+			natural_sum += w
+		var gaps_w := gap * float(maxi(row.size() - 1, 0))
+		var col_w := (span_right - left) / float(row.size())
+		var packed := natural_sum + gaps_w <= (span_right - left) + 0.5
+		var cursor := left
+		if packed:
+			cursor += maxf(0.0, (span_right - left - natural_sum - gaps_w) * 0.5)
+		for i in row.size():
+			var entry: Dictionary = row[i]
+			var col_x := cursor if packed else left + col_w * float(i)
+			var col_right := (cursor + natural[i]) if packed else minf(span_right, col_x + col_w - gap * 0.5)
+			var full := str(entry.full)
+			var shown := full
+			var name_budget := maxf(8.0, col_right - col_x)
+			if font.get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > name_budget:
+				shown = _ellipsis_name(font, full, size, name_budget)
+			var name_w := font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			var plate := {}
+			if inline and bool(entry.known):
+				plate = _inline_plate(font, col_x, col_right, room_right, name_w, gap, wall_right)
+				if plate.is_empty():
+					var reserve := _plate_width(font, 8) + gap
+					var budget := maxf(8.0, col_right - col_x - reserve)
+					var shorter := _ellipsis_name(font, full, size, budget)
+					var shorter_w := font.get_string_size(shorter, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+					var retry: Dictionary = _inline_plate(font, col_x, col_right, room_right, shorter_w, gap, wall_right)
+					if not retry.is_empty():
+						shown = shorter
+						name_w = shorter_w
+						plate = retry
+			var name_x := col_x + maxf(0.0, (minf(col_w, col_right - col_x) - name_w) * 0.5)
+			if not plate.is_empty() and bool(plate.get("before", false)):
+				name_x = float(plate["x"]) + float(plate["w"]) + gap
+			elif not plate.is_empty():
+				name_x = col_x
+			if name_x < col_x:
+				name_x = col_x
+			if name_x + name_w > col_right:
+				name_x = maxf(col_x, col_right - name_w)
+			_draw_name_ink(font, Vector2(name_x, baseline), shown, size)
+			_remember_name(name_x, baseline, name_w, ascent, descent, full)
+			if not plate.is_empty():
+				_draw_known_plate(font, Rect2(float(plate["x"]), baseline - ascent, float(plate["w"]), ascent + descent), int(plate["size"]))
+			cursor += name_w + gap
 
-	## Largest size whose ink fits left of the line wall and still leaves a plate above the figures.
-	func _name_px(font: Font, names: PackedStringArray, rect: Rect2, em_top: float, min_gap: float) -> int:
-		var plate_need := font.get_ascent(4) + font.get_descent(4)
-		var gaps := float(maxi(names.size() - 1, 0))
-		var floor_y := _label_floor(rect)
-		for size in range(13, 3, -1):
-			var sum := 0.0
-			for name in names:
-				sum += font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-			var ink_h := font.get_ascent(size) + font.get_descent(size)
-			var inner := _label_right(rect, em_top, ink_h) - rect.position.x - 2.0
-			if sum + min_gap * gaps > inner:
-				continue
-			var ink_bottom := em_top + ink_h
-			var below := floor_y - (ink_bottom + 6.0 / maxf(zoom, 0.01))
-			if below + 0.5 < plate_need and size > 4:
-				continue
-			return size
-		return 4
+	## Known plate beside this name. It stays left of the line wall and does not push the name out of the room.
+	func _inline_plate(font: Font, col_x: float, col_right: float, room_right: float, name_w: float, gap: float, wall_right: float) -> Dictionary:
+		for ps in [11, 10, 9, 8]:
+			var fitted := _fit_plate(font, ps)
+			var pw := float(fitted["w"])
+			var after := col_x + name_w + gap
+			if after + pw <= minf(col_right, wall_right) + 0.5:
+				return {"x": after, "w": pw, "size": ps, "before": false}
+			if col_x + pw + gap + name_w <= col_right + 0.5 and col_x + pw <= wall_right - gap:
+				return {"x": col_x, "w": pw, "size": ps, "before": true}
+		return {}
 
-	## One row of Known plates under the names. The row stops above the standing figures
-	## and short of the line wall. 6 screen px between rects leaves 4 px once the border is drawn.
-	func _draw_known_plates(rect: Rect2, font: Font, ids: Array, n: int, ink_bottom: float) -> void:
+	## Full names, then a smaller Known plate, then an ellipsis. Never shorter than first name plus initial.
+	func _fit_row(font: Font, row: Array, size: int, shown: PackedStringArray, name_w: Array[float], plate_w: Array[float], plate_size: Array[int], room_inner: float, wall_inner: float, gap: float) -> void:
+		if _row_width(shown, name_w, plate_w, gap) <= room_inner + 0.5 and _plates_clear_wall(name_w, plate_w, gap, wall_inner):
+			return
+		for ps in range(10, 7, -1):
+			var changed := false
+			for i in row.size():
+				if plate_w[i] <= 0.0:
+					continue
+				var fitted := _fit_plate(font, ps)
+				if float(fitted["w"]) < plate_w[i]:
+					plate_w[i] = float(fitted["w"])
+					plate_size[i] = int(fitted["size"])
+					changed = true
+			if changed and _row_width(shown, name_w, plate_w, gap) <= room_inner + 0.5 and _plates_clear_wall(name_w, plate_w, gap, wall_inner):
+				return
+		for i in row.size():
+			var budget := _name_budget(i, name_w, plate_w, gap, room_inner)
+			if name_w[i] <= budget + 0.5:
+				continue
+			var text := _ellipsis_name(font, str(row[i].full), size, budget)
+			shown[i] = text
+			name_w[i] = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+
+	func _row_width(shown: PackedStringArray, name_w: Array[float], plate_w: Array[float], gap: float) -> float:
+		var total := 0.0
+		for i in shown.size():
+			total += name_w[i]
+			if plate_w[i] > 0.0:
+				total += gap + plate_w[i]
+		if shown.size() > 1:
+			total += gap * float(shown.size() - 1)
+		return total
+
+	func _plates_clear_wall(name_w: Array[float], plate_w: Array[float], gap: float, wall_inner: float) -> bool:
+		var x := 0.0
+		for i in name_w.size():
+			x += name_w[i]
+			if plate_w[i] > 0.0:
+				x += gap + plate_w[i]
+				if x > wall_inner + 0.5:
+					return false
+			if i < name_w.size() - 1:
+				x += gap
+		return true
+
+	func _name_budget(index: int, name_w: Array[float], plate_w: Array[float], gap: float, inner: float) -> float:
+		var others := 0.0
+		for i in name_w.size():
+			if i == index:
+				if plate_w[i] > 0.0:
+					others += gap + plate_w[i]
+				continue
+			others += name_w[i]
+			if plate_w[i] > 0.0:
+				others += gap + plate_w[i]
+		if name_w.size() > 1:
+			others += gap * float(name_w.size() - 1)
+		return maxf(8.0, inner - others)
+
+	func _ellipsis_name(font: Font, full: String, size: int, max_w: float) -> String:
+		if font.get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= max_w:
+			return full
+		var ell := "…"
+		var floor_s := _first_plus_initial(full)
+		var shortest := floor_s + ell
+		if font.get_string_size(shortest, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > max_w:
+			return shortest
+		var best := shortest
+		var start := floor_s.length()
+		for n in range(start, full.length()):
+			var candidate := full.substr(0, n).rstrip(" ") + ell
+			if font.get_string_size(candidate, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x <= max_w:
+				best = candidate
+			else:
+				break
+		return best
+
+	func _first_plus_initial(full: String) -> String:
+		var parts := full.split(" ", false)
+		if parts.size() < 2:
+			return full
+		var initial := str(parts[1]).substr(0, 1)
+		return str(parts[0]) + " " + initial
+
+	func _draw_name_ink(font: Font, baseline: Vector2, text: String, size: int) -> void:
+		var shadow := baseline + Vector2(_screen(1.0), _screen(1.0))
+		draw_string(font, shadow, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0.05, 0.04, 0.03, 0.8))
+		draw_string(font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color("f4efe4"))
+
+	func _remember_name(x: float, baseline: float, width: float, ascent: float, descent: float, full: String) -> void:
+		var origin := pan + Vector2(x, baseline - ascent) * zoom
+		var tip_rect := Rect2(origin, Vector2(width, ascent + descent) * zoom)
+		_name_tips.append({"rect": tip_rect, "full": full})
+
+	func _known_row_fits(font: Font, rect: Rect2, ink_bottom: float, known: int) -> bool:
+		return int(_plate_choice(font, rect, ink_bottom, known)["size"]) > 0
+
+	func _plate_choice(font: Font, rect: Rect2, ink_bottom: float, known: int) -> Dictionary:
 		var tag := Copy.t("named.known")
-		var known := 0
-		for i in n:
-			var person: Dictionary = station.game.people.get(str(ids[i]), {})
-			if not person.is_empty() and station.game.is_known(person):
-				known += 1
-		if known == 0:
-			return
-		var gap := 6.0 / maxf(zoom, 0.01)
-		## Five screen px under the em descent is six under the visible ink.
-		var top := ink_bottom + 5.0 / maxf(zoom, 0.01)
+		var gap := _screen(6.0)
+		var top := ink_bottom + _screen(2.0)
 		var floor_y := _label_floor(rect)
-		var max_h := floor_y - top
-		if max_h < 3.0:
-			return
 		var wall := _line_wall_dest(rect)
 		var right := rect.end.x - 2.0
-		if wall.size.x > 1.0 and top < wall.end.y and top + minf(22.0, max_h) > wall.position.y:
+		if wall.size.x > 1.0 and top < wall.end.y:
 			right = minf(right, wall.position.x - gap)
 		var left := rect.position.x + 2.0
 		var inner := maxf(8.0, right - left)
-		var gaps := gap * float(known - 1)
-		var each := maxf(4.0, (inner - gaps) / float(known))
-		var min_pad := 4.0 / maxf(zoom, 0.01)
-		var size := 4
-		var text_w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		var pad := minf(min_pad, maxf(0.0, each - text_w))
-		var plate_w := minf(each, text_w + pad)
-		var em := font.get_ascent(size) + font.get_descent(size)
-		var plate_h := minf(max_h, em + 2.0 / maxf(zoom, 0.01))
-		for try_size in range(12, 3, -1):
-			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, try_size).x
-			var try_em := font.get_ascent(try_size) + font.get_descent(try_size)
-			var try_h := try_em + 2.0 / maxf(zoom, 0.01)
-			if try_h > max_h or w + min_pad > each:
-				continue
-			size = try_size
-			text_w = w
-			pad = minf(16.0, each - w)
-			plate_w = w + pad
-			em = try_em
-			plate_h = try_h
-			break
-		var row_w := plate_w * float(known) + gaps
-		var x := left + maxf(0.0, (inner - row_w) * 0.5)
-		var ascent := font.get_ascent(size)
-		var descent := font.get_descent(size)
-		var text_y := top + (plate_h - (ascent + descent)) * 0.5 + ascent
+		var each := inner
+		if known > 1:
+			each = (inner - gap * float(known - 1)) / float(known)
+		var size := 0
+		var plate_h := 0.0
+		for ps in range(12, 4, -1):
+			var text_w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, ps).x
+			var h := font.get_ascent(ps) + font.get_descent(ps)
+			if text_w + _screen(2.0) <= each and top + h <= floor_y:
+				size = ps
+				plate_h = h
+				break
+		return {"size": size, "h": plate_h, "top": top, "left": left, "each": each, "gap": gap}
+
+	func _draw_known_plates(rect: Rect2, font: Font, people: Array, ink_bottom: float) -> void:
+		var known := 0
+		for entry in people:
+			if bool(entry.known):
+				known += 1
+		if known == 0:
+			return
+		var choice := _plate_choice(font, rect, ink_bottom, known)
+		if int(choice["size"]) == 0:
+			return
+		var gap := float(choice["gap"])
+		var plate_w := float(choice["each"])
+		var x := float(choice["left"])
 		for _i in known:
-			var plate := Rect2(x, top, plate_w, plate_h)
-			draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
-			draw_rect(plate, Color("e2a63a"), false, 1.0)
-			draw_string(font, Vector2(plate.position.x + pad * 0.5, text_y), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color("f0c070"))
+			_draw_known_plate(font, Rect2(x, float(choice["top"]), plate_w, float(choice["h"])), int(choice["size"]))
 			x += plate_w + gap
 
-	## Lowest world y a label may use: 6 screen px above the figure head.
+	func _fit_plate(font: Font, want: int) -> Dictionary:
+		var tag := Copy.t("named.known")
+		var size := clampi(want, 8, 12)
+		var text_w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var h := font.get_ascent(size) + font.get_descent(size) + _screen(2.0)
+		return {"size": size, "w": text_w + _screen(6.0), "h": h, "text": text_w}
+
+	func _plate_width(font: Font, size: int) -> float:
+		return float(_fit_plate(font, size)["w"])
+
+	func _draw_known_plate(font: Font, plate: Rect2, size: int) -> void:
+		var tag := Copy.t("named.known")
+		draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
+		draw_rect(plate, Color("e2a63a"), false, 1.0)
+		var ascent := font.get_ascent(size)
+		var descent := font.get_descent(size)
+		var text_y := plate.position.y + (plate.size.y - (ascent + descent)) * 0.5 + ascent
+		var pad := _screen(1.0)
+		draw_string(font, Vector2(plate.position.x + pad, text_y), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color("f0c070"))
+
+	## Lowest world y a label may use. Hair is a little under the cell top; 4 screen
+	## px above that keeps the plates off the standing figures.
 	func _label_floor(rect: Rect2) -> float:
-		var head := rect.end.y - 2.0 - rect.size.y * 0.58
-		return minf(rect.end.y - 2.0, head - 6.0 / maxf(zoom, 0.01))
+		var head := rect.end.y - 2.0 - rect.size.y * 0.58 + 8.0
+		return minf(rect.end.y - 2.0, head - _screen(7.0))
 
 	## Right edge of a label band. Pull in when the band crosses the line wall.
 	func _label_right(rect: Rect2, top: float, height: float) -> float:
 		var right := rect.end.x - 2.0
 		var wall := _line_wall_dest(rect)
-		var gap := 6.0 / maxf(zoom, 0.01)
+		var gap := _screen(5.0)
 		if wall.size.x > 1.0 and top < wall.end.y and top + height > wall.position.y:
 			right = minf(right, wall.position.x - gap)
 		return right
+
+	func _screen(px: float) -> float:
+		return px / maxf(zoom, 0.01)
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))
