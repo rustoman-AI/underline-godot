@@ -12,6 +12,8 @@ var station
 var open := false
 var finished := false
 var full_reveal := false
+## Offer-time band: red, unlikely, uncertain, likely, bet, none, unknown.
+var offer_band := ""
 var punch := Style.CHECK_PUNCH
 var phase := ""
 var planned_sec := 0.0
@@ -27,7 +29,7 @@ var _done := Callable()
 var _tw: Tween
 
 
-func start(last: Dictionary, choice: Dictionary, on_done: Callable) -> bool:
+func start(last: Dictionary, choice: Dictionary, on_done: Callable, offer_full: bool = false) -> bool:
 	if host == null or station == null or not host.enabled():
 		return false
 	if open:
@@ -35,7 +37,8 @@ func start(last: Dictionary, choice: Dictionary, on_done: Callable) -> bool:
 	open = true
 	finished = false
 	_done = on_done
-	full_reveal = _wants_full(last, choice)
+	## The band was fixed before apply. Do not recompute it from the roll.
+	full_reveal = offer_full
 	var boxed := bool(last.get("box", false)) or bool(last.get("snake", false))
 	punch = Style.CHECK_PUNCH_BOX if boxed else Style.CHECK_PUNCH
 	planned_sec = _duration()
@@ -87,23 +90,68 @@ func reset() -> void:
 	_done = Callable()
 
 
-func _wants_full(last: Dictionary, choice: Dictionary) -> bool:
-	if str(last.get("color", "")) == "red":
-		return true
-	if bool(last.get("bet", false)) or not choice.has("check"):
-		return false
+## Read-only. Uses the choice's offer difficulty, skill, and color, and check_chance_projected
+## (a copy of the resident, never stamped). check_preview / check_chance / best_check_resident
+## call check_value, which writes checks onto a live resident, so they are not used here.
+## Full: red, or white Unlikely (under 40). Short: white Uncertain, white Likely, and bets.
+func offer_is_full(game, choice: Dictionary, person_id: String) -> bool:
+	offer_band = _offer_band(game, choice, person_id)
+	return offer_band == "red" or offer_band == "unlikely"
+
+
+func _offer_band(game, choice: Dictionary, person_id: String) -> String:
+	if choice.has("bet") and not choice.has("check"):
+		return "bet"
+	if not choice.has("check"):
+		return "none"
 	var check: Dictionary = choice.get("check", {})
-	var chance := int(station.game._check_chance_bonus(int(last.get("bonus", 0)), int(check.get("difficulty", 10)), str(last.get("color", "white"))))
-	return _band_unlikely(chance)
+	var color := str(check.get("color", "white"))
+	if color == "red":
+		return "red"
+	var skill := str(check.get("skill", "wits"))
+	var difficulty := int(check.get("difficulty", 10))
+	var person := _offer_person(game, person_id, skill)
+	if person.is_empty():
+		return "unknown"
+	var chance := int(game.check_chance_projected(person, skill, difficulty, color))
+	return _band_name(chance)
 
 
-## Same cut as Station._check_band_word: under 40 is Unlikely. No new odds math.
-func _band_unlikely(chance: int) -> bool:
+func _band_name(chance: int) -> String:
 	var word := str(station._check_band_word(chance))
-	var raw := Copy.t("Unlikely.")
+	if word == _bare("Unlikely."):
+		return "unlikely"
+	if word == _bare("Uncertain."):
+		return "uncertain"
+	if word == _bare("Likely."):
+		return "likely"
+	return "unknown"
+
+
+func _bare(source: String) -> String:
+	var raw := Copy.t(source)
 	if raw.ends_with("."):
-		raw = raw.substr(0, raw.length() - 1)
-	return word == raw
+		return raw.substr(0, raw.length() - 1)
+	return raw
+
+
+## Same ranking as best_check_resident, but check_value_projected never writes the resident.
+func _offer_person(game, person_id: String, skill: String) -> Dictionary:
+	if person_id != "" and game.people.has(person_id):
+		return game.people[person_id]
+	var best: Dictionary = {}
+	var best_v := -1
+	var best_named := false
+	for person in game.residents:
+		if game._is_child(person) or int(person.get("sick", 0)) > 0 or int(person.get("absent", 0)) > 0:
+			continue
+		var value := int(game.check_value_projected(person, skill))
+		var named := bool(game._named_cast(person))
+		if value > best_v or (value == best_v and named and not best_named):
+			best_v = value
+			best = person
+			best_named = named
+	return best
 
 
 func _duration() -> float:

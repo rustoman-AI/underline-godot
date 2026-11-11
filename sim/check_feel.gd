@@ -484,8 +484,8 @@ func _section_9() -> void:
 	st._pick_event("feel_gate", "try")
 	if not st.feel.check.open or str(st.feel.check.banner.text) != Copy.t("feel.check.bet"):
 		_bad("bet banner [%s]" % [st.feel.check.banner.text if st.feel.check.banner != null else ""])
-	if st.feel.check.full_reveal:
-		_bad("bet used the full reveal")
+	if st.feel.check.full_reveal or st.feel.check.offer_band != "bet":
+		_bad("bet band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
 	if str(st.feel.check.banner.text).find(" ") < 0 and false:
 		pass
 	st.feel.check.reset()
@@ -493,24 +493,32 @@ func _section_9() -> void:
 	game.week = 8
 	_queue_check(game, "red", 4, false)
 	st._pick_event("feel_gate", "try")
-	if not st.feel.check.open or not st.feel.check.full_reveal:
-		_bad("red check was not a full reveal")
+	if not st.feel.check.open or st.feel.check.offer_band != "red" or not st.feel.check.full_reveal:
+		_bad("red band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
 	elif st.feel.check.planned_sec < 2.0 or st.feel.check.planned_sec > 2.6:
 		_bad("full duration %s" % st.feel.check.planned_sec)
 	st.feel.check.reset()
 	var likely := _difficulty_for(game, "white", 60)
 	_queue_check(game, "white", likely, false)
 	st._pick_event("feel_gate", "try")
-	if not st.feel.check.open or st.feel.check.full_reveal:
-		_bad("likely white used the full reveal")
+	if not st.feel.check.open or st.feel.check.offer_band != "likely" or st.feel.check.full_reveal:
+		_bad("likely white band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
 	elif st.feel.check.planned_sec < 0.55 or st.feel.check.planned_sec > 0.7:
 		_bad("short duration %s" % st.feel.check.planned_sec)
+	st.feel.check.reset()
+	var uncertain := _difficulty_for(game, "white", 50)
+	_queue_check(game, "white", uncertain, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.offer_band != "uncertain" or st.feel.check.full_reveal:
+		_bad("uncertain white band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
+	elif st.feel.check.planned_sec < 0.55 or st.feel.check.planned_sec > 0.7:
+		_bad("uncertain duration %s" % st.feel.check.planned_sec)
 	st.feel.check.reset()
 	var unlikely := _difficulty_for(game, "white", 0)
 	_queue_check(game, "white", unlikely, false)
 	st._pick_event("feel_gate", "try")
-	if not st.feel.check.open or not st.feel.check.full_reveal:
-		_bad("unlikely white was short")
+	if not st.feel.check.open or st.feel.check.offer_band != "unlikely" or not st.feel.check.full_reveal:
+		_bad("unlikely white band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
 	st.feel.check.reset()
 	game.last_check = {"bet": true, "d1": 6, "d2": 6, "success": true, "box": true, "snake": false}
 	var box_line: String = st._check_result_line()
@@ -644,6 +652,9 @@ func _difficulty_for(game: Game, color: String, want: int) -> int:
 		var chance := int(game._check_chance_bonus(bonus, difficulty, color))
 		var gap := absi(chance - want)
 		if want >= 60 and chance >= 60 and gap < best_gap:
+			best = difficulty
+			best_gap = gap
+		elif want >= 40 and want < 60 and chance >= 40 and chance < 60 and gap < best_gap:
 			best = difficulty
 			best_gap = gap
 		elif want < 40 and chance < 40 and gap < best_gap:

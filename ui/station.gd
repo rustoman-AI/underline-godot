@@ -10860,6 +10860,10 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
 	_checkpick_clear()
 	var state_before := int(game.check_rng.state)
+	## Band from the offered difficulty and the person on the card, before apply.
+	var offer_full := false
+	if feel != null and feel.check != null and (choice.has("check") or choice.has("bet")):
+		offer_full = feel.check.offer_is_full(game, choice, str(action.get("person", "")))
 	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
 	var snapshot := _tally_snapshot()
 	var regard_before: Dictionary = game.standing.duplicate()
@@ -10878,7 +10882,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 			regard[str(fid)] = moved
 	_record_choice(title, game.line_of(choice, "label"), changes, regard)
 	var fresh := (choice.has("check") or choice.has("bet")) and int(game.check_rng.state) != state_before
-	if fresh and game.over == "" and feel != null and feel.check != null and feel.check.start(game.last_check.duplicate(true), choice, _finish_pick.bind(before, changes, title, event_id, choice_id, offered, choice)):
+	if fresh and game.over == "" and feel != null and feel.check != null and feel.check.start(game.last_check.duplicate(true), choice, _finish_pick.bind(before, changes, title, event_id, choice_id, offered, choice), offer_full):
 		return
 	_finish_pick(before, changes, title, event_id, choice_id, offered, choice)
 
