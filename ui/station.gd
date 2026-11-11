@@ -19246,8 +19246,8 @@ class Yard extends Control:
 
 	var _name_tips: Array = []
 
-	## Names on the platform. Size stays at least 11. Two rows when one row would overlap.
-	## Known is the brass bullet from the people list, on the same baseline as the name.
+	## Names on the platform stay size 11, on two staggered rows. Each resident shows a
+	## first initial. Known keeps the full named.known word on that same baseline.
 	func _draw_name_tokens(rect: Rect2, ids: Array) -> void:
 		_name_tips = []
 		var n := mini(4, ids.size())
@@ -19267,17 +19267,140 @@ class Yard extends Control:
 			})
 		if people.is_empty():
 			return
-		var layout := _name_layout(font, people, rect)
-		var size := int(layout["size"])
-		var rows: Array = layout["rows"]
-		var ascent := font.get_ascent(size)
-		var descent := font.get_descent(size)
-		## 26 screen px clears the room sign. Five more keep the ink at least 7 px under its border.
+		var rows := _stagger_names(people)
+		var gap := _screen(4.0)
+		var left := rect.position.x + 2.0
+		var band_top := rect.position.y + _screen(26.0)
+		var right := _name_span_right(rect, band_top, _screen(25.0))
+		var inner := maxf(8.0, right - left)
+		var tag := _known_tag_fit(font, rows, inner, gap)
+		var ascent := font.get_ascent(11)
+		## 26 screen px clears the room sign. The rest keeps the ink at least 7 px under its border.
 		var y := rect.position.y + _screen(32.0) + ascent
-		## Six screen px between the two inks. The em box is taller than the ink, so the step is not a full line.
-		var step := ascent * 0.72 + _screen(6.0)
+		## The em box is taller than the ink. The extra screen px keeps the two rows 4 px apart at 125%.
+		var step := ascent * 0.72 + _screen(9.0)
 		for r in rows.size():
-			_draw_name_row(font, rows[r], size, rect, y + step * float(r))
+			_draw_initial_row(font, rows[r], y + step * float(r), left, right, tag)
+
+	## Largest Known word from 12 down to 9 that fits this yard. A plate is used only when
+	## its box, and a 4 px gap around that box, still sits in the 158 by 25 band.
+	func _known_tag_fit(font: Font, rows: Array, inner: float, gap: float) -> Dictionary:
+		var word := Copy.t("named.known")
+		var plate_gap := gap + 1.0
+		for size in [12, 11, 10, 9]:
+			var text_w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+			var plate_w := text_w + 4.0
+			var plate_h := font.get_ascent(size) + font.get_descent(size)
+			var rows_n := maxi(rows.size(), 1)
+			var plate_stack := plate_h * float(rows_n) + plate_gap * float(rows_n - 1)
+			if plate_stack <= 25.0 and _initial_rows_fit(font, rows, plate_w, plate_gap, inner):
+				return {"size": size, "plate": true, "w": plate_w, "gap": plate_gap, "word": word}
+			if _initial_rows_fit(font, rows, text_w, gap, inner):
+				return {"size": size, "plate": false, "w": text_w, "gap": gap, "word": word}
+		var fallback := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+		return {"size": 9, "plate": false, "w": fallback, "gap": gap, "word": word}
+
+	func _initial_rows_fit(font: Font, rows: Array, tag_w: float, gap: float, inner: float) -> bool:
+		for row in rows:
+			var labels: Array = []
+			for entry in row:
+				labels.append({"text": _name_initial(str(entry.full)), "known": bool(entry.known)})
+			if _labels_width(font, labels, tag_w, gap) > inner + 0.5:
+				return false
+		return true
+
+	func _labels_width(font: Font, labels: Array, tag_w: float, gap: float) -> float:
+		var total := 0.0
+		for i in labels.size():
+			var item: Dictionary = labels[i]
+			total += font.get_string_size(str(item.text), HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			if bool(item.known):
+				total += gap + tag_w
+			if i < labels.size() - 1:
+				total += gap
+		return total
+
+	## Right edge of the name band: 4 screen px clear of the line wall.
+	func _name_span_right(rect: Rect2, top: float, height: float) -> float:
+		var right := rect.end.x - 2.0
+		var wall := _line_wall_dest(rect)
+		if wall.size.x > 1.0 and top < wall.end.y and top + height > wall.position.y:
+			right = minf(right, wall.position.x - _screen(4.0))
+		return right
+
+	func _name_initial(full: String) -> String:
+		var word := _first_word(full)
+		if word.is_empty():
+			return ""
+		return word.substr(0, 1) + "."
+
+	func _first_word(full: String) -> String:
+		var parts := full.split(" ", false)
+		if parts.is_empty():
+			return full
+		return str(parts[0])
+
+	## Initials, then the Known word. A resident who is not Known keeps the initial too,
+	## unless the first name still fits in the row.
+	func _draw_initial_row(font: Font, row: Array, baseline: float, left: float, right: float, tag: Dictionary) -> void:
+		if row.is_empty():
+			return
+		var gap := float(tag["gap"])
+		var tag_w := float(tag["w"])
+		var tag_size := int(tag["size"])
+		var inner := maxf(8.0, right - left)
+		var labels: Array = []
+		for entry in row:
+			labels.append({
+				"full": str(entry.full),
+				"known": bool(entry.known),
+				"text": _name_initial(str(entry.full)),
+			})
+		for i in labels.size():
+			var item: Dictionary = labels[i]
+			if bool(item.known):
+				continue
+			var first := _first_word(str(item.full))
+			if first.length() <= 1:
+				continue
+			var previous := str(item.text)
+			item.text = first
+			if _labels_width(font, labels, tag_w, gap) > inner + 0.5:
+				item.text = previous
+		var total := _labels_width(font, labels, tag_w, gap)
+		var x := left + maxf(0.0, (inner - total) * 0.5)
+		var ascent := font.get_ascent(11)
+		var descent := font.get_descent(11)
+		for i in labels.size():
+			var item: Dictionary = labels[i]
+			var text := str(item.text)
+			var name_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			var origin := x
+			_draw_name_ink(font, Vector2(x, baseline), text, 11)
+			x += name_w
+			if bool(item.known):
+				x += gap
+				_draw_known_word(font, Vector2(x, baseline), str(tag["word"]), tag_size, bool(tag["plate"]), tag_w)
+				x += tag_w
+			var tip := str(item.full)
+			if bool(item.known):
+				tip = str(item.full) + "\n" + str(tag["word"])
+			_remember_name(origin, baseline, maxf(name_w, x - origin), ascent, descent, tip)
+			if i < labels.size() - 1:
+				x += gap
+
+	func _draw_known_word(font: Font, at: Vector2, word: String, size: int, plate: bool, width: float) -> void:
+		if plate:
+			var box_ascent := font.get_ascent(size)
+			var box_descent := font.get_descent(size)
+			var plate_rect := Rect2(at.x, at.y - box_ascent, width, box_ascent + box_descent)
+			draw_rect(plate_rect, Color(0.14, 0.1, 0.05, 0.94))
+			draw_rect(plate_rect, Color("e2a63a"), false, 1.0)
+			draw_string(font, at + Vector2(2.0, 0.0), word, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color("f0c070"))
+			return
+		var shadow := at + Vector2(_screen(1.0), _screen(1.0))
+		draw_string(font, shadow, word, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0.05, 0.04, 0.03, 0.8))
+		draw_string(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color("f0c070"))
 
 	## One row at 13, 12 or 11 when the names do not overlap. Otherwise the same sizes
 	## on two staggered rows. 11 is the floor.
