@@ -19240,9 +19240,10 @@ class Yard extends Control:
 		if station.body_font != null:
 			font = station.body_font
 		var gap := rect.size.x / float(n)
-		## Room sign is 22 px of screen under a 4 px inset. Names start under that strip, in world units.
+		## Room sign is 22 px of screen under a 4 px inset. Names start under that strip.
+		## Five screen px under the strip keeps Cyrillic ink at least 6 px below the border.
 		var tag_bottom := 26.0 / maxf(zoom, 0.01)
-		var y := rect.position.y + tag_bottom + font.get_ascent(13) + 2.0 / maxf(zoom, 0.01)
+		var y := rect.position.y + tag_bottom + font.get_ascent(13) + 5.0 / maxf(zoom, 0.01)
 		y = minf(y, rect.end.y - 4.0)
 		for i in n:
 			var id := str(ids[i])
