@@ -8821,9 +8821,29 @@ func _show_obs_float(text: String) -> void:
 	obs_float.text = text
 	obs_float.modulate.a = 1.0
 	obs_float.visible = true
-	obs_float.custom_minimum_size = Vector2(420, 28)
-	obs_float.position = Vector2(size.x * 0.5 - 210.0, size.y * 0.42)
-	obs_float.size = Vector2(420, 28)
+	obs_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	obs_float.clip_text = false
+	var w := minf(560.0, maxf(160.0, size.x - 48.0))
+	## The home slot is the 420 px chip. A longer line wraps inside it instead of
+	## growing out to the unwrapped string.
+	w = minf(w, 420.0)
+	var font: Font = obs_float.get_theme_font("font")
+	if font == null:
+		font = display_font if display_font != null else ThemeDB.fallback_font
+	var text_h := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, w, 18).y
+	var h := 28.0 if text_h <= 28.0 else text_h
+	obs_float.custom_minimum_size = Vector2(w, h)
+	obs_float.size = Vector2(w, h)
+	obs_float.update_minimum_size()
+	obs_float.custom_minimum_size = Vector2(w, h)
+	obs_float.size = Vector2(w, h)
+	var x := size.x * 0.5 - w * 0.5
+	if absf(w - 420.0) < 1.0:
+		x = size.x * 0.5 - 210.0
+	x = clampf(x, 8.0, maxf(8.0, size.x - w - 8.0))
+	var y := clampf(size.y * 0.42, 8.0, maxf(8.0, size.y - h - 8.0))
+	obs_float.position = Vector2(x, y)
+	obs_float.size = Vector2(w, h)
 	_arm_yard_notice(obs_float)
 	if obs_float_tween != null and obs_float_tween.is_valid():
 		obs_float_tween.kill()
