@@ -3488,6 +3488,7 @@ func _play_points(play: Dictionary) -> PackedVector2Array:
 func _draw_playback(c: CanvasItem, game) -> void:
 	var font := _font()
 	var hop := not _motion_off()
+	_chip_slots = _chip_blockers()
 	for play in _plays:
 		var age := float(play.get("age", 0.0))
 		if hop and age < HOP_S:
@@ -3506,6 +3507,10 @@ func _draw_playback(c: CanvasItem, game) -> void:
 			continue
 		var anchor := _playback_anchor(play)
 		var art := _intent_art(str(play.get("chip", "")))
+		var text := _chip_line(game, play)
+		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13) if text != "" else Vector2.ZERO
+		if art != "" or text != "":
+			anchor = _lift_playback(anchor, text_size, art != "", str(play.get("station", "")))
 		var col := _faction_color(game, str(play.get("faction", "")))
 		if art != "":
 			var tint := ArtPack.map_chip(art, true)
@@ -3515,14 +3520,55 @@ func _draw_playback(c: CanvasItem, game) -> void:
 				c.draw_texture_rect(tint, rect, false, col)
 			if ink != null:
 				c.draw_texture_rect(ink, rect, false)
-		var text := _chip_line(game, play)
 		if text == "":
 			continue
-		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
 		var text_at := anchor + Vector2(-text_size.x * 0.5, 28.0)
 		var plate := Rect2(text_at + Vector2(-4, -13), Vector2(text_size.x + 8, 18))
 		c.draw_rect(plate, Color(TAG_INK, 0.88))
 		c.draw_string(font, text_at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TAG_PAPER)
+
+
+## Result chips share a pin. Stack the later one by a chip height so it does not print on the one already there.
+var _chip_slots: Array = []
+
+
+func _chip_blockers() -> Array:
+	var out: Array = []
+	for sid in _tags:
+		out.append((_tags[sid] as Rect2).grow(10.0))
+	for row in _yield_rows:
+		out.append(Rect2(float(row.x) - 2.0, float(row.y) - 2.0, float(row.total) + 4.0, 22.0))
+	return out
+
+
+func _playback_box(anchor: Vector2, text_size: Vector2, has_art: bool) -> Rect2:
+	var w := maxf(36.0 if has_art else 18.0, text_size.x + 8.0)
+	var top := anchor.y + 15.0
+	var bottom := anchor.y + 33.0
+	if has_art:
+		top = minf(top, anchor.y - 16.0)
+	if text_size.x <= 0.0:
+		top = anchor.y - 16.0
+		bottom = anchor.y + 16.0
+		w = 36.0
+	return Rect2(anchor.x - w * 0.5, top, w, maxf(18.0, bottom - top))
+
+
+func _lift_playback(anchor: Vector2, text_size: Vector2, has_art: bool, sid: String) -> Vector2:
+	var box := _playback_box(anchor, text_size, has_art)
+	if _tags.has(sid):
+		var tag: Rect2 = (_tags[sid] as Rect2).grow(12.0)
+		var beside := box.position.x < tag.end.x + 8.0 and box.end.x > tag.position.x - 8.0 and box.end.y > tag.position.y - 4.0
+		if box.intersects(tag) or beside:
+			anchor.y = minf(anchor.y, tag.position.y - 24.0 - (box.end.y - anchor.y))
+			box = _playback_box(anchor, text_size, has_art)
+	var guard := 0
+	while guard < 12 and _hits(box, _chip_slots):
+		anchor.y -= 20.0
+		box = _playback_box(anchor, text_size, has_art)
+		guard += 1
+	_chip_slots.append(box.grow(2.0))
+	return anchor
 
 
 func _mark_station(game, mark: Dictionary) -> String:
@@ -5348,7 +5394,7 @@ func _place_panels() -> void:
 		sheet.offset_left = size.x - w - right
 		sheet.offset_top = top + 4.0
 		sheet.offset_right = size.x - right
-		sheet.offset_bottom = size.y - 120.0
+		sheet.offset_bottom = size.y - _sheet_bottom_inset()
 	if council != null:
 		council.offset_left = FIT_PAD
 		council.offset_top = top
@@ -5358,6 +5404,17 @@ func _place_panels() -> void:
 		_zoom_bar.reset_size()
 		_zoom_bar.position = Vector2(FIT_PAD + 4.0, _chrome_top() - _zoom_bar.size.y)
 	_place_legend()
+
+
+## Night runs sits above the tool row. The sheet stops above that button, including its tilt.
+func _sheet_bottom_inset() -> float:
+	var short: bool = size.y < 520.0
+	var margin := 8.0 if short else 12.0
+	var tool_h := 48.0 if short else 68.0
+	var night_h := 0.0
+	if host != null and host.get("night_button") != null and host.night_button.visible:
+		night_h = 44.0 + 6.0
+	return margin + tool_h + night_h + 10.0
 
 
 ## Just above the station's bottom buttons.
