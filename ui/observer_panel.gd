@@ -158,10 +158,20 @@ func _rebuild() -> void:
 func _fit_panel(view: Vector2, width: float, cap: float, head: Control) -> void:
 	var pad := 28.0
 	var sep := float(_body.get_theme_constant("separation"))
-	var top_h := head.get_combined_minimum_size().y + sep + _main.get_combined_minimum_size().y + sep
-	var tail_h := _tail.get_combined_minimum_size().y
+	## Autowrap labels have no width yet, so their minimum height is one glyph per line.
+	## Pin them to the width they will actually get, then measure that. The detail scrolls.
+	var inner := maxf(120.0, width - 20.0)
+	_pin_wrap(head, inner)
+	_pin_wrap(_tail, inner)
+	var bust_w := 160.0
+	if _bust.get_child_count() > 0 and _bust.get_child(0) is Control:
+		bust_w = maxf(96.0, (_bust.get_child(0) as Control).custom_minimum_size.x)
+	_pin_wrap(_bust, bust_w)
+	var main_h := maxf(_layout_height(_bust), _scroll.custom_minimum_size.y)
+	var top_h := _layout_height(head) + sep + main_h + sep
+	var tail_h := _layout_height(_tail)
 	var need := top_h + tail_h + pad
-	var used := minf(cap, maxf(420.0, need))
+	var used := minf(cap, need)
 	var tail_view := tail_h
 	if need > cap:
 		tail_view = maxf(96.0, cap - pad - top_h)
@@ -169,6 +179,69 @@ func _fit_panel(view: Vector2, width: float, cap: float, head: Control) -> void:
 	position = Vector2(maxi(24.0, (view.x - width) * 0.5), maxi(24.0, (view.y - used) * 0.5))
 	size = Vector2(width, used)
 	custom_minimum_size = size
+
+
+## Give a wrapping control the width it will be laid out at, so its minimum height is the real line count.
+func _pin_wrap(node: Node, inner: float) -> void:
+	if node is Label or node is Button:
+		var ctl := node as Control
+		if ctl.autowrap_mode != TextServer.AUTOWRAP_OFF and ctl.custom_minimum_size.x < 8.0:
+			ctl.custom_minimum_size.x = inner
+	for child in node.get_children():
+		if child is ScrollContainer:
+			continue
+		_pin_wrap(child, inner)
+
+
+## Scroll views count as their window, not the scrolled list. A plain control counts as its own minimum.
+func _layout_height(node: Control) -> float:
+	if node is ScrollContainer:
+		return node.custom_minimum_size.y
+	if node is BoxContainer:
+		var box := node as BoxContainer
+		var vertical := box is VBoxContainer
+		var sep := float(box.get_theme_constant("separation"))
+		var total := 0.0
+		var n := 0
+		for child in box.get_children():
+			if not (child is Control) or not (child as Control).visible:
+				continue
+			var h := _layout_height(child)
+			if vertical:
+				total += h
+				n += 1
+			else:
+				total = maxf(total, h)
+		if vertical and n > 1:
+			total += sep * float(n - 1)
+		return total
+	if (node is Label or node is Button) and node.autowrap_mode != TextServer.AUTOWRAP_OFF:
+		return _wrapped_height(node)
+	return node.get_combined_minimum_size().y
+
+
+## Godot reports a zero-width autowrap line as one glyph per row. Measure at the pinned width instead.
+func _wrapped_height(ctl: Control) -> float:
+	var text := ""
+	var px := 16
+	if ctl is Label:
+		text = (ctl as Label).text
+		px = int((ctl as Label).get_theme_font_size("font_size"))
+	else:
+		var button := ctl as Button
+		text = button.text
+		px = int(button.get_theme_font_size("font_size"))
+	if px < 8:
+		px = 16
+	var width := ctl.custom_minimum_size.x
+	if width < 8.0:
+		width = 160.0
+	var font: Font = ctl.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var text_h := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, width, px).y
+	var pad := 8.0 if ctl is Button else 0.0
+	return maxf(ctl.custom_minimum_size.y, text_h + pad)
 
 
 func _fill_detail(game) -> void:
@@ -432,10 +505,15 @@ func _hook(game, slot: String) -> Control:
 
 
 func _make_bust(game, scale: float) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var box := Control.new()
 	var w := 160.0 * scale
 	var h := 240.0 * scale
 	box.custom_minimum_size = Vector2(w, h)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(box)
 	var tex := _bust_tex()
 	if tex != null:
 		var face := TextureRect.new()
@@ -475,8 +553,9 @@ func _make_bust(game, scale: float) -> Control:
 			spot.pressed.connect(_select.bind("mark", mark_id))
 		box.add_child(spot)
 	var list := VBoxContainer.new()
-	list.position = Vector2(0, h + 8)
 	list.custom_minimum_size = Vector2(w, 0)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if rows.is_empty():
 		var locked := _lab(Copy.t("obs.mark_locked"), 14, false, PAPER_MUTED)
 		locked.focus_mode = Control.FOCUS_NONE
@@ -494,9 +573,8 @@ func _make_bust(game, scale: float) -> Control:
 				button.add_theme_color_override("icon_normal_color", PAPER_INK)
 				button.add_theme_color_override("icon_hover_color", PAPER_INK)
 			list.add_child(button)
-	box.add_child(list)
-	box.custom_minimum_size.y = h + 8.0 + list.get_combined_minimum_size().y
-	return box
+	col.add_child(list)
+	return col
 
 
 func _bust_tex() -> Texture2D:

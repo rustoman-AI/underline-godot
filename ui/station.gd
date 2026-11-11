@@ -15667,7 +15667,6 @@ func _life_chronicle(payload: Dictionary) -> void:
 
 
 func _life_fates(payload: Dictionary) -> void:
-	life_epilogue_body.add_child(_epilogue_line("epilogue.page_fates", 13, Color("6a543c"), true))
 	var shown := 0
 	for row in payload.get("fates", []):
 		if shown >= 8:
@@ -15691,7 +15690,10 @@ func _life_fates(payload: Dictionary) -> void:
 	life_epilogue_body.add_child(_epilogue_spacer())
 	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(1), false, "back"))
 	life_epilogue_actions.add_child(_epilogue_gap())
-	life_epilogue_actions.add_child(_epilogue_nav("epilogue.close", _life_epilogue_close, true, ""))
+	if _epilogue_pages() > 3:
+		life_epilogue_actions.add_child(_epilogue_nav("epilogue.next", _life_epilogue_go.bind(3), false, "next"))
+	else:
+		life_epilogue_actions.add_child(_epilogue_nav("epilogue.close", _life_epilogue_close, true, ""))
 
 
 func _epilogue_art(ending: String) -> TextureRect:
@@ -15791,8 +15793,7 @@ func _epilogue_pages() -> int:
 
 
 func _life_wall() -> void:
-	var title := _label("wall.epilogue", 26, true)
-	life_epilogue_body.add_child(title)
+	life_epilogue_body.add_child(_epilogue_line("wall.epilogue", 26, SLIP_INK, true))
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -15805,9 +15806,7 @@ func _life_wall() -> void:
 		if row != null:
 			list.add_child(row)
 	life_epilogue_body.add_child(scroll)
-	var back := _button("Back", _life_epilogue_go.bind(2))
-	back.custom_minimum_size = Vector2(120, 48)
-	life_epilogue_actions.add_child(back)
+	life_epilogue_actions.add_child(_epilogue_nav("epilogue.back", _life_epilogue_go.bind(2), false, "back"))
 	var again := _button("epilogue.new_run", _life_epilogue_new_game)
 	again.custom_minimum_size = Vector2(160, 48)
 	life_epilogue_actions.add_child(again)
@@ -19241,24 +19240,33 @@ class Yard extends Control:
 		if station.body_font != null:
 			font = station.body_font
 		var gap := rect.size.x / float(n)
+		## Room sign is 22 px of screen under a 4 px inset. Names start under that strip, in world units.
+		var tag_bottom := 26.0 / maxf(zoom, 0.01)
+		var y := rect.position.y + tag_bottom + font.get_ascent(13) + 2.0 / maxf(zoom, 0.01)
+		y = minf(y, rect.end.y - 4.0)
 		for i in n:
 			var id := str(ids[i])
 			var person: Dictionary = station.game.people.get(id, {})
 			if person.is_empty():
 				continue
 			var name := str(station._resident_name(person))
-			var cx := rect.position.x + gap * (float(i) + 0.5)
-			var y := rect.position.y + 16.0
 			var name_size := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
-			draw_string(font, Vector2(cx - name_size.x * 0.5, y), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("f4efe4"))
+			var cx := rect.position.x + gap * (float(i) + 0.5)
+			var left := clampf(cx - name_size.x * 0.5, rect.position.x + 2.0, maxf(rect.position.x + 2.0, rect.end.x - 2.0 - name_size.x))
+			var draw_w := minf(name_size.x, rect.end.x - 2.0 - left)
+			draw_string(font, Vector2(left, y), name, HORIZONTAL_ALIGNMENT_LEFT, draw_w, 13, Color("f4efe4"))
 			if not station.game.is_known(person):
 				continue
 			var tag := Copy.t("named.known")
 			var tag_size := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
-			var plate := Rect2(cx - tag_size.x * 0.5 - 8.0, y + 4.0, tag_size.x + 16.0, 22.0)
+			var plate_w := minf(tag_size.x + 16.0, maxf(8.0, rect.size.x - 8.0))
+			var plate_x := clampf(left + draw_w * 0.5 - plate_w * 0.5, rect.position.x + 2.0, rect.end.x - 2.0 - plate_w)
+			var plate := Rect2(plate_x, y + 4.0, plate_w, 22.0)
+			if plate.end.y > rect.end.y:
+				continue
 			draw_rect(plate, Color(0.14, 0.1, 0.05, 0.94))
 			draw_rect(plate, Color("e2a63a"), false, 1.0)
-			draw_string(font, Vector2(plate.position.x + 8.0, plate.position.y + 15.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("f0c070"))
+			draw_string(font, Vector2(plate.position.x + 8.0, plate.position.y + 15.0), tag, HORIZONTAL_ALIGNMENT_LEFT, maxf(8.0, plate_w - 16.0), 12, Color("f0c070"))
 
 	func _draw_output_badges(rect: Rect2, room: Dictionary) -> void:
 		var detail: Dictionary = station.game.room_detail(str(room.uid))

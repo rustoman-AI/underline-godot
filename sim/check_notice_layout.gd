@@ -304,7 +304,17 @@ func _epilogue(st, tag: String, view: Vector2) -> void:
 	var again: float = st.life_epilogue_panel.size.y
 	if heights.size() >= 3 and absf(again - heights[2]) > 1.0:
 		_bad("%s page 2 grew %s -> %s" % [tag, heights[2], again])
-	if not _press(st, "epilogue.close"):
+	if st._epilogue_pages() > 3:
+		if not _press(st, "epilogue.next"):
+			_bad("%s missing wall next" % tag)
+		for _i in 2:
+			await process_frame
+		if int(st.life_epilogue_page) != 3:
+			_bad("%s wall page is %s" % [tag, st.life_epilogue_page])
+		elif _find(st, "epilogue.back") == null:
+			_bad("%s wall page has no back" % tag)
+		_tap(st, KEY_RIGHT)
+	elif not _press(st, "epilogue.close"):
 		_bad("%s missing close" % tag)
 	for _i in 2:
 		await process_frame
@@ -353,7 +363,11 @@ func _page(st, tag: String, page: int, view: Vector2, heights: Array[float]) -> 
 	elif page == 1:
 		keys = PackedStringArray(["epilogue.back", "epilogue.next"])
 	else:
-		keys = PackedStringArray(["epilogue.back", "epilogue.close"])
+		## Fates is the last page only when the Line Wall page is absent. With plates, Next opens that page.
+		if st._epilogue_pages() > page + 1:
+			keys = PackedStringArray(["epilogue.back", "epilogue.next"])
+		else:
+			keys = PackedStringArray(["epilogue.back", "epilogue.close"])
 	for key in keys:
 		var button := _find(st, key)
 		if button == null:
