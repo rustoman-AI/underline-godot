@@ -5427,7 +5427,24 @@ func _place_panels() -> void:
 	if _zoom_bar != null:
 		_zoom_bar.reset_size()
 		_zoom_bar.position = Vector2(FIT_PAD + 4.0, _chrome_top() - _zoom_bar.size.y)
+	_fit_visit_frame()
 	_place_legend()
+
+
+## The Visit sheet stops above the tool tray. chrome_bottom already sits 4 px above the tray top,
+## so chrome + 8 leaves the sheet bottom 12 px clear of that row (at least the 8 px the layout asks for).
+## Open PR #109 (cursor/sweep-floats-8-10) adds the same inset under the name _fit_visit_frame.
+func _fit_visit_frame() -> void:
+	if visit == null or visit.anchor_bottom < 0.5:
+		return
+	var chrome := 96.0
+	if host != null:
+		var raw = host.get("chrome_bottom")
+		if raw is float or raw is int:
+			chrome = maxf(8.0, float(raw))
+	var inset := chrome + 8.0
+	if absf(visit.offset_bottom + inset) > 0.5:
+		visit.offset_bottom = -inset
 
 
 ## Night runs sits above the tool row. The sheet stops above that button, including its tilt.
@@ -6881,6 +6898,7 @@ func _show_visit(sid: String) -> void:
 	visit.offset_top = 78.0
 	if host != null and host.get("hud") != null and host.hud.size.y > 8.0:
 		visit.offset_top = host.hud.size.y
+	_fit_visit_frame()
 	if sheet != null:
 		sheet.visible = false
 	_details_open = false
