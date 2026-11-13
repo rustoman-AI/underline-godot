@@ -78,6 +78,10 @@ func _run() -> void:
 	await _section_4()
 	await _section_5()
 	await _section_chip_floor()
+	await _section_6()
+	await _section_focus_stamp()
+	await _section_7()
+	await _section_9()
 	await _section_13()
 	_section_14()
 	_finish()
@@ -216,7 +220,7 @@ func _section_3() -> void:
 		if run_seed == 1:
 			var sim_diff := _diff_state(sim.state, off.state)
 			if sim_diff.is_empty():
-				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats")
+				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats.best_score")
 			else:
 				_bad("seed 1 sim-only state %s" % ", ".join(sim_diff))
 		sim.erase("state")
@@ -456,6 +460,477 @@ func _section_5() -> void:
 	_section_done(mark, "SECTION 5 reduce")
 
 
+func _section_6() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	var decisions := int(game.decisions)
+	var journal := game.journal.size()
+	var finishes := int(st.feel_pick_finishes)
+	_queue_check(game, "white", 8, false)
+	st._pick_event("feel_gate", "try")
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("check reveal did not open")
+	else:
+		_click_check()
+		_click_check()
+		await create_timer(0.5).timeout
+		if int(st.feel_pick_finishes) != finishes + 1:
+			_bad("finish ran %d" % [int(st.feel_pick_finishes) - finishes])
+		if int(game.decisions) != decisions + 1:
+			_bad("decisions %d" % [int(game.decisions) - decisions])
+		if game.journal.size() != journal + 1:
+			_bad("journal %d" % [game.journal.size() - journal])
+		if st.feel.check.open:
+			_bad("reveal still open")
+	_section_done(mark, "SECTION 6 check input")
+
+
+func _section_focus_stamp() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	await _focus_path("click", false)
+	await _focus_path("esc", true)
+	await _focus_fallback("click", false)
+	await _focus_fallback("esc", true)
+	_arm_feel(true, false)
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	_queue_check(game, "red", 8, false)
+	st._pick_event("feel_gate", "try")
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("stamp reveal missing")
+	else:
+		_click_check()
+		await process_frame
+		await process_frame
+		var turned := float(st.feel.check.stamp.rotation_degrees)
+		if not is_equal_approx(turned, -4.0):
+			_bad("stamp rotation %s" % turned)
+		elif st.feel.check.phase != "stamp" and st.feel.check.phase != "fade" and st.feel.check.phase != "hold":
+			_bad("stamp phase %s" % st.feel.check.phase)
+		else:
+			print("STAMP rotation %.1f phase %s" % [turned, st.feel.check.phase])
+		st.feel.check.reset()
+	_section_done(mark, "SECTION focus stamp")
+
+
+func _focus_path(tag: String, esc: bool) -> void:
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	if st.menu_button == null:
+		_bad("%s no menu button" % tag)
+		return
+	st.menu_button.grab_focus()
+	await process_frame
+	_queue_check(game, "white", 8, false)
+	st._pick_event("feel_gate", "try")
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("%s reveal missing" % tag)
+		return
+	if esc:
+		_esc_check()
+	else:
+		_click_check()
+		_click_check()
+		await create_timer(0.5).timeout
+	await process_frame
+	await process_frame
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	if owner != st.menu_button:
+		_bad("%s focus %s" % [tag, owner])
+	else:
+		print("FOCUS %s owner menu" % tag)
+
+
+func _focus_fallback(tag: String, esc: bool) -> void:
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	st.event_mode = "all"
+	game.pending = [_check_event("white", 8, false), {
+		"id": "feel_next",
+		"title": {"en": "Next", "ru": "Дальше"},
+		"text": {"en": "Still here.", "ru": "Ещё здесь."},
+		"choices": [{"id": "ok", "label": {"en": "Stay", "ru": "Остаться"}}],
+	}]
+	var temp := Button.new()
+	temp.text = "temp"
+	temp.focus_mode = Control.FOCUS_ALL
+	st.add_child(temp)
+	temp.grab_focus()
+	await process_frame
+	st._pick_event("feel_gate", "try")
+	if is_instance_valid(temp):
+		temp.queue_free()
+	await process_frame
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("%s fallback reveal missing" % tag)
+		st.event_mode = "dawn"
+		return
+	if esc:
+		_esc_check()
+	else:
+		_click_check()
+		_click_check()
+		await create_timer(0.5).timeout
+	await process_frame
+	await process_frame
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	var expect: Control = st._first_enabled_control(st.card) if st.dim != null and st.dim.visible else null
+	if owner == null:
+		_bad("%s fallback focus null" % tag)
+	elif expect != null and owner != expect:
+		_bad("%s fallback focus %s want %s" % [tag, owner, expect])
+	else:
+		print("FOCUS %s fallback %s" % [tag, owner])
+	st.event_mode = "dawn"
+	if st.feel.check != null and st.feel.check.open:
+		st.feel.check.reset()
+
+
+func _esc_check() -> void:
+	var ev := InputEventAction.new()
+	ev.action = "ui_cancel"
+	ev.pressed = true
+	st._input(ev)
+
+
+func _section_7() -> void:
+	var mark := bad.size()
+	for lang in ["en", "ru"]:
+		Copy.set_lang(lang)
+		st._refresh()
+		for size in [Vector2i(1920, 1080), Vector2i(1536, 864)]:
+			await _apply_view(size)
+			await _overlap_case("%s %s" % [lang, size])
+		await _apply_view(Vector2i(1920, 1080))
+		st.get_window().content_scale_factor = 1.25
+		st.get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		st.get_window().content_scale_size = Vector2i(1920, 1080)
+		for _i in 3:
+			await process_frame
+		await _overlap_case("%s 125" % lang)
+	Copy.set_lang("en")
+	_arm_feel(true, false)
+	_section_done(mark, "SECTION 7 overlap")
+
+
+func _section_9() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	var stale := {"name": "Stale", "skill": "wits", "color": "white", "success": true, "outcome": "stale line"}
+	game.last_check = stale.duplicate()
+	var state := int(game.check_rng.state)
+	_queue_plain(game)
+	st._pick_event("feel_plain", "ok")
+	if st.feel.check.open:
+		_bad("stale last_check opened a reveal")
+		st.feel.check.reset()
+	if int(game.check_rng.state) != state:
+		_bad("plain choice moved check_rng")
+	game.week = 3
+	game.last_check = stale.duplicate()
+	state = int(game.check_rng.state)
+	var red_early := _check_choice("red", 10, false)
+	game._resolve_check({"id": "feel_red_early", "title": "Early"}, red_early, "")
+	if int(game.check_rng.state) != state:
+		_bad("red before week 6 rolled")
+	if str(game.last_check.get("name", "")) != "Stale":
+		_bad("red before week 6 replaced last_check")
+	game.over = ""
+	game.week = 8
+	var finishes := int(st.feel_pick_finishes)
+	game.watcher = func(what, _data):
+		if str(what) == "action":
+			game.over = "hope"
+	_queue_check(game, "white", 8, false)
+	st._pick_event("feel_gate", "try")
+	game.watcher = Callable()
+	if st.feel.check.open:
+		_bad("game.over still revealed")
+		st.feel.check.reset()
+	if int(st.feel_pick_finishes) != finishes + 1:
+		_bad("over path skipped finish")
+	game.over = ""
+	_queue_check(game, "white", 4, true)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or str(st.feel.check.banner.text) != Copy.t("feel.check.bet"):
+		_bad("bet banner [%s]" % [st.feel.check.banner.text if st.feel.check.banner != null else ""])
+	if st.feel.check.full_reveal or st.feel.check.offer_band != "bet":
+		_bad("bet band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
+	if str(st.feel.check.banner.text).find(" ") < 0 and false:
+		pass
+	st.feel.check.reset()
+	game.over = ""
+	game.week = 8
+	_queue_check(game, "red", 4, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.offer_band != "red" or not st.feel.check.full_reveal:
+		_bad("red band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
+	elif st.feel.check.planned_sec < 2.0 or st.feel.check.planned_sec > 2.6:
+		_bad("full duration %s" % st.feel.check.planned_sec)
+	st.feel.check.reset()
+	var likely := _difficulty_for(game, "white", 60)
+	_queue_check(game, "white", likely, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.offer_band != "likely" or st.feel.check.full_reveal:
+		_bad("likely white band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
+	elif st.feel.check.planned_sec < 0.55 or st.feel.check.planned_sec > 0.7:
+		_bad("short duration %s" % st.feel.check.planned_sec)
+	st.feel.check.reset()
+	var uncertain := _difficulty_for(game, "white", 50)
+	_queue_check(game, "white", uncertain, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.offer_band != "uncertain" or st.feel.check.full_reveal:
+		_bad("uncertain white band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
+	elif st.feel.check.planned_sec < 0.55 or st.feel.check.planned_sec > 0.7:
+		_bad("uncertain duration %s" % st.feel.check.planned_sec)
+	st.feel.check.reset()
+	var unlikely := _difficulty_for(game, "white", 0)
+	_queue_check(game, "white", unlikely, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.offer_band != "unlikely" or not st.feel.check.full_reveal:
+		_bad("unlikely white band %s full %s" % [st.feel.check.offer_band, st.feel.check.full_reveal])
+	st.feel.check.reset()
+	game.last_check = {"bet": true, "d1": 6, "d2": 6, "success": true, "box": true, "snake": false}
+	var box_line: String = st._check_result_line()
+	if box_line != Copy.t("Double 6. The bet wins."):
+		_bad("double 6 line [%s]" % box_line)
+	st.feel.check.start(game.last_check.duplicate(true), {"bet": {}}, Callable())
+	if not is_equal_approx(st.feel.check.punch, 1.8):
+		_bad("box punch %s" % st.feel.check.punch)
+	if st.feel.check.subline.text != box_line:
+		_bad("box subline [%s]" % st.feel.check.subline.text)
+	st.feel.check.reset()
+	game.last_check = {"bet": true, "d1": 1, "d2": 1, "success": false, "box": false, "snake": true}
+	if st._check_result_line() != Copy.t("Double 1. The bet loses."):
+		_bad("double 1 line [%s]" % st._check_result_line())
+	_arm_feel(true, true)
+	_queue_check(game, "white", likely, false)
+	st._pick_event("feel_gate", "try")
+	if not st.feel.check.open or st.feel.check.stamp_box == null or not st.feel.check.stamp_box.visible:
+		_bad("reduced plate missing stamp")
+	elif not is_equal_approx(st.feel.check.stamp.scale.x, 1.0):
+		_bad("reduced stamp scaled")
+	st.feel.check.reset()
+	_arm_feel(true, false)
+	game.over = ""
+	_section_done(mark, "SECTION 9 check reveal")
+
+
+func _overlap_case(tag: String) -> void:
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	if st.toast_plate != null:
+		st.toast_plate.visible = false
+	await process_frame
+	if st.toast_plate != null:
+		st.toast_plate.visible = false
+	var sick_before := 0
+	if game.residents.size() > 0:
+		sick_before = int(game.residents[0].get("sick", 0))
+		if sick_before < 1:
+			game.residents[0]["sick"] = 3
+	var saw_infirmary := false
+	for room in game.rooms:
+		if str(room.get("type", "")) == "infirmary":
+			saw_infirmary = true
+	if st.has_method("_sync_sick_badge"):
+		st._sync_sick_badge()
+	if not saw_infirmary and st.sick_badge != null and st.sick_badge.visible and st.yard != null:
+		var cot: Rect2 = st.yard.cell_screen(0, 2)
+		cot.position += st.yard.position
+		st.sick_badge.position = cot.position + Vector2(6.0, 6.0)
+	if st.has_method("_sync_away_badge"):
+		st._sync_away_badge()
+	_queue_check(game, "red", 10, false)
+	st._pick_event("feel_gate", "try")
+	await process_frame
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("%s reveal missing" % tag)
+		_restore_overlap(game, sick_before)
+		return
+	if st.toast_plate != null and st.toast_plate.visible:
+		_bad("%s toast visible" % tag)
+	if st.notice_layer != null:
+		_bad("%s notice open" % tag)
+	if st.feel.layer.z_index >= 90:
+		_bad("%s z %s" % [tag, st.feel.layer.z_index])
+	var view: Rect2 = st.get_viewport_rect()
+	var plate: Control = st.feel.check.plate
+	if plate == null:
+		_bad("%s no plate" % tag)
+	else:
+		var rect := plate.get_global_rect()
+		if not view.encloses(rect) and not view.grow(-1).encloses(rect):
+			if rect.position.x < -1.0 or rect.position.y < -1.0 or rect.end.x > view.size.x + 1.0 or rect.end.y > view.size.y + 1.0:
+				_bad("%s plate outside %s view %s" % [tag, rect, view])
+		var sick := _badge_note(st.sick_badge)
+		var away := _badge_note(st.away_badge)
+		var hit := false
+		for node_name in ["away_badge", "sick_badge", "undo_toast", "rail_chip", "radio_panel"]:
+			var node: Control = st.get(node_name)
+			if node != null and node.visible and _hits(rect, node.get_global_rect()):
+				_bad("%s hits %s" % [tag, node_name])
+				hit = true
+		if not hit:
+			print("SECTION 7 %s clear plate %s sick %s away %s" % [tag, rect, sick, away])
+	st.feel.check.reset()
+	_restore_overlap(game, sick_before)
+
+
+func _restore_overlap(game: Game, sick_before: int) -> void:
+	if game.residents.size() > 0:
+		game.residents[0]["sick"] = sick_before
+	if st.has_method("_sync_sick_badge"):
+		st._sync_sick_badge()
+
+
+func _badge_note(node: Control) -> String:
+	if node == null or not node.visible:
+		return "hidden"
+	var badge := node.get_global_rect()
+	return "shown %s" % badge
+
+
+func _shot_plate_badge(lang: String, win_size: Vector2i, scale: float, path: String) -> void:
+	Copy.set_lang(lang)
+	_arm_feel(true, false)
+	await _apply_view(win_size, scale)
+	_park(st)
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	var sick_before := 0
+	if game.residents.size() > 0:
+		sick_before = int(game.residents[0].get("sick", 0))
+		if sick_before < 1:
+			game.residents[0]["sick"] = 3
+	if st.has_method("_sync_sick_badge"):
+		st._sync_sick_badge()
+	if st.sick_badge != null and st.sick_badge.visible and st.yard != null:
+		var cot: Rect2 = st.yard.cell_screen(0, 2)
+		cot.position += st.yard.position
+		st.sick_badge.position = cot.position + Vector2(6.0, 6.0)
+	_queue_check(game, "red", 10, false)
+	st._pick_event("feel_gate", "try")
+	await create_timer(0.35).timeout
+	_save_view(path)
+	var plate := "none"
+	var sick := "hidden"
+	if st.feel.check != null and st.feel.check.plate != null:
+		plate = str(st.feel.check.plate.get_global_rect())
+	if st.sick_badge != null and st.sick_badge.visible:
+		sick = str(st.sick_badge.get_global_rect())
+	print("PLATE SHOT %s plate %s sick %s" % [lang, plate, sick])
+	if st.feel.check != null:
+		st.feel.check.reset()
+	_restore_overlap(game, sick_before)
+
+
+func _shot_check(tag: String, path: String, color: String) -> void:
+	st.hold_dawn = true
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	_queue_check(game, color, 8 if color == "red" else 4, false)
+	st._pick_event("feel_gate", "try")
+	await process_frame
+	if not host_reduced():
+		await create_timer(0.95).timeout
+	_save_view(path)
+	print("SHOT check %s open %s" % [tag, st.feel.check.open])
+	st.feel.check.reset()
+
+
+func host_reduced() -> bool:
+	return st.feel.reduced()
+
+
+func _queue_check(game: Game, color: String, difficulty: int, bet: bool) -> void:
+	game.pending = [_check_event(color, difficulty, bet)]
+
+
+func _queue_plain(game: Game) -> void:
+	game.pending = [{
+		"id": "feel_plain",
+		"title": {"en": "A plain errand", "ru": "Обычное дело"},
+		"text": {"en": "Nothing to roll.", "ru": "Броска нет."},
+		"choices": [{"id": "ok", "label": {"en": "Go", "ru": "Идём"}}],
+	}]
+
+
+func _check_event(color: String, difficulty: int, bet: bool) -> Dictionary:
+	return {
+		"id": "feel_gate",
+		"title": {"en": "A test", "ru": "Проверка"},
+		"text": {"en": "Roll.", "ru": "Бросок."},
+		"choices": [_check_choice(color, difficulty, bet)],
+	}
+
+
+func _check_choice(color: String, difficulty: int, bet: bool) -> Dictionary:
+	if bet:
+		return {
+			"id": "try",
+			"label": {"en": "Bet", "ru": "Ставка"},
+			"bet": {"target": 7, "win": 1},
+		}
+	return {
+		"id": "try",
+		"label": {"en": "Try", "ru": "Пробовать"},
+		"check": {"skill": "wits", "difficulty": difficulty, "color": color},
+		"success": {"text": "The line holds."},
+		"failure": {"text": "The line fails."},
+	}
+
+
+func _difficulty_for(game: Game, color: String, want: int) -> int:
+	var skill := "wits"
+	var who := str(game.best_check_resident(skill))
+	var bonus := int(game.check_bonus(skill, who))
+	var best := 10
+	var best_gap := 999
+	for difficulty in range(2, 28):
+		var chance := int(game._check_chance_bonus(bonus, difficulty, color))
+		var gap := absi(chance - want)
+		if want >= 60 and chance >= 60 and gap < best_gap:
+			best = difficulty
+			best_gap = gap
+		elif want >= 40 and want < 60 and chance >= 40 and chance < 60 and gap < best_gap:
+			best = difficulty
+			best_gap = gap
+		elif want < 40 and chance < 40 and gap < best_gap:
+			best = difficulty
+			best_gap = gap
+	return best
+
+
+func _click_check() -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	st._input(ev)
+
+
+func _hits(a: Rect2, b: Rect2) -> bool:
+	return a.intersects(b, true)
+
+
 func _section_12() -> void:
 	var mark := bad.size()
 	var path := Settings.path
@@ -494,6 +969,9 @@ func _section_13() -> void:
 	var mark := bad.size()
 	_arm_feel(true, false)
 	_park(st)
+	if st.feel != null:
+		st.feel.reset()
+	await process_frame
 	var before := _node_count(st.feel)
 	var pool := int(st.feel.stock.pool.size())
 	st.feel.stock.peak_chips = 0
@@ -564,11 +1042,23 @@ func _shots() -> void:
 	_save_view("/opt/cursor/artifacts/feel_f1_counters_reduce.png")
 	Settings.reduce_motion = false
 	_arm_feel(true, false)
+	await _shot_check("en", "/opt/cursor/artifacts/feel_f2_check_en.png", "red")
+	Copy.set_lang("ru")
+	st._refresh()
+	await _shot_check("ru", "/opt/cursor/artifacts/feel_f2_check_ru.png", "red")
+	Copy.set_lang("en")
+	st._refresh()
+	_arm_feel(true, true)
+	await _shot_check("reduce", "/opt/cursor/artifacts/feel_f2_check_reduce.png", "white")
+	Settings.reduce_motion = false
+	_arm_feel(true, false)
 	await _chip_edge_shot("en", 1.0, "/opt/cursor/artifacts/feel_f1_chip_en100.png")
 	await _chip_edge_shot("ru", 1.0, "/opt/cursor/artifacts/feel_f1_chip_ru100.png")
 	await _chip_edge_shot("en", 1.25, "/opt/cursor/artifacts/feel_f1_chip_en125.png")
 	await _apply_view(Vector2i(1920, 1080), 1.0)
-	print("SHOTS wrote feel_f1")
+	await _shot_plate_badge("en", Vector2i(1920, 1080), 1.0, "/opt/cursor/artifacts/feel_f2_plate_sick_en100.png")
+	await _shot_plate_badge("ru", Vector2i(1920, 1080), 1.25, "/opt/cursor/artifacts/feel_f2_plate_sick_ru125.png")
+	print("SHOTS wrote feel_f1 and feel_f2")
 
 
 func _chip_edge_shot(lang: String, scale: float, path: String) -> void:
@@ -809,9 +1299,11 @@ func _diff_any(a, b, prefix: String, out: PackedStringArray, limit: int) -> void
 		for key in names:
 			# stats.best_score is filled from user://records.cfg when a run seals.
 			# The sim pass plays all 60 seeds before the UI pass, so it can raise
-			# that file and seed 1's best differs even with feel off. The export
-			# hash still includes stats; cross-mode and master compares use that hash.
-			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage", "stats"]:
+			# that file and seed 1's best differs even with feel off. Other stats
+			# keys still have to match. The export hash still includes stats.
+			if prefix == "/stats" and str(key) == "best_score":
+				continue
+			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage"]:
 				continue
 			_diff_any(a.get(key, null), b.get(key, null), prefix + "/" + str(key), out, limit)
 		return

@@ -394,6 +394,8 @@ var filling_settings := false
 var stock_shown := {}
 var stock_week := 0
 var feel
+var feel_pick_finishes := 0
+var feel_focus_id := 0
 var modal_tween: Tween
 ## Slides the People drawer open and shut.
 var drawer_tween: Tween
@@ -10851,6 +10853,8 @@ func _starts(text: String, prefixes: Array) -> bool:
 
 
 func _pick_event(event_id: String, choice_id: String) -> void:
+	var focus_before: Control = get_viewport().gui_get_focus_owner()
+	feel_focus_id = focus_before.get_instance_id() if focus_before != null else 0
 	var before := str(game.front_event().get("id", ""))
 	var offered: Dictionary = game.front_event()
 	var choice := _choice_by_id(event_id, choice_id)
@@ -10858,6 +10862,11 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if choice.has("check"):
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
 	_checkpick_clear()
+	var state_before := int(game.check_rng.state)
+	## Band from the offered difficulty and the person on the card, before apply.
+	var offer_full := false
+	if feel != null and feel.check != null and (choice.has("check") or choice.has("bet")):
+		offer_full = feel.check.offer_is_full(game, choice, str(action.get("person", "")))
 	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
 	var snapshot := _tally_snapshot()
 	var regard_before: Dictionary = game.standing.duplicate()
@@ -10875,6 +10884,14 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		if moved != 0:
 			regard[str(fid)] = moved
 	_record_choice(title, game.line_of(choice, "label"), changes, regard)
+	var fresh := (choice.has("check") or choice.has("bet")) and int(game.check_rng.state) != state_before
+	if fresh and game.over == "" and feel != null and feel.check != null and feel.check.start(game.last_check.duplicate(true), choice, _finish_pick.bind(before, changes, title, event_id, choice_id, offered, choice), offer_full):
+		return
+	_finish_pick(before, changes, title, event_id, choice_id, offered, choice)
+
+
+func _finish_pick(before: String, changes: Dictionary, title: String, event_id: String, choice_id: String, offered: Dictionary, choice: Dictionary) -> void:
+	feel_pick_finishes += 1
 	_refresh()
 	note_change(changes)
 	if card != null and dim.visible:
@@ -10888,6 +10905,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 			footer.visible = false
 		_close_card()
 		_show_ending()
+		_restore_pick_focus(_saved_focus())
 		return
 	if not check_flash:
 		_note_terms(offered, choice)
@@ -10896,6 +10914,61 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if event_id == "law_week6" and choice_id == "open":
 		laws_open_after = true
 	_advance_dawn(before)
+	_restore_pick_focus(_saved_focus())
+
+
+## Same idea as the cutplan and appointment closes: the control that had focus
+## before the pick, or else the first enabled control still on the card.
+func _saved_focus() -> Control:
+	if feel_focus_id == 0 or not is_instance_id_valid(feel_focus_id):
+		return null
+	var obj = instance_from_id(feel_focus_id)
+	if obj is Control:
+		return obj as Control
+	return null
+
+
+func _restore_pick_focus(prior: Control) -> void:
+	var target := _pick_focus_target(prior)
+	if target != null:
+		target.grab_focus.call_deferred()
+
+
+func _pick_focus_target(prior: Control) -> Control:
+	if _focus_alive(prior):
+		return prior
+	if card != null and is_instance_valid(card) and dim != null and dim.visible:
+		return _first_enabled_control(card)
+	return null
+
+
+func _focus_alive(node: Control) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	if not node.is_visible_in_tree():
+		return false
+	if node.focus_mode == Control.FOCUS_NONE:
+		return false
+	if node is BaseButton and (node as BaseButton).disabled:
+		return false
+	return true
+
+
+func _first_enabled_control(root: Node) -> Control:
+	if root == null or not is_instance_valid(root):
+		return null
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here != root and here is Control:
+			var control := here as Control
+			if _focus_alive(control):
+				return control
+		var kids: Array = here.get_children()
+		for i in range(kids.size() - 1, -1, -1):
+			var child: Node = kids[i]
+			stack.append(child)
+	return null
 
 
 func _tally_snapshot() -> Dictionary:
@@ -15972,6 +16045,9 @@ func _end_log() -> void:
 
 func _input(event: InputEvent) -> void:
 	if _life_epilogue_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if feel != null and feel.handle_input(event):
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton or event is InputEventKey or event is InputEventMouseMotion or event is InputEventScreenTouch:
