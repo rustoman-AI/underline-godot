@@ -1,6 +1,7 @@
 extends Control
 
 const TermsRemembered = preload("res://sim/terms_remembered.gd")
+const LivingLib = preload("res://ui/living/living.gd")
 
 ## Cut-away of the station. Placeholder shapes on a painted wall. The sim stays in charge of the week.
 
@@ -151,6 +152,7 @@ var card: PanelContainer
 var card_scroll: ScrollContainer
 var card_body: VBoxContainer
 var power_loss := {}
+var living
 var chrome_bottom := 96.0
 var notice := ""
 var display_font: Font
@@ -469,6 +471,7 @@ func _ready() -> void:
 	game = Game.new()
 	game.setup(catalog, 1, 40)
 	yard.station = self
+	living.attach(self)
 	hold_dawn = true
 	_refresh()
 	hold_dawn = false
@@ -1709,6 +1712,8 @@ func _build() -> void:
 	add_child(backdrop)
 
 	yard = Yard.new()
+	living = LivingLib.new()
+	living.attach(self)
 	yard.set_anchors_preset(Control.PRESET_FULL_RECT)
 	yard.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(yard)
@@ -2785,6 +2790,7 @@ func _refresh() -> void:
 	power_loss = {}
 	for uid in game.rooms_losing_power():
 		power_loss[str(uid)] = true
+	living.observe(power_loss, game.week)
 	hope_label.text = Copy.t("Hope %d  %s") % [game.hope, _mood_delta(game.last_hope_delta)]
 	dis_label.text = Copy.t("Discontent %d  %s") % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
@@ -3513,6 +3519,7 @@ var night: ColorRect
 var night_tween: Tween
 
 func _play_night() -> void:
+	living.night_begin()
 	if _motion_off():
 		return
 	if night == null:
@@ -3569,6 +3576,7 @@ func _play_night() -> void:
 
 
 func _end_night() -> void:
+	living.night_end()
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
 	if night != null:
@@ -15128,6 +15136,8 @@ func _begin_new_game(intro: bool) -> void:
 		game.setup(cat, 1, 40)
 	if yard != null:
 		yard.station = self
+		living.attach(self)
+		living.reset()
 	hold_dawn = false
 	stock_week = 0
 	stock_shown = {}
@@ -15159,6 +15169,7 @@ func _continue_game() -> void:
 	_loaded_hints()
 	Sound.play("confirm")
 	Sound.bed("station")
+	living.reset()
 	_refresh()
 	_note_save_recovery()
 
@@ -15189,6 +15200,7 @@ func _manual_load() -> void:
 	_loaded_hints()
 	Sound.play("confirm")
 	_close_card()
+	living.reset()
 	_refresh()
 	_note_save_recovery()
 
@@ -16980,6 +16992,8 @@ class PersonRow extends PanelContainer:
 
 class Yard extends Control:
 	var station
+	var living
+	var dig_ring_draws := 0
 	const BAND := 12.0
 	const ART := {
 		"hydroponics": "res://assets/rooms/room_hydroponics.webp",
@@ -17393,6 +17407,10 @@ class Yard extends Control:
 
 	func _process(_delta: float) -> void:
 		life_t += _delta
+		if living != null and living.enabled() and not living.paused() and not living.reduced():
+			living.living_t += _delta
+		if living != null and living.enabled():
+			living.tick(_delta)
 		if pending_level >= 0 and Time.get_ticks_msec() - pending_at >= DOUBLE_MS:
 			var level := pending_level
 			var cell := pending_cell
@@ -17669,6 +17687,8 @@ class Yard extends Control:
 	func _draw() -> void:
 		if station == null or station.game == null:
 			return
+		if living != null:
+			living.begin_frame(life_t)
 		_poll_clear_burst()
 		more_hits.clear()
 		help_hits.clear()
@@ -17687,11 +17707,16 @@ class Yard extends Control:
 		_draw_structure(geo)
 		_draw_line_wall(geo)
 		_draw_pops(geo)
+		if living != null:
+			living.draw_walkers(self)
+			living.draw_grade(self, geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_merge_tag(geo)
 		_draw_seam_dust()
 		_draw_hover_label(geo)
+		if living != null:
+			living.end_frame()
 
 	## Optional yard hotspot. Same Wall panel as the desk button. Missing art draws nothing.
 	func _draw_line_wall(geo: Dictionary) -> void:
@@ -17871,11 +17896,17 @@ class Yard extends Control:
 			room_type = str(room.type)
 		if kind == "hidden":
 			_blit_fill(cell_rock, rect)
-			draw_rect(rect, Color(0, 0, 0, 0.5))
+			var shade := 0.5
+			if living != null and living.enabled():
+				shade = living.frontier_alpha(level, cell, kind)
+			draw_rect(rect, Color(0, 0, 0, shade))
 			_draw_rough(rect, level * 6 + cell, 0.7)
 		elif kind == "undug":
 			_blit_fill(cell_rock, rect)
-			draw_rect(rect, Color(0, 0, 0, 0.3))
+			var shade := 0.3
+			if living != null and living.enabled():
+				shade = living.frontier_alpha(level, cell, kind)
+			draw_rect(rect, Color(0, 0, 0, shade))
 			_draw_rough(rect, level * 6 + cell, 1.0)
 		elif kind == "dug":
 			if cell_dug != null:
@@ -17910,8 +17941,9 @@ class Yard extends Control:
 				_draw_motes(rect, salt)
 			if room != null and int(room.upgrade) > 0 and tier_tex == null:
 				_draw_tier_light(rect, int(room.upgrade))
-		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
-		if losing:
+		if kind == "room" and living != null and living.enabled():
+			living.paint_room(self, rect, str(spot.room), room_type)
+		elif kind == "room" and station.power_loss.has(str(spot.room)):
 			draw_rect(rect, Color(0, 0, 0, _lamp(level, cell)))
 			_draw_power_icon(rect)
 		if kind == "room":
@@ -17928,6 +17960,8 @@ class Yard extends Control:
 				draw_rect(rect, Color(0.05, 0.03, 0.02, 0.5))
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
+		if kind == "undug" and living != null and living.enabled():
+			living.paint_lantern(self, rect, level, cell)
 		if kind == "undug":
 			_draw_dig_outline(rect, level, cell)
 		if kind == "dug" and str(spot.get("pile", "")) != "":
@@ -18124,6 +18158,7 @@ class Yard extends Control:
 		return "hidden"
 
 	func _draw_dig_outline(rect: Rect2, level: int, cell: int) -> void:
+		dig_ring_draws += 1
 		var t := Time.get_ticks_msec() / 1000.0
 		var wave := 0.5 + 0.5 * sin(t * 2.4 + float(level) * 1.3 + float(cell) * 0.7)
 		var alpha := 0.55 + 0.4 * wave
