@@ -220,7 +220,7 @@ func _section_3() -> void:
 		if run_seed == 1:
 			var sim_diff := _diff_state(sim.state, off.state)
 			if sim_diff.is_empty():
-				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats")
+				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats.best_score")
 			else:
 				_bad("seed 1 sim-only state %s" % ", ".join(sim_diff))
 		sim.erase("state")
@@ -740,11 +740,29 @@ func _overlap_case(tag: String) -> void:
 	await process_frame
 	if st.toast_plate != null:
 		st.toast_plate.visible = false
+	var sick_before := 0
+	if game.residents.size() > 0:
+		sick_before = int(game.residents[0].get("sick", 0))
+		if sick_before < 1:
+			game.residents[0]["sick"] = 3
+	var saw_infirmary := false
+	for room in game.rooms:
+		if str(room.get("type", "")) == "infirmary":
+			saw_infirmary = true
+	if st.has_method("_sync_sick_badge"):
+		st._sync_sick_badge()
+	if not saw_infirmary and st.sick_badge != null and st.sick_badge.visible and st.yard != null:
+		var cot: Rect2 = st.yard.cell_screen(0, 2)
+		cot.position += st.yard.position
+		st.sick_badge.position = cot.position + Vector2(6.0, 6.0)
+	if st.has_method("_sync_away_badge"):
+		st._sync_away_badge()
 	_queue_check(game, "red", 10, false)
 	st._pick_event("feel_gate", "try")
 	await process_frame
 	if st.feel.check == null or not st.feel.check.open:
 		_bad("%s reveal missing" % tag)
+		_restore_overlap(game, sick_before)
 		return
 	if st.toast_plate != null and st.toast_plate.visible:
 		_bad("%s toast visible" % tag)
@@ -761,11 +779,67 @@ func _overlap_case(tag: String) -> void:
 		if not view.encloses(rect) and not view.grow(-1).encloses(rect):
 			if rect.position.x < -1.0 or rect.position.y < -1.0 or rect.end.x > view.size.x + 1.0 or rect.end.y > view.size.y + 1.0:
 				_bad("%s plate outside %s view %s" % [tag, rect, view])
+		var sick := _badge_note(st.sick_badge)
+		var away := _badge_note(st.away_badge)
+		var hit := false
 		for node_name in ["away_badge", "sick_badge", "undo_toast", "rail_chip", "radio_panel"]:
 			var node: Control = st.get(node_name)
 			if node != null and node.visible and _hits(rect, node.get_global_rect()):
 				_bad("%s hits %s" % [tag, node_name])
+				hit = true
+		if not hit:
+			print("SECTION 7 %s clear plate %s sick %s away %s" % [tag, rect, sick, away])
 	st.feel.check.reset()
+	_restore_overlap(game, sick_before)
+
+
+func _restore_overlap(game: Game, sick_before: int) -> void:
+	if game.residents.size() > 0:
+		game.residents[0]["sick"] = sick_before
+	if st.has_method("_sync_sick_badge"):
+		st._sync_sick_badge()
+
+
+func _badge_note(node: Control) -> String:
+	if node == null or not node.visible:
+		return "hidden"
+	var badge := node.get_global_rect()
+	return "shown %s" % badge
+
+
+func _shot_plate_badge(lang: String, win_size: Vector2i, scale: float, path: String) -> void:
+	Copy.set_lang(lang)
+	_arm_feel(true, false)
+	await _apply_view(win_size, scale)
+	_park(st)
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	var sick_before := 0
+	if game.residents.size() > 0:
+		sick_before = int(game.residents[0].get("sick", 0))
+		if sick_before < 1:
+			game.residents[0]["sick"] = 3
+	if st.has_method("_sync_sick_badge"):
+		st._sync_sick_badge()
+	if st.sick_badge != null and st.sick_badge.visible and st.yard != null:
+		var cot: Rect2 = st.yard.cell_screen(0, 2)
+		cot.position += st.yard.position
+		st.sick_badge.position = cot.position + Vector2(6.0, 6.0)
+	_queue_check(game, "red", 10, false)
+	st._pick_event("feel_gate", "try")
+	await create_timer(0.35).timeout
+	_save_view(path)
+	var plate := "none"
+	var sick := "hidden"
+	if st.feel.check != null and st.feel.check.plate != null:
+		plate = str(st.feel.check.plate.get_global_rect())
+	if st.sick_badge != null and st.sick_badge.visible:
+		sick = str(st.sick_badge.get_global_rect())
+	print("PLATE SHOT %s plate %s sick %s" % [lang, plate, sick])
+	if st.feel.check != null:
+		st.feel.check.reset()
+	_restore_overlap(game, sick_before)
 
 
 func _shot_check(tag: String, path: String, color: String) -> void:
@@ -982,6 +1056,8 @@ func _shots() -> void:
 	await _chip_edge_shot("ru", 1.0, "/opt/cursor/artifacts/feel_f1_chip_ru100.png")
 	await _chip_edge_shot("en", 1.25, "/opt/cursor/artifacts/feel_f1_chip_en125.png")
 	await _apply_view(Vector2i(1920, 1080), 1.0)
+	await _shot_plate_badge("en", Vector2i(1920, 1080), 1.0, "/opt/cursor/artifacts/feel_f2_plate_sick_en100.png")
+	await _shot_plate_badge("ru", Vector2i(1920, 1080), 1.25, "/opt/cursor/artifacts/feel_f2_plate_sick_ru125.png")
 	print("SHOTS wrote feel_f1 and feel_f2")
 
 
@@ -1223,9 +1299,11 @@ func _diff_any(a, b, prefix: String, out: PackedStringArray, limit: int) -> void
 		for key in names:
 			# stats.best_score is filled from user://records.cfg when a run seals.
 			# The sim pass plays all 60 seeds before the UI pass, so it can raise
-			# that file and seed 1's best differs even with feel off. The export
-			# hash still includes stats; cross-mode and master compares use that hash.
-			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage", "stats"]:
+			# that file and seed 1's best differs even with feel off. Other stats
+			# keys still have to match. The export hash still includes stats.
+			if prefix == "/stats" and str(key) == "best_score":
+				continue
+			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage"]:
 				continue
 			_diff_any(a.get(key, null), b.get(key, null), prefix + "/" + str(key), out, limit)
 		return

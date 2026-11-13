@@ -283,6 +283,68 @@ func _place() -> void:
 	var h := plate.get_combined_minimum_size().y
 	plate.position = Vector2((view.x - width) * 0.5, view.y * Style.CHECK_TOP)
 	plate.size = Vector2(width, h)
+	_clear_badges(view)
+
+
+## The banner slides down 24px onto the resting position. Both ends stay off the badges.
+func _clear_badges(view: Vector2) -> void:
+	if station == null or plate == null:
+		return
+	var slide := 24.0
+	for _round in 4:
+		var badge := _blocking_badge(slide)
+		if badge.size.x < 1.0:
+			break
+		var mine := _plate_global(slide)
+		var gap := 10.0
+		var below := badge.end.y + gap
+		var above := badge.position.y - mine.size.y - gap - slide
+		var right := badge.end.x + gap
+		var left := badge.position.x - mine.size.x - gap
+		var goal := mine.position
+		if below + mine.size.y + slide <= view.y - 8.0 and absf(below - mine.position.y) < view.y:
+			goal.y = below
+		elif above >= 8.0:
+			goal.y = above
+		elif right + mine.size.x <= view.x - 8.0:
+			goal.x = right
+		elif left >= 8.0:
+			goal.x = left
+		else:
+			break
+		goal.x = clampf(goal.x, 8.0, maxf(8.0, view.x - mine.size.x - 8.0))
+		goal.y = clampf(goal.y, 8.0, maxf(8.0, view.y - mine.size.y - slide - 8.0))
+		_set_plate_global(goal)
+	var fitted := _plate_global(0.0)
+	var clamped := fitted.position
+	clamped.x = clampf(clamped.x, 8.0, maxf(8.0, view.x - fitted.size.x - 8.0))
+	clamped.y = clampf(clamped.y, 8.0, maxf(8.0, view.y - fitted.size.y - 8.0))
+	_set_plate_global(clamped)
+
+
+func _blocking_badge(slide: float) -> Rect2:
+	var mine := _plate_global(slide)
+	for node_name in ["sick_badge", "away_badge"]:
+		var node: Control = station.get(node_name)
+		if node == null or not node.visible:
+			continue
+		var badge := node.get_global_rect()
+		if badge.size.x < 2.0 or badge.size.y < 2.0:
+			continue
+		if mine.intersects(badge):
+			return badge
+	return Rect2()
+
+
+func _plate_global(slide: float) -> Rect2:
+	var rect := plate.get_global_rect()
+	rect.size.y += slide
+	return rect
+
+
+func _set_plate_global(top_left: Vector2) -> void:
+	var xform: Transform2D = get_global_transform()
+	plate.position = xform.affine_inverse() * top_left
 
 
 func _show_static() -> void:
