@@ -77,6 +77,7 @@ func _run() -> void:
 	await _section_4()
 	await _section_5()
 	await _section_6()
+	await _section_focus_stamp()
 	await _section_7()
 	await _section_9()
 	await _section_13()
@@ -417,6 +418,119 @@ func _section_6() -> void:
 		if st.feel.check.open:
 			_bad("reveal still open")
 	_section_done(mark, "SECTION 6 check input")
+
+
+func _section_focus_stamp() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	st.hold_dawn = true
+	await _focus_path("click", false)
+	await _focus_path("esc", true)
+	await _focus_fallback("click", false)
+	await _focus_fallback("esc", true)
+	_arm_feel(true, false)
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	_queue_check(game, "red", 8, false)
+	st._pick_event("feel_gate", "try")
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("stamp reveal missing")
+	else:
+		_click_check()
+		await process_frame
+		await process_frame
+		var turned := float(st.feel.check.stamp.rotation_degrees)
+		if not is_equal_approx(turned, -4.0):
+			_bad("stamp rotation %s" % turned)
+		elif st.feel.check.phase != "stamp" and st.feel.check.phase != "fade" and st.feel.check.phase != "hold":
+			_bad("stamp phase %s" % st.feel.check.phase)
+		else:
+			print("STAMP rotation %.1f phase %s" % [turned, st.feel.check.phase])
+		st.feel.check.reset()
+	_section_done(mark, "SECTION focus stamp")
+
+
+func _focus_path(tag: String, esc: bool) -> void:
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	if st.menu_button == null:
+		_bad("%s no menu button" % tag)
+		return
+	st.menu_button.grab_focus()
+	await process_frame
+	_queue_check(game, "white", 8, false)
+	st._pick_event("feel_gate", "try")
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("%s reveal missing" % tag)
+		return
+	if esc:
+		_esc_check()
+	else:
+		_click_check()
+		_click_check()
+		await create_timer(0.5).timeout
+	await process_frame
+	await process_frame
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	if owner != st.menu_button:
+		_bad("%s focus %s" % [tag, owner])
+	else:
+		print("FOCUS %s owner menu" % tag)
+
+
+func _focus_fallback(tag: String, esc: bool) -> void:
+	var game: Game = st.game
+	game.over = ""
+	game.week = 8
+	st.event_mode = "all"
+	game.pending = [_check_event("white", 8, false), {
+		"id": "feel_next",
+		"title": {"en": "Next", "ru": "Дальше"},
+		"text": {"en": "Still here.", "ru": "Ещё здесь."},
+		"choices": [{"id": "ok", "label": {"en": "Stay", "ru": "Остаться"}}],
+	}]
+	var temp := Button.new()
+	temp.text = "temp"
+	temp.focus_mode = Control.FOCUS_ALL
+	st.add_child(temp)
+	temp.grab_focus()
+	await process_frame
+	st._pick_event("feel_gate", "try")
+	if is_instance_valid(temp):
+		temp.queue_free()
+	await process_frame
+	if st.feel.check == null or not st.feel.check.open:
+		_bad("%s fallback reveal missing" % tag)
+		st.event_mode = "dawn"
+		return
+	if esc:
+		_esc_check()
+	else:
+		_click_check()
+		_click_check()
+		await create_timer(0.5).timeout
+	await process_frame
+	await process_frame
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	var expect: Control = st._first_enabled_control(st.card) if st.dim != null and st.dim.visible else null
+	if owner == null:
+		_bad("%s fallback focus null" % tag)
+	elif expect != null and owner != expect:
+		_bad("%s fallback focus %s want %s" % [tag, owner, expect])
+	else:
+		print("FOCUS %s fallback %s" % [tag, owner])
+	st.event_mode = "dawn"
+	if st.feel.check != null and st.feel.check.open:
+		st.feel.check.reset()
+
+
+func _esc_check() -> void:
+	var ev := InputEventAction.new()
+	ev.action = "ui_cancel"
+	ev.pressed = true
+	st._input(ev)
 
 
 func _section_7() -> void:

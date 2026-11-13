@@ -21,7 +21,9 @@ var done_count := 0
 var cues: PackedStringArray = []
 var plate: PanelContainer
 var banner: Label
-var stamp_box: PanelContainer
+var stamp_box: Control
+var stamp_outer: Panel
+var stamp_inner: Panel
 var stamp: Label
 var subline: Label
 var hint: Label
@@ -47,6 +49,7 @@ func start(last: Dictionary, choice: Dictionary, on_done: Callable, offer_full: 
 		station.toast_plate.visible = false
 	_build_plate(last)
 	visible = true
+	focus_mode = Control.FOCUS_NONE
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	if host.reduced():
 		_show_static()
@@ -179,29 +182,37 @@ func _build_plate(last: Dictionary) -> void:
 	banner.autowrap_mode = TextServer.AUTOWRAP_OFF
 	banner.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	box.add_child(banner)
-	stamp_box = PanelContainer.new()
+	# A Container lays its children out and clears a stamp's rotation, so the
+	# tilted label sits in a plain Control. Spec 5.3: display size 64, -4°.
+	stamp_box = Control.new()
+	stamp_box.name = "FeelStampBox"
 	stamp_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stamp_box.visible = false
 	var inner := _plate_style(edge)
 	inner.set_border_width_all(2)
 	inner.bg_color = Color(0, 0, 0, 0)
+	inner.set_content_margin_all(0)
 	var outer := _plate_style(edge)
 	outer.set_border_width_all(4)
 	outer.bg_color = Color(0.08, 0.06, 0.04, 0.2)
-	outer.set_content_margin_all(6)
-	stamp_box.add_theme_stylebox_override("panel", outer)
-	var inner_box := PanelContainer.new()
-	inner_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	inner_box.add_theme_stylebox_override("panel", inner)
+	outer.set_content_margin_all(0)
+	stamp_outer = Panel.new()
+	stamp_outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp_outer.add_theme_stylebox_override("panel", outer)
+	stamp_inner = Panel.new()
+	stamp_inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp_inner.add_theme_stylebox_override("panel", inner)
 	stamp = _line(_stamp_text(last), Style.CHECK_STAMP_FONT, true)
+	stamp.name = "FeelStamp"
 	stamp.add_theme_color_override("font_color", Style.AMBER if bool(last.get("success", false)) else Style.RUST)
 	if station.display_font != null:
 		stamp.add_theme_font_override("font", station.display_font)
 	stamp.autowrap_mode = TextServer.AUTOWRAP_OFF
-	stamp.rotation_degrees = -4.0
-	inner_box.add_child(stamp)
-	stamp_box.add_child(inner_box)
+	stamp_box.add_child(stamp_outer)
+	stamp_box.add_child(stamp_inner)
+	stamp_box.add_child(stamp)
 	box.add_child(stamp_box)
+	_tilt_stamp()
 	subline = _line(station._check_result_line(), 18, false)
 	subline.autowrap_mode = TextServer.AUTOWRAP_OFF
 	subline.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -266,8 +277,7 @@ func _place() -> void:
 	banner.custom_minimum_size = Vector2(width - 48.0, 36)
 	banner.size = banner.custom_minimum_size
 	subline.custom_minimum_size = Vector2(width - 48.0, 48)
-	stamp.custom_minimum_size = Vector2(width - 80.0, 72)
-	stamp.size = stamp.custom_minimum_size
+	_tilt_stamp()
 	hint.custom_minimum_size = Vector2(width - 48.0, 24)
 	plate.custom_minimum_size = Vector2(width, 0)
 	var h := plate.get_combined_minimum_size().y
@@ -338,21 +348,77 @@ func _mark_fade() -> void:
 	phase = "fade"
 
 
+func _tilt_stamp() -> void:
+	if stamp == null or stamp_box == null:
+		return
+	var font: Font = stamp.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var measured: Vector2 = font.get_string_size(stamp.text, HORIZONTAL_ALIGNMENT_LEFT, -1, Style.CHECK_STAMP_FONT)
+	var padded := Vector2(maxf(measured.x, 48.0) + 28.0, maxf(measured.y, 48.0) + 16.0)
+	stamp.custom_minimum_size = padded
+	stamp.size = padded
+	stamp.pivot_offset = padded * 0.5
+	stamp.rotation_degrees = -4.0
+	stamp.scale = Vector2.ONE
+	if stamp_outer != null:
+		stamp_outer.size = padded
+		stamp_outer.pivot_offset = padded * 0.5
+		stamp_outer.rotation_degrees = -4.0
+	if stamp_inner != null:
+		var inset := padded - Vector2(12.0, 12.0)
+		stamp_inner.size = inset
+		stamp_inner.pivot_offset = inset * 0.5
+		stamp_inner.rotation_degrees = -4.0
+	var rad := deg_to_rad(4.0)
+	var bounds := Vector2(
+		absf(padded.x * cos(rad)) + absf(padded.y * sin(rad)) + 8.0,
+		absf(padded.x * sin(rad)) + absf(padded.y * cos(rad)) + 8.0
+	)
+	stamp_box.custom_minimum_size = bounds
+	var slot: Vector2 = stamp_box.size
+	if slot.x < bounds.x:
+		slot = bounds
+	var at := (slot - padded) * 0.5
+	stamp.position = at
+	if stamp_outer != null:
+		stamp_outer.position = at
+	if stamp_inner != null:
+		stamp_inner.position = at + Vector2(6.0, 6.0)
+
+
 func _reveal_stamp(animated: bool) -> void:
 	if stamp_box == null:
 		return
 	stamp_box.visible = true
 	subline.visible = true
 	subline.text = station._check_result_line()
+	_tilt_stamp()
 	var success := bool(station.game.last_check.get("success", false))
 	_cue("feel_stamp_ok" if success else "feel_stamp_fail", "confirm" if success else "error")
-	stamp.pivot_offset = stamp.size * 0.5 if stamp.size.x > 1.0 else stamp.custom_minimum_size * 0.5
+	stamp.pivot_offset = stamp.size * 0.5
+	stamp.rotation_degrees = -4.0
+	if stamp_outer != null:
+		stamp_outer.rotation_degrees = -4.0
+	if stamp_inner != null:
+		stamp_inner.rotation_degrees = -4.0
 	if not animated:
 		stamp.scale = Vector2.ONE
+		_keep_tilt.call_deferred()
 		return
 	stamp.scale = Vector2(punch, punch)
 	var pop := create_tween()
 	pop.tween_property(stamp, "scale", Vector2.ONE, Style.CHECK_STAMP_SEC).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_keep_tilt.call_deferred()
+
+
+func _keep_tilt() -> void:
+	if stamp != null and is_instance_valid(stamp):
+		stamp.rotation_degrees = -4.0
+	if stamp_outer != null and is_instance_valid(stamp_outer):
+		stamp_outer.rotation_degrees = -4.0
+	if stamp_inner != null and is_instance_valid(stamp_inner):
+		stamp_inner.rotation_degrees = -4.0
 
 
 func _click() -> void:
