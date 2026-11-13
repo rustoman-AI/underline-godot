@@ -18,6 +18,7 @@ const KEYS := [
 
 var bad: PackedStringArray = []
 var st
+var records_rel := "user://check_feel/records.cfg"
 var catalog: Catalog
 var cat_sim: Catalog
 var cat_off: Catalog
@@ -199,6 +200,9 @@ func _section_3() -> void:
 	var t0 := Time.get_ticks_msec()
 	# One catalog per mode, seeds in order. A shared catalog is mutated by setup, so interleaving
 	# modes would not match a single master pass.
+	# Each mode seals best_score into user://records.cfg. A single-pass master
+	# capture starts from an empty file, so every mode here does too. Otherwise
+	# the sim pass raises the file and seed 1's full export hash no longer matches.
 	var sim_rows := await _pass("sim", cat_sim, master)
 	var off_rows := await _pass("off", cat_off, master)
 	var on_rows := await _pass("on", cat_on, master)
@@ -223,6 +227,19 @@ func _section_3() -> void:
 				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats.best_score")
 			else:
 				_bad("seed 1 sim-only state %s" % ", ".join(sim_diff))
+			var seed_hash := int(off.hash)
+			var master_hash := seed_hash
+			var master_note := ""
+			if not master.is_empty():
+				var want1: Dictionary = master.get("1", {})
+				master_hash = int(want1.get("hash", -1))
+				master_note = " master %d" % master_hash
+			# Sim-only skips the station refresh, so its full hash is not the UI hash.
+			# off, on, and reduced are the runs compared to a single-pass master capture.
+			if int(on.hash) == seed_hash and int(red.hash) == seed_hash and master_hash == seed_hash:
+				print("SECTION 3 seed 1 full hash %d matches%s" % [seed_hash, master_note])
+			else:
+				_bad("seed 1 full hash off %d on %d reduced %d%s" % [seed_hash, int(on.hash), int(red.hash), master_note])
 		sim.erase("state")
 		if not master.is_empty():
 			var want: Dictionary = master.get(str(run_seed), {})
@@ -1148,6 +1165,7 @@ func _apply_view(win_size: Vector2i, scale: float = 1.0) -> void:
 
 
 func _pass(mode: String, cat: Catalog, master: Dictionary) -> Dictionary:
+	records_rel = _fresh_records(mode)
 	var rows := {}
 	var saved := catalog
 	catalog = cat
@@ -1173,9 +1191,22 @@ func _pass(mode: String, cat: Catalog, master: Dictionary) -> Dictionary:
 	return rows
 
 
+## best_score is sealed from records_path, which defaults to the shared
+## user://records.cfg. This Godot build has no --user-data-dir, so that file is
+## one home for every run. Each mode gets its own empty file instead, matching a
+## master-json capture that also starts from an empty records file.
+func _fresh_records(mode: String) -> String:
+	var rel := SCRATCH.path_join("records_%s.cfg" % mode)
+	var path := ProjectSettings.globalize_path(rel)
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	return rel
+
+
 func _drive(run_seed: int, mode: String) -> Dictionary:
 	_arm_feel(mode != "off", mode == "reduced")
 	var game := Game.new()
+	game.records_path = records_rel
 	game.setup(catalog, run_seed, 40)
 	game.audit = false
 	game.raid_share_profile = "careful"
@@ -1208,6 +1239,7 @@ func _drive(run_seed: int, mode: String) -> Dictionary:
 
 func _sim_only(run_seed: int) -> Dictionary:
 	var game := Game.new()
+	game.records_path = records_rel
 	game.setup(catalog, run_seed, 40)
 	game.audit = false
 	game.raid_share_profile = "careful"
