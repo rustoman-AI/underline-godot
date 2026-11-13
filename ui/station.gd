@@ -2736,18 +2736,17 @@ func _fit_power_card() -> void:
 	if power_fit_passes > 8:
 		return
 	power_fit_passes += 1
-	var bar := card_scroll.get_v_scroll_bar()
-	if bar != null:
-		bar.modulate = Color(1, 1, 1, 1)
 	var content_h := maxf(card_body.size.y, card_body.get_combined_minimum_size().y)
 	var view := card_scroll.size.y
 	if view < 8.0 or content_h < 8.0:
 		_queue_power_fit()
 		return
-	if content_h > view + 1.0:
+	var overflows := content_h > view + 1.0
+	if overflows:
 		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
 	else:
 		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_style_power_scrollbar(overflows)
 	if _shorten_power_card_off_button():
 		_queue_power_fit()
 		return
@@ -2756,6 +2755,46 @@ func _fit_power_card() -> void:
 		card_scroll.scroll_vertical = want
 		card_scroll.set_deferred("scroll_vertical", want)
 		_queue_power_fit()
+
+
+## The shared tooltip theme draws this bar with empty styleboxes, so it collapses to 0 px.
+## Ten pixels, and the same brass grabber the other scrollers already use, on the dark tip plate.
+func _style_power_scrollbar(show: bool) -> void:
+	if card_scroll == null:
+		return
+	var bar := card_scroll.get_v_scroll_bar()
+	if bar == null:
+		return
+	bar.modulate = Color(1, 1, 1, 1)
+	if not show:
+		bar.custom_minimum_size.x = 0
+		for state in ["scroll", "scroll_focus", "grabber", "grabber_highlight", "grabber_pressed"]:
+			bar.remove_theme_stylebox_override(state)
+		return
+	bar.custom_minimum_size.x = 10
+	bar.visible = true
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	track.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	track.set_border_width_all(1)
+	track.set_content_margin(SIDE_LEFT, 4)
+	track.set_content_margin(SIDE_RIGHT, 4)
+	track.set_content_margin(SIDE_TOP, 2)
+	track.set_content_margin(SIDE_BOTTOM, 2)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	grab.set_content_margin(SIDE_LEFT, 3)
+	grab.set_content_margin(SIDE_RIGHT, 3)
+	grab.set_content_margin(SIDE_TOP, 4)
+	grab.set_content_margin(SIDE_BOTTOM, 4)
+	bar.add_theme_stylebox_override("scroll", track)
+	bar.add_theme_stylebox_override("scroll_focus", track)
+	bar.add_theme_stylebox_override("grabber", grab)
+	bar.add_theme_stylebox_override("grabber_highlight", grab)
+	bar.add_theme_stylebox_override("grabber_pressed", grab)
 
 
 func _power_scroll_target(view: float) -> int:
@@ -2776,14 +2815,11 @@ func _power_scroll_target(view: float) -> int:
 func _shorten_power_card_off_button() -> bool:
 	if card_scroll == null or int(card_scroll.scroll_vertical) > 1:
 		return false
-	var view := card_scroll.size.y
-	var btn := _button_straddling(view)
+	var edge := card_scroll.get_global_rect().end.y
+	var btn := _button_on_global_edge(edge)
 	if btn == null:
 		return false
-	var want_edge := _body_y(btn) - 8.0
-	if want_edge < 120.0:
-		return false
-	var delta := want_edge - view
+	var delta := btn.get_global_rect().position.y - 8.0 - edge
 	if delta >= -0.5:
 		return false
 	var top_limit := _card_top_limit()
@@ -2834,6 +2870,25 @@ func _body_y(node: Control) -> float:
 			y += (here as Control).position.y
 		here = here.get_parent()
 	return y
+
+
+func _button_on_global_edge(edge: float) -> Button:
+	if card_body == null:
+		return null
+	var best: Button = null
+	var best_top := 1.0e9
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and (here as CanvasItem).visible:
+			var btn := here as Button
+			var rect := btn.get_global_rect()
+			if rect.size.y > 4.0 and rect.position.y + 2.0 < edge and edge < rect.end.y - 2.0 and rect.position.y < best_top:
+				best = btn
+				best_top = rect.position.y
+		for child in here.get_children():
+			stack.append(child)
+	return best
 
 
 func _button_straddling(edge: float) -> Button:
@@ -3196,6 +3251,28 @@ func _park_map_under_card() -> void:
 	else:
 		network_view.z_index = 0
 		network_view.mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+## Esc while the map sits under the card leaves the viewport with no focus. The card's first enabled control takes it.
+func _focus_card_front() -> void:
+	var found := _first_card_focus(card)
+	if found != null:
+		found.grab_focus()
+
+
+func _first_card_focus(node: Node) -> Control:
+	if node == null:
+		return null
+	if node is Control and node != card and not (node is ScrollBar):
+		var control := node as Control
+		var enabled := not (control is BaseButton) or not (control as BaseButton).disabled
+		if control.visible and enabled and control.focus_mode != Control.FOCUS_NONE:
+			return control
+	for child in node.get_children():
+		var found := _first_card_focus(child)
+		if found != null:
+			return found
+	return null
 
 
 func _skill_line(person: Dictionary) -> String:
@@ -8703,6 +8780,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_shiftword_back()
 		get_viewport().set_input_as_handled()
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and dim != null and dim.visible and showing_network:
+		_focus_card_front()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_J and not at_menu and game != null:
 		if deck.top_token() == "journal":
 			_close_card()
@@ -12113,9 +12194,7 @@ func _open_card(heading: String, with_close: bool = true, tag: String = "") -> v
 	dim.visible = true
 	if card_scroll != null:
 		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-		var bar := card_scroll.get_v_scroll_bar()
-		if bar != null:
-			bar.modulate = Color(1, 1, 1, 1)
+		_style_power_scrollbar(false)
 	_park_map_under_card()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)

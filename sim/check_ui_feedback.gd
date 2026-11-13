@@ -46,11 +46,10 @@ func _run() -> void:
 		st.menu_layer.visible = false
 	st.at_menu = false
 	Settings.reduce_motion = true
-	await _view(st, Vector2i(1920, 1080), 1.0)
-	Copy.set_lang("en")
-	await _u1(st, "1920")
-	await _view(st, Vector2i(1920, 1080), 1.25)
-	await _u1(st, "125")
+	for row in [["en", 1.0, "en 100"], ["en", 1.25, "en 125"], ["ru", 1.0, "ru 100"], ["ru", 1.25, "ru 125"]]:
+		Copy.set_lang(str(row[0]))
+		await _view(st, Vector2i(1920, 1080), float(row[1]))
+		await _u1(st, str(row[2]))
 	await _view(st, Vector2i(1920, 1080), 1.0)
 	Copy.set_lang("en")
 	await _u2(st)
@@ -97,11 +96,12 @@ func _u1(st, tag: String) -> void:
 	for _i in 4:
 		await process_frame
 	var compare := _meta_button(st.card_body, "cutplan_compare", uid)
-	if compare == null:
+	if compare != null:
+		st.card_click_guard = 0
+		compare.pressed.emit()
+	elif tag.begins_with("en"):
 		_bad("U1 %s compare missing" % tag)
 		return
-	st.card_click_guard = 0
-	compare.pressed.emit()
 	for _i in 16:
 		await process_frame
 	var pad := _meta_control(st.card_body, "power_pad")
@@ -114,12 +114,19 @@ func _u1(st, tag: String) -> void:
 		_bad("U1 %s scrollbar hidden" % tag)
 	var content := maxf(st.card_body.size.y, st.card_body.get_combined_minimum_size().y)
 	var view: float = st.card_scroll.size.y
-	if content > view + 1.0 and st.card_scroll.vertical_scroll_mode != ScrollContainer.SCROLL_MODE_SHOW_ALWAYS:
-		_bad("U1 %s scrollbar not kept visible" % tag)
+	if content > view + 1.0:
+		if st.card_scroll.vertical_scroll_mode != ScrollContainer.SCROLL_MODE_SHOW_ALWAYS:
+			_bad("U1 %s scrollbar not kept visible" % tag)
+		var wide: float = bar.get_global_rect().size.x if bar != null else 0.0
+		if bar == null or not bar.visible or wide < 8.0:
+			_bad("U1 %s scrollbar width %.1f visible %s" % [tag, wide, bar.visible if bar != null else false])
+		var grab: StyleBox = bar.get_theme_stylebox("grabber") if bar != null else null
+		if grab == null:
+			_bad("U1 %s scrollbar has no grabber" % tag)
 	var block := _meta_control(st.card_body, "cutplan_panel")
-	if block == null:
+	if block == null and tag.begins_with("en"):
 		_bad("U1 %s compare block missing" % tag)
-	else:
+	elif block != null:
 		var view_rect: Rect2 = st.card_scroll.get_global_rect()
 		var block_rect: Rect2 = block.get_global_rect()
 		var block_h := maxf(block.size.y, block.get_combined_minimum_size().y)
@@ -335,6 +342,20 @@ func _u8(st) -> void:
 		_bad("U8 map z %s is not under dim %s" % [st.network_view.z_index, st.dim.z_index])
 	if st.network_view.mouse_filter != Control.MOUSE_FILTER_IGNORE:
 		_bad("U8 map still takes clicks")
+	st.get_viewport().gui_release_focus()
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	st.get_viewport().push_input(esc)
+	for _i in 2:
+		await process_frame
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	if owner == null or st.card == null or not st.card.is_ancestor_of(owner):
+		_bad("U8 esc focus %s" % owner)
+	elif owner is BaseButton and (owner as BaseButton).disabled:
+		_bad("U8 esc focused a disabled control")
+	else:
+		print("U8 esc focus %s" % owner.name)
 	st.game.pending.clear()
 	st._close_card()
 	for _i in 3:
