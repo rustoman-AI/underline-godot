@@ -174,6 +174,9 @@ var card_fit_queued := false
 var card_fit_tries := 0
 ## Content height at the last fit; the card is refitted every frame until two measures agree.
 var card_fit_last := -1.0
+## Power order refits after the card settles, so the list scrolls instead of slicing a button row.
+var power_fit_queued := false
+var power_fit_passes := 0
 ## Card buttons ignore presses until this tick (msec), set by each card press.
 var card_click_guard := 0
 var help_unfold := false
@@ -2704,6 +2707,7 @@ func _shrink_card() -> void:
 	var content_h := maxf(card_body.size.y, card_body.get_combined_minimum_size().y)
 	card_fit_tries += 1
 	if card_fit_tries > 30:
+		_queue_power_fit()
 		return
 	var h := content_h + 52.0
 	if content_h < 40.0 or h < 96.0:
@@ -2732,11 +2736,219 @@ func _shrink_card() -> void:
 	if absf(content_h - card_fit_last) > 0.5:
 		card_fit_last = content_h
 		_queue_shrink()
+		return
+	## Power order: once the height has settled, keep the bottom edge off a button row.
+	_queue_power_fit()
+
+
+## The power list is taller than the card. Scroll the compare block into the viewport the same way the
+## journal puts a saved offset back, and do not leave the card edge through a button.
+func _queue_power_fit() -> void:
+	if deck.top_token() != "power" or power_fit_queued or not is_inside_tree():
+		return
+	power_fit_queued = true
+	get_tree().process_frame.connect(_fit_power_card, CONNECT_ONE_SHOT)
+
+
+func _fit_power_card() -> void:
+	power_fit_queued = false
+	if deck.top_token() != "power" or dim == null or not dim.visible or card_scroll == null or card_body == null:
+		return
+	if card_fit_queued:
+		_queue_power_fit()
+		return
+	if power_fit_passes > 8:
+		return
+	power_fit_passes += 1
+	var content_h := maxf(card_body.size.y, card_body.get_combined_minimum_size().y)
+	var view := card_scroll.size.y
+	if view < 8.0 or content_h < 8.0:
+		_queue_power_fit()
+		return
+	var overflows := content_h > view + 1.0
+	if overflows:
+		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	else:
+		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_style_power_scrollbar(overflows)
+	if _shorten_power_card_off_button():
+		_queue_power_fit()
+		return
+	var want := _scroll_clear_of_button(_power_scroll_target(view), view)
+	if absi(want - int(card_scroll.scroll_vertical)) > 0:
+		card_scroll.scroll_vertical = want
+		card_scroll.set_deferred("scroll_vertical", want)
+		_queue_power_fit()
+
+
+## The shared tooltip theme draws this bar with empty styleboxes, so it collapses to 0 px.
+## Ten pixels, and the same brass grabber the other scrollers already use, on the dark tip plate.
+func _style_power_scrollbar(show: bool) -> void:
+	if card_scroll == null:
+		return
+	var bar := card_scroll.get_v_scroll_bar()
+	if bar == null:
+		return
+	bar.modulate = Color(1, 1, 1, 1)
+	if not show:
+		bar.custom_minimum_size.x = 0
+		for state in ["scroll", "scroll_focus", "grabber", "grabber_highlight", "grabber_pressed"]:
+			bar.remove_theme_stylebox_override(state)
+		return
+	bar.custom_minimum_size.x = 10
+	bar.visible = true
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	track.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	track.set_border_width_all(1)
+	track.set_content_margin(SIDE_LEFT, 4)
+	track.set_content_margin(SIDE_RIGHT, 4)
+	track.set_content_margin(SIDE_TOP, 2)
+	track.set_content_margin(SIDE_BOTTOM, 2)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	grab.set_content_margin(SIDE_LEFT, 3)
+	grab.set_content_margin(SIDE_RIGHT, 3)
+	grab.set_content_margin(SIDE_TOP, 4)
+	grab.set_content_margin(SIDE_BOTTOM, 4)
+	bar.add_theme_stylebox_override("scroll", track)
+	bar.add_theme_stylebox_override("scroll_focus", track)
+	bar.add_theme_stylebox_override("grabber", grab)
+	bar.add_theme_stylebox_override("grabber_highlight", grab)
+	bar.add_theme_stylebox_override("grabber_pressed", grab)
+
+
+func _power_scroll_target(view: float) -> int:
+	var block := _power_block()
+	if block == null:
+		return 0
+	var top := _body_y(block)
+	var height := maxf(block.size.y, block.get_combined_minimum_size().y)
+	if height < 8.0:
+		return 0
+	var bottom := top + height
+	if height + 8.0 <= view:
+		return int(maxi(0.0, bottom + 8.0 - view))
+	return int(maxi(0.0, top))
+
+
+## At the top of the list, pull the card up so its edge sits 8 px above a cut button instead of through it.
+func _shorten_power_card_off_button() -> bool:
+	if card_scroll == null or int(card_scroll.scroll_vertical) > 1:
+		return false
+	var edge := card_scroll.get_global_rect().end.y
+	var btn := _button_on_global_edge(edge)
+	if btn == null:
+		return false
+	var delta := btn.get_global_rect().position.y - 8.0 - edge
+	if delta >= -0.5:
+		return false
+	var top_limit := _card_top_limit()
+	var max_h := size.y - top_limit - 12.0
+	var h := clampf((card.offset_bottom - card.offset_top) + delta, 160.0, max_h)
+	if absf((card.offset_bottom - card.offset_top) - h) < 0.5:
+		return false
+	var card_top := clampf((size.y - h) / 2.0, top_limit, top_limit + maxf(0.0, max_h - h))
+	card.offset_top = card_top
+	card.offset_bottom = card_top + h
+	return true
+
+
+## Slide the settled scroll so the viewport bottom clears a button, with 8 px of padding.
+func _scroll_clear_of_button(want: int, view: float) -> int:
+	var edge := float(want) + view
+	var btn := _button_straddling(edge)
+	if btn == null:
+		return want
+	var top := _body_y(btn)
+	var bot := top + maxf(btn.size.y, btn.get_combined_minimum_size().y)
+	var cleared := int(maxi(0.0, bot + 8.0 - view))
+	if _button_straddling(float(cleared) + view) != null:
+		return maxi(0, int(floor(top - 8.0 - view)))
+	return cleared
+
+
+func _power_block() -> Control:
+	if card_body == null:
+		return null
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Control and here.has_meta("cutplan_panel"):
+			return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
+
+
+func _body_y(node: Control) -> float:
+	if card_body == null or node == null:
+		return 0.0
+	var y := 0.0
+	var here: Node = node
+	while here != null and here != card_body:
+		if here is Control:
+			y += (here as Control).position.y
+		here = here.get_parent()
+	return y
+
+
+func _button_on_global_edge(edge: float) -> Button:
+	if card_body == null:
+		return null
+	var best: Button = null
+	var best_top := 1.0e9
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and (here as CanvasItem).visible:
+			var btn := here as Button
+			var rect := btn.get_global_rect()
+			if rect.size.y > 4.0 and rect.position.y + 2.0 < edge and edge < rect.end.y - 2.0 and rect.position.y < best_top:
+				best = btn
+				best_top = rect.position.y
+		for child in here.get_children():
+			stack.append(child)
+	return best
+
+
+func _button_straddling(edge: float) -> Button:
+	if card_body == null:
+		return null
+	var best: Button = null
+	var best_top := 1.0e9
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and (here as CanvasItem).visible:
+			var btn := here as Button
+			var top := _body_y(btn)
+			var bot := top + maxf(btn.size.y, btn.get_combined_minimum_size().y)
+			if top + 2.0 < edge and edge < bot - 2.0 and top < best_top:
+				best = btn
+				best_top = top
+		for child in here.get_children():
+			stack.append(child)
+	return best
+
+
+func _pad_power_tail() -> void:
+	if card_body == null:
+		return
+	var pad := Control.new()
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.custom_minimum_size = Vector2(0, 8)
+	pad.set_meta("power_pad", true)
+	card_body.add_child(pad)
 
 
 func _refresh() -> void:
 	if game == null:
 		return
+	_retire_early_guide()
 	var notes: PackedStringArray = []
 	_sync_rail_noise()
 	while not game.notices.is_empty():
@@ -3049,6 +3261,42 @@ func _toggle_network() -> void:
 	_place_chrome()
 	_sync_yard_notice_cover()
 	_sync_chatter_cover()
+	_park_map_under_card()
+
+
+## A pending choice keeps the map under the card veil. Map children sit as high as z 40, so the view
+## itself has to drop or those plates draw over the dim and stay clickable.
+func _park_map_under_card() -> void:
+	if network_view == null or dim == null:
+		return
+	if dim.visible:
+		network_view.z_index = dim.z_index - 41
+		network_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	else:
+		network_view.z_index = 0
+		network_view.mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+## Esc while the map sits under the card leaves the viewport with no focus. The card's first enabled control takes it.
+func _focus_card_front() -> void:
+	var found := _first_card_focus(card)
+	if found != null:
+		found.grab_focus()
+
+
+func _first_card_focus(node: Node) -> Control:
+	if node == null:
+		return null
+	if node is Control and node != card and not (node is ScrollBar):
+		var control := node as Control
+		var enabled := not (control is BaseButton) or not (control as BaseButton).disabled
+		if control.visible and enabled and control.focus_mode != Control.FOCUS_NONE:
+			return control
+	for child in node.get_children():
+		var found := _first_card_focus(child)
+		if found != null:
+			return found
+	return null
 
 
 func _skill_line(person: Dictionary) -> String:
@@ -3462,8 +3710,12 @@ func _offer_pending() -> void:
 
 func _end_cover_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _end_state() == "waiting":
+			_toast(Copy.t(WAITING), 1.8)
+			Sound.play("error")
 		if not game.pending.is_empty():
 			_show_dawn()
+		if end_cover != null:
 			end_cover.accept_event()
 
 
@@ -4327,6 +4579,7 @@ func _show_power_restored() -> void:
 func _paint_power() -> void:
 	if cutplan_room != "" and not Cutplan.locale_ready():
 		_cutplan_reset()
+	power_fit_passes = 0
 	_open_card("Power order")
 	_body("Higher rooms keep their power when it runs short. The rest go dark.")
 	var index := 0
@@ -4356,12 +4609,13 @@ func _paint_power() -> void:
 			_paint_cutplan()
 	card_body.add_child(_button("Close", _close_card))
 	_cutplan_retarget_close()
+	_pad_power_tail()
+	_queue_power_fit()
 
 
 func _power_dir_button(label: String, uid: String, up: bool, at: int) -> Button:
-	var button := _button(label, _nudge_power.bind(uid, up))
 	var legal := _cutplan_can(uid, up)
-	button.disabled = not legal
+	var button := _lock_button(label) if not legal else _button(label, _nudge_power.bind(uid, up))
 	button.focus_mode = Control.FOCUS_ALL if legal else Control.FOCUS_NONE
 	button.set_meta("power_uid", uid)
 	button.set_meta("power_dir", "up" if up else "down")
@@ -4558,6 +4812,7 @@ func _paint_cutplan() -> void:
 	keep.focus_mode = Control.FOCUS_ALL
 	actions.add_child(keep)
 	col.add_child(actions)
+	_queue_power_fit()
 
 
 func _cutplan_dir_button(up: bool) -> Button:
@@ -4860,6 +5115,8 @@ func _drop_person(person_id: String, uid: String) -> void:
 			yard.shake_px = 0.0
 			yard.shake_reason = str(info.reason)
 			yard.queue_redraw()
+		if str(info.get("reason", "")) != "":
+			_toast(str(info.reason), 1.8)
 		_place_drawer()
 		return
 	if yard != null:
@@ -6225,8 +6482,8 @@ func _room_push(uid: String) -> void:
 	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(state)
-	var button := _button("Push", _ask_push.bind(uid))
-	button.disabled = not bool(info.get("ok", false)) or game.over != ""
+	var can_push := bool(info.get("ok", false)) and game.over == ""
+	var button := _button("Push", _ask_push.bind(uid)) if can_push else _lock_button("Push")
 	button.tooltip_text = odds
 	button.custom_minimum_size = Vector2(140, 48)
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -8534,6 +8791,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if (event as InputEventKey).keycode == KEY_ESCAPE and shiftword_fold and deck.top_token() == "person":
 		Sound.play("click")
 		_shiftword_back()
+		get_viewport().set_input_as_handled()
+		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and dim != null and dim.visible and showing_network:
+		_focus_card_front()
 		get_viewport().set_input_as_handled()
 		return
 	if (event as InputEventKey).keycode == KEY_J and not at_menu and game != null:
@@ -12005,6 +12266,10 @@ func _open_card(heading: String, with_close: bool = true, tag: String = "") -> v
 	## Same full-screen veil on the yard and on the map. It stays above the map sheet and the unit sprites.
 	dim.z_index = 20
 	dim.visible = true
+	if card_scroll != null:
+		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		_style_power_scrollbar(false)
+	_park_map_under_card()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	if tag != "":
@@ -12302,6 +12567,8 @@ func _plain_press(button: Button, cb: Callable) -> void:
 ## The second click of a double click lands on whatever the rebuilt card put under the cursor; it is dropped.
 func _card_press(button: Button, cb: Callable) -> void:
 	if Time.get_ticks_msec() < card_click_guard:
+		if button != null and not button.disabled:
+			Sound.play("click")
 		return
 	card_click_guard = Time.get_ticks_msec() + CARD_CLICK_GUARD_MS
 	_ui_pressed(button)
@@ -12997,8 +13264,18 @@ func _replay_guide() -> void:
 func _maybe_guide() -> void:
 	if shot_mode or game == null:
 		return
+	_retire_early_guide()
 	if not deck.is_empty():
 		return
+
+
+## The stocks coach is the week-1 hint chip. Past week 2 it is the same dismiss as Skip.
+func _retire_early_guide() -> void:
+	if game == null or int(game.week) <= 2 or net_guide:
+		return
+	if guide_step < 0 or guide_layer == null or not guide_layer.visible:
+		return
+	_skip_guide()
 	if not guide_played and int(game.week) == 1:
 		_start_guide()
 		return
@@ -14304,6 +14581,7 @@ func _hide_modal() -> void:
 			card.scale = Vector2.ONE
 			card.modulate.a = 1.0
 		_place_terms_plate()
+		_park_map_under_card()
 		return
 	modal_tween = create_tween()
 	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.16)
@@ -14321,6 +14599,7 @@ func _finish_hide_modal() -> void:
 		card.scale = Vector2.ONE
 		card.modulate.a = 1.0
 	_place_terms_plate()
+	_park_map_under_card()
 
 
 func _check_shots() -> void:
@@ -15250,8 +15529,7 @@ func _note_save_recovery() -> void:
 func _manual_save() -> void:
 	if SaveGame.write_manual(game):
 		Sound.play("confirm")
-		footer.text = Copy.t("Saved.")
-		footer.visible = true
+		_toast(Copy.t("Saved."), 1.8)
 	else:
 		Sound.play("error")
 	_close_card()
