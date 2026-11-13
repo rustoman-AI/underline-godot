@@ -49,7 +49,7 @@ const WARD_FADE_S := 0.6
 const WARD_REDUCED_ALPHA := 0.05
 
 const HIDDEN_NEAR := 0.50
-const HIDDEN_D2 := 0.66
+const HIDDEN_D2 := 0.50
 const HIDDEN_FAR := 0.82
 const UNDUG_ALPHA := 0.42
 const LANTERN_INSET := 0.12

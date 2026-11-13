@@ -205,10 +205,10 @@ func paint_room(yard, rect: Rect2, uid: String, room_type: String) -> void:
 		return
 	var mark := Time.get_ticks_usec()
 	var t := living_t
+	var shade := light.cut_alpha(uid, t)
+	if shade > 0.001:
+		yard.draw_rect(rect, Color(0, 0, 0, shade))
 	if light.cut_visible(uid, t):
-		var shade := light.cut_alpha(uid, t)
-		if shade > 0.001:
-			yard.draw_rect(rect, Color(0, 0, 0, shade))
 		yard._draw_power_icon(rect)
 	var strain := light.strain_alpha(uid, t)
 	if strain > 0.001:

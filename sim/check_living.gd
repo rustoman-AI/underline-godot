@@ -310,9 +310,10 @@ func _section_4() -> void:
 	var back := 1.0 - light.cut_alpha(uid, 1.4)
 	if back < 0.999:
 		_fail("relight at 0.40 s is %.3f" % back)
+	var cut_level := 1.0 - light.cut_alpha(uid, 1.0)
 	var early := 1.0 - light.cut_alpha(uid, 1.2)
-	if early >= 0.999:
-		_fail("relight finished early")
+	if early <= cut_level or early >= 1.0:
+		_fail("relight at 0.2s is %.3f, cut level %.3f" % [early, cut_level])
 	light.observe(loss, 2, rooms, cells, 1.5, false)
 	var snapped := 1.0 - light.cut_alpha(uid, 1.55)
 	if snapped > 0.7:
@@ -412,7 +413,7 @@ func _section_9_math() -> void:
 	var light = LightLib.new()
 	var rooms := [_room("room_a", "workshop", 1, 1)]
 	light.observe({}, 1, rooms, _frontier_cells(), 0.0, false)
-	if absf(light.frontier_alpha(0, 0) - 0.66) > 0.001:
+	if absf(light.frontier_alpha(0, 0) - 0.50) > 0.001:
 		_fail("hidden dist 2 alpha %.3f" % light.frontier_alpha(0, 0))
 	if absf(light.frontier_alpha(0, 4) - 0.82) > 0.001:
 		_fail("hidden dist 3 alpha %.3f" % light.frontier_alpha(0, 4))
@@ -725,6 +726,8 @@ func _shots_run() -> void:
 		st._refresh()
 		await _frames(3)
 		await _save(st, "lr2_frontier_%s_1080.png" % lang)
+		if lang == "en":
+			_print_frontier_lum(st)
 		_arm_settled_cut(st)
 		await _frames(2)
 		await _save(st, "lr2_brownout_settled_%s_1080.png" % lang)
@@ -846,6 +849,10 @@ func _flicker_strip(st) -> void:
 			uid = str(room.uid)
 	st.living.living_t = 3.0
 	st.living.observe({}, st.game.week)
+	st.living.living_t = 3.2
+	st.yard.queue_redraw()
+	await process_frame
+	await _save(st, "lr2_relight_en_1080.png")
 	for i in 6:
 		st.living.living_t = 3.0 + float(i) * 0.4 / 5.0
 		st.yard.queue_redraw()
@@ -865,6 +872,15 @@ func _flicker_strip(st) -> void:
 	var path := "/opt/cursor/artifacts/lr2_brownout_flicker_relight_strip.png"
 	sheet.save_png(path)
 	print("  strip %s" % path)
+	if frames.size() >= 6:
+		var relight_n := 6
+		var relight := Image.create(sample.get_width() * relight_n, sample.get_height(), false, Image.FORMAT_RGBA8)
+		for i in relight_n:
+			var frame: Image = frames[frames.size() - relight_n + i]
+			relight.blit_rect(frame, Rect2i(0, 0, sample.get_width(), sample.get_height()), Vector2i(i * sample.get_width(), 0))
+		var relight_path := "/opt/cursor/artifacts/lr2_relight_strip.png"
+		relight.save_png(relight_path)
+		print("  strip %s" % relight_path)
 	DirAccess.make_dir_recursive_absolute("/tmp/lr2_frames")
 	for i in frames.size():
 		frames[i].save_png("/tmp/lr2_frames/f_%02d.png" % i)
@@ -931,6 +947,30 @@ func _side_by_side(st) -> void:
 	var path := "/opt/cursor/artifacts/lr2_workshop_original_vs_lit_en.png"
 	both.save_png(path)
 	print("  compare %s" % path)
+
+
+func _print_frontier_lum(st) -> void:
+	var light = st.living.light
+	var saw := {"undug": false, "d2": false, "d3": false}
+	for level in 3:
+		for cell in 6:
+			var kind := str(light.cell_kind(level, cell))
+			if kind != "hidden" and kind != "undug":
+				continue
+			var alpha: float = light.frontier_alpha(level, cell)
+			var lum := 1.0 - alpha
+			var which := ""
+			if kind == "undug" and not bool(saw.undug):
+				which = "undug"
+				saw.undug = true
+			elif kind == "hidden" and absf(alpha - 0.50) < 0.001 and not bool(saw.d2):
+				which = "distance 2"
+				saw.d2 = true
+			elif kind == "hidden" and absf(alpha - 0.82) < 0.001 and not bool(saw.d3):
+				which = "distance 3+"
+				saw.d3 = true
+			if which != "":
+				print("  frontier %s %d:%d alpha %.2f luminance %.2f" % [which, level, cell, alpha, lum])
 
 
 func _measure_view(st, tag: String) -> void:
