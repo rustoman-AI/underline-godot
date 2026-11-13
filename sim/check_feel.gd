@@ -6,6 +6,7 @@ extends SceneTree
 ## Optional: --feel-shots writes 1920x1080 stills. --feel-shots-only skips the long loop.
 
 const SCRATCH := "user://check_feel"
+const FeelLook = preload("res://ui/feel/feel_style.gd")
 const KEYS := [
 	"feel.dawn.title", "feel.dawn.gains", "feel.dawn.losses", "feel.dawn.people",
 	"feel.dawn.threats", "feel.dawn.notes", "feel.dawn.quiet", "feel.dawn.more",
@@ -76,6 +77,7 @@ func _run() -> void:
 		await _section_3()
 	await _section_4()
 	await _section_5()
+	await _section_chip_floor()
 	await _section_13()
 	_section_14()
 	_finish()
@@ -214,7 +216,7 @@ func _section_3() -> void:
 		if run_seed == 1:
 			var sim_diff := _diff_state(sim.state, off.state)
 			if sim_diff.is_empty():
-				print("SECTION 3 sim-only matches aside from notices, choice_results, and the UI writes flags/obs/salvage")
+				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats")
 			else:
 				_bad("seed 1 sim-only state %s" % ", ".join(sim_diff))
 		sim.erase("state")
@@ -348,6 +350,73 @@ func _section_4() -> void:
 	_section_done(mark, "SECTION 4 counters")
 
 
+func _section_chip_floor() -> void:
+	var mark := bad.size()
+	_arm_feel(true, false)
+	await _chip_floor_view("en", Vector2i(1920, 1080), 1.0, "en100")
+	await _chip_floor_view("ru", Vector2i(1920, 1080), 1.0, "ru100")
+	await _chip_floor_view("en", Vector2i(1536, 864), 1.0, "en1536")
+	await _chip_floor_view("ru", Vector2i(1536, 864), 1.0, "ru1536")
+	await _chip_floor_view("en", Vector2i(1920, 1080), 1.25, "en125")
+	await _chip_floor_view("ru", Vector2i(1920, 1080), 1.25, "ru125")
+	Copy.set_lang("en")
+	await _apply_view(Vector2i(1920, 1080), 1.0)
+	_arm_feel(true, false)
+	_section_done(mark, "SECTION chip floor")
+
+
+func _chip_floor_view(lang: String, win_size: Vector2i, scale: float, tag: String) -> void:
+	Copy.set_lang(lang)
+	await _apply_view(win_size, scale)
+	_park(st)
+	await _chip_floor_case(tag)
+
+
+func _chip_floor_case(tag: String) -> void:
+	var game: Game = st.game
+	st.feel.reset()
+	st.delta_hold_until = 0
+	var food := int(game.stock.food)
+	game.stock.food = food
+	st.feel.stock.sync(game, false)
+	st.chips.food.delta.text = "+2"
+	st.chips.food.delta.visible = true
+	await process_frame
+	if st.has_method("_layout"):
+		st._layout()
+	await process_frame
+	game.stock.food = food + 6
+	st.feel.stock.sync(game, true)
+	await process_frame
+	var found = st.feel.stock.last_chip.get("food", null)
+	if found == null or not is_instance_valid(found) or not found.visible:
+		_bad("%s chip missing" % tag)
+		game.stock.food = food
+		return
+	var floor_y := float(FeelLook.CHIP_FLOOR_Y)
+	var min_y := float(found.get_meta("path_min_y", -999.0))
+	var path := Rect2(
+		float(found.get_meta("path_x", 0.0)),
+		float(found.get_meta("path_y", 0.0)),
+		float(found.get_meta("path_w", 0.0)),
+		float(found.get_meta("path_h", 0.0))
+	)
+	var view: Rect2 = st.get_viewport_rect()
+	var live: Rect2 = found.get_global_rect()
+	if min_y < floor_y - 0.05 or path.position.y < floor_y - 0.05 or live.position.y < floor_y - 0.05:
+		_bad("%s chip min y %.2f path %s live %s" % [tag, min_y, path, live])
+	elif path.position.x < -0.5 or path.end.x > view.size.x + 0.5 or path.end.y > view.size.y + 0.5:
+		_bad("%s chip outside %s view %s" % [tag, path, view.size])
+	else:
+		var delta: Control = st.chips.food.delta
+		var forecast: Rect2 = delta.get_global_rect()
+		if str(delta.text) != "" and forecast.size.y > 1.0 and path.intersects(forecast):
+			_bad("%s chip hits forecast path %s delta %s" % [tag, path, forecast])
+		else:
+			print("CHIP FLOOR %s min_y %.2f path %s" % [tag, min_y, path])
+	game.stock.food = food
+
+
 func _section_5() -> void:
 	var mark := bad.size()
 	_arm_feel(true, true)
@@ -475,7 +544,7 @@ func _shots() -> void:
 		print("SHOTS skipped headless")
 		return
 	_arm_feel(true, false)
-	await _apply_view(Vector2i(1920, 1080))
+	await _apply_view(Vector2i(1920, 1080), 1.0)
 	_park(st)
 	Copy.set_lang("en")
 	st._refresh()
@@ -495,7 +564,48 @@ func _shots() -> void:
 	_save_view("/opt/cursor/artifacts/feel_f1_counters_reduce.png")
 	Settings.reduce_motion = false
 	_arm_feel(true, false)
+	await _chip_edge_shot("en", 1.0, "/opt/cursor/artifacts/feel_f1_chip_en100.png")
+	await _chip_edge_shot("ru", 1.0, "/opt/cursor/artifacts/feel_f1_chip_ru100.png")
+	await _chip_edge_shot("en", 1.25, "/opt/cursor/artifacts/feel_f1_chip_en125.png")
+	await _apply_view(Vector2i(1920, 1080), 1.0)
 	print("SHOTS wrote feel_f1")
+
+
+func _chip_edge_shot(lang: String, scale: float, path: String) -> void:
+	Copy.set_lang(lang)
+	_arm_feel(true, false)
+	await _apply_view(Vector2i(1920, 1080), scale)
+	_park(st)
+	var game: Game = st.game
+	st.feel.reset()
+	st.delta_hold_until = 0
+	var food := int(game.stock.food)
+	st.chips.food.delta.text = "+2"
+	st.chips.food.delta.visible = true
+	st.feel.stock.sync(game, false)
+	await process_frame
+	if st.has_method("_layout"):
+		st._layout()
+	await process_frame
+	game.stock.food = food + 6
+	st.feel.stock.sync(game, true)
+	await process_frame
+	var found = st.feel.stock.last_chip.get("food", null)
+	if found == null or not is_instance_valid(found):
+		_bad("chip shot missed " + path)
+		game.stock.food = food
+		return
+	st.feel.stock._kill("food")
+	var origin: Vector2 = found.get_meta("origin", found.position)
+	found.position = origin + Vector2(0.0, -FeelLook.CHIP_RISE)
+	found.modulate = Color.WHITE
+	found.visible = true
+	await process_frame
+	await process_frame
+	var top: float = found.get_global_rect().position.y
+	_save_view(path)
+	print("CHIP SHOT %s y %.2f %s" % [lang, top, path])
+	game.stock.food = food
 
 
 func _bump_shot(tag: String, path: String) -> void:
@@ -526,17 +636,25 @@ func _save_view(path: String) -> void:
 		_bad("save %s %s" % [path, err])
 
 
-func _apply_view(win_size: Vector2i) -> void:
+func _apply_view(win_size: Vector2i, scale: float = 1.0) -> void:
 	var win: Window = st.get_window()
 	Settings.ui_scale_auto = false
-	Settings.ui_scale = 1.0
+	Settings.ui_scale = scale
 	win.mode = Window.MODE_WINDOWED
 	win.size = win_size
 	root.size = win_size
-	win.content_scale_factor = 1.0
-	win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	if scale <= 1.01:
+		win.content_scale_factor = 1.0
+		win.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+	else:
+		win.content_scale_factor = scale
+		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		win.content_scale_size = win_size
 	for _i in 4:
 		await process_frame
+	if st.has_method("_layout"):
+		st._layout()
+	await process_frame
 
 
 func _pass(mode: String, cat: Catalog, master: Dictionary) -> Dictionary:
@@ -689,7 +807,11 @@ func _diff_any(a, b, prefix: String, out: PackedStringArray, limit: int) -> void
 		var names: Array = keys.keys()
 		names.sort()
 		for key in names:
-			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage"]:
+			# stats.best_score is filled from user://records.cfg when a run seals.
+			# The sim pass plays all 60 seeds before the UI pass, so it can raise
+			# that file and seed 1's best differs even with feel off. The export
+			# hash still includes stats; cross-mode and master compares use that hash.
+			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage", "stats"]:
 				continue
 			_diff_any(a.get(key, null), b.get(key, null), prefix + "/" + str(key), out, limit)
 		return
