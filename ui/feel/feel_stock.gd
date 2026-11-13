@@ -366,12 +366,13 @@ func _arm_chip(tw: Tween, id: String, delta: int) -> void:
 			existing.text = "%+d" % merged
 			existing.set_meta("age", 0.0)
 			existing.modulate.a = 1.0
-			var origin: Vector2 = existing.get_meta("origin", existing.position)
-			existing.position = origin
-			last_chip[id] = existing
-			shown_chip[id] = existing.text
-			_rise(tw, existing, origin)
-			return
+		var origin: Vector2 = existing.get_meta("origin", existing.position)
+		origin = _place_chip(id, existing, origin, false)
+		existing.position = origin
+		last_chip[id] = existing
+		shown_chip[id] = existing.text
+		_rise(tw, existing, origin)
+		return
 	var lab := _claim()
 	if lab == null:
 		return
@@ -384,8 +385,7 @@ func _arm_chip(tw: Tween, id: String, delta: int) -> void:
 	lab.set_meta("sign", sign)
 	lab.set_meta("age", 0.0)
 	lab.set_meta("key", id)
-	var origin := _chip_origin(id)
-	origin.x += host.jitter.randf_range(-Style.CHIP_JITTER, Style.CHIP_JITTER)
+	var origin := _place_chip(id, lab, _chip_origin(id), true)
 	lab.position = origin
 	live[slot] = lab
 	last_chip[id] = lab
@@ -452,6 +452,88 @@ func _chip_origin(id: String) -> Vector2:
 	var rect := node.get_global_rect()
 	var top_right := Vector2(rect.end.x, rect.position.y)
 	return host.chips_root.get_global_transform().affine_inverse() * top_right
+
+
+## Keeps the 18px rise inside the viewport and clear of the delta forecast under the number.
+func _place_chip(id: String, lab: Label, origin: Vector2, jitter: bool) -> Vector2:
+	if host == null or host.chips_root == null:
+		return origin
+	if jitter and host.jitter != null:
+		origin.x += host.jitter.randf_range(-Style.CHIP_JITTER, Style.CHIP_JITTER)
+	var box := _chip_box(lab)
+	lab.custom_minimum_size = box
+	lab.size = box
+	var root: Control = host.chips_root
+	var xform: Transform2D = root.get_global_transform()
+	var global: Vector2 = xform * origin
+	var view: Vector2 = root.get_viewport_rect().size
+	var floor_y := Style.CHIP_FLOOR_Y
+	if global.y - Style.CHIP_RISE < floor_y:
+		global.y += floor_y - (global.y - Style.CHIP_RISE)
+	global.x = _clamp_x(global.x, box.x, view.x, floor_y)
+	if view.y > box.y + floor_y and global.y + box.y > view.y - floor_y:
+		global.y = view.y - floor_y - box.y
+	if global.y - Style.CHIP_RISE < floor_y:
+		global.y = floor_y + Style.CHIP_RISE
+	global = _clear_forecast(id, global, box, view)
+	global.x = _clamp_x(global.x, box.x, view.x, floor_y)
+	var local: Vector2 = xform.affine_inverse() * global
+	var end_global: Vector2 = xform * (local + Vector2(0.0, -Style.CHIP_RISE))
+	var path_pos := Vector2(minf(global.x, end_global.x), minf(global.y, end_global.y))
+	var path_size := Vector2(box.x + absf(global.x - end_global.x), box.y + absf(global.y - end_global.y))
+	lab.set_meta("path_min_y", path_pos.y)
+	lab.set_meta("path_x", path_pos.x)
+	lab.set_meta("path_y", path_pos.y)
+	lab.set_meta("path_w", path_size.x)
+	lab.set_meta("path_h", path_size.y)
+	return local
+
+
+func _clamp_x(x: float, width: float, view_w: float, floor_y: float) -> float:
+	if x < floor_y:
+		x = floor_y
+	if view_w > width + floor_y * 2.0 and x + width > view_w - floor_y:
+		x = view_w - floor_y - width
+	return x
+
+
+func _clear_forecast(id: String, global: Vector2, box: Vector2, view: Vector2) -> Vector2:
+	var delta := _delta_label(id)
+	if delta == null or not delta.visible or str(delta.text) == "":
+		return global
+	var blocked: Rect2 = delta.get_global_rect()
+	if blocked.size.x < 1.0 or blocked.size.y < 1.0:
+		return global
+	var path := Rect2(Vector2(global.x, global.y - Style.CHIP_RISE), Vector2(box.x, box.y + Style.CHIP_RISE))
+	if not path.intersects(blocked):
+		return global
+	var floor_y := Style.CHIP_FLOOR_Y
+	var right := blocked.end.x + floor_y
+	var left := blocked.position.x - box.x - floor_y
+	if view.x > right + box.x + floor_y:
+		global.x = right
+	elif left >= floor_y:
+		global.x = left
+	return global
+
+
+func _chip_box(lab: Label) -> Vector2:
+	var font: Font = lab.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var measured: Vector2 = font.get_string_size(lab.text, HORIZONTAL_ALIGNMENT_LEFT, -1, Style.CHIP_FONT)
+	var pad := float(Style.CHIP_OUTLINE)
+	return Vector2(maxf(measured.x, 8.0) + pad * 2.0, maxf(measured.y, float(Style.CHIP_FONT)) + pad)
+
+
+func _delta_label(id: String) -> Control:
+	if station == null or not station.chips.has(id):
+		return null
+	var row: Dictionary = station.chips[id]
+	var node: Variant = row.get("delta", null)
+	if node is Control:
+		return node
+	return null
 
 
 func _value_label(id: String) -> Control:

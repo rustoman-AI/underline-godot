@@ -18,6 +18,8 @@ const POP_SEC := 0.18
 const POP_SCALE := 1.25
 const FLASH_SEC := 0.25
 const CHIP_RISE := 18.0
+## The whole rise, including the spawn, stays at or below this viewport y.
+const CHIP_FLOOR_Y := 4.0
 const CHIP_SEC := 0.6
 const CHIP_FADE := 0.25
 const CHIP_MERGE_SEC := 0.25
