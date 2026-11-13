@@ -5582,6 +5582,34 @@ func _salvage_who_line(kind: String) -> String:
 	return ""
 
 
+func _yard_float_y(self_node: Control) -> float:
+	return YardFloatStack.y(size.y, self_node, [salvage_float, obs_float])
+
+
+## A lone observer line keeps the on-screen clamp. If that clamp would sit on the
+## salvage row, the stack wins.
+func _placed_obs_y(h: float) -> float:
+	var y := _yard_float_y(obs_float)
+	var clamped := clampf(y, 8.0, maxf(8.0, size.y - h - 8.0))
+	if _centre_float_hits(salvage_float, clamped, h):
+		return y
+	return clamped
+
+
+func _centre_float_hits(other: Control, y: float, h: float) -> bool:
+	if other == null or not is_instance_valid(other) or not other.visible or other.size.y <= 1.0:
+		return false
+	var top := other.position.y
+	var bot := other.position.y + other.size.y
+	return y < bot - 0.5 and y + h > top + 0.5
+
+
+func _lift_obs_float() -> void:
+	if obs_float == null or not is_instance_valid(obs_float) or not obs_float.visible:
+		return
+	obs_float.position.y = _placed_obs_y(obs_float.size.y)
+
+
 func _yard_float(text: String, uid: String) -> void:
 	if salvage_float != null and is_instance_valid(salvage_float):
 		salvage_float.queue_free()
@@ -5605,8 +5633,12 @@ func _yard_float(text: String, uid: String) -> void:
 	add_child(row)
 	salvage_float = row
 	row.reset_size()
-	var w := row.get_combined_minimum_size().x
-	row.position = Vector2((size.x - w) * 0.5, size.y * 0.42)
+	var min_size := row.get_combined_minimum_size()
+	row.custom_minimum_size = min_size
+	row.size = min_size
+	var w := min_size.x
+	row.position = Vector2((size.x - w) * 0.5, _yard_float_y(row))
+	_lift_obs_float()
 	if yard != null and uid != "":
 		yard.fitted_flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
 		yard.flash[uid] = Time.get_ticks_msec() + UPGRADE_FLASH_MS
@@ -8841,7 +8873,7 @@ func _show_obs_float(text: String) -> void:
 	if absf(w - 420.0) < 1.0:
 		x = size.x * 0.5 - 210.0
 	x = clampf(x, 8.0, maxf(8.0, size.x - w - 8.0))
-	var y := clampf(size.y * 0.42, 8.0, maxf(8.0, size.y - h - 8.0))
+	var y := _placed_obs_y(h)
 	obs_float.position = Vector2(x, y)
 	obs_float.size = Vector2(w, h)
 	_arm_yard_notice(obs_float)
@@ -17689,6 +17721,8 @@ class Yard extends Control:
 	func _draw() -> void:
 		if station == null or station.game == null:
 			return
+		if record_layout:
+			layout_log.clear()
 		_poll_clear_burst()
 		more_hits.clear()
 		help_hits.clear()
@@ -17707,6 +17741,7 @@ class Yard extends Control:
 		_draw_structure(geo)
 		_draw_line_wall(geo)
 		_draw_pops(geo)
+		_draw_platform_text(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_merge_tag(geo)
@@ -18734,6 +18769,7 @@ class Yard extends Control:
 				var screen := Rect2(pan + world.position * zoom, world.size * zoom)
 				if screen.size.x < 36.0 or screen.size.y < 28.0:
 					continue
+				_note_layout("cell", screen, "%d:%d" % [level, cell])
 				_draw_sign(screen, room, font)
 				_draw_badge_screen(screen, room, font)
 		_draw_merge_brackets(geo)
@@ -18979,11 +19015,13 @@ class Yard extends Control:
 				var pip := Color("3a2610") if i < filled else Color("3a2610", 0.28)
 				draw_circle(Vector2(px + 4.0 + float(i) * 8.0, plate.position.y + 11.0), 2.2, pip)
 		var disc := Rect2(plate.end.x + 4.0, plate.position.y + 2.0, 18.0, 18.0)
+		var band := plate
 		if station.incident_on(str(room.type)):
 			var warn := ArtPack.icon_texture("warning", 24.0)
 			if warn != null and disc.end.x <= screen.end.x - 4.0:
 				draw_texture_rect(warn, disc, false)
 				sign_incidents[str(room.uid)] = true
+				band = band.merge(disc)
 				disc.position.x += 22.0
 		else:
 			sign_incidents.erase(str(room.uid))
@@ -18994,6 +19032,8 @@ class Yard extends Control:
 			var q_w := font.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 			draw_string(font, Vector2(mid.x - q_w * 0.5, mid.y + 5.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("24180e"))
 			help_hits.append({"rect": disc.grow(4.0), "type": str(room.type), "uid": str(room.uid)})
+			band = band.merge(disc)
+		_note_layout("sign", band, "%d:%d" % [int(room.get("level", 0)), int(room.get("cell", 0))])
 
 	func _help_at(at_position: Vector2) -> Dictionary:
 		for mark in help_hits:
@@ -19069,6 +19109,7 @@ class Yard extends Control:
 			var text := "+%d" % station._room_amount(str(room.uid), str(out.key))
 			draw_string(font, Vector2(x, plate.position.y + 14.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ink)
 			x += font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 6.0
+		_note_layout("badge", plate, "%d:%d" % [int(room.get("level", 0)), int(room.get("cell", 0))])
 
 	func _draw_hover_label(geo: Dictionary) -> void:
 		if hover.x < 0:
@@ -19144,7 +19185,6 @@ class Yard extends Control:
 
 	func _draw_platform(rect: Rect2, _room: Dictionary) -> void:
 		var ids: Array = _idle_ids()
-		_draw_name_tokens(rect, ids)
 		if not poses.has("walking") and not poses.has("standing"):
 			return
 		var shown := mini(2, ids.size())
@@ -19265,10 +19305,12 @@ class Yard extends Control:
 		_draw_anim("walk", body, x, foot_y, body_h, id, flip, frame)
 
 	var _name_tips: Array = []
+	var record_layout := false
+	var layout_log: Array = []
 
-	## Names on the platform stay size 11, on two staggered rows. Each resident shows a
-	## first initial. Known keeps the full named.known word on that same baseline.
-	func _draw_name_tokens(rect: Rect2, ids: Array) -> void:
+	## Names on the platform stay size 11. Each one has its own slot, and the Known
+	## word stays in that slot. Drawn from _draw_platform_text, after the figures.
+	func _draw_name_tokens(rect: Rect2, ids: Array, cell_key: String = "") -> void:
 		_name_tips = []
 		var n := mini(4, ids.size())
 		if n <= 0:
@@ -19287,20 +19329,138 @@ class Yard extends Control:
 			})
 		if people.is_empty():
 			return
-		var rows := _stagger_names(people)
+		var word := Copy.t("named.known")
 		var gap := _screen(4.0)
+		var slot_pad := _screen(6.0)
+		var inset := _screen(4.0)
 		var left := rect.position.x + 2.0
+		var name_ascent := font.get_ascent(11)
+		var name_descent := font.get_descent(11)
 		var band_top := rect.position.y + _screen(26.0)
-		var right := _name_span_right(rect, band_top, _screen(25.0))
-		var inner := maxf(8.0, right - left)
-		var tag := _known_tag_fit(font, rows, inner, gap)
-		var ascent := font.get_ascent(11)
-		## 26 screen px clears the room sign. The rest keeps the ink at least 7 px under its border.
-		var y := rect.position.y + _screen(32.0) + ascent
-		## The em box is taller than the ink. The extra screen px keeps the two rows 4 px apart at 125%.
-		var step := ascent * 0.72 + _screen(9.0)
-		for r in rows.size():
-			_draw_initial_row(font, rows[r], y + step * float(r), left, right, tag)
+		var band_h := font.get_ascent(12) + font.get_descent(12)
+		var right := _name_span_right(rect, band_top, band_h + _screen(8.0))
+		var span := maxf(8.0, right - left)
+		n = _honest_count(font, people, span, word, gap, slot_pad, inset)
+		var pitch := span / float(n)
+		var slot_w := pitch - slot_pad if n > 1 else span
+		if slot_w < 4.0:
+			slot_w = pitch
+		## 32 screen px clears the room sign. The baseline is the size-11 em box.
+		var baseline := rect.position.y + _screen(32.0) + name_ascent
+		var slot_ascent := font.get_ascent(12)
+		var slot_descent := maxf(font.get_descent(12), name_descent)
+		for i in n:
+			var entry: Dictionary = people[i]
+			var slot := Rect2(left + pitch * float(i), baseline - slot_ascent, slot_w, slot_ascent + slot_descent)
+			var budget := maxf(1.0, slot_w - inset)
+			var fitted: Dictionary = _fit_slot_label(font, entry, budget, word, gap)
+			var text := str(fitted.text)
+			var name_w := float(fitted.name_w)
+			var content_w := name_w
+			var show_known := bool(fitted.known) and bool(fitted.fits)
+			if show_known:
+				content_w += gap + float(fitted.tag_w)
+			if content_w > slot_w:
+				show_known = false
+				content_w = name_w
+			var x := slot.position.x + maxf(0.0, (slot_w - content_w) * 0.5)
+			x = clampf(x, slot.position.x, maxf(slot.position.x, slot.end.x - content_w))
+			_draw_name_ink(font, Vector2(x, baseline), text, 11)
+			var name_rect := Rect2(x, baseline - name_ascent, name_w, name_ascent + name_descent)
+			var tip := str(entry.full)
+			var drawn_end := x + name_w
+			if show_known:
+				var tag_x := x + name_w + gap
+				var tag_size := int(fitted.tag_size)
+				var tag_w := float(fitted.tag_w)
+				_draw_known_word(font, Vector2(tag_x, baseline), word, tag_size, false, tag_w)
+				var known_ascent := font.get_ascent(tag_size)
+				var known_descent := font.get_descent(tag_size)
+				var known_rect := Rect2(tag_x, baseline - known_ascent, tag_w, known_ascent + known_descent)
+				_note_layout("known", _world_screen(known_rect), cell_key, _world_screen(slot))
+				drawn_end = tag_x + tag_w
+				tip = str(entry.full) + "\n" + word
+			_remember_name(x, baseline, maxf(name_w, drawn_end - x), name_ascent, name_descent, tip)
+			_note_layout("name", _world_screen(name_rect), cell_key, _world_screen(slot))
+
+	## Platform names, after every figure, so a walker cannot paint over them.
+	func _draw_platform_text(geo: Dictionary) -> void:
+		if station == null or station.game == null:
+			return
+		var host: Dictionary = {}
+		for room in station.game.rooms:
+			if str(room.get("type", "")) == "platform":
+				host = room
+				break
+		if host.is_empty():
+			return
+		var level := int(host.get("level", 0))
+		var cell := int(host.get("cell", 0))
+		_draw_name_tokens(_rect(geo, level, cell), _idle_ids(), "%d:%d" % [level, cell])
+
+	func _honest_count(font: Font, people: Array, span: float, word: String, gap: float, slot_pad: float, inset: float) -> int:
+		var n := people.size()
+		var guard := 0
+		while n > 1 and guard < 8:
+			guard += 1
+			var slot_w := span / float(n) - slot_pad
+			if slot_w * zoom < 56.0:
+				var fit_n := maxi(1, int(floor((span * zoom - 8.0) / 56.0)))
+				var next := mini(n - 1, fit_n)
+				if next >= n:
+					next = n - 1
+				n = maxi(1, next)
+				continue
+			if _slots_hold(font, people, n, maxf(1.0, slot_w - inset), word, gap):
+				return n
+			n -= 1
+		return maxi(1, n)
+
+	func _slots_hold(font: Font, people: Array, n: int, budget: float, word: String, gap: float) -> bool:
+		for i in n:
+			var fitted: Dictionary = _fit_slot_label(font, people[i], budget, word, gap)
+			if not bool(fitted.fits):
+				return false
+		return true
+
+	## Initial plus the full Known word, measured. Never a width clip.
+	func _fit_slot_label(font: Font, entry: Dictionary, budget: float, word: String, gap: float) -> Dictionary:
+		var full := str(entry.full)
+		var initial := _name_initial(full)
+		var name_w := font.get_string_size(initial, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		if bool(entry.known):
+			for size in [12, 11, 10, 9]:
+				var tag_w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+				if name_w + gap + tag_w <= budget + 0.5:
+					return {"text": initial, "name_w": name_w, "known": true, "tag_size": size, "tag_w": tag_w, "fits": true}
+			var tag_w9 := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
+			var fits := name_w + gap + tag_w9 <= budget + 0.5
+			return {"text": initial, "name_w": name_w, "known": true, "tag_size": 9, "tag_w": tag_w9, "fits": fits}
+		var first := _first_word(full)
+		var first_w := font.get_string_size(first, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		if first.length() > 1 and first_w <= budget + 0.5:
+			return {"text": first, "name_w": first_w, "known": false, "tag_size": 0, "tag_w": 0.0, "fits": true}
+		return {"text": initial, "name_w": name_w, "known": false, "tag_size": 0, "tag_w": 0.0, "fits": name_w <= budget + 0.5}
+
+	func _world_screen(world: Rect2) -> Rect2:
+		return Rect2(pan + world.position * zoom, world.size * zoom)
+
+	func _note_layout(kind: String, screen: Rect2, cell_key: String, slot: Rect2 = Rect2()) -> void:
+		if not record_layout:
+			return
+		var row := {"kind": kind, "rect": screen, "cell": cell_key}
+		if slot.size.x > 0.0:
+			row["slot"] = slot
+		layout_log.append(row)
+
+	func _cell_key_of(world: Rect2) -> String:
+		var geo := _geo()
+		var origin: Vector2 = geo.origin
+		var local := world.get_center() - origin
+		var cell := int(floor(local.x / maxf(float(geo.w), 1.0)))
+		var span_y := float(geo.h) + float(geo.band)
+		var level := int(floor(local.y / maxf(span_y, 1.0)))
+		return "%d:%d" % [clampi(level, 0, 2), clampi(cell, 0, 5)]
 
 	## Largest Known word from 12 down to 9 that fits this yard. A plate is used only when
 	## its box, and a 4 px gap around that box, still sits in the 158 by 25 band.
@@ -19865,6 +20025,7 @@ class Yard extends Control:
 		_paint_mini(origin + Vector2(3.0, 3.0), "people", Color("24180e"))
 		draw_string(font, origin + Vector2(20.0, 16.0), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("24180e"))
 		var screen := Rect2(pan + origin * zoom, pip * zoom)
+		_note_layout("pip", screen, _cell_key_of(box))
 		more_hits.append({"rect": screen.grow(4.0), "filter": filter_id, "tip": _more_sentence(extra)})
 
 	func _pose_size(sprite: Texture2D, cell_h: float) -> Vector2:
