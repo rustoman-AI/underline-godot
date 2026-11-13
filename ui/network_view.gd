@@ -129,6 +129,9 @@ var host: Node = null
 var origin := Vector2.ZERO
 var zoom := 1.0
 var _drag := false
+## Empty parchment does not capture the pointer. A drag starts only after the pointer moves past this.
+const DRAG_SLOP := 4.0
+var _press_at := Vector2(INF, INF)
 var _hover := ""
 var _visit_sid := ""
 var selected := ""
@@ -5093,10 +5096,13 @@ func _gui_input(event: InputEvent) -> void:
 			_wheel_zoom(button.position, 1.0 / 1.12)
 			accept_event()
 		elif button.button_index == MOUSE_BUTTON_LEFT:
+			var swallow := true
 			if button.pressed and _rumor_hit.size.x > 1.0 and _rumor_hit.has_point(button.position):
 				var game = _game()
 				if game != null and host != null and host.has_method("_toast"):
 					host._toast(game.rumor_toast(), 3.2)
+				_press_at = Vector2(INF, INF)
+				_drag = false
 				accept_event()
 				return
 			if button.pressed and button.double_click:
@@ -5104,26 +5110,42 @@ func _gui_input(event: InputEvent) -> void:
 				var game = _game()
 				if aimed != "" and game != null and game.stations.has(aimed):
 					_glide_to(_station_world(game.stations[aimed]))
-				accept_event()
+				else:
+					swallow = false
+				_press_at = Vector2(INF, INF)
+				_drag = false
 			elif button.pressed:
 				var run_hit := _run_pin_at(button.position)
 				if run_hit != "" and host != null and host.has_method("open_night_panel"):
 					host.open_night_panel()
+					_press_at = Vector2(INF, INF)
+					_drag = false
 					accept_event()
 					return
 				var chip := _chip_at(button.position)
 				var hit := _station_at(button.position)
 				if chip != "" and hit == "":
 					open_focus_menu(chip, button.position)
+					_press_at = Vector2(INF, INF)
+					_drag = false
 				elif hit != "":
 					open_sheet(hit)
 					if host != null and host.has_method("_ui_click"):
 						host._ui_click()
+					_press_at = Vector2(INF, INF)
+					_drag = false
 				else:
-					_drag = true
+					## A click on empty parchment plays nothing and does not capture the mouse.
+					_press_at = button.position
+					_drag = false
+					swallow = false
 			else:
+				var was_drag := _drag
 				_drag = false
-			accept_event()
+				_press_at = Vector2(INF, INF)
+				swallow = was_drag
+			if swallow:
+				accept_event()
 	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		var hit := _station_at(motion.position)
@@ -5163,6 +5185,8 @@ func _gui_input(event: InputEvent) -> void:
 					tooltip_text = ""
 					_hide_edge_tip()
 		_edge_hover = edge_hit
+		if not _drag and _press_at.x < 1.0e8 and motion.position.distance_to(_press_at) > DRAG_SLOP:
+			_drag = true
 		if _drag:
 			origin -= motion.relative / zoom
 			_clamp_view()
