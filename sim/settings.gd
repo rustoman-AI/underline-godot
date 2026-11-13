@@ -25,6 +25,8 @@ static var ui_scale := 1.0
 ## Auto scale follows the window height; a manual pick in Settings turns it off.
 static var ui_scale_auto := true
 static var reduce_motion := false
+## Screen shake for the permanent-loss beat. Old files without the key load as on.
+static var shake := true
 static var people_free_only := false
 ## Playtest log: "" until the player answers the consent card, then "yes" or "no".
 static var log_consent := ""
@@ -65,6 +67,7 @@ static func load_file() -> void:
 	var mode := str(cfg.get_value("game", "ui_scale_mode", "auto" if absf(ui_scale - 1.0) < 0.01 else "manual"))
 	ui_scale_auto = mode != "manual"
 	reduce_motion = bool(cfg.get_value("game", "reduce_motion", false))
+	shake = bool(cfg.get_value("game", "shake", true))
 	people_free_only = bool(cfg.get_value("game", "people_free_only", false))
 	log_consent = str(cfg.get_value("playtest", "log", ""))
 	if log_consent != "yes" and log_consent != "no":
@@ -96,6 +99,7 @@ static func save() -> void:
 	cfg.set_value("game", "ui_scale", ui_scale)
 	cfg.set_value("game", "ui_scale_mode", "auto" if ui_scale_auto else "manual")
 	cfg.set_value("game", "reduce_motion", reduce_motion)
+	cfg.set_value("game", "shake", shake)
 	cfg.set_value("game", "people_free_only", people_free_only)
 	cfg.set_value("playtest", "log", log_consent)
 	cfg.set_value("playtest", "howto_hidden", howto_hidden)
@@ -108,6 +112,12 @@ static func save() -> void:
 static func reduced() -> bool:
 	load_file()
 	return reduce_motion
+
+
+## Shake is off while Reduce motion is on. The settings row itself lands with the loss beat.
+static func shaking() -> bool:
+	load_file()
+	return shake and not reduce_motion
 
 
 static func apply_display(win: Window) -> void:
