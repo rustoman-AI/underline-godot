@@ -1,6 +1,7 @@
 extends Control
 
 const TermsRemembered = preload("res://sim/terms_remembered.gd")
+const LivingLib = preload("res://ui/living/living.gd")
 
 ## Cut-away of the station. Placeholder shapes on a painted wall. The sim stays in charge of the week.
 
@@ -93,6 +94,7 @@ const YIELD_STEP := {
 	"push": "pushed",
 }
 const ModalDeck = preload("res://ui/modals.gd")
+const FeelFXScript = preload("res://ui/feel/feel_fx.gd")
 const NetworkViewScript = preload("res://ui/network_view.gd")
 const ArtPack = preload("res://ui/art_pack.gd")
 const Brief = preload("res://sim/brief.gd")
@@ -151,6 +153,7 @@ var card: PanelContainer
 var card_scroll: ScrollContainer
 var card_body: VBoxContainer
 var power_loss := {}
+var living
 var chrome_bottom := 96.0
 var notice := ""
 var display_font: Font
@@ -173,6 +176,9 @@ var card_fit_queued := false
 var card_fit_tries := 0
 ## Content height at the last fit; the card is refitted every frame until two measures agree.
 var card_fit_last := -1.0
+## Power order refits after the card settles, so the list scrolls instead of slicing a button row.
+var power_fit_queued := false
+var power_fit_passes := 0
 ## Card buttons ignore presses until this tick (msec), set by each card press.
 var card_click_guard := 0
 var help_unfold := false
@@ -392,7 +398,9 @@ var settings_from_game := false
 var filling_settings := false
 var stock_shown := {}
 var stock_week := 0
-var stock_tween: Tween
+var feel
+var feel_pick_finishes := 0
+var feel_focus_id := 0
 var modal_tween: Tween
 ## Slides the People drawer open and shut.
 var drawer_tween: Tween
@@ -469,6 +477,7 @@ func _ready() -> void:
 	game = Game.new()
 	game.setup(catalog, 1, 40)
 	yard.station = self
+	living.attach(self)
 	hold_dawn = true
 	_refresh()
 	hold_dawn = false
@@ -1709,10 +1718,13 @@ func _build() -> void:
 	add_child(backdrop)
 
 	yard = Yard.new()
+	living = LivingLib.new()
+	living.attach(self)
 	yard.set_anchors_preset(Control.PRESET_FULL_RECT)
 	yard.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(yard)
 	_build_yard_trace()
+	_build_feel()
 	network_view = NetworkViewScript.new()
 	network_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	network_view.visible = false
@@ -1828,6 +1840,26 @@ func _build() -> void:
 	_build_source_panel()
 
 	_build_overlay()
+
+
+func _build_feel() -> void:
+	var node := FeelFXScript.new()
+	node.name = "Feel"
+	node.station = self
+	feel = node
+	add_child(node)
+
+
+func _feel_fly_landed(key: String, lab: Node) -> void:
+	if feel != null:
+		feel.stock.pop_landed(key)
+	if is_instance_valid(lab):
+		lab.queue_free()
+
+
+func _exit_tree() -> void:
+	if feel != null:
+		feel.reset()
 
 
 func _tool(kind: String, caption: String, cb: Callable) -> Button:
@@ -2680,6 +2712,7 @@ func _shrink_card() -> void:
 	var content_h := maxf(card_body.size.y, card_body.get_combined_minimum_size().y)
 	card_fit_tries += 1
 	if card_fit_tries > 30:
+		_queue_power_fit()
 		return
 	var h := content_h + 52.0
 	if content_h < 40.0 or h < 96.0:
@@ -2708,11 +2741,219 @@ func _shrink_card() -> void:
 	if absf(content_h - card_fit_last) > 0.5:
 		card_fit_last = content_h
 		_queue_shrink()
+		return
+	## Power order: once the height has settled, keep the bottom edge off a button row.
+	_queue_power_fit()
+
+
+## The power list is taller than the card. Scroll the compare block into the viewport the same way the
+## journal puts a saved offset back, and do not leave the card edge through a button.
+func _queue_power_fit() -> void:
+	if deck.top_token() != "power" or power_fit_queued or not is_inside_tree():
+		return
+	power_fit_queued = true
+	get_tree().process_frame.connect(_fit_power_card, CONNECT_ONE_SHOT)
+
+
+func _fit_power_card() -> void:
+	power_fit_queued = false
+	if deck.top_token() != "power" or dim == null or not dim.visible or card_scroll == null or card_body == null:
+		return
+	if card_fit_queued:
+		_queue_power_fit()
+		return
+	if power_fit_passes > 8:
+		return
+	power_fit_passes += 1
+	var content_h := maxf(card_body.size.y, card_body.get_combined_minimum_size().y)
+	var view := card_scroll.size.y
+	if view < 8.0 or content_h < 8.0:
+		_queue_power_fit()
+		return
+	var overflows := content_h > view + 1.0
+	if overflows:
+		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	else:
+		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_style_power_scrollbar(overflows)
+	if _shorten_power_card_off_button():
+		_queue_power_fit()
+		return
+	var want := _scroll_clear_of_button(_power_scroll_target(view), view)
+	if absi(want - int(card_scroll.scroll_vertical)) > 0:
+		card_scroll.scroll_vertical = want
+		card_scroll.set_deferred("scroll_vertical", want)
+		_queue_power_fit()
+
+
+## The shared tooltip theme draws this bar with empty styleboxes, so it collapses to 0 px.
+## Ten pixels, and the same brass grabber the other scrollers already use, on the dark tip plate.
+func _style_power_scrollbar(show: bool) -> void:
+	if card_scroll == null:
+		return
+	var bar := card_scroll.get_v_scroll_bar()
+	if bar == null:
+		return
+	bar.modulate = Color(1, 1, 1, 1)
+	if not show:
+		bar.custom_minimum_size.x = 0
+		for state in ["scroll", "scroll_focus", "grabber", "grabber_highlight", "grabber_pressed"]:
+			bar.remove_theme_stylebox_override(state)
+		return
+	bar.custom_minimum_size.x = 10
+	bar.visible = true
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.06, 0.05, 0.97)
+	track.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	track.set_border_width_all(1)
+	track.set_content_margin(SIDE_LEFT, 4)
+	track.set_content_margin(SIDE_RIGHT, 4)
+	track.set_content_margin(SIDE_TOP, 2)
+	track.set_content_margin(SIDE_BOTTOM, 2)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.55, 0.44, 0.26, 0.85)
+	grab.border_color = Color(0.93, 0.78, 0.42, 0.55)
+	grab.set_border_width_all(1)
+	grab.set_corner_radius_all(2)
+	grab.set_content_margin(SIDE_LEFT, 3)
+	grab.set_content_margin(SIDE_RIGHT, 3)
+	grab.set_content_margin(SIDE_TOP, 4)
+	grab.set_content_margin(SIDE_BOTTOM, 4)
+	bar.add_theme_stylebox_override("scroll", track)
+	bar.add_theme_stylebox_override("scroll_focus", track)
+	bar.add_theme_stylebox_override("grabber", grab)
+	bar.add_theme_stylebox_override("grabber_highlight", grab)
+	bar.add_theme_stylebox_override("grabber_pressed", grab)
+
+
+func _power_scroll_target(view: float) -> int:
+	var block := _power_block()
+	if block == null:
+		return 0
+	var top := _body_y(block)
+	var height := maxf(block.size.y, block.get_combined_minimum_size().y)
+	if height < 8.0:
+		return 0
+	var bottom := top + height
+	if height + 8.0 <= view:
+		return int(maxi(0.0, bottom + 8.0 - view))
+	return int(maxi(0.0, top))
+
+
+## At the top of the list, pull the card up so its edge sits 8 px above a cut button instead of through it.
+func _shorten_power_card_off_button() -> bool:
+	if card_scroll == null or int(card_scroll.scroll_vertical) > 1:
+		return false
+	var edge := card_scroll.get_global_rect().end.y
+	var btn := _button_on_global_edge(edge)
+	if btn == null:
+		return false
+	var delta := btn.get_global_rect().position.y - 8.0 - edge
+	if delta >= -0.5:
+		return false
+	var top_limit := _card_top_limit()
+	var max_h := size.y - top_limit - 12.0
+	var h := clampf((card.offset_bottom - card.offset_top) + delta, 160.0, max_h)
+	if absf((card.offset_bottom - card.offset_top) - h) < 0.5:
+		return false
+	var card_top := clampf((size.y - h) / 2.0, top_limit, top_limit + maxf(0.0, max_h - h))
+	card.offset_top = card_top
+	card.offset_bottom = card_top + h
+	return true
+
+
+## Slide the settled scroll so the viewport bottom clears a button, with 8 px of padding.
+func _scroll_clear_of_button(want: int, view: float) -> int:
+	var edge := float(want) + view
+	var btn := _button_straddling(edge)
+	if btn == null:
+		return want
+	var top := _body_y(btn)
+	var bot := top + maxf(btn.size.y, btn.get_combined_minimum_size().y)
+	var cleared := int(maxi(0.0, bot + 8.0 - view))
+	if _button_straddling(float(cleared) + view) != null:
+		return maxi(0, int(floor(top - 8.0 - view)))
+	return cleared
+
+
+func _power_block() -> Control:
+	if card_body == null:
+		return null
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Control and here.has_meta("cutplan_panel"):
+			return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
+
+
+func _body_y(node: Control) -> float:
+	if card_body == null or node == null:
+		return 0.0
+	var y := 0.0
+	var here: Node = node
+	while here != null and here != card_body:
+		if here is Control:
+			y += (here as Control).position.y
+		here = here.get_parent()
+	return y
+
+
+func _button_on_global_edge(edge: float) -> Button:
+	if card_body == null:
+		return null
+	var best: Button = null
+	var best_top := 1.0e9
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and (here as CanvasItem).visible:
+			var btn := here as Button
+			var rect := btn.get_global_rect()
+			if rect.size.y > 4.0 and rect.position.y + 2.0 < edge and edge < rect.end.y - 2.0 and rect.position.y < best_top:
+				best = btn
+				best_top = rect.position.y
+		for child in here.get_children():
+			stack.append(child)
+	return best
+
+
+func _button_straddling(edge: float) -> Button:
+	if card_body == null:
+		return null
+	var best: Button = null
+	var best_top := 1.0e9
+	var stack: Array = [card_body]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is Button and (here as CanvasItem).visible:
+			var btn := here as Button
+			var top := _body_y(btn)
+			var bot := top + maxf(btn.size.y, btn.get_combined_minimum_size().y)
+			if top + 2.0 < edge and edge < bot - 2.0 and top < best_top:
+				best = btn
+				best_top = top
+		for child in here.get_children():
+			stack.append(child)
+	return best
+
+
+func _pad_power_tail() -> void:
+	if card_body == null:
+		return
+	var pad := Control.new()
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.custom_minimum_size = Vector2(0, 8)
+	pad.set_meta("power_pad", true)
+	card_body.add_child(pad)
 
 
 func _refresh() -> void:
 	if game == null:
 		return
+	_retire_early_guide()
 	var notes: PackedStringArray = []
 	_sync_rail_noise()
 	while not game.notices.is_empty():
@@ -2785,6 +3026,7 @@ func _refresh() -> void:
 	power_loss = {}
 	for uid in game.rooms_losing_power():
 		power_loss[str(uid)] = true
+	living.observe(power_loss, game.week)
 	hope_label.text = Copy.t("Hope %d  %s") % [game.hope, _mood_delta(game.last_hope_delta)]
 	dis_label.text = Copy.t("Discontent %d  %s") % [game.discontent, _mood_delta(game.last_dis_delta)]
 	hope_fill.anchor_right = clampf(float(game.hope) / 100.0, 0.0, 1.0)
@@ -3025,6 +3267,42 @@ func _toggle_network() -> void:
 	_place_chrome()
 	_sync_yard_notice_cover()
 	_sync_chatter_cover()
+	_park_map_under_card()
+
+
+## A pending choice keeps the map under the card veil. Map children sit as high as z 40, so the view
+## itself has to drop or those plates draw over the dim and stay clickable.
+func _park_map_under_card() -> void:
+	if network_view == null or dim == null:
+		return
+	if dim.visible:
+		network_view.z_index = dim.z_index - 41
+		network_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	else:
+		network_view.z_index = 0
+		network_view.mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+## Esc while the map sits under the card leaves the viewport with no focus. The card's first enabled control takes it.
+func _focus_card_front() -> void:
+	var found := _first_card_focus(card)
+	if found != null:
+		found.grab_focus()
+
+
+func _first_card_focus(node: Node) -> Control:
+	if node == null:
+		return null
+	if node is Control and node != card and not (node is ScrollBar):
+		var control := node as Control
+		var enabled := not (control is BaseButton) or not (control as BaseButton).disabled
+		if control.visible and enabled and control.focus_mode != Control.FOCUS_NONE:
+			return control
+	for child in node.get_children():
+		var found := _first_card_focus(child)
+		if found != null:
+			return found
+	return null
 
 
 func _skill_line(person: Dictionary) -> String:
@@ -3414,19 +3692,8 @@ func _paint_stocks(roll: bool) -> void:
 				settled = false
 		if settled:
 			return
-	if stock_tween != null:
-		stock_tween.kill()
-	var can_roll := roll and not _motion_off()
-	if can_roll:
-		stock_tween = create_tween()
-	for key in STOCK_KEYS:
-		var target := float(int(game.stock.get(key, 0)))
-		var start := float(stock_shown.get(key, target))
-		stock_shown[key] = target
-		if can_roll and not is_equal_approx(start, target):
-			stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), start, target, 0.45)
-		else:
-			_set_stock_text(target, str(key))
+	if feel != null:
+		feel.stock.sync(game, roll)
 
 
 func _set_stock_text(value: float, key: String) -> void:
@@ -3449,8 +3716,12 @@ func _offer_pending() -> void:
 
 func _end_cover_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _end_state() == "waiting":
+			_toast(Copy.t(WAITING), 1.8)
+			Sound.play("error")
 		if not game.pending.is_empty():
 			_show_dawn()
+		if end_cover != null:
 			end_cover.accept_event()
 
 
@@ -3513,6 +3784,7 @@ var night: ColorRect
 var night_tween: Tween
 
 func _play_night() -> void:
+	living.night_begin()
 	if _motion_off():
 		return
 	if night == null:
@@ -3569,6 +3841,7 @@ func _play_night() -> void:
 
 
 func _end_night() -> void:
+	living.night_end()
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
 	if night != null:
@@ -4314,6 +4587,7 @@ func _show_power_restored() -> void:
 func _paint_power() -> void:
 	if cutplan_room != "" and not Cutplan.locale_ready():
 		_cutplan_reset()
+	power_fit_passes = 0
 	_open_card("Power order")
 	_body("Higher rooms keep their power when it runs short. The rest go dark.")
 	var index := 0
@@ -4343,12 +4617,13 @@ func _paint_power() -> void:
 			_paint_cutplan()
 	card_body.add_child(_button("Close", _close_card))
 	_cutplan_retarget_close()
+	_pad_power_tail()
+	_queue_power_fit()
 
 
 func _power_dir_button(label: String, uid: String, up: bool, at: int) -> Button:
-	var button := _button(label, _nudge_power.bind(uid, up))
 	var legal := _cutplan_can(uid, up)
-	button.disabled = not legal
+	var button := _lock_button(label) if not legal else _button(label, _nudge_power.bind(uid, up))
 	button.focus_mode = Control.FOCUS_ALL if legal else Control.FOCUS_NONE
 	button.set_meta("power_uid", uid)
 	button.set_meta("power_dir", "up" if up else "down")
@@ -4545,6 +4820,7 @@ func _paint_cutplan() -> void:
 	keep.focus_mode = Control.FOCUS_ALL
 	actions.add_child(keep)
 	col.add_child(actions)
+	_queue_power_fit()
 
 
 func _cutplan_dir_button(up: bool) -> Button:
@@ -4847,6 +5123,8 @@ func _drop_person(person_id: String, uid: String) -> void:
 			yard.shake_px = 0.0
 			yard.shake_reason = str(info.reason)
 			yard.queue_redraw()
+		if str(info.get("reason", "")) != "":
+			_toast(str(info.reason), 1.8)
 		_place_drawer()
 		return
 	if yard != null:
@@ -6244,8 +6522,8 @@ func _room_push(uid: String) -> void:
 	state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	state.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(state)
-	var button := _button("Push", _ask_push.bind(uid))
-	button.disabled = not bool(info.get("ok", false)) or game.over != ""
+	var can_push := bool(info.get("ok", false)) and game.over == ""
+	var button := _button("Push", _ask_push.bind(uid)) if can_push else _lock_button("Push")
 	button.tooltip_text = odds
 	button.custom_minimum_size = Vector2(140, 48)
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -8555,6 +8833,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_shiftword_back()
 		get_viewport().set_input_as_handled()
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and dim != null and dim.visible and showing_network:
+		_focus_card_front()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_J and not at_menu and game != null:
 		if deck.top_token() == "journal":
 			_close_card()
@@ -8671,19 +8953,14 @@ func _hide_undo_toast() -> void:
 func note_spend(cost: Dictionary) -> void:
 	if game == null:
 		return
-	if stock_tween != null:
-		stock_tween.kill()
-	stock_tween = create_tween()
 	for key in cost:
 		var spent := int(cost[key])
 		if spent == 0 or not chips.has(str(key)):
 			continue
-		var target := float(int(game.stock.get(key, 0)))
-		var start := target + float(spent)
-		stock_shown[str(key)] = target
 		chips[str(key)].delta.text = "-%d" % spent
 		chips[str(key)].delta.add_theme_color_override("font_color", DELTA_DOWN)
-		stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), start, target, 0.45)
+	if feel != null:
+		feel.stock.sync(game, true)
 
 
 func _sync_obs_block() -> void:
@@ -10897,6 +11174,8 @@ func _starts(text: String, prefixes: Array) -> bool:
 
 
 func _pick_event(event_id: String, choice_id: String) -> void:
+	var focus_before: Control = get_viewport().gui_get_focus_owner()
+	feel_focus_id = focus_before.get_instance_id() if focus_before != null else 0
 	var before := str(game.front_event().get("id", ""))
 	var offered: Dictionary = game.front_event()
 	var choice := _choice_by_id(event_id, choice_id)
@@ -10904,6 +11183,11 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if choice.has("check"):
 		action["person"] = str(check_picks.get(_check_key(event_id, choice_id), ""))
 	_checkpick_clear()
+	var state_before := int(game.check_rng.state)
+	## Band from the offered difficulty and the person on the card, before apply.
+	var offer_full := false
+	if feel != null and feel.check != null and (choice.has("check") or choice.has("bet")):
+		offer_full = feel.check.offer_is_full(game, choice, str(action.get("person", "")))
 	var title := game.line_of(game.front_event(), "title") if not game.pending.is_empty() else ""
 	var snapshot := _tally_snapshot()
 	var regard_before: Dictionary = game.standing.duplicate()
@@ -10921,6 +11205,14 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 		if moved != 0:
 			regard[str(fid)] = moved
 	_record_choice(title, game.line_of(choice, "label"), changes, regard)
+	var fresh := (choice.has("check") or choice.has("bet")) and int(game.check_rng.state) != state_before
+	if fresh and game.over == "" and feel != null and feel.check != null and feel.check.start(game.last_check.duplicate(true), choice, _finish_pick.bind(before, changes, title, event_id, choice_id, offered, choice), offer_full):
+		return
+	_finish_pick(before, changes, title, event_id, choice_id, offered, choice)
+
+
+func _finish_pick(before: String, changes: Dictionary, title: String, event_id: String, choice_id: String, offered: Dictionary, choice: Dictionary) -> void:
+	feel_pick_finishes += 1
 	_refresh()
 	note_change(changes)
 	if card != null and dim.visible:
@@ -10934,6 +11226,7 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 			footer.visible = false
 		_close_card()
 		_show_ending()
+		_restore_pick_focus(_saved_focus())
 		return
 	if not check_flash:
 		_note_terms(offered, choice)
@@ -10942,6 +11235,61 @@ func _pick_event(event_id: String, choice_id: String) -> void:
 	if event_id == "law_week6" and choice_id == "open":
 		laws_open_after = true
 	_advance_dawn(before)
+	_restore_pick_focus(_saved_focus())
+
+
+## Same idea as the cutplan and appointment closes: the control that had focus
+## before the pick, or else the first enabled control still on the card.
+func _saved_focus() -> Control:
+	if feel_focus_id == 0 or not is_instance_id_valid(feel_focus_id):
+		return null
+	var obj = instance_from_id(feel_focus_id)
+	if obj is Control:
+		return obj as Control
+	return null
+
+
+func _restore_pick_focus(prior: Control) -> void:
+	var target := _pick_focus_target(prior)
+	if target != null:
+		target.grab_focus.call_deferred()
+
+
+func _pick_focus_target(prior: Control) -> Control:
+	if _focus_alive(prior):
+		return prior
+	if card != null and is_instance_valid(card) and dim != null and dim.visible:
+		return _first_enabled_control(card)
+	return null
+
+
+func _focus_alive(node: Control) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	if not node.is_visible_in_tree():
+		return false
+	if node.focus_mode == Control.FOCUS_NONE:
+		return false
+	if node is BaseButton and (node as BaseButton).disabled:
+		return false
+	return true
+
+
+func _first_enabled_control(root: Node) -> Control:
+	if root == null or not is_instance_valid(root):
+		return null
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here != root and here is Control:
+			var control := here as Control
+			if _focus_alive(control):
+				return control
+		var kids: Array = here.get_children()
+		for i in range(kids.size() - 1, -1, -1):
+			var child: Node = kids[i]
+			stack.append(child)
+	return null
 
 
 func _tally_snapshot() -> Dictionary:
@@ -11036,25 +11384,18 @@ func _choice_tally() -> void:
 func note_change(changes: Dictionary) -> void:
 	if game == null or changes.is_empty():
 		return
-	if stock_tween != null:
-		stock_tween.kill()
-	stock_tween = create_tween()
 	var any := false
 	for key in changes:
 		if not chips.has(str(key)):
 			continue
 		var d := int(changes[key])
-		var target := float(int(game.stock.get(key, 0)))
-		stock_shown[str(key)] = target
 		chips[str(key)].delta.text = "%+d" % d
 		chips[str(key)].delta.add_theme_color_override("font_color", DELTA_UP if d > 0 else DELTA_DOWN)
-		stock_tween.parallel().tween_method(_set_stock_text.bind(str(key)), target - float(d), target, 0.45)
 		any = true
-	if not any:
-		stock_tween.kill()
-		stock_tween = null
-		return
-	delta_hold_until = Time.get_ticks_msec() + 1500
+	if any:
+		delta_hold_until = Time.get_ticks_msec() + 1500
+	if feel != null:
+		feel.stock.sync(game, true)
 
 
 func _change_anchor(key: String) -> Vector2:
@@ -11081,6 +11422,8 @@ func _show_perk_floats() -> void:
 
 
 func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:
+	if feel != null:
+		feel.stock.mark_flown(changes)
 	if Settings.reduced():
 		return
 	var start := from_global - get_global_rect().position
@@ -11108,7 +11451,7 @@ func _fly_changes(changes: Dictionary, from_global: Vector2) -> void:
 		hop.tween_interval(0.06 * float(i))
 		hop.tween_property(lab, "position", goal - Vector2(10.0, 14.0), 0.75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 		hop.tween_property(lab, "modulate:a", 0.0, 0.25)
-		hop.tween_callback(lab.queue_free)
+		hop.tween_callback(_feel_fly_landed.bind(str(key), lab))
 		i += 1
 
 
@@ -11983,6 +12326,10 @@ func _open_card(heading: String, with_close: bool = true, tag: String = "") -> v
 	## Same full-screen veil on the yard and on the map. It stays above the map sheet and the unit sprites.
 	dim.z_index = 20
 	dim.visible = true
+	if card_scroll != null:
+		card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		_style_power_scrollbar(false)
+	_park_map_under_card()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	if tag != "":
@@ -12280,6 +12627,8 @@ func _plain_press(button: Button, cb: Callable) -> void:
 ## The second click of a double click lands on whatever the rebuilt card put under the cursor; it is dropped.
 func _card_press(button: Button, cb: Callable) -> void:
 	if Time.get_ticks_msec() < card_click_guard:
+		if button != null and not button.disabled:
+			Sound.play("click")
 		return
 	card_click_guard = Time.get_ticks_msec() + CARD_CLICK_GUARD_MS
 	_ui_pressed(button)
@@ -12975,8 +13324,18 @@ func _replay_guide() -> void:
 func _maybe_guide() -> void:
 	if shot_mode or game == null:
 		return
+	_retire_early_guide()
 	if not deck.is_empty():
 		return
+
+
+## The stocks coach is the week-1 hint chip. Past week 2 it is the same dismiss as Skip.
+func _retire_early_guide() -> void:
+	if game == null or int(game.week) <= 2 or net_guide:
+		return
+	if guide_step < 0 or guide_layer == null or not guide_layer.visible:
+		return
+	_skip_guide()
 	if not guide_played and int(game.week) == 1:
 		_start_guide()
 		return
@@ -14282,6 +14641,7 @@ func _hide_modal() -> void:
 			card.scale = Vector2.ONE
 			card.modulate.a = 1.0
 		_place_terms_plate()
+		_park_map_under_card()
 		return
 	modal_tween = create_tween()
 	modal_tween.tween_property(dim, "modulate:a", 0.0, 0.16)
@@ -14299,6 +14659,7 @@ func _finish_hide_modal() -> void:
 		card.scale = Vector2.ONE
 		card.modulate.a = 1.0
 	_place_terms_plate()
+	_park_map_under_card()
 
 
 func _check_shots() -> void:
@@ -15180,9 +15541,13 @@ func _begin_new_game(intro: bool) -> void:
 		game.setup(cat, 1, 40)
 	if yard != null:
 		yard.station = self
+		living.attach(self)
+		living.reset()
 	hold_dawn = false
 	stock_week = 0
 	stock_shown = {}
+	if feel != null:
+		feel.reset()
 	hints_late = false
 	_hide_hint()
 	_refresh()
@@ -15207,10 +15572,13 @@ func _continue_game() -> void:
 		menu_layer.visible = false
 	stock_week = 0
 	stock_shown = {}
+	if feel != null:
+		feel.reset()
 	hold_dawn = false
 	_loaded_hints()
 	Sound.play("confirm")
 	Sound.bed("station")
+	living.reset()
 	_refresh()
 	_note_save_recovery()
 
@@ -15224,8 +15592,7 @@ func _note_save_recovery() -> void:
 func _manual_save() -> void:
 	if SaveGame.write_manual(game):
 		Sound.play("confirm")
-		footer.text = Copy.t("Saved.")
-		footer.visible = true
+		_toast(Copy.t("Saved."), 1.8)
 	else:
 		Sound.play("error")
 	_close_card()
@@ -15238,9 +15605,12 @@ func _manual_load() -> void:
 		return
 	stock_week = 0
 	stock_shown = {}
+	if feel != null:
+		feel.reset()
 	_loaded_hints()
 	Sound.play("confirm")
 	_close_card()
+	living.reset()
 	_refresh()
 	_note_save_recovery()
 
@@ -16017,6 +16387,9 @@ func _end_log() -> void:
 
 func _input(event: InputEvent) -> void:
 	if _life_epilogue_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	if feel != null and feel.handle_input(event):
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton or event is InputEventKey or event is InputEventMouseMotion or event is InputEventScreenTouch:
@@ -17032,6 +17405,8 @@ class PersonRow extends PanelContainer:
 
 class Yard extends Control:
 	var station
+	var living
+	var dig_ring_draws := 0
 	const BAND := 12.0
 	const ART := {
 		"hydroponics": "res://assets/rooms/room_hydroponics.webp",
@@ -17445,6 +17820,10 @@ class Yard extends Control:
 
 	func _process(_delta: float) -> void:
 		life_t += _delta
+		if living != null and living.enabled() and not living.paused() and not living.reduced():
+			living.living_t += _delta
+		if living != null and living.enabled():
+			living.tick(_delta)
 		if pending_level >= 0 and Time.get_ticks_msec() - pending_at >= DOUBLE_MS:
 			var level := pending_level
 			var cell := pending_cell
@@ -17723,6 +18102,8 @@ class Yard extends Control:
 			return
 		if record_layout:
 			layout_log.clear()
+		if living != null:
+			living.begin_frame(life_t)
 		_poll_clear_burst()
 		more_hits.clear()
 		help_hits.clear()
@@ -17741,12 +18122,17 @@ class Yard extends Control:
 		_draw_structure(geo)
 		_draw_line_wall(geo)
 		_draw_pops(geo)
+		if living != null:
+			living.draw_walkers(self)
+			living.draw_grade(self, geo)
 		_draw_platform_text(geo)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		_draw_room_chrome(geo)
 		_draw_merge_tag(geo)
 		_draw_seam_dust()
 		_draw_hover_label(geo)
+		if living != null:
+			living.end_frame()
 
 	## Optional yard hotspot. Same Wall panel as the desk button. Missing art draws nothing.
 	func _draw_line_wall(geo: Dictionary) -> void:
@@ -17926,11 +18312,17 @@ class Yard extends Control:
 			room_type = str(room.type)
 		if kind == "hidden":
 			_blit_fill(cell_rock, rect)
-			draw_rect(rect, Color(0, 0, 0, 0.5))
+			var shade := 0.5
+			if living != null and living.enabled():
+				shade = living.frontier_alpha(level, cell, kind)
+			draw_rect(rect, Color(0, 0, 0, shade))
 			_draw_rough(rect, level * 6 + cell, 0.7)
 		elif kind == "undug":
 			_blit_fill(cell_rock, rect)
-			draw_rect(rect, Color(0, 0, 0, 0.3))
+			var shade := 0.3
+			if living != null and living.enabled():
+				shade = living.frontier_alpha(level, cell, kind)
+			draw_rect(rect, Color(0, 0, 0, shade))
 			_draw_rough(rect, level * 6 + cell, 1.0)
 		elif kind == "dug":
 			if cell_dug != null:
@@ -17965,8 +18357,9 @@ class Yard extends Control:
 				_draw_motes(rect, salt)
 			if room != null and int(room.upgrade) > 0 and tier_tex == null:
 				_draw_tier_light(rect, int(room.upgrade))
-		var losing: bool = kind == "room" and station.power_loss.has(str(spot.room))
-		if losing:
+		if kind == "room" and living != null and living.enabled():
+			living.paint_room(self, rect, str(spot.room), room_type)
+		elif kind == "room" and station.power_loss.has(str(spot.room)):
 			draw_rect(rect, Color(0, 0, 0, _lamp(level, cell)))
 			_draw_power_icon(rect)
 		if kind == "room":
@@ -17983,6 +18376,8 @@ class Yard extends Control:
 				draw_rect(rect, Color(0.05, 0.03, 0.02, 0.5))
 		if _under_water(spot, kind):
 			_draw_water(rect, level, cell)
+		if kind == "undug" and living != null and living.enabled():
+			living.paint_lantern(self, rect, level, cell)
 		if kind == "undug":
 			_draw_dig_outline(rect, level, cell)
 		if kind == "dug" and str(spot.get("pile", "")) != "":
@@ -18179,6 +18574,7 @@ class Yard extends Control:
 		return "hidden"
 
 	func _draw_dig_outline(rect: Rect2, level: int, cell: int) -> void:
+		dig_ring_draws += 1
 		var t := Time.get_ticks_msec() / 1000.0
 		var wave := 0.5 + 0.5 * sin(t * 2.4 + float(level) * 1.3 + float(cell) * 0.7)
 		var alpha := 0.55 + 0.4 * wave
