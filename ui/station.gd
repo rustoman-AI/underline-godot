@@ -5,6 +5,9 @@ const LivingLib = preload("res://ui/living/living.gd")
 
 ## Cut-away of the station. Placeholder shapes on a painted wall. The sim stays in charge of the week.
 
+## Survives reload_current_scene so the language button can take focus again.
+static var pending_lang_focus := ""
+
 const INK := Color("efe6d2")
 const INK_DARK := Color("24180e")
 const MUTED := Color("b7aa96")
@@ -523,11 +526,13 @@ func _ready() -> void:
 		if Settings.reopen == "settings":
 			Settings.reopen = ""
 			_open_settings(true)
+			_focus_lang_pick()
 	else:
 		_show_main_menu()
 		if Settings.reopen == "settings":
 			Settings.reopen = ""
 			_open_settings(false)
+			_focus_lang_pick()
 		elif not Settings.intro_seen:
 			_play_intro()
 	if _want_checks():
@@ -1805,6 +1810,8 @@ func _build() -> void:
 	end_button.add_theme_color_override("font_hover_color", INK_DARK)
 	## Light ink on the dark pressed brass, so the label stays readable on a56b22.
 	end_button.add_theme_color_override("font_pressed_color", Color("fff0c8"))
+	## A real click is hover-pressed. That color is unset, so the label stayed dark on a56b22.
+	end_button.add_theme_color_override("font_hover_pressed_color", Color("fff0c8"))
 	end_button.add_theme_color_override("font_focus_color", Color("1a1008"))
 	end_button.add_theme_color_override("font_disabled_color", Color("1a1008"))
 	end_button.add_theme_color_override("font_outline_color", Color("1a1008"))
@@ -17221,8 +17228,12 @@ func _fill_settings() -> void:
 	box.add_child(_label("Language", 18, true))
 	var langs := HBoxContainer.new()
 	langs.add_theme_constant_override("separation", 8)
-	langs.add_child(_pick_button("RU", Copy.lang == "ru", _pick_lang.bind("ru")))
-	langs.add_child(_pick_button("EN", Copy.lang == "en", _pick_lang.bind("en")))
+	var ru_lang := _pick_button("RU", Copy.lang == "ru", _pick_lang.bind("ru"))
+	ru_lang.set_meta("lang_code", "ru")
+	var en_lang := _pick_button("EN", Copy.lang == "en", _pick_lang.bind("en"))
+	en_lang.set_meta("lang_code", "en")
+	langs.add_child(ru_lang)
+	langs.add_child(en_lang)
 	box.add_child(langs)
 	box.add_child(_label("Window", 18, true))
 	var windows := HBoxContainer.new()
@@ -17468,8 +17479,28 @@ func _pick_lang(code: String) -> void:
 		SaveGame.write_auto(game)
 		Settings.resume = true
 	Settings.reopen = "settings"
+	pending_lang_focus = code
 	Copy.set_lang(code)
 	get_tree().reload_current_scene()
+
+
+func _focus_lang_pick() -> void:
+	var code := pending_lang_focus
+	pending_lang_focus = ""
+	if code == "":
+		return
+	_grab_lang_button.call_deferred(code)
+
+
+func _grab_lang_button(code: String) -> void:
+	if menu_settings == null:
+		return
+	for node in menu_settings.find_children("*", "Button", true, false):
+		if str(node.get_meta("lang_code", "")) != code:
+			continue
+		if node is Button:
+			(node as Button).grab_focus()
+		return
 
 
 func _pick_window(full: bool) -> void:
