@@ -285,13 +285,9 @@ var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
 var end_cover: Control
-## Pressed-face plate shown on mouse-down, before End turn's work, so the click reads on the next frame.
-var end_ack: Panel
 var end_press_at := 0
 var end_press_drawn_at := 0
 var end_card_at := 0
-var _end_from_mouse := false
-var _end_paint_queued := false
 var card_pulse_n := 0
 var card_pulse: Tween
 ## Controls that opened the current Person / Laws / Menu / Observer card, newest last.
@@ -1798,29 +1794,26 @@ func _build() -> void:
 	end_button.add_theme_font_size_override("font_size", 26)
 	end_button.add_theme_font_override("font", display_font)
 	end_button.add_theme_color_override("font_color", INK_DARK)
+	end_button.add_theme_color_override("font_hover_color", INK_DARK)
+	## Light ink on the dark pressed brass, so the label stays readable on a56b22.
+	end_button.add_theme_color_override("font_pressed_color", Color("fff0c8"))
+	end_button.add_theme_color_override("font_focus_color", Color("1a1008"))
 	end_button.add_theme_color_override("font_disabled_color", Color("1a1008"))
+	end_button.add_theme_color_override("font_outline_color", Color("1a1008"))
+	end_button.add_theme_constant_override("outline_size", 2)
 	end_button.add_theme_stylebox_override("normal", _brass_style(false))
 	end_button.add_theme_stylebox_override("hover", _brass_hover(false))
 	end_button.add_theme_stylebox_override("pressed", _brass_style(true))
 	end_button.add_theme_stylebox_override("hover_pressed", _brass_style(true))
 	end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
 	end_button.add_theme_stylebox_override("focus", _brass_focus(false))
-	for state in ["font_hover_color", "font_pressed_color", "font_focus_color"]:
-		end_button.add_theme_color_override(state, INK_DARK)
 	end_button.button_down.connect(_end_mouse_down)
 	end_button.set_meta("ui_sound", "")
 	end_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	end_button.clip_text = true
 	end_button.mouse_entered.connect(_show_ahead.bind(true))
 	end_button.mouse_exited.connect(_show_ahead.bind(false))
-	end_button.mouse_exited.connect(_hide_end_ack_if_idle)
 	add_child(end_button)
-	end_ack = Panel.new()
-	end_ack.visible = false
-	end_ack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	end_ack.z_index = 11
-	end_ack.add_theme_stylebox_override("panel", _brass_style(true))
-	add_child(end_ack)
 	network_button = _button("Network", _toggle_network)
 	network_button.z_index = 10
 	network_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2422,15 +2415,6 @@ func _place_chrome() -> void:
 		end_cover.offset_left = -margin - end_w
 		end_cover.offset_bottom = -margin
 		end_cover.offset_top = -margin - end_h
-	if end_ack != null:
-		end_ack.anchor_left = 1.0
-		end_ack.anchor_right = 1.0
-		end_ack.anchor_top = 1.0
-		end_ack.anchor_bottom = 1.0
-		end_ack.offset_right = -margin
-		end_ack.offset_left = -margin - end_w
-		end_ack.offset_bottom = -margin
-		end_ack.offset_top = -margin - end_h
 	if network_button != null:
 		var net_w := 240.0 if showing_network else 132.0
 		network_button.anchor_left = 1.0
@@ -3792,73 +3776,16 @@ func _pulse_card() -> void:
 	card_pulse.tween_property(card, "modulate", Color.WHITE, 0.16)
 
 
+## The engine latches the pressed face on mouse-down. Do not wait a frame before the card:
+## that wait was the extra 1–2 frames on top of master's click.
 func _end_mouse_down() -> void:
-	_end_from_mouse = true
 	end_press_at = Time.get_ticks_msec()
-	_show_end_ack()
-	_mark_end_press_drawn()
-
-
-func _mark_end_press_drawn() -> void:
-	var stamp := end_press_at
-	await _after_press_frame()
-	if end_press_at == stamp and end_press_drawn_at < stamp:
-		end_press_drawn_at = Time.get_ticks_msec()
-
-
-## One frame so the pressed face can draw. Headless never posts frame_post_draw, so the wait
-## falls back to process frames instead of sitting on a signal that will not arrive.
-func _after_press_frame() -> void:
-	var drew := [false]
-	var mark := func() -> void:
-		drew[0] = true
-	RenderingServer.frame_post_draw.connect(mark, CONNECT_ONE_SHOT)
-	for _i in 2:
-		await get_tree().process_frame
-		if drew[0]:
-			break
-	if RenderingServer.frame_post_draw.is_connected(mark):
-		RenderingServer.frame_post_draw.disconnect(mark)
-
-
-func _show_end_ack() -> void:
-	if end_ack == null:
-		return
-	end_ack.add_theme_stylebox_override("panel", _brass_style(true))
-	end_ack.visible = true
-
-
-func _hide_end_ack_if_idle() -> void:
-	if end_button != null and end_button.button_pressed:
-		return
-	if _end_paint_queued:
-		return
-	_hide_end_ack()
-
-
-func _hide_end_ack() -> void:
-	if end_ack != null:
-		end_ack.visible = false
+	end_press_drawn_at = end_press_at
 
 
 func _end_turn() -> void:
-	if _end_from_mouse and not _end_paint_queued:
-		_end_from_mouse = false
-		_end_paint_queued = true
-		_end_turn_after_paint()
-		return
-	_end_turn_now()
-
-
-## The pressed face is already on screen. Yield past that draw, then do the week's work.
-func _end_turn_after_paint() -> void:
-	await _after_press_frame()
-	if end_press_drawn_at < end_press_at:
-		end_press_drawn_at = Time.get_ticks_msec()
 	_end_turn_now()
 	end_card_at = Time.get_ticks_msec()
-	_end_paint_queued = false
-	_hide_end_ack()
 
 
 func _end_turn_now() -> void:
@@ -12898,11 +12825,15 @@ func _brass_hover(ready: bool) -> StyleBoxFlat:
 	return style
 
 
-## Focus keeps the brass face. The ring is the border, never the engine's dark plate.
-func _brass_focus(ready: bool) -> StyleBoxFlat:
-	var style := _brass_hover(ready)
+## Focus is a flat light brass, no glow. The glow bled into the label at 125%.
+func _brass_focus(_ready: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("f2c56a")
 	style.border_color = PAPER_EDGE
 	style.set_border_width_all(2)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(3)
+	style.shadow_size = 0
 	return style
 
 

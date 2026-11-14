@@ -454,6 +454,8 @@ func _e1(st) -> void:
 
 func _e2(st) -> void:
 	_home(st)
+	Copy.set_lang("en")
+	st._refresh()
 	await _view(st, Vector2i(1920, 1080), 1.0)
 	var ev := _small(st.game)
 	st.game.pending.clear()
@@ -471,8 +473,11 @@ func _e2(st) -> void:
 	for _i in 3:
 		await process_frame
 	var press_ms := int(st.end_press_drawn_at) - int(st.end_press_at)
-	if st.end_ack == null or not st.end_ack.visible:
+	var pressed_face: StyleBoxFlat = st.end_button.get_theme_stylebox("pressed")
+	if not st.end_button.button_pressed or pressed_face == null or not _near(pressed_face.bg_color, Color("a56b22")):
 		_bad("E2 pressed face not showing")
+	elif st.end_button.text != Copy.t("End turn"):
+		_bad("E2 label hidden [%s]" % st.end_button.text)
 	elif press_ms < 0 or press_ms > 100:
 		_bad("E2 press face %d ms" % press_ms)
 	_mouse(st, center, false)
