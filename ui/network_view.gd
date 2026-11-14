@@ -2321,16 +2321,68 @@ func _float_plate(label: Label) -> Control:
 	return label
 
 
+## Wrap width for a map or Visit slip. Never wider than the viewport minus a 48 px gutter,
+## and never wider than the 420 px chip the stack was drawn for.
+func _float_inner_width() -> float:
+	return minf(420.0, maxf(80.0, size.x - 48.0))
+
+
+## Height of the words at `width`, from the font. The label's own minimum size is a
+## one-glyph column until it has been given a width, which is how a slip becomes a tall empty rect.
+func _float_text_height(label: Label, width: float) -> float:
+	var font: Font = label.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var px := int(label.get_theme_font_size("font_size"))
+	if px <= 0:
+		px = 18
+	var h := font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, maxf(8.0, width), px).y
+	if h < 1.0:
+		h = maxf(font.get_height(px), float(px))
+	return h
+
+
+## Keep a slip fully inside the viewport, with at least 8 px on every side.
+func _clamp_float(rect: Rect2) -> Rect2:
+	var margin := 8.0
+	var room := Vector2(maxf(1.0, size.x - margin * 2.0), maxf(1.0, size.y - margin * 2.0))
+	var w := minf(maxf(rect.size.x, 1.0), room.x)
+	var h := minf(maxf(rect.size.y, 1.0), room.y)
+	var x := clampf(rect.position.x, margin, margin + room.x - w)
+	var y := clampf(rect.position.y, margin, margin + room.y - h)
+	return Rect2(x, y, w, h)
+
+
 func _place_float_chip(label: Label, y: float) -> void:
 	var plate := _float_plate(label)
-	label.custom_minimum_size = Vector2(420, 28)
 	var extra := Vector2(24, 4)
 	if plate is PanelContainer:
 		var face := plate.get_theme_stylebox("panel")
 		if face != null:
 			extra = Vector2(face.get_margin(SIDE_LEFT) + face.get_margin(SIDE_RIGHT), face.get_margin(SIDE_TOP) + face.get_margin(SIDE_BOTTOM))
-	plate.size = Vector2(420.0 + extra.x, 28.0 + extra.y)
-	plate.position = Vector2(maxf(8.0, size.x * 0.5 - plate.size.x * 0.5), y)
+	var inner := _float_inner_width()
+	var text_h := _float_text_height(label, inner)
+	## One line stays in the 28 px N4b slot. A wrap that actually needs more lines takes that height.
+	var line_h := 28.0 if text_h <= 28.0 else text_h
+	_fit_float_label(label, inner, line_h)
+	var rect := _clamp_float(Rect2((size.x - (inner + extra.x)) * 0.5, y, inner + extra.x, line_h + extra.y))
+	plate.custom_minimum_size = rect.size
+	plate.update_minimum_size()
+	plate.size = rect.size
+	plate.position = rect.position
+
+
+## Give the words a real width before asking for their height, or the first layout is one glyph per line.
+func _fit_float_label(label: Label, width: float, height: float) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.clip_text = false
+	## The first minimum height is one glyph per line until the label has a width.
+	## Give it the width, ask again, then lock the measured height.
+	label.custom_minimum_size = Vector2(width, height)
+	label.size = Vector2(width, height)
+	label.update_minimum_size()
+	label.custom_minimum_size = Vector2(width, height)
+	label.size = Vector2(width, height)
 
 
 func _place_leaf_float() -> void:
@@ -2423,7 +2475,8 @@ func _show_need_float(line: String) -> void:
 		_need_float.add_theme_color_override("font_color", NeedTick.CHALK)
 		_need_float.add_theme_constant_override("outline_size", 6)
 		_need_float.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		visit.add_child(_need_float)
+		_need_float.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		add_child(_need_float)
 	_need_float.text = line
 	_need_float.modulate.a = 1.0
 	_need_float.visible = true
@@ -2445,11 +2498,18 @@ func _show_need_float(line: String) -> void:
 
 
 func _place_need_float() -> void:
-	if _need_float == null or not _need_float.visible or visit == null:
+	if _need_float == null or not _need_float.visible:
 		return
-	_need_float.custom_minimum_size = Vector2(420, 28)
-	_need_float.size = Vector2(420, 28)
-	_need_float.position = Vector2(maxf(8.0, visit.size.x * 0.5 - 210.0), 52.0)
+	var inner := _float_inner_width()
+	var text_h := _float_text_height(_need_float, inner)
+	var line_h := 28.0 if text_h <= 28.0 else text_h
+	_fit_float_label(_need_float, inner, line_h)
+	var y := _float_top()
+	if visit != null and visit.visible:
+		y = visit.position.y + 52.0
+	var rect := _clamp_float(Rect2((size.x - inner) * 0.5, y, inner, line_h))
+	_need_float.size = rect.size
+	_need_float.position = rect.position
 
 
 ## Owned outpost, not the capital. Foreign, unknown, and the capital get no focus picker.
@@ -2603,13 +2663,15 @@ func _show_focus_float(line: String) -> void:
 func _place_focus_float() -> void:
 	if _focus_float == null or not _focus_float.visible or visit == null:
 		return
-	var w := clampf(visit.size.x - 48.0, 280.0, 520.0)
-	_focus_float.custom_minimum_size = Vector2(w, 0)
-	_focus_float.size = Vector2(w, 48)
+	var w := minf(clampf(visit.size.x - 48.0, 280.0, 520.0), maxf(120.0, size.x - 48.0))
+	var text_h := _float_text_height(_focus_float, w)
+	_fit_float_label(_focus_float, w, text_h)
 	var y := visit.position.y + 96.0
 	if _need_float != null and _need_float.visible:
-		y = maxf(y, visit.position.y + _need_float.position.y + 36.0)
-	_focus_float.position = Vector2(maxf(8.0, visit.position.x + visit.size.x * 0.5 - w * 0.5), y)
+		y = maxf(y, _need_float.position.y + _need_float.size.y + 8.0)
+	var rect := _clamp_float(Rect2((size.x - w) * 0.5, y, w, text_h))
+	_focus_float.size = rect.size
+	_focus_float.position = rect.position
 
 
 func _hide_focus_float() -> void:
@@ -2847,16 +2909,20 @@ func _show_toll_float(line: String) -> void:
 func _place_toll_float() -> void:
 	if _toll_float == null or not _toll_float.visible:
 		return
-	_toll_float.custom_minimum_size = Vector2(420, 28)
-	_toll_float.size = Vector2(420, 28)
-	var y := 78.0
-	if _deal_float != null and _deal_float.visible:
-		y = 112.0
-	if _leaf_float != null and _leaf_float.visible:
-		y = maxf(y, 146.0)
-	if _transfer_float != null and _transfer_float.visible:
-		y = maxf(y, 180.0)
-	_toll_float.position = Vector2(maxf(8.0, size.x * 0.5 - 210.0), y)
+	var inner := _float_inner_width()
+	var text_h := _float_text_height(_toll_float, inner)
+	var line_h := 28.0 if text_h <= 28.0 else text_h
+	_fit_float_label(_toll_float, inner, line_h)
+	var y := _float_top()
+	for label in _map_float_labels():
+		var lab := label as Label
+		if lab == null or not is_instance_valid(lab) or not lab.visible:
+			continue
+		var plate := _float_plate(lab)
+		y = maxf(y, plate.position.y + plate.size.y + 4.0)
+	var rect := _clamp_float(Rect2((size.x - inner) * 0.5, y, inner, line_h))
+	_toll_float.size = rect.size
+	_toll_float.position = rect.position
 
 
 ## P87 greet and the brass read. Cached in open_visit. Sits under the ledger.
@@ -3035,15 +3101,17 @@ func _show_ledger_float(line: String) -> void:
 func _place_ledger_float() -> void:
 	if _ledger_float == null or not _ledger_float.visible or visit == null:
 		return
-	var w := clampf(visit.size.x - 48.0, 280.0, 520.0)
-	_ledger_float.custom_minimum_size = Vector2(w, 0)
-	_ledger_float.size = Vector2(w, 36)
+	var w := minf(clampf(visit.size.x - 48.0, 280.0, 520.0), maxf(120.0, size.x - 48.0))
+	var text_h := _float_text_height(_ledger_float, w)
+	_fit_float_label(_ledger_float, w, text_h)
 	var y := visit.position.y + 176.0
 	if _focus_float != null and _focus_float.visible:
-		y = maxf(y, _focus_float.position.y + 72.0)
+		y = maxf(y, _focus_float.position.y + _focus_float.size.y + 8.0)
 	if _need_float != null and _need_float.visible:
-		y = maxf(y, visit.position.y + _need_float.position.y + 36.0)
-	_ledger_float.position = Vector2(maxf(8.0, visit.position.x + visit.size.x * 0.5 - w * 0.5), y)
+		y = maxf(y, _need_float.position.y + _need_float.size.y + 8.0)
+	var rect := _clamp_float(Rect2((size.x - w) * 0.5, y, w, text_h))
+	_ledger_float.size = rect.size
+	_ledger_float.position = rect.position
 
 
 func _hide_ledger_float() -> void:
@@ -5433,7 +5501,6 @@ func _place_panels() -> void:
 
 ## The Visit sheet stops above the tool tray. chrome_bottom already sits 4 px above the tray top,
 ## so chrome + 8 leaves the sheet bottom 12 px clear of that row (at least the 8 px the layout asks for).
-## Open PR #109 (cursor/sweep-floats-8-10) adds the same inset under the name _fit_visit_frame.
 func _fit_visit_frame() -> void:
 	if visit == null or visit.anchor_bottom < 0.5:
 		return

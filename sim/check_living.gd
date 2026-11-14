@@ -3,6 +3,7 @@ extends SceneTree
 ## Living Rooms gate.
 ## LR2 owns section_1 (lighting lint), section_2, section_4, section_5, section_6, section_9, section_10.
 ## LR1 owns section_3 and section_11, and may extend section_1. Keep each section in its own function.
+## Section 3 checks honest name slots and the salvage/observer stack. Section 11 checks the frozen files.
 ##   godot --headless --path . -s res://sim/check_living.gd -- --living-test
 ## Screenshots: xvfb + opengl3, add --shots. --skip-parity skips the 60-seed station loop.
 
@@ -12,6 +13,11 @@ const WalkLib = preload("res://ui/living/living_walk.gd")
 const SCRATCH := "user://check_living"
 const MASTER_PURE := "/tmp/living_master_pure.json"
 const BRANCH_PURE := "/tmp/living_branch_pure.json"
+const TEXT_KINDS := ["sign", "name", "known", "pip", "badge"]
+const FROZEN := [
+	"data/balance.json", "sim/game.gd", "sim/bot.gd", "sim/save_game.gd",
+	"data/names.json", "data/ru.json", "data/ui_strings.json", "data/named_lives.json",
+]
 
 var bad: PackedStringArray = []
 var catalog: Catalog
@@ -67,6 +73,10 @@ func _run() -> void:
 		await _section_2()
 	print("SECTION 9 draw + SECTION 10 perf")
 	await _section_9_draw_and_10()
+	print("SECTION 3 labels")
+	await _section_3()
+	print("SECTION 11 frozen")
+	_section_11()
 	if _shots:
 		print("SHOTS")
 		await _shots_run()
@@ -1135,3 +1145,265 @@ func _wipe(path: String) -> void:
 	for name in DirAccess.get_directories_at(path):
 		_wipe(path.path_join(str(name)))
 	DirAccess.remove_absolute(path)
+
+
+func _section_3() -> void:
+	var st = load("res://ui/station.tscn").instantiate()
+	st.shot_mode = true
+	st.motion_in_shots = true
+	st.hold_dawn = true
+	root.add_child(st)
+	for _i in 8:
+		await process_frame
+	_clear_pause(st)
+	await _label_browned(st)
+	var pairs := _name_pairs()
+	var planted := _plant_names(st, pairs)
+	var idle: Array = st.yard._idle_ids()
+	print("SECTION 3 planted %d idle %d" % [planted, idle.size()])
+	if planted < 6 or idle.size() < 6:
+		_fail("section 3 need 6 idle, planted %d idle %d" % [planted, idle.size()])
+	var views := [
+		{"tag": "100", "size": Vector2i(1920, 1080), "scale": 1.0},
+		{"tag": "125", "size": Vector2i(1536, 864), "scale": 1.0},
+		{"tag": "125scale", "size": Vector2i(1920, 1080), "scale": 1.25},
+	]
+	for view in views:
+		await _apply_view(st, view.size, float(view.scale))
+		st._layout()
+		var viewport: Vector2 = st.get_viewport_rect().size
+		print("VIEW %s window %s scale %.2f viewport %s" % [view.tag, view.size, st.get_window().content_scale_factor, viewport])
+		if str(view.tag) == "100" and (viewport.x < 1800.0 or viewport.y < 1000.0):
+			_fail("%s viewport %s" % [view.tag, viewport])
+		if str(view.tag) == "125" and (absf(viewport.x - 1536.0) > 2.0 or absf(viewport.y - 864.0) > 2.0):
+			_fail("%s viewport %s" % [view.tag, viewport])
+		if str(view.tag) == "125scale" and (st.get_window().content_scale_factor < 1.2 or viewport.y > 900.0):
+			_fail("%s scale %s viewport %s" % [view.tag, st.get_window().content_scale_factor, viewport])
+		for lang in ["en", "ru"]:
+			Copy.set_lang(lang)
+			var tag := "%s %s" % [view.tag, lang]
+			_clear_centre_floats(st)
+			await _labels(st, tag)
+			await _floats(st, tag)
+	if is_instance_valid(st):
+		st.free()
+	print("SECTION 3 done")
+
+
+func _labels(st, tag: String) -> void:
+	st.yard.record_layout = true
+	st.yard.queue_redraw()
+	for _i in 2:
+		await process_frame
+	RenderingServer.force_draw()
+	var log: Array = st.yard.layout_log.duplicate(true)
+	st.yard.record_layout = false
+	if log.is_empty():
+		_fail("%s labels yard drew nothing" % tag)
+		return
+	var cells := {}
+	var texts := {}
+	var names := 0
+	var known := 0
+	for item in log:
+		var kind := str(item.get("kind", ""))
+		var key := str(item.get("cell", ""))
+		if kind == "cell":
+			cells[key] = item.rect
+			continue
+		if not TEXT_KINDS.has(kind):
+			continue
+		var bucket: Array = texts.get(key, [])
+		bucket.append(item)
+		texts[key] = bucket
+		if kind == "name":
+			names += 1
+		elif kind == "known":
+			known += 1
+	print("LABELS %s names %d known %d cells %d" % [tag, names, known, cells.size()])
+	if names < 1 or names > 4:
+		_fail("%s labels name count %d" % [tag, names])
+	if known < 1:
+		_fail("%s labels known word missing" % tag)
+	for key in texts:
+		var group: Array = texts[key]
+		var cell: Rect2 = cells.get(key, Rect2())
+		for i in group.size():
+			var a: Dictionary = group[i]
+			var ar: Rect2 = a.rect
+			if cell.size.x > 1.0 and not _inside(ar, cell):
+				_fail("%s labels %s outside cell %s" % [tag, a.kind, key])
+			if str(a.kind) == "name" or str(a.kind) == "known":
+				var slot: Rect2 = a.get("slot", Rect2())
+				if slot.size.x < 1.0:
+					_fail("%s labels %s missing slot" % [tag, a.kind])
+				elif not _inside(ar, slot):
+					_fail("%s labels %s outside slot %s vs %s" % [tag, a.kind, ar, slot])
+			for j in range(i + 1, group.size()):
+				var b: Dictionary = group[j]
+				if _hits(ar, b.rect):
+					_fail("%s labels %s overlaps %s in %s" % [tag, a.kind, b.kind, key])
+		if st.yard._idle_ids().size() > 2 and key == _platform_key(st):
+			var pip := false
+			for item in group:
+				if str(item.kind) == "pip":
+					pip = true
+			if not pip:
+				_fail("%s labels platform pip missing" % tag)
+
+
+func _floats(st, tag: String) -> void:
+	var line := Copy.fill("salvage.fitted", {"name": Copy.t("salvage.node.grow_lamps")})
+	st._yard_float(line, "")
+	st._show_obs_float(Copy.t("obs.first_mark"))
+	for _i in 2:
+		await process_frame
+	_pair_clear(st, tag, "t0")
+	st._show_home_float()
+	for _i in 2:
+		await process_frame
+	var home := _node_rect(st.home_float)
+	var salvage := _node_rect(st.salvage_float)
+	var obs := _node_rect(st.obs_float)
+	if _hits(home, salvage) or _hits(home, obs):
+		_fail("%s float home intersects salvage %s obs %s home %s" % [tag, salvage, obs, home])
+	for step in 4:
+		await create_timer(0.5).timeout
+		_pair_clear(st, tag, "t%.1f" % (float(step + 1) * 0.5))
+
+
+func _pair_clear(st, tag: String, when: String) -> void:
+	var salvage := _node_rect(st.salvage_float)
+	var obs := _node_rect(st.obs_float)
+	if salvage.size.x < 1.0 or obs.size.x < 1.0:
+		print("FLOATS %s %s salvage-gone %s obs-gone %s" % [tag, when, salvage.size.x < 1.0, obs.size.x < 1.0])
+		return
+	if _hits(salvage, obs):
+		_fail("%s float overlap %s %s | %s" % [tag, when, salvage, obs])
+		return
+	if obs.position.y < salvage.position.y - 0.5:
+		_fail("%s float obs above salvage %s %s | %s" % [tag, when, salvage, obs])
+		return
+	print("FLOATS %s %s ok salvage %s obs %s" % [tag, when, salvage, obs])
+
+
+func _label_browned(st) -> void:
+	var before := _browned_map(st.game)
+	var hash_before := hash(var_to_str(st.game.export_state()))
+	for _i in 100:
+		st.yard.queue_redraw()
+		await process_frame
+	var after := _browned_map(st.game)
+	if hash(var_to_str(st.game.export_state())) != hash_before:
+		_fail("section 3 export hash moved across 100 draws")
+	for uid in before:
+		if bool(before[uid]) != bool(after.get(uid, false)):
+			_fail("section 3 browned changed on %s" % uid)
+	print("SECTION 3 browned stable, draw hash held")
+
+
+func _section_11() -> void:
+	if Game.SAVE_SCHEMA != 27:
+		_fail("section 11 schema %s" % str(Game.SAVE_SCHEMA))
+	var text := _git_text(["diff", "--name-only", "origin/master"])
+	for raw in text.split("\n"):
+		var path := raw.strip_edges()
+		if path == "" or path.begins_with("diff "):
+			continue
+		if FROZEN.has(path):
+			_fail("section 11 touched %s" % path)
+	print("SECTION 11 schema 27")
+
+
+func _plant_names(st, pairs: Array) -> int:
+	var game = st.game
+	for room in game.rooms:
+		room.staff.clear()
+	if typeof(game.dig) == TYPE_DICTIONARY and not game.dig.is_empty():
+		game.dig["workers"] = []
+	if typeof(game.build) == TYPE_DICTIONARY and not game.build.is_empty():
+		game.build["workers"] = []
+	var n := 0
+	for person in game.residents:
+		if n >= pairs.size():
+			break
+		person.absent = 0
+		person.name = str(pairs[n].en)
+		person.name_ru = str(pairs[n].ru)
+		person.memory = 80
+		n += 1
+	return n
+
+
+func _name_pairs() -> Array:
+	var file := FileAccess.open("res://data/names.json", FileAccess.READ)
+	var data = JSON.parse_string(file.get_as_text())
+	file.close()
+	var pairs: Array = []
+	for first in data.first:
+		for last in data.last:
+			var en := "%s %s" % [str(first), str(last)]
+			Copy.set_lang("ru")
+			var ru := Copy.person(en)
+			Copy.set_lang("en")
+			pairs.append({"en": en, "ru": ru, "rank": maxi(en.length(), ru.length())})
+	pairs.sort_custom(func(a, b): return int(a.rank) > int(b.rank))
+	return pairs.slice(0, 6)
+
+
+func _platform_key(st) -> String:
+	for room in st.game.rooms:
+		if str(room.get("type", "")) == "platform":
+			return "%d:%d" % [int(room.level), int(room.cell)]
+	return ""
+
+
+func _browned_map(game) -> Dictionary:
+	var out := {}
+	for room in game.rooms:
+		out[str(room.uid)] = bool(room.get("browned", false))
+	return out
+
+
+func _node_rect(node) -> Rect2:
+	if node == null or not is_instance_valid(node) or not node.visible:
+		return Rect2()
+	return node.get_global_rect()
+
+
+func _inside(inner: Rect2, outer: Rect2) -> bool:
+	return inner.position.x >= outer.position.x - 1.0 \
+		and inner.position.y >= outer.position.y - 1.0 \
+		and inner.end.x <= outer.end.x + 1.0 \
+		and inner.end.y <= outer.end.y + 1.0
+
+
+func _hits(a: Rect2, b: Rect2) -> bool:
+	if a.size.x < 1.0 or b.size.x < 1.0 or not a.intersects(b):
+		return false
+	var overlap := a.intersection(b)
+	return overlap.size.x > 1.0 and overlap.size.y > 1.0
+
+
+func _clear_centre_floats(st) -> void:
+	if st.obs_float_tween != null and is_instance_valid(st.obs_float_tween) and st.obs_float_tween.is_valid():
+		st.obs_float_tween.kill()
+	if st.home_float_tween != null and is_instance_valid(st.home_float_tween) and st.home_float_tween.is_valid():
+		st.home_float_tween.kill()
+	for key in ["salvage_float", "obs_float", "home_float"]:
+		var node = st.get(key)
+		if node != null and is_instance_valid(node):
+			node.visible = false
+			if node.get_parent() != null:
+				node.get_parent().remove_child(node)
+			node.free()
+		st.set(key, null)
+
+
+func _git_text(args: Array) -> String:
+	var output: Array = []
+	OS.execute("git", PackedStringArray(args), output, true)
+	var text := ""
+	for line in output:
+		text += str(line)
+	return text
