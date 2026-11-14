@@ -200,9 +200,8 @@ func _section_3() -> void:
 	var t0 := Time.get_ticks_msec()
 	# One catalog per mode, seeds in order. A shared catalog is mutated by setup, so interleaving
 	# modes would not match a single master pass.
-	# Each mode seals best_score into user://records.cfg. A single-pass master
-	# capture starts from an empty file, so every mode here does too. Otherwise
-	# the sim pass raises the file and seed 1's full export hash no longer matches.
+	# Each mode seals best_score into its own empty records file, same as a
+	# single-pass capture that starts empty. stats is compared in full.
 	var sim_rows := await _pass("sim", cat_sim, master)
 	var off_rows := await _pass("off", cat_off, master)
 	var on_rows := await _pass("on", cat_on, master)
@@ -224,7 +223,7 @@ func _section_3() -> void:
 		if run_seed == 1:
 			var sim_diff := _diff_state(sim.state, off.state)
 			if sim_diff.is_empty():
-				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage, and stats.best_score")
+				print("SECTION 3 sim-only matches aside from notices, choice_results, flags/obs/salvage")
 			else:
 				_bad("seed 1 sim-only state %s" % ", ".join(sim_diff))
 			var seed_hash := int(off.hash)
@@ -1329,12 +1328,9 @@ func _diff_any(a, b, prefix: String, out: PackedStringArray, limit: int) -> void
 		var names: Array = keys.keys()
 		names.sort()
 		for key in names:
-			# stats.best_score is filled from user://records.cfg when a run seals.
-			# The sim pass plays all 60 seeds before the UI pass, so it can raise
-			# that file and seed 1's best differs even with feel off. Other stats
-			# keys still have to match. The export hash still includes stats.
-			if prefix == "/stats" and str(key) == "best_score":
-				continue
+			# Each mode seals into its own empty records file, so stats.best_score
+			# is part of the sim-only compare. notices, choice_results, flags,
+			# obs, and salvage are still UI writes.
 			if str(key) in ["notices", "choice_results", "flags", "obs", "salvage"]:
 				continue
 			_diff_any(a.get(key, null), b.get(key, null), prefix + "/" + str(key), out, limit)
