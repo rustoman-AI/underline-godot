@@ -3744,15 +3744,9 @@ func _sync_waiting() -> void:
 	if end_cover != null:
 		end_cover.mouse_filter = Control.MOUSE_FILTER_STOP if armed else Control.MOUSE_FILTER_IGNORE
 		## Above the full-screen dim (z 20). Tree order alone leaves the dim, which is built later, on top.
-		var above_dim := dim != null and dim.visible
-		## The dim is black at 0.62 and used to sit over End turn, so a focus face of f2c56a rendered as 5c4b28.
-		var want_z := 40 if above_dim else 10
-		if end_button.z_index != want_z:
-			end_button.z_index = want_z
-			end_cover.z_index = 41 if above_dim else 10
-			if above_dim:
-				move_child(end_button, get_child_count() - 1)
-				move_child(end_cover, get_child_count() - 1)
+		end_cover.z_index = 40 if dim != null and dim.visible else 10
+		if armed and dim != null and dim.visible:
+			move_child(end_cover, get_child_count() - 1)
 		end_cover.tooltip_text = Copy.t(WAITING) if armed else ""
 	if waiting:
 		end_button.tooltip_text = Copy.t(WAITING)
