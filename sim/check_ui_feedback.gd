@@ -61,6 +61,13 @@ func _run() -> void:
 	await _u8(st)
 	_u9(st)
 	_u10(st)
+	await _e1(st)
+	await _e2(st)
+	await _e3(st)
+	await _e4(st)
+	await _e5(st)
+	await _e6(st)
+	await _hit(st)
 	if is_instance_valid(st):
 		st.free()
 	_wipe(ProjectSettings.globalize_path(SCRATCH))
@@ -76,7 +83,7 @@ func _run() -> void:
 
 
 func _keys() -> void:
-	var keys := ["Saved.", WAITING, "Up", "Down", "Push"]
+	var keys := ["Saved.", WAITING, "Up", "Down", "Push", "No saved game.", "push.disabled_room"]
 	for code in ["en", "ru"]:
 		Copy.set_lang(code)
 		for key in keys:
@@ -408,6 +415,396 @@ func _u10(st) -> void:
 	else:
 		print("U10 coach hidden")
 	st.game.week = 1
+
+
+func _e1(st) -> void:
+	_home(st)
+	var ev := _small(st.game)
+	if ev.is_empty():
+		_bad("E1 no small event")
+		return
+	st.game.pending.clear()
+	st.game.week_event_ids = {}
+	if not st.game._present_event(ev):
+		_bad("E1 present failed")
+		return
+	st.event_mode = "one"
+	st._show_dawn()
+	for _i in 4:
+		await process_frame
+	if st._end_state() != "ready" or st.end_button.disabled:
+		_bad("E1 small event changed when the week can end (%s disabled %s)" % [st._end_state(), st.end_button.disabled])
+		return
+	if st.end_cover == null or st.end_cover.mouse_filter != Control.MOUSE_FILTER_STOP or st.end_cover.z_index <= st.dim.z_index:
+		_bad("E1 cover not armed over the dim (filter %s z %s dim %s)" % [st.end_cover.mouse_filter if st.end_cover != null else -1, st.end_cover.z_index if st.end_cover != null else -1, st.dim.z_index])
+		return
+	var before := int(st.card_pulse_n)
+	var center: Vector2 = st.end_button.get_global_rect().get_center()
+	_click(st, center)
+	for _i in 3:
+		await process_frame
+	if st.toast_label == null or st.toast_label.text != Copy.t(WAITING):
+		_bad("E1 toast [%s]" % (st.toast_label.text if st.toast_label != null else "missing"))
+	if int(st.card_pulse_n) <= before:
+		_bad("E1 card did not pulse")
+	else:
+		print("E1 cover toast pulse %d" % int(st.card_pulse_n))
+	_home(st)
+
+
+func _e2(st) -> void:
+	_home(st)
+	Copy.set_lang("en")
+	st._refresh()
+	await _view(st, Vector2i(1920, 1080), 1.0)
+	var ev := _small(st.game)
+	st.game.pending.clear()
+	st.game.week_event_ids = {}
+	st.game.audience = {}
+	st.game.order_reports = []
+	if not st.game._present_event(ev):
+		_bad("E2 present failed")
+		return
+	st._sync_waiting()
+	var week := int(st.game.week)
+	var center: Vector2 = st.end_button.get_global_rect().get_center()
+	var down_at := Time.get_ticks_msec()
+	_mouse(st, center, true)
+	for _i in 3:
+		await process_frame
+	var press_ms := int(st.end_press_drawn_at) - int(st.end_press_at)
+	var pressed_face: StyleBoxFlat = st.end_button.get_theme_stylebox("pressed")
+	if not st.end_button.button_pressed or pressed_face == null or not _near(pressed_face.bg_color, Color("a56b22")):
+		_bad("E2 pressed face not showing")
+	elif st.end_button.text != Copy.t("End turn"):
+		_bad("E2 label hidden [%s]" % st.end_button.text)
+	elif press_ms < 0 or press_ms > 100:
+		_bad("E2 press face %d ms" % press_ms)
+	_mouse(st, center, false)
+	var card_ms := -1
+	for _i in 20:
+		await process_frame
+		if st.dim != null and st.dim.visible and st.deck.top_token() == "dawn":
+			card_ms = Time.get_ticks_msec() - down_at
+			break
+	if card_ms < 0:
+		_bad("E2 card did not open")
+	elif card_ms > 400:
+		_bad("E2 card %d ms" % card_ms)
+	if int(st.game.week) != week:
+		_bad("E2 week changed %s -> %s" % [week, st.game.week])
+	if card_ms >= 0 and press_ms >= 0 and press_ms <= 100 and card_ms <= 400:
+		print("E2 press %d ms card %d ms" % [press_ms, card_ms])
+	_home(st)
+
+
+func _e3(st) -> void:
+	_home(st)
+	st._sync_waiting()
+	var buttons := [
+		["End turn", st.end_button],
+		["Network", st.network_button],
+		["Menu", st.menu_button],
+		["Power", st.power_button],
+	]
+	for pair in buttons:
+		var name := str(pair[0])
+		var button: Button = pair[1]
+		if button == null:
+			_bad("E3 missing %s" % name)
+			continue
+		var normal := _fill(button, "normal")
+		var hover := _fill(button, "hover")
+		var pressed := _fill(button, "pressed")
+		var focus: StyleBoxFlat = button.get_theme_stylebox("focus")
+		if _near(normal, hover):
+			_bad("E3 %s hover matches rest %s" % [name, normal])
+		if _near(normal, pressed) or _near(hover, pressed):
+			_bad("E3 %s pressed is not its own face %s" % [name, pressed])
+		if focus == null or _near(focus.bg_color, Color("24262b")) or _near(focus.border_color, Color("ffffff")):
+			_bad("E3 %s focus is the engine face" % name)
+		elif focus.border_color != Color("b89a6a") or focus.get_border_width_min() < 2:
+			_bad("E3 %s focus ring %s width %s" % [name, focus.border_color, focus.get_border_width_min()])
+		else:
+			print("E3 %s rest %s hover %s pressed %s focus %s" % [name, normal.to_html(false), hover.to_html(false), pressed.to_html(false), focus.bg_color.to_html(false)])
+	var ready: StyleBoxFlat = st.end_button.get_theme_stylebox("normal")
+	if ready.border_color != Color("fff0c8"):
+		_bad("E3 ready rim %s" % ready.border_color)
+
+
+func _e4(st) -> void:
+	for row in [["en", "en125"], ["ru", "ru125"]]:
+		Copy.set_lang(str(row[0]))
+		await _view(st, Vector2i(1920, 1080), 1.25)
+		_home(st)
+		if not st.showing_network:
+			st._toggle_network()
+		for _i in 2:
+			await process_frame
+		var sid := _foreign(st)
+		st.network_view.open_visit(sid)
+		for _i in 4:
+			await process_frame
+		var visit: Control = st.network_view.visit
+		var tray: Control = st.tray
+		if visit == null or tray == null or not visit.visible:
+			_bad("E4 %s visit missing" % row[1])
+			continue
+		var gap: float = tray.get_global_rect().position.y - visit.get_global_rect().end.y
+		if gap < 8.0:
+			_bad("E4 %s visit gap %.1f" % [row[1], gap])
+		var scroll := _scroll(visit)
+		if scroll == null:
+			_bad("E4 %s no scroll" % row[1])
+		else:
+			var scroll_gap: float = tray.get_global_rect().position.y - scroll.get_global_rect().end.y
+			if scroll_gap < 8.0:
+				_bad("E4 %s scroll gap %.1f" % [row[1], scroll_gap])
+			else:
+				print("E4 %s visit gap %.1f scroll gap %.1f" % [row[1], gap, scroll_gap])
+		st.network_view.close_visit()
+		if st.showing_network:
+			st._toggle_network()
+	Copy.set_lang("en")
+	await _view(st, Vector2i(1920, 1080), 1.0)
+
+
+func _e5(st) -> void:
+	_home(st)
+	var manual := SaveGame.manual_path()
+	for path in [manual, manual + ".bak", manual + ".tmp"]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	st.menu_button.grab_focus()
+	st._show_menu()
+	for _i in 4:
+		await process_frame
+	var load_button := _button_text(st.card_body, Copy.t("Load"))
+	if load_button == null:
+		_bad("E5 Load missing")
+		return
+	var face: StyleBoxFlat = load_button.get_theme_stylebox("disabled")
+	if load_button.modulate.a > 0.7 or face == null or face.get_border_width_min() > 0:
+		_bad("E5 Load alpha %.2f border %s" % [load_button.modulate.a, face.get_border_width_min() if face != null else -1])
+	_click(st, load_button.get_global_rect().get_center())
+	for _i in 3:
+		await process_frame
+	if st.toast_label == null or st.toast_label.text != Copy.t("No saved game."):
+		_bad("E5 Load toast [%s]" % (st.toast_label.text if st.toast_label != null else "missing"))
+	else:
+		print("E5 Load toast alpha %.2f" % load_button.modulate.a)
+	_home(st)
+	var uid := ""
+	for room in st.game.rooms:
+		if str(room.type) == "quarters":
+			uid = str(room.uid)
+	if uid == "":
+		_bad("E5 no quarters")
+		return
+	st._show_room(uid)
+	for _i in 4:
+		await process_frame
+	var push := _button_text(st.card_body, Copy.t("Push"))
+	if not _is_lock(push):
+		_bad("E5 Push is not locked")
+		return
+	_click(st, push.get_global_rect().get_center())
+	for _i in 3:
+		await process_frame
+	if st.toast_label == null or st.toast_label.text != Copy.t("push.disabled_room"):
+		_bad("E5 Push toast [%s]" % (st.toast_label.text if st.toast_label != null else "missing"))
+	else:
+		print("E5 Push toast")
+	_home(st)
+
+
+func _e6(st) -> void:
+	_home(st)
+	st.menu_button.grab_focus()
+	await process_frame
+	st._show_menu()
+	for _i in 2:
+		await process_frame
+	_esc(st)
+	for _i in 3:
+		await process_frame
+	if st.dim != null and st.dim.visible:
+		_bad("E6 Esc left the menu open")
+	var owner: Control = st.get_viewport().gui_get_focus_owner()
+	if owner != st.menu_button:
+		_bad("E6 menu focus %s" % owner)
+	else:
+		print("E6 menu focus returned")
+	_home(st)
+	st.drawer_open = true
+	st._fill_people()
+	st._place_drawer()
+	for _i in 2:
+		await process_frame
+	var row: Control = _person_row(st.people_box)
+	if row == null:
+		_bad("E6 no person row")
+	else:
+		row.grab_focus()
+		await process_frame
+		row.emit_signal("picked", str(row.get("person_id")))
+		for _i in 2:
+			await process_frame
+		_esc(st)
+		for _i in 3:
+			await process_frame
+		owner = st.get_viewport().gui_get_focus_owner()
+		if st.dim != null and st.dim.visible:
+			_bad("E6 Esc left the person card open")
+		elif owner != row:
+			_bad("E6 person focus %s" % owner)
+		else:
+			print("E6 person focus returned")
+	_home(st)
+	var laws_opener: Button = st.network_button
+	laws_opener.grab_focus()
+	await process_frame
+	st._show_laws()
+	for _i in 2:
+		await process_frame
+	_esc(st)
+	for _i in 3:
+		await process_frame
+	owner = st.get_viewport().gui_get_focus_owner()
+	if st.dim != null and st.dim.visible:
+		_bad("E6 Esc left the laws card open")
+	elif owner != laws_opener:
+		_bad("E6 laws focus %s" % owner)
+	else:
+		print("E6 laws focus returned")
+	_home(st)
+	if st.observer_button == null:
+		_bad("E6 no observer")
+		return
+	st.observer_button.grab_focus()
+	await process_frame
+	st._show_observer()
+	for _i in 3:
+		await process_frame
+	_esc(st)
+	for _i in 3:
+		await process_frame
+	owner = st.get_viewport().gui_get_focus_owner()
+	var desk_up: bool = st.observer_panel != null and st.observer_panel.visible
+	if desk_up:
+		_bad("E6 Esc left the observer open")
+	elif owner != st.observer_button:
+		_bad("E6 observer focus %s" % owner)
+	else:
+		print("E6 observer focus returned")
+	_home(st)
+
+
+func _hit(st) -> void:
+	Copy.set_lang("ru")
+	await _view(st, Vector2i(1920, 1080), 1.25)
+	_home(st)
+	for _i in 2:
+		await process_frame
+	for pair in [["End turn", st.end_button], ["Network", st.network_button]]:
+		var button: Button = pair[1]
+		var center: Vector2 = button.get_global_rect().get_center()
+		var got := [false]
+		var cb := func() -> void: got[0] = true
+		button.button_down.connect(cb)
+		_mouse(st, center, true)
+		await process_frame
+		_mouse(st, center, false)
+		await process_frame
+		if button.button_down.is_connected(cb):
+			button.button_down.disconnect(cb)
+		if not got[0]:
+			_bad("HIT %s center %s did not receive the click" % [pair[0], center])
+		else:
+			print("HIT %s center %s" % [pair[0], center])
+		for _i in 4:
+			await process_frame
+		_home(st)
+		for _i in 2:
+			await process_frame
+	Copy.set_lang("en")
+	await _view(st, Vector2i(1920, 1080), 1.0)
+
+
+func _mouse(st, point: Vector2, pressed: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = pressed
+	event.position = point
+	event.global_position = point
+	st.get_viewport().push_input(event, true)
+
+
+func _click(st, point: Vector2) -> void:
+	var move := InputEventMouseMotion.new()
+	move.position = point
+	move.global_position = point
+	st.get_viewport().push_input(move, true)
+	_mouse(st, point, true)
+
+
+func _esc(st) -> void:
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	st.get_viewport().push_input(esc)
+
+
+func _fill(button: Button, state: String) -> Color:
+	var box: StyleBox = button.get_theme_stylebox(state)
+	if box is StyleBoxFlat:
+		return (box as StyleBoxFlat).bg_color
+	return Color(0, 0, 0, 0)
+
+
+func _near(a: Color, b: Color) -> bool:
+	return absf(a.r - b.r) < 0.02 and absf(a.g - b.g) < 0.02 and absf(a.b - b.b) < 0.02
+
+
+func _small(game) -> Dictionary:
+	for ev in game.catalog.events:
+		if not bool(ev.get("major", false)) and not ev.has("needs") and not ev.has("trigger"):
+			return ev
+	return {}
+
+
+func _foreign(st) -> String:
+	var capital := str(st.game.capital_id)
+	for key in st.game.stations:
+		if str(key) != capital:
+			return str(key)
+	return capital
+
+
+func _scroll(node: Node) -> ScrollContainer:
+	if node == null:
+		return null
+	var stack: Array = [node]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here is ScrollContainer:
+			return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
+
+
+func _person_row(node: Node) -> Control:
+	if node == null:
+		return null
+	var stack: Array = [node]
+	while not stack.is_empty():
+		var here: Node = stack.pop_back()
+		if here.get_script() != null and str(here.get("person_id")) != "":
+			return here
+		for child in here.get_children():
+			stack.append(child)
+	return null
 
 
 func _home(st) -> void:

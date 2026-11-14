@@ -5499,16 +5499,15 @@ func _place_panels() -> void:
 	_place_legend()
 
 
-## The Visit sheet stops above the bottom tool row, with at least 8 px clear of those buttons.
+## The Visit sheet stops above the tool tray. chrome_bottom already sits 4 px above the tray top,
+## so chrome + 8 leaves the sheet bottom 12 px clear of that row (at least the 8 px the layout asks for).
 func _fit_visit_frame() -> void:
 	if visit == null or visit.anchor_bottom < 0.5:
 		return
 	var chrome := 96.0
 	if host != null:
 		var raw = host.get("chrome_bottom")
-		if raw is float:
-			chrome = maxf(8.0, raw)
-		elif raw is int:
+		if raw is float or raw is int:
 			chrome = maxf(8.0, float(raw))
 	var inset := chrome + 8.0
 	if absf(visit.offset_bottom + inset) > 0.5:

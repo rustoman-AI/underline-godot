@@ -167,6 +167,8 @@ var ticker: HBoxContainer
 var ticker_label: Label
 var ticker_dismissed := false
 var ticker_week := -1
+## Last Copy.lang the chrome was painted in. Empty until the first refresh.
+var hud_lang := ""
 var drawer_open := false
 var tray: HBoxContainer
 var people_button: Button
@@ -285,6 +287,13 @@ var week_tip_n := 0
 var mandate_picks: Array = []
 var mandate_hold_picks := false
 var end_cover: Control
+var end_press_at := 0
+var end_press_drawn_at := 0
+var end_card_at := 0
+var card_pulse_n := 0
+var card_pulse: Tween
+## Controls that opened the current Person / Laws / Menu / Observer card, newest last.
+var opener_stack: Array = []
 var ahead_box: VBoxContainer
 var source_panel: Panel
 var source_body: Control
@@ -1743,6 +1752,7 @@ func _build() -> void:
 	quarantine_button = _tool("quarantine", "Quarantine", _ask_quarantine)
 	burn_button = _tool("burn", "Burn", _ask_burn)
 	power_button = _tool("power", "Power", _show_power)
+	_style_option_chrome(power_button)
 	people_button = _tool("people", "People", _toggle_drawer)
 	charges_button = _tool("blueprint", "charge.active", _show_charges)
 	var salvage_button := _tool("salvage_open", "salvage.title", _show_salvage)
@@ -1764,9 +1774,15 @@ func _build() -> void:
 	pending_button = _tool("lock", "Pending", _show_pending)
 	pending_button.visible = false
 	burn_button.tooltip_text = Copy.t("Burn salvage")
+	burn_button.set_meta("tip_key", "")
+	charges_button.set_meta("tip_key", "")
 	power_button.tooltip_text = Copy.t("Power order")
+	power_button.set_meta("tip_key", "Power order")
 	people_button.tooltip_text = Copy.t("Residents")
+	people_button.set_meta("tip_key", "Residents")
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
+	journal_button.set_meta("tip_key", "journal_hotkey")
+	observer_button.set_meta("tip_key", "obs.hint")
 	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, charges_button, salvage_button, journal_button, observer_button, pending_button]:
 		tray.add_child(button)
 
@@ -1786,11 +1802,20 @@ func _build() -> void:
 	end_button.add_theme_font_size_override("font_size", 26)
 	end_button.add_theme_font_override("font", display_font)
 	end_button.add_theme_color_override("font_color", INK_DARK)
+	end_button.add_theme_color_override("font_hover_color", INK_DARK)
+	## Light ink on the dark pressed brass, so the label stays readable on a56b22.
+	end_button.add_theme_color_override("font_pressed_color", Color("fff0c8"))
+	end_button.add_theme_color_override("font_focus_color", Color("1a1008"))
 	end_button.add_theme_color_override("font_disabled_color", Color("1a1008"))
+	end_button.add_theme_color_override("font_outline_color", Color("1a1008"))
+	end_button.add_theme_constant_override("outline_size", 2)
 	end_button.add_theme_stylebox_override("normal", _brass_style(false))
-	end_button.add_theme_stylebox_override("hover", _brass_style(false))
+	end_button.add_theme_stylebox_override("hover", _brass_hover(false))
 	end_button.add_theme_stylebox_override("pressed", _brass_style(true))
+	end_button.add_theme_stylebox_override("hover_pressed", _brass_style(true))
 	end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
+	end_button.add_theme_stylebox_override("focus", _brass_focus(false))
+	end_button.button_down.connect(_end_mouse_down)
 	end_button.set_meta("ui_sound", "")
 	end_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	end_button.clip_text = true
@@ -1802,6 +1827,7 @@ func _build() -> void:
 	network_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	network_button.autowrap_mode = TextServer.AUTOWRAP_OFF
 	network_button.add_theme_font_size_override("font_size", 16)
+	_style_option_chrome(network_button)
 	add_child(network_button)
 	wall_button = _button("wall.open", _show_wall)
 	wall_button.z_index = 10
@@ -1865,6 +1891,8 @@ func _exit_tree() -> void:
 func _tool(kind: String, caption: String, cb: Callable) -> Button:
 	var button := ToolButton.new()
 	button.glyph_name = kind
+	button.set_meta("caption_key", caption)
+	button.set_meta("tip_key", caption)
 	button.caption = Copy.t(caption)
 	button.tooltip_text = Copy.t(caption)
 	if Copy.ru() and display_font != null:
@@ -1874,6 +1902,57 @@ func _tool(kind: String, caption: String, cb: Callable) -> Button:
 	button.pressed.connect(cb)
 	_style_tool(button)
 	return button
+
+
+## Rewrites tray, night, station-view and menu captions from the keys they were built with.
+## End turn, Wall and Network already do this inside _refresh / _place_chrome.
+func _sync_lang_chrome() -> void:
+	if tray != null:
+		for child in tray.get_children():
+			if child is ToolButton:
+				_apply_tool_caption(child as ToolButton)
+	if night_button != null:
+		night_button.text = Copy.t("run.panel_title")
+	if hub_button != null:
+		hub_button.text = Copy.t("Station view")
+	if menu_button != null:
+		menu_button.text = Copy.t("Menu")
+	if hint != null:
+		hint.text = Copy.t("Drag a name onto a room or a group here. Drop on a full room to swap. Drop on Free to take someone off work.")
+	var lang := Copy.lang
+	if lang == hud_lang:
+		return
+	var switched := hud_lang != ""
+	hud_lang = lang
+	if not switched:
+		return
+	if deck != null and deck.top_token() == "dawn":
+		_paint_dawn()
+	else:
+		_relabel_intents()
+	if guide_layer != null and guide_layer.visible:
+		_fill_guide()
+	if night_panel != null and night_panel.has_method("showing") and bool(night_panel.showing()) and night_panel.has_method("_rebuild"):
+		night_panel._rebuild()
+
+
+func _apply_tool_caption(button: ToolButton) -> void:
+	if not button.has_meta("caption_key"):
+		return
+	var shown := Copy.t(str(button.get_meta("caption_key")))
+	button.caption = shown
+	var tip_key := str(button.get_meta("tip_key", ""))
+	if tip_key == "journal_hotkey":
+		button.tooltip_text = Copy.t("Journal") + "  (J)"
+	elif tip_key != "":
+		button.tooltip_text = Copy.t(tip_key)
+	for node in button.find_children("*", "Label", true, false):
+		if node is Label:
+			(node as Label).text = shown
+			if Copy.ru() and display_font != null:
+				(node as Label).add_theme_font_override("font", display_font)
+			else:
+				(node as Label).remove_theme_font_override("font")
 
 
 func _style_tool(button: Button) -> void:
@@ -2066,6 +2145,7 @@ func _top_bar() -> PanelContainer:
 	menu_button = _button("Menu", _show_menu)
 	menu_button.custom_minimum_size = Vector2(84, 40)
 	menu_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_style_option_chrome(menu_button)
 	title_row.add_child(menu_button)
 
 	ticker = HBoxContainer.new()
@@ -3048,6 +3128,7 @@ func _refresh() -> void:
 	dis_label.get_parent().tooltip_text = _meter_rule("discontent")
 	_sync_address()
 	end_button.text = Copy.t("End turn") if game.over == "" else _ending()
+	_sync_lang_chrome()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
 	burn_button.tooltip_text = Copy.t("Burn salvage") if bool(burn.ok) else Copy.t("Burn salvage. %s") % str(burn.reason)
@@ -3644,12 +3725,22 @@ func _sync_waiting() -> void:
 	_sync_shelf()
 	_sync_obs_block()
 	var waiting := _end_state() == "waiting"
+	var ready := _end_state() == "ready"
 	end_button.disabled = game.over != "" or waiting
-	end_button.add_theme_stylebox_override("normal", _brass_ready() if _end_state() == "ready" else _brass_style(false))
-	end_button.add_theme_stylebox_override("hover", _brass_ready() if _end_state() == "ready" else _brass_style(false))
+	end_button.add_theme_stylebox_override("normal", _brass_ready() if ready else _brass_style(false))
+	end_button.add_theme_stylebox_override("hover", _brass_hover(ready))
+	end_button.add_theme_stylebox_override("pressed", _brass_style(true))
+	end_button.add_theme_stylebox_override("hover_pressed", _brass_style(true))
+	end_button.add_theme_stylebox_override("focus", _brass_focus(ready))
+	var card_up := dim != null and dim.visible and game.pending.size() > 0
+	var armed := waiting or card_up
 	if end_cover != null:
-		end_cover.mouse_filter = Control.MOUSE_FILTER_STOP if waiting else Control.MOUSE_FILTER_IGNORE
-		end_cover.tooltip_text = Copy.t(WAITING) if waiting else ""
+		end_cover.mouse_filter = Control.MOUSE_FILTER_STOP if armed else Control.MOUSE_FILTER_IGNORE
+		## Above the full-screen dim (z 20). Tree order alone leaves the dim, which is built later, on top.
+		end_cover.z_index = 40 if dim != null and dim.visible else 10
+		if armed and dim != null and dim.visible:
+			move_child(end_cover, get_child_count() - 1)
+		end_cover.tooltip_text = Copy.t(WAITING) if armed else ""
 	if waiting:
 		end_button.tooltip_text = Copy.t(WAITING)
 		end_button.add_theme_stylebox_override("disabled", _brass_style(false, false))
@@ -3669,6 +3760,12 @@ func _sync_resource_names() -> void:
 	var show_names := _guide_names()
 	for key in chips:
 		var name_label: Label = chips[key].name
+		if str(key) == "blueprints":
+			name_label.text = Copy.t("salvage.blueprints")
+			chips[key].box.tooltip_text = Copy.t("salvage.blueprints")
+		else:
+			name_label.text = Copy.res(str(key))
+			chips[key].box.tooltip_text = Copy.res(str(key))
 		name_label.visible = show_names
 	_place_chrome()
 
@@ -3716,16 +3813,50 @@ func _offer_pending() -> void:
 
 func _end_cover_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _end_state() == "waiting":
+		var card_up := dim != null and dim.visible
+		if card_up:
 			_toast(Copy.t(WAITING), 1.8)
 			Sound.play("error")
-		if not game.pending.is_empty():
-			_show_dawn()
+			_pulse_card()
+		else:
+			if _end_state() == "waiting":
+				_toast(Copy.t(WAITING), 1.8)
+				Sound.play("error")
+			if game != null and not game.pending.is_empty():
+				_show_dawn()
 		if end_cover != null:
 			end_cover.accept_event()
 
 
+## One brass dip so a click on End turn's place, while a card is already up, is not a dead click.
+func _pulse_card() -> void:
+	if card == null or dim == null or not dim.visible:
+		return
+	card_pulse_n += 1
+	if card_pulse != null and card_pulse.is_valid():
+		card_pulse.kill()
+	card.modulate = Color(1.0, 0.82, 0.55, 1.0)
+	if _motion_off():
+		card.modulate = Color.WHITE
+		return
+	card_pulse = create_tween()
+	card_pulse.tween_property(card, "modulate", Color(1.0, 0.78, 0.48, 1.0), 0.08)
+	card_pulse.tween_property(card, "modulate", Color.WHITE, 0.16)
+
+
+## The engine latches the pressed face on mouse-down. Do not wait a frame before the card:
+## that wait was the extra 1–2 frames on top of master's click.
+func _end_mouse_down() -> void:
+	end_press_at = Time.get_ticks_msec()
+	end_press_drawn_at = end_press_at
+
+
 func _end_turn() -> void:
+	_end_turn_now()
+	end_card_at = Time.get_ticks_msec()
+
+
+func _end_turn_now() -> void:
 	if game.over != "":
 		return
 	_hide_undo_toast()
@@ -5905,6 +6036,7 @@ func _show_room(uid: String) -> void:
 		return
 	if not _claim(ModalDeck.AMBIENT, "room", _show_room.bind(uid)):
 		return
+	_note_opener()
 	var room = game._room(uid)
 	var blocked := int(detail.get("block_width", 1)) >= 2
 	var title := room_title(room)
@@ -6493,6 +6625,9 @@ func _room_push(uid: String) -> void:
 	var can_push := bool(info.get("ok", false)) and game.over == ""
 	var button := _button("Push", _ask_push.bind(uid)) if can_push else _lock_button("Push")
 	button.tooltip_text = odds
+	if not can_push:
+		var why := odds if odds != "" else Copy.t("push.disabled_room")
+		_catch_toast(button, why)
 	button.custom_minimum_size = Vector2(140, 48)
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	row.add_child(button)
@@ -6771,6 +6906,7 @@ func _confirm_demolish(uid: String) -> void:
 func _show_laws() -> void:
 	if not _claim(ModalDeck.AMBIENT, "laws", _show_laws):
 		return
+	_note_opener()
 	_open_card("Laws")
 	card_roomy = true
 	_fit_card()
@@ -8801,6 +8937,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_shiftword_back()
 		get_viewport().set_input_as_handled()
 		return
+	if (event as InputEventKey).keycode == KEY_ESCAPE and deck.top_token() in ["person", "laws", "menu"]:
+		Sound.play("click")
+		_close_card()
+		get_viewport().set_input_as_handled()
+		return
 	if (event as InputEventKey).keycode == KEY_ESCAPE and dim != null and dim.visible and showing_network:
 		_focus_card_front()
 		get_viewport().set_input_as_handled()
@@ -8961,6 +9102,7 @@ func _show_observer() -> void:
 		return
 	if not _claim(ModalDeck.AMBIENT, "observer", _show_observer):
 		return
+	_note_opener()
 	_sync_obs_block()
 	if observer_panel == null:
 		observer_panel = ObserverPanel.new()
@@ -8976,6 +9118,7 @@ func _close_observer() -> void:
 	if observer_panel != null:
 		observer_panel.dismiss()
 	_sync_obs_block()
+	_restore_opener()
 
 
 func _paint_obs_card() -> void:
@@ -10962,10 +11105,63 @@ func _morning_notes(lines: PackedStringArray) -> void:
 		_body("No season warning, and no word from the tunnels.")
 
 
+func _intent_glyph(kind: String) -> String:
+	if kind == "squad" or kind == "buy" or kind == "secure":
+		return kind
+	if kind == "demand_posted":
+		return "demand"
+	return "hold"
+
+
+## Live sentences from the intents still on the board. The log keeps the words from the language at dawn.
+func _live_intents() -> Array:
+	var rows: Array = []
+	if game == null:
+		return rows
+	for intent in game.telegraphed:
+		if typeof(intent) != TYPE_DICTIONARY:
+			continue
+		if bool(intent.get("hidden", false)):
+			continue
+		if str(intent.get("kind", "")) == "demand_posted":
+			continue
+		rows.append({
+			"text": game._intent_text(intent),
+			"kind": _intent_glyph(str(intent.get("kind", ""))),
+		})
+	return rows
+
+
+func _intent_chip(row: VBoxContainer, sentence: String, kind: String) -> void:
+	var chip := HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 4)
+	chip.tooltip_text = sentence
+	var icon := Glyph.new()
+	icon.kind = kind
+	icon.ink = PAPER_INK
+	icon.custom_minimum_size = Vector2(18, 18)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(icon)
+	var lab := _label(sentence, 16, false, false)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chip.add_child(lab)
+	row.add_child(chip)
+
+
 func _intent_row(lines: PackedStringArray) -> void:
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var live := _live_intents()
+	if not live.is_empty():
+		for item in live:
+			_intent_chip(row, str(item.text), str(item.kind))
+		row.set_meta("intent_row", true)
+		card_body.add_child(row)
+		return
 	var count := 0
 	for line in lines:
 		if not line.begins_with("INTENT "):
@@ -10981,26 +11177,43 @@ func _intent_row(lines: PackedStringArray) -> void:
 			kind = "secure"
 		elif "demand" in low:
 			kind = "demand"
-		var chip := HBoxContainer.new()
-		chip.add_theme_constant_override("separation", 4)
-		chip.tooltip_text = sentence
-		var icon := Glyph.new()
-		icon.kind = kind
-		icon.ink = PAPER_INK
-		icon.custom_minimum_size = Vector2(18, 18)
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.add_child(icon)
-		var lab := _label(sentence, 16)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.add_child(lab)
-		row.add_child(chip)
+		_intent_chip(row, sentence, kind)
 		count += 1
 	if count > 0:
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.set_meta("intent_row", true)
 		card_body.add_child(row)
+
+
+func _relabel_intents() -> void:
+	if card_body == null:
+		return
+	var live := _live_intents()
+	if live.is_empty():
+		return
+	for child in card_body.get_children():
+		if not (child is VBoxContainer) or not child.has_meta("intent_row"):
+			continue
+		var chips := child.get_children()
+		if chips.size() != live.size():
+			var at := child.get_index()
+			card_body.remove_child(child)
+			child.free()
+			_intent_row(_morning_lines())
+			var added := card_body.get_child(card_body.get_child_count() - 1)
+			if added.has_meta("intent_row"):
+				card_body.move_child(added, at)
+			return
+		for i in chips.size():
+			var chip: Node = chips[i]
+			if chip is Control:
+				(chip as Control).tooltip_text = str(live[i].text)
+			for inner in chip.get_children():
+				if inner is Label:
+					(inner as Label).text = str(live[i].text)
+				elif inner is Glyph:
+					(inner as Glyph).kind = str(live[i].kind)
+					(inner as Glyph).queue_redraw()
+		return
 
 
 ## Muted paper band when an event has no plate. Same floor as the small banner clamp.
@@ -12315,6 +12528,7 @@ func _open_card(heading: String, with_close: bool = true, tag: String = "") -> v
 	_fit_card()
 	_fit_card.call_deferred()
 	_reveal_modal()
+	_sync_waiting()
 
 
 func _card_tag(text: String) -> PanelContainer:
@@ -12387,6 +12601,33 @@ func _help_badge(type: String, line: Label) -> Button:
 	return badge
 
 
+## Remember the control that opened this card, when it will still be on screen after the card is built.
+func _note_opener() -> void:
+	var vp := get_viewport()
+	if vp == null:
+		return
+	var owner := vp.gui_get_focus_owner()
+	if owner == null or not is_instance_valid(owner):
+		return
+	if card != null and is_instance_valid(card) and (owner == card or card.is_ancestor_of(owner)):
+		return
+	if observer_panel != null and is_instance_valid(observer_panel) and (owner == observer_panel or observer_panel.is_ancestor_of(owner)):
+		return
+	opener_stack.append(owner)
+
+
+func _restore_opener() -> void:
+	while not opener_stack.is_empty():
+		var opener = opener_stack.pop_back()
+		if not (opener is Control) or not is_instance_valid(opener):
+			continue
+		var control := opener as Control
+		if not control.is_visible_in_tree() or control.focus_mode == Control.FOCUS_NONE:
+			continue
+		control.grab_focus()
+		return
+
+
 func _close_card() -> void:
 	if deck.top_token() == "power" and cutplan_room != "":
 		var uid := cutplan_room
@@ -12432,6 +12673,8 @@ func _close_card() -> void:
 		_sync_room_sound()
 	_try_home_float()
 	_try_obs_float()
+	if token in ["person", "laws", "menu"]:
+		_restore_opener()
 
 
 func _yard_hover(level: int, cell: int) -> void:
@@ -12733,6 +12976,53 @@ func _brass_ready() -> StyleBoxFlat:
 	return style
 
 
+## Hover is a lighter brass than rest, so the pointer reads before the click.
+func _brass_hover(ready: bool) -> StyleBoxFlat:
+	var style := _brass_ready() if ready else _brass_style(false)
+	style.bg_color = Color("f2c56a")
+	return style
+
+
+## Focus is a flat light brass, no glow. The glow bled into the label at 125%.
+func _brass_focus(_ready: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("f2c56a")
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(2)
+	style.set_content_margin_all(10)
+	style.set_corner_radius_all(3)
+	style.shadow_size = 0
+	return style
+
+
+## Card-option faces: rest 3a3126, hover 4a3f32, pressed 1a140e, brass focus ring on that face.
+func _style_option_chrome(button: Button) -> void:
+	button.add_theme_stylebox_override("normal", _option_face(false, false))
+	button.add_theme_stylebox_override("hover", _option_face(false, true))
+	button.add_theme_stylebox_override("pressed", _option_face(true, false))
+	button.add_theme_stylebox_override("hover_pressed", _option_face(true, false))
+	button.add_theme_stylebox_override("disabled", _button_disabled_face())
+	button.add_theme_stylebox_override("focus", _option_focus())
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, INK)
+
+
+func _option_face(pressed: bool, hover: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = PAPER_BUTTON_DOWN if pressed else (PAPER_BUTTON_HOVER if hover else PAPER_BUTTON)
+	style.border_color = PAPER_EDGE
+	style.set_border_width_all(1)
+	style.set_content_margin_all(8)
+	style.set_corner_radius_all(3)
+	return style
+
+
+func _option_focus() -> StyleBoxFlat:
+	var style := _option_face(false, true)
+	style.set_border_width_all(2)
+	return style
+
+
 func _paper_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = PAPER
@@ -12826,6 +13116,24 @@ func _blocked_pair(label: String, reason: String) -> void:
 	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lab.add_theme_color_override("font_color", DELTA_DOWN)
 	_book_add(lab)
+
+
+## A disabled control does not emit pressed. The catcher takes the click and says why.
+func _catch_toast(host: Control, text: String) -> void:
+	var catcher := Control.new()
+	catcher.name = "ClickCatch"
+	catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
+	catcher.mouse_filter = Control.MOUSE_FILTER_STOP
+	catcher.tooltip_text = text
+	catcher.gui_input.connect(func(event: InputEvent) -> void:
+		var click := event as InputEventMouseButton
+		if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
+			return
+		_toast(text)
+		Sound.play("error")
+		catcher.accept_event()
+	)
+	host.add_child(catcher)
 
 
 func _lock_button(label: String) -> Button:
@@ -13256,16 +13564,14 @@ func _other_room_name(person_id: String, uid: String) -> String:
 func _show_menu() -> void:
 	if not _claim(ModalDeck.AMBIENT, "menu", _show_menu):
 		return
+	_note_opener()
 	_open_card("Menu")
 	var load_button := _button("Load", _manual_load)
 	load_button.disabled = not SaveGame.has_manual()
 	if load_button.disabled:
 		load_button.tooltip_text = Copy.t("No saved game.")
-		## R4: N2's borderless disabled face makes the pause grid look like a missing cell. Keep a muted hairline here only.
-		var face := _button_disabled_face()
-		face.set_border_width_all(1)
-		face.border_color = Color(PAPER_EDGE if on_paper else Color(1, 1, 1, 0.16), 0.55)
-		load_button.add_theme_stylebox_override("disabled", face)
+		load_button.modulate = Color(1, 1, 1, 0.45)
+		_catch_toast(load_button, Copy.t("No saved game."))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 8)
@@ -13539,6 +13845,7 @@ func _show_person(person_id: String) -> void:
 		return
 	if not _claim(ModalDeck.AMBIENT, "person", _show_person.bind(person_id)):
 		return
+	_note_opener()
 	var person: Dictionary = game.people[person_id]
 	_open_card(_resident_name(person), true, Copy.t("named.known") if game.is_known(person) else "")
 	var row := HBoxContainer.new()
@@ -17315,6 +17622,7 @@ class PersonRow extends PanelContainer:
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
+		focus_mode = Control.FOCUS_ALL
 		mouse_default_cursor_shape = Control.CURSOR_DRAG
 		tooltip_text = Copy.t("Click for details. Drag onto a room to assign.")
 		_calm = StyleBoxFlat.new()
@@ -17351,6 +17659,7 @@ class PersonRow extends PanelContainer:
 				_dragged = false
 			elif _armed and not _dragged:
 				_armed = false
+				grab_focus()
 				picked.emit(person_id)
 				accept_event()
 
