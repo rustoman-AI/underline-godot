@@ -167,6 +167,8 @@ var ticker: HBoxContainer
 var ticker_label: Label
 var ticker_dismissed := false
 var ticker_week := -1
+## Last Copy.lang the chrome was painted in. Empty until the first refresh.
+var hud_lang := ""
 var drawer_open := false
 var tray: HBoxContainer
 var people_button: Button
@@ -1772,9 +1774,15 @@ func _build() -> void:
 	pending_button = _tool("lock", "Pending", _show_pending)
 	pending_button.visible = false
 	burn_button.tooltip_text = Copy.t("Burn salvage")
+	burn_button.set_meta("tip_key", "")
+	charges_button.set_meta("tip_key", "")
 	power_button.tooltip_text = Copy.t("Power order")
+	power_button.set_meta("tip_key", "Power order")
 	people_button.tooltip_text = Copy.t("Residents")
+	people_button.set_meta("tip_key", "Residents")
 	journal_button.tooltip_text = Copy.t("Journal") + "  (J)"
+	journal_button.set_meta("tip_key", "journal_hotkey")
+	observer_button.set_meta("tip_key", "obs.hint")
 	for button in [pump_button, quarantine_button, burn_button, power_button, people_button, charges_button, salvage_button, journal_button, observer_button, pending_button]:
 		tray.add_child(button)
 
@@ -1883,6 +1891,8 @@ func _exit_tree() -> void:
 func _tool(kind: String, caption: String, cb: Callable) -> Button:
 	var button := ToolButton.new()
 	button.glyph_name = kind
+	button.set_meta("caption_key", caption)
+	button.set_meta("tip_key", caption)
 	button.caption = Copy.t(caption)
 	button.tooltip_text = Copy.t(caption)
 	if Copy.ru() and display_font != null:
@@ -1892,6 +1902,57 @@ func _tool(kind: String, caption: String, cb: Callable) -> Button:
 	button.pressed.connect(cb)
 	_style_tool(button)
 	return button
+
+
+## Rewrites tray, night, station-view and menu captions from the keys they were built with.
+## End turn, Wall and Network already do this inside _refresh / _place_chrome.
+func _sync_lang_chrome() -> void:
+	if tray != null:
+		for child in tray.get_children():
+			if child is ToolButton:
+				_apply_tool_caption(child as ToolButton)
+	if night_button != null:
+		night_button.text = Copy.t("run.panel_title")
+	if hub_button != null:
+		hub_button.text = Copy.t("Station view")
+	if menu_button != null:
+		menu_button.text = Copy.t("Menu")
+	if hint != null:
+		hint.text = Copy.t("Drag a name onto a room or a group here. Drop on a full room to swap. Drop on Free to take someone off work.")
+	var lang := Copy.lang
+	if lang == hud_lang:
+		return
+	var switched := hud_lang != ""
+	hud_lang = lang
+	if not switched:
+		return
+	if deck != null and deck.top_token() == "dawn":
+		_paint_dawn()
+	else:
+		_relabel_intents()
+	if guide_layer != null and guide_layer.visible:
+		_fill_guide()
+	if night_panel != null and night_panel.has_method("showing") and bool(night_panel.showing()) and night_panel.has_method("_rebuild"):
+		night_panel._rebuild()
+
+
+func _apply_tool_caption(button: ToolButton) -> void:
+	if not button.has_meta("caption_key"):
+		return
+	var shown := Copy.t(str(button.get_meta("caption_key")))
+	button.caption = shown
+	var tip_key := str(button.get_meta("tip_key", ""))
+	if tip_key == "journal_hotkey":
+		button.tooltip_text = Copy.t("Journal") + "  (J)"
+	elif tip_key != "":
+		button.tooltip_text = Copy.t(tip_key)
+	for node in button.find_children("*", "Label", true, false):
+		if node is Label:
+			(node as Label).text = shown
+			if Copy.ru() and display_font != null:
+				(node as Label).add_theme_font_override("font", display_font)
+			else:
+				(node as Label).remove_theme_font_override("font")
 
 
 func _style_tool(button: Button) -> void:
@@ -3067,6 +3128,7 @@ func _refresh() -> void:
 	dis_label.get_parent().tooltip_text = _meter_rule("discontent")
 	_sync_address()
 	end_button.text = Copy.t("End turn") if game.over == "" else _ending()
+	_sync_lang_chrome()
 	var burn: Dictionary = game.burn_preview()
 	burn_button.disabled = not bool(burn.ok) or game.over != ""
 	burn_button.tooltip_text = Copy.t("Burn salvage") if bool(burn.ok) else Copy.t("Burn salvage. %s") % str(burn.reason)
@@ -3698,6 +3760,12 @@ func _sync_resource_names() -> void:
 	var show_names := _guide_names()
 	for key in chips:
 		var name_label: Label = chips[key].name
+		if str(key) == "blueprints":
+			name_label.text = Copy.t("salvage.blueprints")
+			chips[key].box.tooltip_text = Copy.t("salvage.blueprints")
+		else:
+			name_label.text = Copy.res(str(key))
+			chips[key].box.tooltip_text = Copy.res(str(key))
 		name_label.visible = show_names
 	_place_chrome()
 
@@ -11017,10 +11085,63 @@ func _morning_notes(lines: PackedStringArray) -> void:
 		_body("No season warning, and no word from the tunnels.")
 
 
+func _intent_glyph(kind: String) -> String:
+	if kind == "squad" or kind == "buy" or kind == "secure":
+		return kind
+	if kind == "demand_posted":
+		return "demand"
+	return "hold"
+
+
+## Live sentences from the intents still on the board. The log keeps the words from the language at dawn.
+func _live_intents() -> Array:
+	var rows: Array = []
+	if game == null:
+		return rows
+	for intent in game.telegraphed:
+		if typeof(intent) != TYPE_DICTIONARY:
+			continue
+		if bool(intent.get("hidden", false)):
+			continue
+		if str(intent.get("kind", "")) == "demand_posted":
+			continue
+		rows.append({
+			"text": game._intent_text(intent),
+			"kind": _intent_glyph(str(intent.get("kind", ""))),
+		})
+	return rows
+
+
+func _intent_chip(row: VBoxContainer, sentence: String, kind: String) -> void:
+	var chip := HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 4)
+	chip.tooltip_text = sentence
+	var icon := Glyph.new()
+	icon.kind = kind
+	icon.ink = PAPER_INK
+	icon.custom_minimum_size = Vector2(18, 18)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(icon)
+	var lab := _label(sentence, 16, false, false)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chip.add_child(lab)
+	row.add_child(chip)
+
+
 func _intent_row(lines: PackedStringArray) -> void:
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var live := _live_intents()
+	if not live.is_empty():
+		for item in live:
+			_intent_chip(row, str(item.text), str(item.kind))
+		row.set_meta("intent_row", true)
+		card_body.add_child(row)
+		return
 	var count := 0
 	for line in lines:
 		if not line.begins_with("INTENT "):
@@ -11036,26 +11157,43 @@ func _intent_row(lines: PackedStringArray) -> void:
 			kind = "secure"
 		elif "demand" in low:
 			kind = "demand"
-		var chip := HBoxContainer.new()
-		chip.add_theme_constant_override("separation", 4)
-		chip.tooltip_text = sentence
-		var icon := Glyph.new()
-		icon.kind = kind
-		icon.ink = PAPER_INK
-		icon.custom_minimum_size = Vector2(18, 18)
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.add_child(icon)
-		var lab := _label(sentence, 16)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.add_child(lab)
-		row.add_child(chip)
+		_intent_chip(row, sentence, kind)
 		count += 1
 	if count > 0:
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.set_meta("intent_row", true)
 		card_body.add_child(row)
+
+
+func _relabel_intents() -> void:
+	if card_body == null:
+		return
+	var live := _live_intents()
+	if live.is_empty():
+		return
+	for child in card_body.get_children():
+		if not (child is VBoxContainer) or not child.has_meta("intent_row"):
+			continue
+		var chips := child.get_children()
+		if chips.size() != live.size():
+			var at := child.get_index()
+			card_body.remove_child(child)
+			child.free()
+			_intent_row(_morning_lines())
+			var added := card_body.get_child(card_body.get_child_count() - 1)
+			if added.has_meta("intent_row"):
+				card_body.move_child(added, at)
+			return
+		for i in chips.size():
+			var chip: Node = chips[i]
+			if chip is Control:
+				(chip as Control).tooltip_text = str(live[i].text)
+			for inner in chip.get_children():
+				if inner is Label:
+					(inner as Label).text = str(live[i].text)
+				elif inner is Glyph:
+					(inner as Glyph).kind = str(live[i].kind)
+					(inner as Glyph).queue_redraw()
+		return
 
 
 ## Muted paper band when an event has no plate. Same floor as the small banner clamp.
