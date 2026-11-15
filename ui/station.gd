@@ -3918,13 +3918,20 @@ func _end_turn_now() -> void:
 
 ## R22: between weeks the new week is named inside a 1 px brass hairline and fades in 0.25s.
 ## Reduce motion skips it. The veil never takes the mouse, so the dawn card underneath stays clickable.
+## The frame is 92 px tall. It sits in the band above the dawn card, 16 px clear of the card's top,
+## once that card has its final rect. Until then it is parked above the viewport so it cannot cover the report.
+const NIGHT_FRAME_H := 92.0
+const NIGHT_FRAME_GAP := 16.0
 var night: ColorRect
 var night_tween: Tween
+var night_token := 0
 
 func _play_night() -> void:
 	living.night_begin()
+	night_token += 1
 	if _motion_off():
 		return
+	var token := night_token
 	if night == null:
 		night = ColorRect.new()
 		night.color = Color(0.02, 0.018, 0.015, 0.42)
@@ -3965,10 +3972,16 @@ func _play_night() -> void:
 " + name.substr(0, 1).to_upper() + name.substr(1)
 	var label := night.get_node("Frame/Title") as Label
 	label.text = (Copy.t("Week %d%s") % [game.week, ""]) + season
+	_park_night_frame()
 	night.visible = true
 	night.modulate.a = 0.0
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
+	## The card's height settles on the next frame (_queue_shrink). Read that rect before the fade.
+	await get_tree().process_frame
+	if token != night_token or night == null or not is_instance_valid(night) or not night.visible:
+		return
+	_seat_night_frame()
 	night_tween = create_tween()
 	night_tween.tween_property(night, "modulate:a", 1.0, 0.25)
 	night_tween.tween_interval(0.45)
@@ -3978,7 +3991,39 @@ func _play_night() -> void:
 			night.visible = false, CONNECT_ONE_SHOT)
 
 
+## Keep the centered 92 px frame off the dawn card until _seat_night_frame runs.
+func _park_night_frame() -> void:
+	var frame := night.get_node_or_null("Frame") as Control
+	if frame == null:
+		return
+	frame.offset_left = -320.0
+	frame.offset_right = 320.0
+	frame.offset_top = -4000.0
+	frame.offset_bottom = -4000.0 + NIGHT_FRAME_H
+
+
+## Frame bottom is 16 px above the open card. With no card, the title stays centered.
+func _seat_night_frame() -> void:
+	var frame := night.get_node_or_null("Frame") as Control
+	if frame == null:
+		return
+	frame.offset_left = -320.0
+	frame.offset_right = 320.0
+	var card_top := -1.0
+	if card != null and dim != null and dim.visible:
+		card_top = card.get_global_rect().position.y
+	var origin := night.get_global_rect()
+	var center_y := origin.position.y + origin.size.y * 0.5
+	if card_top < 0.0 or origin.size.y < 64.0:
+		frame.offset_top = -46.0
+		frame.offset_bottom = 46.0
+		return
+	frame.offset_bottom = card_top - NIGHT_FRAME_GAP - center_y
+	frame.offset_top = frame.offset_bottom - NIGHT_FRAME_H
+
+
 func _end_night() -> void:
+	night_token += 1
 	living.night_end()
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
