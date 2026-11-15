@@ -3918,13 +3918,15 @@ func _end_turn_now() -> void:
 
 ## R22: between weeks the new week is named inside a 1 px brass hairline and fades in 0.25s.
 ## Reduce motion skips it. The veil never takes the mouse, so the dawn card underneath stays clickable.
-## The frame is 92 px tall. It sits in the band above the dawn card, 16 px clear of the card's top,
-## once that card has its final rect. Until then it is parked above the viewport so it cannot cover the report.
+## The 92 px frame sits in the band between the HUD and the dawn card: 8 px under the HUD, 16 px above the card.
+## A shorter band plays the title over the station first and opens the card when the fade-out starts.
 const NIGHT_FRAME_H := 92.0
 const NIGHT_FRAME_GAP := 16.0
+const NIGHT_HUD_GAP := 8.0
 var night: ColorRect
 var night_tween: Tween
 var night_token := 0
+var night_hold_card := false
 
 func _play_night() -> void:
 	living.night_begin()
@@ -3977,23 +3979,43 @@ func _play_night() -> void:
 	night.modulate.a = 0.0
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
-	## The card's height settles on the next frame (_queue_shrink). Read that rect before the fade.
+	## Hide the card for the layout frame so a too-short band never flashes it under the title.
+	var held := _hold_dawn_for_title()
 	await get_tree().process_frame
 	if token != night_token or night == null or not is_instance_valid(night) or not night.visible:
+		if held:
+			_release_dawn_hold()
 		return
-	_seat_night_frame()
+	## A tall card keeps shrinking for several frames. Finish that here, before the next draw,
+	## so the title is not seated on a rect the card is about to grow through.
+	_settle_night_card()
+	var room := _night_room()
+	var defer_card := held and not bool(room.fits)
+	if defer_card:
+		_center_night_frame()
+		_conceal_held_dawn()
+	else:
+		if held:
+			_release_dawn_hold()
+		_seat_night_frame(room)
+	_begin_night_fade(defer_card)
+
+
+func _begin_night_fade(reveal_card: bool) -> void:
 	night_tween = create_tween()
 	night_tween.tween_property(night, "modulate:a", 1.0, 0.25)
 	night_tween.tween_interval(0.45)
+	if reveal_card:
+		night_tween.tween_callback(_release_dawn_hold)
 	night_tween.tween_property(night, "modulate:a", 0.0, 0.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	night_tween.finished.connect(func() -> void:
 		if night != null and night.modulate.a < 0.05:
 			night.visible = false, CONNECT_ONE_SHOT)
 
 
-## Keep the centered 92 px frame off the dawn card until _seat_night_frame runs.
+## Keep the frame off the card until it is seated or centered.
 func _park_night_frame() -> void:
-	var frame := night.get_node_or_null("Frame") as Control
+	var frame := _night_frame()
 	if frame == null:
 		return
 	frame.offset_left = -320.0
@@ -4002,28 +4024,115 @@ func _park_night_frame() -> void:
 	frame.offset_bottom = -4000.0 + NIGHT_FRAME_H
 
 
-## Frame bottom is 16 px above the open card. With no card, the title stays centered.
-func _seat_night_frame() -> void:
-	var frame := night.get_node_or_null("Frame") as Control
+func _center_night_frame() -> void:
+	var frame := _night_frame()
 	if frame == null:
 		return
 	frame.offset_left = -320.0
 	frame.offset_right = 320.0
-	var card_top := -1.0
-	if card != null and dim != null and dim.visible:
-		card_top = card.get_global_rect().position.y
+	frame.offset_top = -46.0
+	frame.offset_bottom = 46.0
+
+
+func _settle_night_card() -> void:
+	if card == null or dim == null or not dim.visible:
+		return
+	for _i in 12:
+		if not card_fit_queued:
+			return
+		_shrink_card()
+
+
+func _night_frame() -> Control:
+	if night == null or not is_instance_valid(night):
+		return null
+	return night.get_node_or_null("Frame") as Control
+
+
+## Card top, HUD bottom, and whether the band can hold the frame with 8 px under the HUD and 16 px above the card.
+func _night_room() -> Dictionary:
 	var origin := night.get_global_rect()
-	var center_y := origin.position.y + origin.size.y * 0.5
-	if card_top < 0.0 or origin.size.y < 64.0:
+	var room := {
+		"card_top": -1.0,
+		"hud_bottom": 0.0,
+		"center_y": origin.position.y + origin.size.y * 0.5,
+		"fits": false,
+	}
+	if origin.size.y < 64.0 or card == null or dim == null:
+		return room
+	## Alpha is 0 while the title waits on layout. The card is still in the tree, so the rect is real.
+	if not dim.visible and not night_hold_card:
+		return room
+	room.card_top = card.get_global_rect().position.y
+	if hud != null and is_instance_valid(hud):
+		room.hud_bottom = hud.get_global_rect().end.y
+	var band: float = float(room.card_top) - float(room.hud_bottom)
+	room.fits = band + 0.01 >= NIGHT_FRAME_H + NIGHT_HUD_GAP + NIGHT_FRAME_GAP
+	return room
+
+
+## Frame bottom stays 16 px above the card. Frame top stays at least 8 px under the HUD.
+func _seat_night_frame(room: Dictionary) -> void:
+	var frame := _night_frame()
+	if frame == null:
+		return
+	frame.offset_left = -320.0
+	frame.offset_right = 320.0
+	var center_y := float(room.center_y)
+	if not bool(room.fits):
 		frame.offset_top = -46.0
 		frame.offset_bottom = 46.0
 		return
-	frame.offset_bottom = card_top - NIGHT_FRAME_GAP - center_y
-	frame.offset_top = frame.offset_bottom - NIGHT_FRAME_H
+	var card_top := float(room.card_top)
+	var top := card_top - NIGHT_FRAME_GAP - NIGHT_FRAME_H
+	var min_top := float(room.hud_bottom) + NIGHT_HUD_GAP
+	if top < min_top:
+		top = min_top
+	var bottom := top + NIGHT_FRAME_H
+	frame.offset_top = top - center_y
+	frame.offset_bottom = bottom - center_y
+
+
+func _hold_dawn_for_title() -> bool:
+	if card == null or dim == null or not dim.visible:
+		night_hold_card = false
+		return false
+	night_hold_card = true
+	if modal_tween != null and modal_tween.is_valid():
+		modal_tween.kill()
+	dim.modulate.a = 0.0
+	card.modulate.a = 0.0
+	return true
+
+
+## The card is built but not shown, and it does not take the mouse, until the title's fade-out starts.
+func _conceal_held_dawn() -> void:
+	if not night_hold_card:
+		return
+	if dim != null:
+		dim.visible = false
+		dim.modulate.a = 0.0
+	if card != null:
+		card.visible = false
+		card.modulate.a = 0.0
+
+
+func _release_dawn_hold() -> void:
+	if not night_hold_card:
+		return
+	night_hold_card = false
+	if dim != null and is_instance_valid(dim):
+		dim.visible = true
+		dim.modulate.a = 1.0
+	if card != null and is_instance_valid(card):
+		card.visible = true
+		card.modulate.a = 1.0
+		card.scale = Vector2.ONE
 
 
 func _end_night() -> void:
 	night_token += 1
+	_release_dawn_hold()
 	living.night_end()
 	if night_tween != null and night_tween.is_valid():
 		night_tween.kill()
